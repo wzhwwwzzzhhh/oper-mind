@@ -58,11 +58,11 @@ table_name, where_clause = parse_sql("SELECT * FROM orders WHERE status = 'PENDI
 ```python
 class Tool:
     """一个工具的基类"""
-    
+
     def __init__(self, name: str, description: str):
         self.name = name
         self.description = description
-    
+
     def execute(self, **kwargs) -> str:
         """子类重写这个方法"""
         raise NotImplementedError
@@ -71,12 +71,13 @@ class Tool:
 class ExplainTool(Tool):
     def __init__(self):
         super().__init__("explain_sql", "执行 EXPLAIN 分析 SQL")
-    
+
     def execute(self, sql: str) -> str:
         return f"执行计划结果: {sql}"
 ```
 
 **知识点**：
+
 - `__init__` 是构造函数，创建对象时自动调用
 - `self` 代表实例本身，类内方法第一个参数永远是 self
 - `raise NotImplementedError` 表示"子类必须自己实现"
@@ -108,6 +109,7 @@ print(data["sql"])  # SELECT * FROM orders
 ```
 
 **知识点**：
+
 - `json.dumps()` = dict → string（序列化）
 - `json.loads()` = string → dict（反序列化）
 - `ensure_ascii=False` 让中文不乱码
@@ -120,7 +122,7 @@ print(data["sql"])  # SELECT * FROM orders
 ```python
 import httpx  # 比 requests 更现代，支持异步
 
-# 同步调用
+# 同步调用 
 def call_llm(messages: list) -> str:
     response = httpx.post(
         "https://api.deepseek.com/chat/completions",
@@ -236,15 +238,15 @@ print(result)
 
 ## 你的速成路径
 
-| 优先级 | 概念 | 什么时候用 |
-|--------|------|-----------|
-| ⭐⭐⭐ | 函数定义 + 类型注解 | 每天，每一行代码 |
-| ⭐⭐⭐ | JSON 处理 | 和 LLM 通信时 |
-| ⭐⭐⭐ | 类 + 继承 | 定义 Tool 时 |
-| ⭐⭐⭐ | try/except | Agent 每一步都需要 |
-| ⭐⭐ | HTTP 请求 / SDK | 调 LLM API 时 |
-| ⭐⭐ | if __name__ | 写入口文件时 |
-| ⭐ | async/await | FastAPI 阶段 |
+| 优先级 | 概念            | 什么时候用        |
+| --- | ------------- | ------------ |
+| ⭐⭐⭐ | 函数定义 + 类型注解   | 每天，每一行代码     |
+| ⭐⭐⭐ | JSON 处理       | 和 LLM 通信时    |
+| ⭐⭐⭐ | 类 + 继承        | 定义 Tool 时    |
+| ⭐⭐⭐ | try/except    | Agent 每一步都需要 |
+| ⭐⭐  | HTTP 请求 / SDK | 调 LLM API 时  |
+| ⭐⭐  | if __name__   | 写入口文件时       |
+| ⭐   | async/await   | FastAPI 阶段   |
 
 ---
 

@@ -74,7 +74,7 @@ class LLMClient:
     ) -> dict:
         """
         调用 LLM，返回完整响应。
-        
+
         tools 参数是 Function Calling 的工具定义列表。
         temperature=0.1 让 LLM 输出更确定，适合诊断场景。
         """
@@ -85,8 +85,11 @@ class LLMClient:
         }
         if tools:
             kwargs["tools"] = tools
-            # tool_choice="auto" 让 LLM 自己决定是否调工具
             kwargs["tool_choice"] = "auto"
+
+        # Mock 模式：api_key 为 "mock" 时不调真实 API，方便开发测试
+        if self.client.api_key == "mock":
+            return self._mock_response(messages, tools)
 
         try:
             response = self.client.chat.completions.create(**kwargs, timeout=60)
@@ -114,16 +117,46 @@ class LLMClient:
         except Exception as e:
             print(f"[LLM Error] {e}")
             return {"role": "assistant", "content": None, "error": str(e)}
+
+    def _mock_response(self, messages: list[dict], tools: list[dict] | None = None) -> dict:
+        """模拟 LLM 返回，测试 ReAct 循环时不需要真实 API Key"""
+        last_msg = messages[-1]["content"] if messages else ""
+
+        # 如果已经执行过工具，直接返回最终答案，不让 ReAct 死循环
+        for m in reversed(messages):
+            if m.get("role") == "tool":
+                return {
+                    "role": "assistant",
+                    "content": "当前时间已返回，无需进一步操作。",
+                }
+
+        if tools and ("时间" in last_msg or "几" in last_msg):
+            return {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call_mock",
+                        "type": "function",
+                        "function": {"name": "get_current_time", "arguments": "{}"},
+                    }
+                ],
+            }
+
+        return {
+            "role": "assistant",
+            "content": f"Mock回复: {last_msg[:50]}",
+        }
 ```
 
 **知识点：**
 
-| 概念 | 说明 |
-|------|------|
+| 概念                   | 说明                                       |
+| -------------------- | ---------------------------------------- |
 | `tool_choice="auto"` | 让 LLM 自行决定是否调用工具。你也可以设 `"required"` 强制调用 |
-| `temperature=0.1` | 越低输出越确定。诊断场景不需要创造性，0.1 合适 |
-| `tool_calls` | LLM 返回的调用指令，告诉你要调哪个函数、传什么参数 |
-| `timeout=60` | Agent 一步可能较慢，给足 60 秒 |
+| `temperature=0.1`    | 越低输出越确定。诊断场景不需要创造性，0.1 合适                |
+| `tool_calls`         | LLM 返回的调用指令，告诉你要调哪个函数、传什么参数              |
+| `timeout=60`         | Agent 一步可能较慢，给足 60 秒                     |
 
 ### 第二步：创建 Tool 注册中心
 
@@ -141,7 +174,7 @@ class Tool:
     def __init__(self, name: str, description: str, parameters: dict):
         """
         parameters 是 JSON Schema 格式，描述参数的类型和约束。
-        
+
         示例：
         {
             "type": "object",
@@ -207,11 +240,11 @@ class ToolRegistry:
 
 **知识点：**
 
-| 概念 | 说明 |
-|------|------|
-| JSON Schema | 描述参数格式的规范。LLM 读这个来知道怎么传参 |
-| `register()` | 将工具注册到中心，LLM 才能发现它 |
-| `execute_tool()` | 根据名字查找并执行，做好异常兜底 |
+| 概念               | 说明                       |
+| ---------------- | ------------------------ |
+| JSON Schema      | 描述参数格式的规范。LLM 读这个来知道怎么传参 |
+| `register()`     | 将工具注册到中心，LLM 才能发现它       |
+| `execute_tool()` | 根据名字查找并执行，做好异常兜底         |
 
 ### 第三步：创建 ReAct Agent
 
@@ -228,7 +261,7 @@ from src.core.tool_registry import ToolRegistry
 class Agent:
     """
     ReAct Agent 核心引擎。
-    
+
     核心循环：
     1. 把消息发给 LLM
     2. 如果 LLM 返回最终答案 → 结束
@@ -295,12 +328,12 @@ class Agent:
 
 **知识点：**
 
-| 概念 | 说明 |
-|------|------|
-| `max_steps` | 最大循环步数，防止死循环。一般设 5-10 |
-| `tool_call_id` | 工具调用的唯一 ID，LLM 用它关联工具结果 |
+| 概念             | 说明                                        |
+| -------------- | ----------------------------------------- |
+| `max_steps`    | 最大循环步数，防止死循环。一般设 5-10                     |
+| `tool_call_id` | 工具调用的唯一 ID，LLM 用它关联工具结果                   |
 | `role: "tool"` | 工具执行结果的标识，LLM 读到 role="tool" 就知道这是之前调用的结果 |
-| `continue` | 继续下一轮循环，让 LLM 看到工具结果后处理 |
+| `continue`     | 继续下一轮循环，让 LLM 看到工具结果后处理                   |
 
 ### 第四步：创建主入口
 
@@ -308,30 +341,37 @@ class Agent:
 
 ```python
 """CLI 入口"""
+from datetime import datetime
 
 from src.core.llm import LLMClient
 from src.core.tool_registry import ToolRegistry, Tool
 from src.core.agent import Agent
 
 
-def build_agent() -> Agent:
+class GetCurrentTimeTool(Tool):
+    """获取当前时间的工具"""
+
+    def __init__(self):
+        super().__init__(
+            name="get_current_time",
+            description="获取当前时间和日期",
+            parameters={
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        )
+
+    def execute(self) -> str:
+        return f"当前时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+
+
+def build_agent(api_key: str = "mock") -> Agent:
     """构造 Agent 实例，所有依赖都注入进来"""
-    llm = LLMClient(
-        api_key="YOUR_API_KEY",
-        base_url="https://api.deepseek.com",
-    )
+    llm = LLMClient(api_key=api_key, base_url="https://api.deepseek.com")
 
     tools = ToolRegistry()
-    # 先注册一个示例工具，验证 ReAct 循环能工作
-    tools.register(Tool(
-        name="get_current_time",
-        description="获取当前时间和日期",
-        parameters={
-            "type": "object",
-            "properties": {},
-            "required": [],
-        },
-    ))
+    tools.register(GetCurrentTimeTool())
 
     system_prompt = """你是数据库诊断助手，帮助用户分析SQL性能和数据库问题。
 请用专业的知识回答用户问题。
@@ -371,6 +411,7 @@ python src/main.py
 ```
 
 然后输入：
+
 ```
 > 现在几点了？
 ```
@@ -378,50 +419,6 @@ python src/main.py
 如果 Agent 调用 `get_current_time` 工具并返回时间，说明 ReAct 循环跑通了。
 
 按 `exit` 退出。
-
----
-
-## 关于 API Key
-
-暂时用 mock 模式运行的话，修改 `llm.py` 的 `chat` 方法，加一个 mock 分支：
-
-在 `try` 之前添加：
-
-```python
-# Mock 模式：当 api_key 为 "mock" 时，模拟 LLM 返回
-if self.client.api_key == "mock":
-    return self._mock_response(messages, tools)
-```
-
-然后添加 `_mock_response` 方法：
-
-```python
-def _mock_response(self, messages: list[dict], tools: list[dict] | None) -> dict:
-    """模拟 LLM 返回，让你不用 API Key 也能开发"""
-    last_msg = messages[-1]["content"] if messages else ""
-    
-    # 如果消息里有 "工具" 相关关键词，测试工具调用
-    if tools and ("时间" in last_msg or "几" in last_msg):
-        return {
-            "role": "assistant",
-            "content": None,
-            "tool_calls": [
-                {
-                    "id": "call_mock",
-                    "type": "function",
-                    "function": {"name": "get_current_time", "arguments": "{}"},
-                }
-            ],
-        }
-    
-    # 否则直接回答
-    return {
-        "role": "assistant",
-        "content": f"这是一条模拟回复。你说了: {last_msg[:50]}",
-    }
-```
-
-初始化 LLMClient 时传 `api_key="mock"` 即可。
 
 ---
 
@@ -445,13 +442,13 @@ git commit -m "feat: 实现ReAct核心引擎"
 
 ## 你会用到的知识点
 
-| 概念 | 说明 |
-|------|------|
-| ReAct 循环 | Thought → Action → Observation 反复循环 |
-| Function Calling | LLM 返回结构化调用指令，你执行并回传结果 |
-| Tool Registry | 统一管理所有工具，LLM 通过注册表发现可用工具 |
-| API Key Mock | 开发时不用真实 Key，模拟 LLM 返回 |
-| JSON Schema | 描述工具参数的格式规范 |
+| 概念               | 说明                                  |
+| ---------------- | ----------------------------------- |
+| ReAct 循环         | Thought → Action → Observation 反复循环 |
+| Function Calling | LLM 返回结构化调用指令，你执行并回传结果              |
+| Tool Registry    | 统一管理所有工具，LLM 通过注册表发现可用工具            |
+| API Key Mock     | 开发时不用真实 Key，模拟 LLM 返回               |
+| JSON Schema      | 描述工具参数的格式规范                         |
 
 ---
 
