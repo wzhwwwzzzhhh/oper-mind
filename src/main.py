@@ -2,26 +2,10 @@
 from datetime import datetime
 
 from src.core.llm import LLMClient
-from src.core.tool_registry import ToolRegistry, Tool
+from src.core.tool_registry import ToolRegistry
 from src.core.agent import Agent
-
-
-class GetCurrentTimeTool(Tool):
-    """获取当前时间的工具"""
-
-    def __init__(self):
-        super().__init__(
-            name="get_current_time",
-            description="获取当前时间和日期",
-            parameters={
-                "type": "object",
-                "properties": {},
-                "required": [],
-            },
-        )
-
-    def execute(self) -> str:
-        return f"当前时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+from src.tools.db_tools import ExplainTool, ShowCreateTableTool, ShowIndexTool
+from src.scenarios.db_diagnosis import SYSTEM_PROMPT, TOOL_CALLING_EXAMPLE
 
 
 def build_agent(api_key: str = "mock") -> Agent:
@@ -29,20 +13,25 @@ def build_agent(api_key: str = "mock") -> Agent:
     llm = LLMClient(api_key="ollama", base_url="http://localhost:11434/v1")
 
     tools = ToolRegistry()
-    tools.register(GetCurrentTimeTool())
+    tools.register(ExplainTool())
+    tools.register(ShowCreateTableTool())
+    tools.register(ShowIndexTool())
 
-    system_prompt = """你是数据库诊断助手，帮助用户分析SQL性能和数据库问题。
-    请用专业的知识回答用户问题。
-    如果需要查询信息，可以使用提供的工具。"""
+    system_prompt = SYSTEM_PROMPT
+    system_prompt += TOOL_CALLING_EXAMPLE
 
     return Agent(llm=llm, tools=tools, system_prompt=system_prompt)
 
 def main():
     agent = build_agent()
 
-    print("=" *50)
-    print("数据库诊断 Agent 已启动（输入 'exit' 退出）")
-    print("=" *50)
+    print("=" * 50)
+    print("数据库诊断 Agent 已启动")
+    print("输入 SQL 语句进行分析，输入 'exit' 退出")
+    print("测试用例：")
+    print("  1. SELECT * FROM orders WHERE status = 'PENDING'")
+    print("  2. SELECT * FROM orders ORDER BY create_time DESC")
+    print("=" * 50)
 
     while(True):
         user_input = input("\n> ").strip()

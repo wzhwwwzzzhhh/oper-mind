@@ -10,7 +10,7 @@
 
 ## 前置依赖
 
-- [ ] 03-手搓ReAct核心引擎完成（Agent引擎能跑起来）
+- [x] 03-手搓ReAct核心引擎完成（Agent引擎能跑起来）
 
 ---
 
@@ -27,6 +27,7 @@ ToolRegistry 根据名字查找
 ```
 
 **设计原则：**
+
 1. **确定性逻辑在 Tool 里，决策权在 LLM 手里**
 2. Tool 只做"执行并返回结果"，不做"判断"
 3. 一个 Tool 只做一件事，职责单一
@@ -222,12 +223,12 @@ def extract_table_name(sql: str) -> str | None:
 
 **知识点：**
 
-| 概念 | 说明 |
-|------|------|
-| Mock 数据 | 开发时模拟真实数据，不依赖外部系统 |
+| 概念              | 说明                                 |
+| --------------- | ---------------------------------- |
+| Mock 数据         | 开发时模拟真实数据，不依赖外部系统                  |
 | EXPLAIN type 字段 | `ALL`=全表扫描，`ref`=普通索引，`const`=唯一索引 |
-| Using filesort | MySQL 无法用索引排序，额外排序操作，大数据量极慢 |
-| Cardinality | 索引的区分度，值越大越好，太小说明这个索引意义不大 |
+| Using filesort  | MySQL 无法用索引排序，额外排序操作，大数据量极慢        |
+| Cardinality     | 索引的区分度，值越大越好，太小说明这个索引意义不大          |
 
 ### 2. 创建数据库诊断 Tool
 
@@ -461,11 +462,13 @@ python src/main.py
 ```
 
 输入：
+
 ```
 > SELECT * FROM orders WHERE status = 'PENDING'
 ```
 
 观察输出，看 Agent 是否会：
+
 1. 先调 `explain_sql` → 发现全表扫描
 2. 再调 `show_create_table` → 看表结构
 3. 再调 `show_index` → 看现有索引

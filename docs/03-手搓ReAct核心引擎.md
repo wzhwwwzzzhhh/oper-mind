@@ -54,8 +54,6 @@ while 没到最大步数:
 ```python
 """LLM 调用封装"""
 
-import json
-from typing import Any
 from openai import OpenAI
 
 
@@ -253,7 +251,6 @@ class ToolRegistry:
 ```python
 """ReAct Agent 核心引擎"""
 
-import json
 from src.core.llm import LLMClient
 from src.core.tool_registry import ToolRegistry
 
