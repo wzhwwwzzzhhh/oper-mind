@@ -95,7 +95,10 @@ class LongTermMemory:
             result = []
 
         if not result:
-            return ""
+            # 搜索不到时，展示最近记录作为上下文
+            result = self.get_recent(3)
+            if not result:
+                return ""
 
         context = "\n## 历史相关诊断记录\n"
 
