@@ -424,10 +424,13 @@ def build_agent(api_key: str = "mock") -> Agent:
 
     tools = ToolRegistry()
     tools.register(ExplainTool())
-    tools.register(ShowIndexTool())
     tools.register(ShowCreateTableTool())
+    tools.register(ShowIndexTool())
 
-    return Agent(llm=llm, tools=tools, system_prompt=SYSTEM_PROMPT)
+    system_prompt = SYSTEM_PROMPT
+    system_prompt += TOOL_CALLING_EXAMPLE
+
+    return Agent(llm=llm, tools=tools, system_prompt=system_prompt)
 
 
 def main():
@@ -478,10 +481,10 @@ python src/main.py
 
 ## 验收标准
 
-- [ ] Agent 能正确调用 `explain_sql` 工具
-- [ ] Agent 能根据 EXPLAIN 结果决定下一步要调什么工具
-- [ ] Agent 最终能给出诊断结论
-- [ ] 输入 `exit` 能正常退出
+- [x] Agent 能正确调用 `explain_sql` 工具
+- [x] Agent 能根据 EXPLAIN 结果决定下一步要调什么工具
+- [x] Agent 最终能给出诊断结论
+- [x] 输入 `exit` 能正常退出
 
 ### 预期输出示例
 

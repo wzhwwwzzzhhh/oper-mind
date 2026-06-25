@@ -6,11 +6,19 @@ from src.core.tool_registry import ToolRegistry
 from src.core.agent import Agent
 from src.tools.db_tools import ExplainTool, ShowCreateTableTool, ShowIndexTool
 from src.scenarios.db_diagnosis import SYSTEM_PROMPT, TOOL_CALLING_EXAMPLE
+from src.config import load_config
 
 
 def build_agent(api_key: str = "mock") -> Agent:
     """构造 Agent 实例，所有依赖都注入进来"""
-    llm = LLMClient(api_key="ollama", base_url="http://localhost:11434/v1")
+    config = load_config()
+    llm_config = config["llm"]
+
+    llm = LLMClient(
+        api_key=llm_config["api_key"],
+        base_url=llm_config["base_url"],
+        model=llm_config.get("model", "deepseek-chat"),
+    )
 
     tools = ToolRegistry()
     tools.register(ExplainTool())

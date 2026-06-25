@@ -1,0 +1,5 @@
+# 配置模板：复制此文件为 config.local.yaml，填入真实值
+llm:
+  api_key: "your-api-key-here"   # 你的 API Key
+  base_url: "https://api.deepseek.com"
+  model: "deepseek-chat"         # 模型名称
