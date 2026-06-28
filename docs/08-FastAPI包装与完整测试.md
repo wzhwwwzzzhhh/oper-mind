@@ -124,7 +124,7 @@ def health():
 def chat(request: ChatRequest):
     """
     诊断 SQL。
-    
+
     请求体：
     ```json
     {
@@ -182,7 +182,7 @@ def chat(self, messages, tools=None, temperature=0.1):
     # Mock 模式
     if self.client.api_key == "mock":
         return self._mock_chat(messages, tools)
-    
+
     # 真实调用（原有代码）
     ...
 ```
@@ -262,38 +262,38 @@ def run(self, user_input: str) -> str:
     self.thinking_log = []  # 清空上一次的思考记录
     self.current_query = user_input
     ...
-    
+
     for step in range(self.max_steps):
         print(f"\n[Step {step + 1}/{self.max_steps}]")
-        
+
         response = self.llm.chat(messages, tools=tool_schemas)
-        
+
         if "error" in response:
             error_msg = f"LLM 调用失败: {response['error']}"
             self.thinking_log.append(error_msg)
             return error_msg
-        
+
         self.short_term.add_message(response)
         messages = self.short_term.get_messages_for_llm()
-        
+
         tool_calls = response.get("tool_calls")
         content = response.get("content")
-        
+
         if tool_calls:
             for tc in tool_calls:
                 func = tc["function"]
                 step_log = f"Step {step + 1}: 调用 {func['name']}({func['arguments']})"
                 print(f"  → {step_log}")
-                
+
                 result = self.tools.execute_tool(func["name"], func["arguments"])
                 short_result = result[:100] + "..." if len(result) > 100 else result
                 self.thinking_log.append(f"{step_log} → {short_result}")
                 ...
-        
+
         if content:
             self.thinking_log.append(f"最终回答: {content[:100]}...")
             ...
-    
+
     return ...
 
 # 添加 get_thinking 方法
@@ -419,34 +419,34 @@ def test_fallback_engine():
     """测试规则引擎的诊断能力"""
     cases = load_test_cases()
     engine = RuleEngine()
-    
+
     passed = 0
     total = len(cases)
-    
+
     print("=" * 60)
     print("规则引擎测试报告")
     print("=" * 60)
-    
+
     for case in cases:
         sql = case["sql"]
         category = case["category"]
-        
+
         result = engine.diagnose(sql)
         has_diagnosis = len(result) > 20
         is_pass = has_diagnosis
-        
+
         status = "✅" if is_pass else "❌"
         print(f"\n{status} [{category}] {sql[:60]}...")
         print(f"   诊断结果: {'有输出' if has_diagnosis else '无输出'}")
-        
+
         if is_pass:
             passed += 1
-    
+
     print(f"\n{'=' * 60}")
     print(f"总计: {total} | 通过: {passed} | 失败: {total - passed}")
     print(f"通过率: {passed / total * 100:.1f}%")
     print(f"{'=' * 60}")
-    
+
     return passed == total
 
 
@@ -484,12 +484,12 @@ git commit -m "feat: FastAPI包装与完整测试"
 
 ## 知识点总结
 
-| 概念 | 说明 |
-|------|------|
-| FastAPI | 高性能 Python Web 框架，自动生成 API 文档 |
-| Pydantic BaseModel | 定义请求/响应数据结构，自动校验 |
-| uvicorn | ASGI 服务器，运行 FastAPI |
-| Swagger UI | FastAPI 自动生成的 API 文档页面 |
+| 概念                 | 说明                            |
+| ------------------ | ----------------------------- |
+| FastAPI            | 高性能 Python Web 框架，自动生成 API 文档 |
+| Pydantic BaseModel | 定义请求/响应数据结构，自动校验              |
+| uvicorn            | ASGI 服务器，运行 FastAPI           |
+| Swagger UI         | FastAPI 自动生成的 API 文档页面        |
 
 ---
 

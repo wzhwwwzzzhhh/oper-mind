@@ -1,6 +1,7 @@
 """ Tool注册中心：管理所有可用的工具"""
 
 import json
+from src.core.approval import is_high_risk_sql, is_alter_table_safe, check_operation_safety
 
 
 class Tool:
@@ -60,6 +61,31 @@ class ToolRegistry:
 
         try:
             args = json.loads(arguments)
+            # === 安全检查 ===
+            # 如果传递了 SQL，检查是否高危
+            sql = args.get("sql", "")
+            if sql and is_high_risk_sql(sql):
+                # 检查 ALTER TABLE 是否安全
+                if "alter" in sql.lower():
+                    if is_alter_table_safe(sql):
+                        # ALTER TABLE ADD INDEX 是安全的
+                        pass
+                    else:
+                        # 其他 ALTER 操作需要审批
+                        if not check_operation_safety("alter_table", {"sql": sql}):
+                            return json.dumps(
+                                {"warning": "ALTER TABLE 操作被拒绝，仅允许 ADD INDEX"},
+                                ensure_ascii=False,
+                            )
+                else:
+                    # 其他高危操作需要审批
+                    if not check_operation_safety("kill_query", args):
+                        return json.dumps(
+                            {"warning": "高危操作被拒绝"},
+                            ensure_ascii=False,
+                        )
+
+            # === 执行 ===
             result = self._tools[name].execute(**args)
             return str(result)
         except json.JSONDecodeError:

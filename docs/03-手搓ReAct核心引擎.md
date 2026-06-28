@@ -421,10 +421,10 @@ python src/main.py
 
 ## 验收标准
 
-- [ ] `python src/main.py` 能启动
-- [ ] 输入文字，Agent 有回复
-- [ ] 输入"现在几点了"，Agent 会调用 `get_current_time` 工具
-- [ ] 输入 `exit` 能退出
+- [x] `python src/main.py` 能启动
+- [x] 输入文字，Agent 有回复
+- [x] 输入"现在几点了"，Agent 会调用 `get_current_time` 工具
+- [x] 输入 `exit` 能退出
 
 ---
 

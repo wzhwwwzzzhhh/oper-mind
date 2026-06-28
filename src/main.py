@@ -1,6 +1,4 @@
 """ CLI 入口"""
-from datetime import datetime
-
 from src.core.llm import LLMClient
 from src.core.tool_registry import ToolRegistry
 from src.core.agent import Agent
@@ -9,7 +7,7 @@ from src.scenarios.db_diagnosis import SYSTEM_PROMPT, TOOL_CALLING_EXAMPLE
 from src.config import load_config
 
 
-def build_agent(api_key: str = "mock") -> Agent:
+def build_agent() -> Agent:
     """构造 Agent 实例，所有依赖都注入进来"""
     config = load_config()
     llm_config = config["llm"]
@@ -30,6 +28,34 @@ def build_agent(api_key: str = "mock") -> Agent:
 
     return Agent(llm=llm, tools=tools, system_prompt=system_prompt)
 
+def test_fallback():
+    """测试降级模式：LLM 不可用时使用规则引擎"""
+    from src.core.fallback import RuleEngine
+    from data.mock_db import explain_sql
+
+    test_sqls = [
+        "SELECT * FROM orders WHERE status = 'PENDING'",
+        "SELECT * FROM orders ORDER BY create_time DESC",
+        "SELECT * FROM orders o JOIN order_items i ON o.id = i.order_id WHERE i.product_id = 123",
+        "SELECT YEAR(create_time) FROM orders WHERE id = 1",
+        "SELECT * FROM products WHERE id = 1",
+    ]
+
+    print("=" * 60)
+    print("降级模式测试：LLM 不可用，使用规则引擎")
+    print("=" * 60)
+
+    engine = RuleEngine()
+    for sql in test_sqls:
+        print(f"\n---")
+        print(f"SQL: {sql}")
+        plan = explain_sql(sql)
+        print(f"EXPLAIN: type={plan['type']}, rows={plan['rows']}")
+        print(f"\n{engine.diagnose(sql)}")
+
+    print("\n" + "=" * 60)
+    print("降级模式测试完成")
+
 def main():
     agent = build_agent()
 
@@ -49,4 +75,13 @@ def main():
         print(f"\n{result}")
 
 if __name__ == "__main__":
-    main()
+    import sys
+
+    if len(sys.argv) > 1 and sys.argv[1] == "--fallback":
+        from src.core.fallback import RuleEngine
+
+        engine = RuleEngine()
+        sql = input("请输入SQL: ")
+        print(engine.diagnose(sql))
+    else:
+        main()
