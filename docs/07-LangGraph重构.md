@@ -362,10 +362,10 @@ python src/agent_langgraph.py
 
 ## 验收标准
 
-- [ ] `python src/agent_langgraph.py` 能启动
-- [ ] 输入慢 SQL，LLM 能正确调工具
-- [ ] Agent 最终输出诊断结论
-- [ ] 诊断逻辑和手搓版一致
+- [x] `python src/agent_langgraph.py` 能启动
+- [x] 输入慢 SQL，LLM 能正确调工具
+- [x] Agent 最终输出诊断结论
+- [x] 诊断逻辑和手搓版一致
 
 ---
 

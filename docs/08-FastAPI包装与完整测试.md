@@ -41,7 +41,6 @@ def chat(query: str):
 """FastAPI 包装：把 Agent 变成 HTTP API"""
 
 import json
-import os
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
@@ -51,6 +50,7 @@ from src.core.agent import Agent
 from src.tools.db_tools import ExplainTool, ShowIndexTool, ShowCreateTableTool
 from src.scenarios.db_diagnosis import SYSTEM_PROMPT
 from src.core.fallback import RuleEngine
+from src.config import load_config
 
 # ===== 1. 创建 FastAPI 实例 =====
 
@@ -81,10 +81,14 @@ class ChatResponse(BaseModel):
 
 def create_agent():
     """创建 Agent 实例"""
-    api_key = os.getenv("LLM_API_KEY", "mock")
-    base_url = os.getenv("LLM_BASE_URL", "https://api.deepseek.com")
+    config = load_config()
+    llm_config = config["llm"]
 
-    llm = LLMClient(api_key=api_key, base_url=base_url)
+    llm = LLMClient(
+        api_key=llm_config["api_key"],
+        base_url=llm_config["base_url"],
+        model=llm_config.get("model", "deepseek-chat"),
+    )
 
     tools = ToolRegistry()
     tools.register(ExplainTool())
@@ -251,52 +255,41 @@ def _mock_chat(self, messages, tools):
 
 ### 3. 修改 Agent 支持思考过程追踪
 
-文件：`src/core/agent.py`，在 `run` 方法中添加：
+文件：`src/core/agent.py`，需要在 `__init__`、`run` 方法中添加日志记录，并新增 `get_thinking` 方法。
 
+在 `__init__` 方法末尾添加：
 ```python
-# 在 __init__ 中添加
 self.thinking_log: list[str] = []
+```
 
-# 在 run 方法的循环中，添加记录
-def run(self, user_input: str) -> str:
-    self.thinking_log = []  # 清空上一次的思考记录
-    self.current_query = user_input
-    ...
+在 `run` 方法的 `self.current_query = user_input` 之后添加：
+```python
+self.thinking_log = []  # 清空上一次的思考记录
+```
 
-    for step in range(self.max_steps):
-        print(f"\n[Step {step + 1}/{self.max_steps}]")
+在 `run` 方法的 `if tool_calls:` 块中，把原来的 `print` 替换为同时记录日志：
+```python
+if tool_calls:
+    for tc in tool_calls:
+        func = tc["function"]
+        step_log = f"Step {step + 1}: 调用 {func['name']}({func['arguments']})"
+        print(f"→ {step_log}")
 
-        response = self.llm.chat(messages, tools=tool_schemas)
+        result = self.tools.execute_tool(func["name"], func["arguments"])
+        short_result = result[:100] + "..." if len(result) > 100 else result
+        print(f"← {short_result}")
+        self.thinking_log.append(f"{step_log} → {short_result}")
 
-        if "error" in response:
-            error_msg = f"LLM 调用失败: {response['error']}"
-            self.thinking_log.append(error_msg)
-            return error_msg
+        tool_message = { ... }  # 原有代码不变
+```
 
-        self.short_term.add_message(response)
-        messages = self.short_term.get_messages_for_llm()
+在 `run` 方法的 `if content:` 块中，在 `return content` 之前添加：
+```python
+self.thinking_log.append(f"最终回答: {content[:100]}...")
+```
 
-        tool_calls = response.get("tool_calls")
-        content = response.get("content")
-
-        if tool_calls:
-            for tc in tool_calls:
-                func = tc["function"]
-                step_log = f"Step {step + 1}: 调用 {func['name']}({func['arguments']})"
-                print(f"  → {step_log}")
-
-                result = self.tools.execute_tool(func["name"], func["arguments"])
-                short_result = result[:100] + "..." if len(result) > 100 else result
-                self.thinking_log.append(f"{step_log} → {short_result}")
-                ...
-
-        if content:
-            self.thinking_log.append(f"最终回答: {content[:100]}...")
-            ...
-
-    return ...
-
-# 添加 get_thinking 方法
+在类末尾添加 `get_thinking` 方法：
+```python
 def get_thinking(self) -> list[str]:
     return self.thinking_log
 ```

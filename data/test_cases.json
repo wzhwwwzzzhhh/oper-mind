@@ -1,0 +1,51 @@
+[
+  {
+    "id": 1,
+    "sql": "SELECT * FROM orders WHERE status = 'PENDING'",
+    "category": "全表扫描",
+    "expected_diagnosis": "缺少索引",
+    "expected_tools": ["explain_sql", "show_create_table", "show_index"]
+  },
+  {
+    "id": 2,
+    "sql": "SELECT * FROM orders ORDER BY create_time DESC",
+    "category": "文件排序",
+    "expected_diagnosis": "缺少排序索引",
+    "expected_tools": ["explain_sql", "show_create_table"]
+  },
+  {
+    "id": 3,
+    "sql": "SELECT o.* FROM orders o JOIN order_items i ON o.id = i.order_id WHERE i.product_id = 123",
+    "category": "JOIN优化",
+    "expected_diagnosis": "被驱动表缺少索引",
+    "expected_tools": ["explain_sql", "show_create_table", "show_index"]
+  },
+  {
+    "id": 4,
+    "sql": "SELECT YEAR(create_time) FROM orders WHERE id = 1",
+    "category": "索引失效",
+    "expected_diagnosis": "函数包裹导致索引失效",
+    "expected_tools": ["explain_sql"]
+  },
+  {
+    "id": 5,
+    "sql": "SELECT * FROM orders WHERE status = 'COMPLETED' AND create_time > '2024-01-01'",
+    "category": "复合索引",
+    "expected_diagnosis": "需要复合索引",
+    "expected_tools": ["explain_sql", "show_create_table", "show_index"]
+  },
+  {
+    "id": 6,
+    "sql": "SELECT id, order_no FROM orders WHERE id = 1",
+    "category": "索引正常",
+    "expected_diagnosis": "性能良好",
+    "expected_tools": ["explain_sql"]
+  },
+  {
+    "id": 7,
+    "sql": "DELETE FROM orders WHERE status = 'EXPIRED'",
+    "category": "高危操作",
+    "expected_diagnosis": "需要审批",
+    "expected_tools": []
+  }
+]

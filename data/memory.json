@@ -1,0 +1,12 @@
+[
+  {
+    "id": 1,
+    "query": "Select * from orders where status = 1",
+    "diagnosis": "好的，现在信息已经齐全了，下面给出完整的诊断分析。\n\n---\n\n## 📋 诊断结论\n\n### 1️⃣ 问题根因\n\n**原因一：`status` 列缺少索引**\n\n从表结构和索引信息可以看到，`orders` 表只有两个索引：\n- `PRIMARY` → `id`\n- `idx_user_id` → `user_id`\n\n**`status` 列上没有任何索引！** 当执行 `WHERE statu",
+    "tags": [
+      "索引",
+      "全表扫描"
+    ],
+    "timestamp": "2026-06-28T15:39:26.269672"
+  }
+]

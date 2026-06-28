@@ -22,7 +22,7 @@ class LLMClient:
         """
         # Mock 模式：api_key 为 "mock" 时不调真实 API
         if self.client.api_key == "mock":
-            return self._mock_response(messages, tools)
+            return self._mock_chat(messages, tools)
 
         kwargs = {
             "model": self.model,
@@ -57,6 +57,61 @@ class LLMClient:
         except Exception as e:
             print(f"LLM API 调用失败: {e}")
             return {"role": "assistant", "content": "LLM API 调用失败", "error": str(e)}
+
+    def _mock_chat(self, messages, tools):
+        """Mock LLM 返回，不需要 API Key"""
+        import random
+
+        # 检查是否已经执行过工具（有 tool 角色的消息）
+        # 如果有，说明这是 ReAct 循环的第二轮以上，直接给最终答案
+        has_tool_result = any(
+            m.get("role") == "tool" for m in messages
+        )
+        if has_tool_result:
+            return {
+                "role": "assistant",
+                "content": (
+                    "【诊断结论】通过 EXPLAIN 分析发现该 SQL 存在全表扫描问题。\n"
+                    "问题根因：status 字段没有索引导致全表扫描 50000 行。\n"
+                    "优化建议：为 status 字段添加索引。\n"
+                    "```sql\nALTER TABLE `orders` ADD INDEX `idx_status` (`status`);\n```\n"
+                    "预期效果：访问类型从 ALL 变为 ref，扫描行数从 50000 降至约 8000。"
+                ),
+            }
+
+        # 获取最后一条用户消息
+        last_msg = ""
+        for m in reversed(messages):
+            if m["role"] == "user":
+                last_msg = m["content"]
+                break
+
+        # 模拟工具调用：检查是否需要分析 SQL
+        sql_keywords = ["select", "from", "where", "join", "order by", "group by"]
+        is_sql = any(kw in last_msg.lower() for kw in sql_keywords)
+
+        if is_sql and tools:
+            # 模拟 LLM 调用 explain_sql
+            return {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call_mock_1",
+                        "type": "function",
+                        "function": {
+                            "name": "explain_sql",
+                            "arguments": '{"sql": "' + last_msg.replace('"', '\\"') + '"}',
+                        },
+                    }
+                ],
+            }
+
+        # 默认回复
+        return {
+            "role": "assistant",
+            "content": f"Mock回复：收到了你的消息。如果是SQL诊断，请提供完整的SQL语句。",
+        }
 
     def _mock_response(self, messages: list[dict], tools: list[dict] | None = None) -> dict:
         """模拟 LLM 返回，测试 ReAct 循环时不需要真实 API Key"""

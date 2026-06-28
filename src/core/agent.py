@@ -29,6 +29,7 @@ class Agent:
         self.short_term = ShortTermMemory(system_prompt, max_rounds=memory_max_rounds)
         self.long_term = LongTermMemory()
         self.current_query = ""
+        self.thinking_log: list[str] = []
 
 
     def run(self, user_input: str) -> str:
@@ -36,6 +37,7 @@ class Agent:
         运行Agent，处理用户输入，返回最终回答。
         """
         self.current_query = user_input
+        self.thinking_log = []  # 清空上一次的思考记录
 
         # 注入长期记忆相关的上下文
         memory_context = self.long_term.format_context(user_input)
@@ -71,10 +73,13 @@ class Agent:
             if tool_calls:
                 for tc in tool_calls:
                     func = tc["function"]
-                    print(f"→调用工具：{func['name']}({func['arguments']}）")
+                    step_log = f"Step {step + 1}: 调用 {func['name']}({func['arguments']})"
+                    print(f"→ {step_log}")
 
                     result = self.tools.execute_tool(func["name"], func["arguments"])
-                    print(f"←结果：{result[:100]}..." if len(result) > 100 else f"←结果：{result}")
+                    short_result = result[:100] + "..." if len(result) > 100 else result
+                    print(f"← {short_result}")
+                    self.thinking_log.append(f"{step_log} → {short_result}")
 
                     tool_message = {
                         "role": "tool",
@@ -92,6 +97,7 @@ class Agent:
                     diagnosis=content[:200],  # 只保存前200字
                     tags=self._extract_tags(content),
                 )
+                self.thinking_log.append(f"最终回答: {content[:100]}...")
                 return content
             return "Agent 没有生产有效响应"
 
@@ -120,4 +126,6 @@ class Agent:
             "history_records" : len(self.long_term.records)
         }
 
+    def get_thinking(self) -> list[str]:
+        return self.thinking_log
 
