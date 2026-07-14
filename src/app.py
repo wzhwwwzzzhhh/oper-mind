@@ -3,15 +3,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from src.core.llm import LLMClient
-from src.core.coordinator import CoordinatorAgent
-from src.agents.db_agent import DBAgent
-from src.agents.server_agent import ServerAgent
-from src.agents.log_agent import LogAgent
-from src.agents.report_agent import ReportAgent
-from src.core.debate import DebateArena
-from src.core.reflection import ReflectionEngine
-from src.config import load_config
+from src.core.bootstrap import build_system
 
 # ===== 1. FastAPI 实例 =====
 app = FastAPI(
@@ -35,33 +27,6 @@ class DiagnoseResponse(BaseModel):
     strategy: str = ""
 
 # ===== 3. 初始化系统（单例） =====
-
-def build_system():
-    config = load_config()
-    llm_config = config["llm"]
-
-    llm = LLMClient(
-        api_key=llm_config["api_key"],
-        base_url=llm_config["base_url"],
-        model=llm_config.get("model", "qwen2.5:7b"),
-    )
-
-    db_agent = DBAgent(llm=llm)
-    server_agent = ServerAgent(llm=llm)
-    log_agent = LogAgent(llm=llm)
-
-    debate = DebateArena(llm=llm)
-    reflection = ReflectionEngine(llm=llm)
-    report = ReportAgent()
-
-    coordinator = CoordinatorAgent(
-        llm=llm, debate=debate, reflection=reflection, report=report
-    )
-    coordinator.register_agent("db", db_agent)
-    coordinator.register_agent("server", server_agent)
-    coordinator.register_agent("log", log_agent)
-
-    return coordinator
 
 coordinator = build_system()
 

@@ -9,6 +9,11 @@
 import sys
 import os
 
+# Windows 控制台默认 GBK,无法编码 emoji;统一重配为 UTF-8
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.core.llm import LLMClient

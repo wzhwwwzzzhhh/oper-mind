@@ -1,10 +1,14 @@
-
+# ===== 核心运行时依赖 =====
 openai>=1.0.0
-
-
 fastapi>=0.110.0
 uvicorn>=0.27.0
-
-
 langgraph>=0.4.0
 langchain-openai>=0.3.0
+
+# ===== 配置与文档生成（M0 补齐）=====
+pyyaml>=6.0          # src/config.py 读取 YAML 配置
+fpdf>=1.7.2          # scripts/ 生成方案 PDF
+
+# ===== 真实数据源（M2 接入 MySQL 时启用，先占位）=====
+# sqlalchemy>=2.0.0
+# pymysql>=1.1.0

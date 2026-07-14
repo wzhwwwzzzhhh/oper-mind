@@ -1,5 +1,12 @@
 # 配置模板：复制此文件为 config.local.yaml，填入真实值
+#
+# 【安全建议】推荐用环境变量覆盖以下 llm 配置，勿把真实 key 写进 yaml：
+#   OPERMIND_API_KEY   -> llm.api_key（开发/测试可设为 mock）
+#   OPERMIND_BASE_URL  -> llm.base_url
+#   OPERMIND_MODEL     -> llm.model
+# 环境变量存在时优先生效，会覆盖此文件中的同名字段。
+# 甚至可以不创建 config.local.yaml，仅靠环境变量运行。
 llm:
-  api_key: "your-api-key-here"   # 你的 API Key
+  api_key: "your-api-key-here"   # 你的 API Key（勿提交真实值，优先用 OPERMIND_API_KEY）
   base_url: "https://api.deepseek.com"
   model: "deepseek-chat"         # 模型名称
