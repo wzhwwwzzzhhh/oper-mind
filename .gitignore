@@ -22,3 +22,6 @@ data/__pycache__/
 
 # 本地配置文件（包含敏感信息）
 config/config.local.yaml
+
+# 评测/实验产出（可复现，不进代码库；只进库的是 harness 本身）
+experiments/
