@@ -12,6 +12,7 @@
 ## 2. 方案
 
 `judge_report(llm, report, case) -> dict`，返回：
+
 ```python
 {
     "method": "mock_stub" | "llm_judge",
@@ -55,6 +56,7 @@ mock stub 用 2-gram Jaccard 而非简单子串匹配 root_cause，因为 golden
 ## 4. 测试
 
 `tests/test_judge.py`，7 条，覆盖：
+
 - mock stub 返回合法范围、全部命中、部分命中（recall=1/3）、根因关键词重合对比
 - 真 LLM 路径：JSON 解析打分、JSON 解析失败兜底 0 分、命中列表过滤非法项
 
