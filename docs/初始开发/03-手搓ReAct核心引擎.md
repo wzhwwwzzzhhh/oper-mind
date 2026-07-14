@@ -403,7 +403,7 @@ if __name__ == "__main__":
 
 ```bash
 # 确保虚拟环境已激活
-cd D:/market-handsome/newproject/db-agent
+cd D:/market-handsome/newproject/oper-mind
 python src/main.py
 ```
 

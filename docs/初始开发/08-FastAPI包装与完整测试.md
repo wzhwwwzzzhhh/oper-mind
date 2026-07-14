@@ -10,8 +10,8 @@
 
 ## 前置依赖
 
-- [ ] 03-手搓ReAct核心引擎完成（Agent能跑）
-- [ ] 04-Tool系统与数据库诊断工具完成
+- [x] 03-手搓ReAct核心引擎完成（Agent能跑）
+- [x] 04-Tool系统与数据库诊断工具完成
 
 ---
 
@@ -258,16 +258,19 @@ def _mock_chat(self, messages, tools):
 文件：`src/core/agent.py`，需要在 `__init__`、`run` 方法中添加日志记录，并新增 `get_thinking` 方法。
 
 在 `__init__` 方法末尾添加：
+
 ```python
 self.thinking_log: list[str] = []
 ```
 
 在 `run` 方法的 `self.current_query = user_input` 之后添加：
+
 ```python
 self.thinking_log = []  # 清空上一次的思考记录
 ```
 
 在 `run` 方法的 `if tool_calls:` 块中，把原来的 `print` 替换为同时记录日志：
+
 ```python
 if tool_calls:
     for tc in tool_calls:
@@ -284,11 +287,13 @@ if tool_calls:
 ```
 
 在 `run` 方法的 `if content:` 块中，在 `return content` 之前添加：
+
 ```python
 self.thinking_log.append(f"最终回答: {content[:100]}...")
 ```
 
 在类末尾添加 `get_thinking` 方法：
+
 ```python
 def get_thinking(self) -> list[str]:
     return self.thinking_log
@@ -298,7 +303,7 @@ def get_thinking(self) -> list[str]:
 
 ```bash
 # 确保在虚拟环境中
-cd D:/market-handsome/newproject/db-agent
+cd D:/market-handsome/newproject/oper-mind
 
 # 启动服务
 uvicorn src.app:app --reload --host 0.0.0.0 --port 8000
@@ -458,11 +463,11 @@ python tests/test_diagnosis.py
 
 ## 验收标准
 
-- [ ] `uvicorn src.app:app --reload` 启动成功
-- [ ] `GET /health` 返回 `{"status": "ok"}`
-- [ ] `POST /chat` 能正常响应
-- [ ] 降级模式（`use_llm: false`）不需要 API Key 也能工作
-- [ ] `python tests/test_diagnosis.py` 测试通过
+- [x] `uvicorn src.app:app --reload` 启动成功
+- [x] `GET /health` 返回 `{"status": "ok"}`
+- [x] `POST /chat` 能正常响应
+- [x] 降级模式（`use_llm: false`）不需要 API Key 也能工作
+- [x] `python tests/test_diagnosis.py` 测试通过
 
 ---
 

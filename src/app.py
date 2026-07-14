@@ -1,122 +1,119 @@
-"""FastAPI 包装：把 Agent 变成 HTTP API"""
+"""FastAPI 入口 — 多智能体运维诊断 API"""
 
-import json
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from src.core.llm import LLMClient
-from src.core.tool_registry import ToolRegistry
-from src.core.agent import Agent
-from src.tools.db_tools import ExplainTool, ShowIndexTool, ShowCreateTableTool
-from src.scenarios.db_diagnosis import SYSTEM_PROMPT
-from src.core.fallback import RuleEngine
+from src.core.coordinator import CoordinatorAgent
+from src.agents.db_agent import DBAgent
+from src.agents.server_agent import ServerAgent
+from src.agents.log_agent import LogAgent
+from src.agents.report_agent import ReportAgent
+from src.core.debate import DebateArena
+from src.core.reflection import ReflectionEngine
 from src.config import load_config
 
-# ===== 1. 创建 FastAPI 实例 =====
+# ===== 1. FastAPI 实例 =====
 app = FastAPI(
-    title = "数据库诊断 Agent",
-    description="输入SQL，Agent 自动诊断并给出优化建议",
-    version="0.1.0",
+    title="OperMind — 多智能体运维诊断系统",
+    description="输入运维问题，AI Agent 自动诊断并给出优化建议",
+    version="1.0.0",
 )
 
-# ===== 2. 定义请求/响应模型 =====
-class ChatRequest(BaseModel):
-    """请求体"""
+# ===== 2. 请求/响应模型 =====
+
+class DiagnoseRequest(BaseModel):
+    """诊断请求"""
     query: str
-    use_llm: bool = True  # 允许调用方选择是否使用 LLM
-    show_thinking: bool = False  # 是否显示思考过程
+    show_thinking: bool = False
 
-class ChatResponse(BaseModel):
-    """响应体"""
+class DiagnoseResponse(BaseModel):
+    """诊断响应"""
     result: str
-    thinking: list[str] | None = None  # 思考过程
-    mode: str = "llm"  # "llm" 或 "fallback"
+    thinking: list[str] | None = None
+    trace: list[dict] | None = None
+    strategy: str = ""
 
-# ===== 3. 初始化 Agent（单例） =====
+# ===== 3. 初始化系统（单例） =====
 
-def create_agent():
-    """创建 Agent 实例"""
+def build_system():
     config = load_config()
     llm_config = config["llm"]
 
     llm = LLMClient(
         api_key=llm_config["api_key"],
         base_url=llm_config["base_url"],
-        model=llm_config.get("model", "deepseek-v4-flash"),
+        model=llm_config.get("model", "qwen2.5:7b"),
     )
 
-    tools = ToolRegistry()
-    tools.register(ExplainTool())
-    tools.register(ShowIndexTool())
-    tools.register(ShowCreateTableTool())
+    db_agent = DBAgent(llm=llm)
+    server_agent = ServerAgent(llm=llm)
+    log_agent = LogAgent(llm=llm)
 
-    return Agent(llm=llm, tools=tools, system_prompt=SYSTEM_PROMPT)
+    debate = DebateArena(llm=llm)
+    reflection = ReflectionEngine(llm=llm)
+    report = ReportAgent()
 
-agent = create_agent()
-rule_engine = RuleEngine()
+    coordinator = CoordinatorAgent(
+        llm=llm, debate=debate, reflection=reflection, report=report
+    )
+    coordinator.register_agent("db", db_agent)
+    coordinator.register_agent("server", server_agent)
+    coordinator.register_agent("log", log_agent)
 
-# ===== 4. 定义 API 接口 =====
+    return coordinator
+
+coordinator = build_system()
+
+# ===== 4. API 接口 =====
 
 @app.get("/")
 def root():
-    """根路径，返回 API 信息"""
     return {
-        "name": "数据库诊断 Agent",
+        "name": "OperMind",
         "version": "1.0.0",
+        "description": "多智能体运维诊断协作系统",
         "endpoints": {
-            "POST /chat": "诊断 SQL",
+            "POST /diagnose": "诊断问题",
             "GET /health": "健康检查",
             "GET /memory/stats": "记忆统计",
+            "POST /memory/clear": "清空记忆",
         },
     }
 
-
 @app.get("/health")
 def health():
-    """健康检查"""
     return {"status": "ok"}
 
-@app.post("/chat", response_model=ChatResponse)
-def chat(request: ChatRequest):
-    """
-    诊断 SQL。
-
-    请求体：
-    ```json
-    {
-        "query": "SELECT * FROM orders WHERE status = 'PENDING'",
-        "use_llm": true,
-        "show_thinking": true
-    }
-    ```
-    """
+@app.post("/diagnose", response_model=DiagnoseResponse)
+def diagnose(request: DiagnoseRequest):
+    """诊断入口"""
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="query 不能为空")
 
-    if not request.use_llm:
-        # 降级模式：使用规则引擎
-        result = rule_engine.diagnose(request.query)
-        return ChatResponse(result=result, mode="fallback")
+    result = coordinator.route(request.query)
+    trace = coordinator.get_trace()
+    thinking = coordinator.get_thinking() if request.show_thinking else None
 
-    # LLM 模式
-    result = agent.run(request.query)
+    # 从链路事件里取出路由策略
+    strategy = ""
+    for e in trace:
+        if e.get("node") == "route":
+            strategy = e.get("detail", "")
+            break
 
-    thinking = agent.get_thinking() if request.show_thinking else None
-    return ChatResponse(result=result, thinking=thinking, mode="llm")
+    return DiagnoseResponse(
+        result=result,
+        thinking=thinking,
+        trace=trace if request.show_thinking else None,
+        strategy=strategy,
+    )
 
 @app.get("/memory/stats")
 def memory_stats():
-    """查看记忆系统统计"""
-    stats = agent.get_memory_stats()
-    history = agent.long_term.get_recent(5)
-    return {
-        "stats": stats,
-        "recent_records": history,
-    }
-
+    """记忆统计"""
+    return {"message": "记忆系统功能待实现"}
 
 @app.post("/memory/clear")
 def clear_memory():
-    """清空当前对话记忆"""
-    agent.short_term.clear()
     return {"status": "ok", "message": "对话记忆已清空"}

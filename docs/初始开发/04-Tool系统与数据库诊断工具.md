@@ -460,7 +460,7 @@ if __name__ == "__main__":
 ### 5. 运行验证
 
 ```bash
-cd D:/market-handsome/newproject/db-agent
+cd D:/market-handsome/newproject/oper-mind
 python src/main.py
 ```
 

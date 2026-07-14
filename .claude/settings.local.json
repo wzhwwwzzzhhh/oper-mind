@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "md-to-pdf": {
+      "command": "npx",
+      "args": ["-y", "md-to-pdf-mcp"]
+    }
+  }
+}
