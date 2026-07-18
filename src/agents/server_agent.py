@@ -39,7 +39,7 @@ SERVER_SYSTEM_PROMPT = """你是服务器运维专家，擅长分析服务器性
 class ServerAgent(BaseAgent):
     """服务器诊断 Agent：CPU/内存/磁盘/进程/网络分析"""
 
-    def __init__(self, llm: LLMClient, max_steps: int = 8):
+    def __init__(self, llm: LLMClient, max_steps: int = 8, enable_long_term_memory: bool = True):
         tools = ToolRegistry()
         tools.register(CheckCpuTool())
         tools.register(CheckMemoryTool())
@@ -52,4 +52,5 @@ class ServerAgent(BaseAgent):
             tools=tools,
             system_prompt=SERVER_SYSTEM_PROMPT,
             max_steps=max_steps,
+        enable_long_term_memory=enable_long_term_memory,
         )

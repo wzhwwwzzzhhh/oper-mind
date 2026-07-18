@@ -12,13 +12,13 @@ class LLMClient:
     def chat(self,
              messages: list[dict],
              tools: list[dict] | None = None,
-             temperature: float = 0.1,
+             temperature: float = 0.0,
     ) -> dict:
         """
         调用LLM，返回完整响应。
 
         tools参数是FunctionCalling的工具定义列表。
-        temperature=0.1让LLM 输出更确定，适合诊断场景。
+        temperature=0.0让LLM 输出确定，保证实验可复现（见 M3 复现性基础设施）。
         """
         # Mock 模式：api_key 为 "mock" 时不调真实 API
         if self.client.api_key == "mock":

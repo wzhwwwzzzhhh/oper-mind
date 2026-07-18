@@ -15,8 +15,8 @@ from src.core.reflection import ReflectionEngine
 from src.config import load_config
 
 
-def build_system() -> CoordinatorAgent:
-    """构建整个系统，注入所有依赖，返回已接通质量保障链路的 Coordinator"""
+def build_system(enable_long_term_memory: bool = True) -> CoordinatorAgent:
+    """构建整个系统；评测时可关闭长期记忆以隔离各用例。"""
     config = load_config()
     llm_config = config["llm"]
 
@@ -27,9 +27,9 @@ def build_system() -> CoordinatorAgent:
     )
 
     # 领域 Agent
-    db_agent = DBAgent(llm=llm)
-    server_agent = ServerAgent(llm=llm)
-    log_agent = LogAgent(llm=llm)
+    db_agent = DBAgent(llm=llm, enable_long_term_memory=enable_long_term_memory)
+    server_agent = ServerAgent(llm=llm, enable_long_term_memory=enable_long_term_memory)
+    log_agent = LogAgent(llm=llm, enable_long_term_memory=enable_long_term_memory)
 
     # 质量保障组件
     debate = DebateArena(llm=llm)

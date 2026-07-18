@@ -93,7 +93,7 @@ llm = ChatOpenAI(
     model=_config.get("model", "deepseek-chat"),
     api_key=_config["api_key"],
     base_url=_config["base_url"],
-    temperature=0.1,
+    temperature=0.0,
 ).bind_tools(tools)
 
 

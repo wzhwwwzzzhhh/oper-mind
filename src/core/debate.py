@@ -74,7 +74,7 @@ class DebateArena:
         response = self.llm.chat([
             {"role": "system", "content": "你是运维诊断专家，擅长综合分析多方面的信息。"},
             {"role": "user", "content": prompt},
-        ], temperature=0.1)
+        ], temperature=0.0)
 
         return response.get("content", "无法达成共识")
 

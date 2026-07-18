@@ -18,8 +18,8 @@ def load_test_cases():
         return json.load(f)
 
 
-def test_fallback_engine():
-    """测试规则引擎的诊断能力"""
+def _run_fallback_engine() -> bool:
+    """运行规则引擎诊断并返回所有 mock 用例是否通过。"""
     cases = load_test_cases()
     engine = RuleEngine()
 
@@ -53,6 +53,11 @@ def test_fallback_engine():
     return passed == total
 
 
+
+def test_fallback_engine() -> None:
+    """验证规则引擎能为所有 mock 用例产生诊断结论。"""
+    assert _run_fallback_engine()
+
 if __name__ == "__main__":
-    success = test_fallback_engine()
+    success = _run_fallback_engine()
     sys.exit(0 if success else 1)

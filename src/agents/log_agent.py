@@ -32,7 +32,7 @@ LOG_SYSTEM_PROMPT = """你是日志分析专家，擅长从日志中定位问题
 class LogAgent(BaseAgent):
     """日志分析 Agent：错误日志检索、异常模式识别、慢查询分析"""
 
-    def __init__(self, llm: LLMClient, max_steps: int = 8):
+    def __init__(self, llm: LLMClient, max_steps: int = 8, enable_long_term_memory: bool = True):
         tools = ToolRegistry()
         tools.register(SearchLogsTool())
         tools.register(AggregateErrorsTool())
@@ -43,4 +43,5 @@ class LogAgent(BaseAgent):
             tools=tools,
             system_prompt=LOG_SYSTEM_PROMPT,
             max_steps=max_steps,
+        enable_long_term_memory=enable_long_term_memory,
         )

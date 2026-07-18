@@ -13,7 +13,7 @@ from src.scenarios.db_diagnosis import SYSTEM_PROMPT, TOOL_CALLING_EXAMPLE
 class DBAgent(BaseAgent):
     """数据库诊断 Agent：慢 SQL 分析、索引优化"""
 
-    def __init__(self, llm: LLMClient, max_steps: int = 10):
+    def __init__(self, llm: LLMClient, max_steps: int = 10, enable_long_term_memory: bool = True):
         tools = ToolRegistry()
         tools.register(ExplainTool())
         tools.register(ShowIndexTool())
@@ -26,4 +26,5 @@ class DBAgent(BaseAgent):
             tools=tools,
             system_prompt=system_prompt,
             max_steps=max_steps,
+        enable_long_term_memory=enable_long_term_memory,
         )

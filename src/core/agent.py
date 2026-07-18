@@ -7,42 +7,35 @@ from src.memory.long_term import LongTermMemory
 
 
 class BaseAgent:
-    """
-    所有领域 Agent 的基类。
+    """封装领域 Agent 共用的 ReAct 循环与记忆能力。"""
 
-    封装了 ReAct 循环核心逻辑，子类只需：
-    1. 在 __init__ 中注册自己的工具
-    2. 提供 system_prompt
-    3. 按需重写 run() 方法
-    """
-
-    def __init__(self,
-                 llm: LLMClient,
-                 tools: ToolRegistry,
-                 system_prompt: str,
-                 max_steps: int = 10,
-                 memory_max_rounds: int = 5):
+    def __init__(
+        self,
+        llm: LLMClient,
+        tools: ToolRegistry,
+        system_prompt: str,
+        max_steps: int = 10,
+        memory_max_rounds: int = 5,
+        enable_long_term_memory: bool = True,
+    ) -> None:
         self.llm = llm
         self.tools = tools
         self.system_prompt = system_prompt
         self.max_steps = max_steps
 
-        # 记忆系统
+        # 短期记忆始终保留；评测模式关闭长期记忆以隔离用例。
         self.short_term = ShortTermMemory(system_prompt, max_rounds=memory_max_rounds)
-        self.long_term = LongTermMemory()
+        self.long_term = LongTermMemory() if enable_long_term_memory else None
         self.current_query = ""
         self.thinking_log: list[str] = []
 
     def run(self, user_input: str) -> str:
-        """
-        ReAct 循环：思考 → 行动 → 观察 → 重复 → 最终回答。
-        子类可以重写此方法实现自定义逻辑。
-        """
+        """执行 ReAct 循环并返回最终诊断结论。"""
         self.current_query = user_input
         self.thinking_log = []
 
-        # 注入长期记忆
-        memory_context = self.long_term.format_context(user_input)
+        # 评测模式禁用长期记忆，保证样例之间互不影响。
+        memory_context = self.long_term.format_context(user_input) if self.long_term else ""
         enriched_input = f"{user_input}\n\n{memory_context}" if memory_context else user_input
 
         self.short_term.add_message({"role": "user", "content": enriched_input})
@@ -73,20 +66,23 @@ class BaseAgent:
                     print(f"← {short_result}")
                     self.thinking_log.append(f"{step_log} → {short_result}")
 
-                    self.short_term.add_message({
-                        "role": "tool",
-                        "tool_call_id": tc["id"],
-                        "content": result,
-                    })
+                    self.short_term.add_message(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tc["id"],
+                            "content": result,
+                        }
+                    )
                     messages = self.short_term.get_messages_for_llm()
                 continue
 
             if content:
-                self.long_term.add_record(
-                    query=self.current_query,
-                    diagnosis=content[:200],
-                    tags=self._extract_tags(content),
-                )
+                if self.long_term:
+                    self.long_term.add_record(
+                        query=self.current_query,
+                        diagnosis=content[:200],
+                        tags=self._extract_tags(content),
+                    )
                 self.thinking_log.append(f"最终回答: {content[:100]}...")
                 return content
 
@@ -95,7 +91,7 @@ class BaseAgent:
         return f"Agent 超过最大步数（{self.max_steps}步），未得出最终结论"
 
     def _extract_tags(self, text: str) -> list[str]:
-        """从诊断结果中提取标签，子类可重写"""
+        """从诊断结果中提取用于检索的基础标签。"""
         tags = []
         if "索引" in text:
             tags.append("索引")
@@ -106,10 +102,13 @@ class BaseAgent:
         return tags
 
     def get_conversation_history(self) -> list[dict]:
+        """返回短期会话记录。"""
         return self.short_term.get_messages()
 
     def get_memory_stats(self) -> dict:
-        return {"history_records": len(self.long_term.records)}
+        """返回长期记忆记录数量；禁用时为零。"""
+        return {"history_records": len(self.long_term.records) if self.long_term else 0}
 
     def get_thinking(self) -> list[str]:
+        """返回本次诊断的关键步骤。"""
         return self.thinking_log

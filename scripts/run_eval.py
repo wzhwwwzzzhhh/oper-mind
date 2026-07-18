@@ -38,9 +38,9 @@ def _is_mock_llm(coordinator) -> bool:
     return getattr(getattr(coordinator.llm, "client", None), "api_key", None) == "mock"
 
 
-def _config_hash(cases_path: str, seed: int, is_mock: bool, model: str) -> str:
-    """对（数据集路径 + 种子 + 是否 mock + model 名）做哈希，保证同配置覆盖、异配置分目录。"""
-    fingerprint = f"{os.path.abspath(cases_path)}|{seed}|{is_mock}|{model}"
+def _config_hash(cases_path: str, seed: int, is_mock: bool, model: str, arm: str) -> str:
+    """对（数据集路径 + 种子 + 是否 mock + model 名 + 实验组标签）做哈希，保证同配置覆盖、异配置分目录。"""
+    fingerprint = f"{os.path.abspath(cases_path)}|{seed}|{is_mock}|{model}|{arm}"
     return hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()[:12]
 
 
@@ -49,6 +49,7 @@ def main() -> None:
     parser.add_argument("--cases", default=DEFAULT_CASES, help="评测用例 jsonl 路径")
     parser.add_argument("--seed", type=int, default=42, help="随机种子（保证复现）")
     parser.add_argument("--real", action="store_true", help="要求非 mock 模式；若仍是 mock 则报错退出")
+    parser.add_argument("--arm", default="default", help="实验组标签（如 baseline/debate），用于 M4 多组对比时区分产出目录")
     args = parser.parse_args()
 
     random.seed(args.seed)
@@ -59,8 +60,8 @@ def main() -> None:
         for e in load_errors:
             print("  -", e)
         sys.exit(1)
-
-    coordinator = build_system()
+    # 评测样例必须独立，禁止读取或写入长期记忆。
+    coordinator = build_system(enable_long_term_memory=False)
     is_mock = _is_mock_llm(coordinator)
 
     if args.real and is_mock:
@@ -77,7 +78,7 @@ def main() -> None:
         CaseResult.from_run_result(case, raw)
         for case, raw in zip(cases, raw_results)
     ]
-    config_hash = _config_hash(args.cases, args.seed, is_mock, coordinator.llm.model)
+    config_hash = _config_hash(args.cases, args.seed, is_mock, coordinator.llm.model, args.arm)
     summary = build_summary(config_hash, case_results)
 
     out_dir = os.path.join(EXPERIMENTS_DIR, config_hash)
@@ -96,6 +97,7 @@ def main() -> None:
         "seed": args.seed,
         "is_mock": is_mock,
         "model": coordinator.llm.model,
+        "arm": args.arm,
         "total_cases": len(cases),
         "duration_seconds": round(duration, 2),
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
