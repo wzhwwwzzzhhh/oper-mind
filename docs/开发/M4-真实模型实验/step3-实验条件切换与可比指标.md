@@ -189,3 +189,17 @@ mock CLI 产物验证：
 
 五次均为 `judge_method=llm_judge` 且无运行 error。force_parallel 本轮没有触发 debate，因为冲突检测
 认为三个领域结论互补、无实质冲突；这符合“仅冲突时进入 Debate”的实验契约，不视为失败。
+
+### 评测短期会话隔离补充
+
+在准备人工抽检时复查发现：M3 已关闭长期记忆，但 `run_suite()` 复用同一 Coordinator 时，领域 Agent 的
+`ShortTermMemory` 会保留最近会话。这同样会使后续评测用例看到前序内容，违背“用例独立”约束。
+
+修复方式：`BaseAgent.reset_for_evaluation()` 清空短期会话与思考记录；`CoordinatorAgent`
+聚合该操作；`run_suite()` 在**每条用例开始前**调用 Coordinator 重置。该接口只由评测 Runner 使用，
+不改变日常 CLI / API 的多轮短期记忆行为。新增回归测试验证 3 条 suite 用例会执行 3 次重置。
+
+```text
+.\.venv\Scripts\python.exe -m pytest tests\test_runner.py tests\test_experiment_conditions.py tests\test_eval_memory_isolation.py -q
+18 passed in 5.35s
+```

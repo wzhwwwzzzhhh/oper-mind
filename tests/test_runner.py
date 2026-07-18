@@ -40,6 +40,10 @@ class _FakeCoordinator:
         self._report = report
         self._trace = trace
         self.received_queries: list[str] = []
+        self.reset_count = 0
+
+    def reset_for_evaluation(self) -> None:
+        self.reset_count += 1
 
     def route(self, query: str) -> str:
         self.received_queries.append(query)
@@ -116,6 +120,7 @@ def test_run_suite_遍历全部用例():
 
     assert [r["case_id"] for r in results] == ["a", "b", "c"]
     assert len(coordinator.received_queries) == 3
+    assert coordinator.reset_count == 3
 
 
 def test_run_suite_单条失败不影响其他用例():

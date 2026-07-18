@@ -58,6 +58,14 @@ class CoordinatorAgent:
             )
         return self._graph
 
+    def reset_for_evaluation(self) -> None:
+        """在每条评测用例前清空领域 Agent 的短期会话状态。"""
+        for agent in self.agents.values():
+            reset = getattr(agent, "reset_for_evaluation", None)
+            if callable(reset):
+                reset()
+        self.thinking_log = []
+        self.trace = []
     def route(self, user_input: str) -> str:
         """驱动编排图并返回最终诊断报告。"""
         graph = self._ensure_graph()

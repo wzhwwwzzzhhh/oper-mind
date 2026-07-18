@@ -39,4 +39,10 @@ def run_case(coordinator: Any, judge_llm: Any, case: EvalCase) -> dict:
 
 def run_suite(coordinator: Any, judge_llm: Any, cases: list[EvalCase]) -> list[dict]:
     """顺序运行整套用例；单条 Coordinator 异常不影响后续用例。"""
-    return [run_case(coordinator, judge_llm, case) for case in cases]
+    results: list[dict] = []
+    for case in cases:
+        reset = getattr(coordinator, "reset_for_evaluation", None)
+        if callable(reset):
+            reset()
+        results.append(run_case(coordinator, judge_llm, case))
+    return results

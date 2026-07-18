@@ -101,6 +101,11 @@ class BaseAgent:
             tags.append("慢SQL")
         return tags
 
+    def reset_for_evaluation(self) -> None:
+        """清空单条评测结束后遗留的短期会话和思考记录。"""
+        self.short_term.clear()
+        self.current_query = ""
+        self.thinking_log = []
     def get_conversation_history(self) -> list[dict]:
         """返回短期会话记录。"""
         return self.short_term.get_messages()
