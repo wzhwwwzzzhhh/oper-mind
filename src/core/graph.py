@@ -14,6 +14,7 @@ from typing import Literal
 from typing_extensions import TypedDict
 from langgraph.graph import StateGraph, START, END
 
+from src.core.experiment import ExperimentCondition, get_experiment_condition
 from src.core.llm import LLMClient
 
 
@@ -95,11 +96,14 @@ def _extract_json(text: str) -> dict | None:
 
 # ===== 3. 编排图构建 =====
 
-def build_diagnosis_graph(llm: LLMClient,
-                          agents: dict,
-                          debate,
-                          reflection,
-                          report):
+def build_diagnosis_graph(
+    llm: LLMClient,
+    agents: dict,
+    debate,
+    reflection,
+    report,
+    experiment_condition: ExperimentCondition | None = None,
+):
     """构建并编译诊断编排图。
 
     Args:
@@ -112,6 +116,8 @@ def build_diagnosis_graph(llm: LLMClient,
     Returns:
         编译后的 LangGraph app,通过 .invoke(state) 运行。
     """
+
+    condition = experiment_condition or get_experiment_condition("full")
 
     # ---- 节点:LLM 路由决策(带关键词兜底) ----
     def route_node(state: DiagnosisState) -> DiagnosisState:
@@ -145,8 +151,22 @@ def build_diagnosis_graph(llm: LLMClient,
         else:
             trace = trace + [{"node": "route", "detail": f"LLM 路由 → {strategy}"}]
 
-        if strategy == "direct" and not target:
-            target = _keyword_target(query) or "db"
+        # target 始终表示主要领域，供 single_agent 基线使用。
+        target = target or _keyword_target(query) or "db"
+
+        original_strategy = strategy
+        if condition.routing_mode == "single_agent":
+            strategy = "direct"
+        elif condition.routing_mode == "force_chain":
+            strategy = "chain"
+        elif condition.routing_mode == "force_parallel":
+            strategy = "parallel"
+
+        if strategy != original_strategy:
+            trace = trace + [{
+                "node": "route",
+                "detail": f"实验组 {condition.arm} 覆盖路由 {original_strategy} → {strategy}",
+            }]
 
         return {"strategy": strategy, "target": target, "trace": trace}
 
@@ -305,7 +325,7 @@ def build_diagnosis_graph(llm: LLMClient,
         return state.get("strategy", "direct")  # type: ignore[return-value]
 
     def _after_conflict(state: DiagnosisState) -> Literal["debate", "report"]:
-        return "debate" if state.get("has_conflict") else "report"
+        return "debate" if condition.enable_debate and state.get("has_conflict") else "report"
 
     def _after_reflection(state: DiagnosisState) -> Literal["report", "__end__"]:
         return "report" if state.get("review_feedback") else END  # type: ignore[return-value]
@@ -335,11 +355,14 @@ def build_diagnosis_graph(llm: LLMClient,
         "report": "report",
     })
     g.add_edge("debate", "report")
-    g.add_edge("report", "reflection")
-    g.add_conditional_edges("reflection", _after_reflection, {
-        "report": "report",
-        END: END,
-    })
+    if condition.enable_reflection:
+        g.add_edge("report", "reflection")
+        g.add_conditional_edges("reflection", _after_reflection, {
+            "report": "report",
+            END: END,
+        })
+    else:
+        g.add_edge("report", END)
 
     return g.compile()
 

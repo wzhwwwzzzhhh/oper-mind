@@ -52,7 +52,17 @@ def test_config_hash_裁判模型变化生成不同指纹() -> None:
     """不同裁判模型对应不同评分条件，不能覆盖同一实验目录。"""
     from scripts.run_eval import _config_hash
 
-    base = _config_hash("data/eval/cases.jsonl", 42, False, "diagnosis", "judge-a", "full")
-    changed = _config_hash("data/eval/cases.jsonl", 42, False, "diagnosis", "judge-b", "full")
+    base = _config_hash("data/eval/cases.jsonl", 42, False, "diagnosis", "judge-a", "full", 1)
+    changed = _config_hash("data/eval/cases.jsonl", 42, False, "diagnosis", "judge-b", "full", 1)
 
     assert base != changed
+
+
+def test_config_hash_重复编号变化生成不同指纹() -> None:
+    """同一实验组的不同 replicate 不能覆盖同一产物目录。"""
+    from scripts.run_eval import _config_hash
+
+    first = _config_hash("data/eval/cases.jsonl", 42, False, "diagnosis", "judge", "full", 1)
+    second = _config_hash("data/eval/cases.jsonl", 42, False, "diagnosis", "judge", "full", 2)
+
+    assert first != second

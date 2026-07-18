@@ -37,12 +37,17 @@ EvalCase → Coordinator(诊断 llm) → Report
 “返回 golden 关键点 ID，再由程序映射回原文”。该改动解决语义正确但措辞不同导致召回为零的问题。
 具体契约、边界、测试与人工抽检标准见 `step2-评分口径校准与关键点ID判定.md`。
 
-## 5. 本步范围
+## 5. Step 3 实验条件与可比指标
+
+真实主实验的 6 个实验组、单 Agent 公平基线、三次 replicate、端到端 latency 和按条件解释的
+condition_complete，见 `step3-实验条件切换与可比指标.md`。该步骤完成后才可启动 M4 正式批量实验。
+
+## 6. 本步范围
 
 本步只搭建双模型真实评测配置与可追溯性，不实现 M4 的 baseline/路由/Debate/Reflection 消融开关；
 这些实验条件将在后续 M4 Step 中独立设计，确保一次只改变一个变量。
 
-## 6. 验收
+## 7. 验收
 
 - mock 回归继续可运行，无需配置 `judge_llm`。
 - 两组环境变量分别覆盖 YAML 中的诊断与裁判配置。

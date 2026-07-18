@@ -44,7 +44,9 @@ def _run_result(**kw) -> dict:
             "target_hit": True,
             "pipeline_complete": True,
             "mechanism_hit": True,
+            "condition_complete": True,
         },
+        latency_ms=12.5,
         judge={
             "method": "mock_stub",
             "root_cause_score": 0.5,
@@ -69,6 +71,8 @@ def test_from_run_result_基本字段拼装():
     assert result.target_hit is True
     assert result.pipeline_complete is True
     assert result.mechanism_hit is True
+    assert result.condition_complete is True
+    assert result.latency_ms == 12.5
     assert result.root_cause_score == 0.5
     assert result.key_points_recall == 1.0
     assert result.key_points_hit == ["点1"]
@@ -103,6 +107,8 @@ def test_build_summary_全命中():
     assert summary.total == 1
     assert summary.route_hit_rate == 1.0
     assert summary.mean_root_cause_score == 0.5
+    assert summary.condition_complete_rate == 1.0
+    assert summary.mean_latency_ms == 12.5
     assert summary.judge_is_stub is True
     assert summary.error_count == 0
     assert summary.by_domain["db"].count == 1

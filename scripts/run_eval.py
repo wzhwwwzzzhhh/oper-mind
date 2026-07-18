@@ -26,6 +26,7 @@ if hasattr(sys.stdout, "reconfigure"):
 
 from data.eval.validate import load_cases
 from src.core.bootstrap import build_judge_llm, build_system
+from src.core.experiment import get_experiment_condition, supported_arms
 from src.eval.result_schema import CaseResult, build_summary
 from src.eval.runner import run_suite
 
@@ -45,9 +46,10 @@ def _config_hash(
     model: str,
     judge_model: str,
     arm: str,
+    replicate: int,
 ) -> str:
-    """对数据集、模型、裁判模型和实验组做哈希，避免不同评分条件覆盖产物。"""
-    fingerprint = f"{os.path.abspath(cases_path)}|{seed}|{is_mock}|{model}|{judge_model}|{arm}"
+    """对数据集、模型、裁判模型、实验组和重复编号做哈希。"""
+    fingerprint = f"{os.path.abspath(cases_path)}|{seed}|{is_mock}|{model}|{judge_model}|{arm}|{replicate}"
     return hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()[:12]
 
 
@@ -56,7 +58,8 @@ def main() -> None:
     parser.add_argument("--cases", default=DEFAULT_CASES, help="评测用例 jsonl 路径")
     parser.add_argument("--seed", type=int, default=42, help="随机种子（保证复现）")
     parser.add_argument("--real", action="store_true", help="要求非 mock 模式；若仍是 mock 则报错退出")
-    parser.add_argument("--arm", default="default", help="实验组标签（如 baseline/debate），用于 M4 多组对比时区分产出目录")
+    parser.add_argument("--arm", choices=supported_arms(), default="full", help="M4 实验组")
+    parser.add_argument("--replicate", type=int, choices=(1, 2, 3), default=1, help="重复运行编号")
     args = parser.parse_args()
 
     random.seed(args.seed)
@@ -68,7 +71,11 @@ def main() -> None:
             print("  -", e)
         sys.exit(1)
     # 评测样例必须独立，禁止读取或写入长期记忆。
-    coordinator = build_system(enable_long_term_memory=False)
+    experiment_condition = get_experiment_condition(args.arm)
+    coordinator = build_system(
+        enable_long_term_memory=False,
+        experiment_condition=experiment_condition,
+    )
     is_mock = _is_mock_llm(coordinator)
     judge_llm = coordinator.llm if is_mock else build_judge_llm()
 
@@ -88,7 +95,7 @@ def main() -> None:
     ]
     judge_model = "mock_stub" if is_mock else judge_llm.model
     config_hash = _config_hash(
-        args.cases, args.seed, is_mock, coordinator.llm.model, judge_model, args.arm
+        args.cases, args.seed, is_mock, coordinator.llm.model, judge_model, args.arm, args.replicate
     )
     summary = build_summary(config_hash, case_results)
 
@@ -110,6 +117,7 @@ def main() -> None:
         "model": coordinator.llm.model,
         "judge_model": judge_model,
         "arm": args.arm,
+        "replicate": args.replicate,
         "total_cases": len(cases),
         "duration_seconds": round(duration, 2),
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -121,9 +129,11 @@ def main() -> None:
     print(f"  route_hit_rate       = {summary.route_hit_rate:.2%}")
     print(f"  target_hit_rate      = {summary.target_hit_rate:.2%}")
     print(f"  pipeline_complete    = {summary.pipeline_complete_rate:.2%}")
+    print(f"  condition_complete   = {summary.condition_complete_rate:.2%}")
     print(f"  mechanism_hit_rate   = {summary.mechanism_hit_rate:.2%}")
     print(f"  mean_root_cause      = {summary.mean_root_cause_score:.3f}")
     print(f"  mean_key_points      = {summary.mean_key_points_recall:.3f}")
+    print(f"  mean_latency_ms      = {summary.mean_latency_ms:.1f}")
     print(f"  judge_is_stub        = {summary.judge_is_stub}")
     print(f"  error_count          = {summary.error_count}")
 

@@ -14,6 +14,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 from data.eval.schema import EvalCase
+from src.core.experiment import get_experiment_condition
 from src.eval.metrics import detect_strategy, compute_deterministic
 
 
@@ -102,6 +103,29 @@ def test_pipeline_incomplete():
     trace = [{"node": "direct"}, {"node": "report"}]   # 缺 reflection
     assert compute_deterministic(trace, case)["pipeline_complete"] is False
 
+
+def test_condition_complete_按实验条件解释完成率():
+    no_reflection_trace = [{"node": "direct"}, {"node": "report"}]
+    single_agent_trace = [
+        {"node": "direct", "detail": "目标 Agent=db"},
+        {"node": "report"},
+        {"node": "reflection"},
+    ]
+
+    no_reflection = compute_deterministic(
+        no_reflection_trace,
+        _case(),
+        get_experiment_condition("no_reflection"),
+    )
+    single_agent = compute_deterministic(
+        single_agent_trace,
+        _case(),
+        get_experiment_condition("single_agent"),
+    )
+
+    assert no_reflection["pipeline_complete"] is False
+    assert no_reflection["condition_complete"] is True
+    assert single_agent["condition_complete"] is True
 
 def _run():
     tests = [v for k, v in globals().items() if k.startswith("test_") and callable(v)]

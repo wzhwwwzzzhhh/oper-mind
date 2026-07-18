@@ -77,6 +77,8 @@ def test_run_case_返回结构():
     assert result["deterministic"]["target_hit"] is True
     assert result["judge"]["method"] == "mock_stub"
     assert result["judge"]["key_points_recall"] == 1.0
+    assert result["deterministic"]["condition_complete"] is True
+    assert result["latency_ms"] >= 0.0
 
 
 def test_run_case_把query传给coordinator():
