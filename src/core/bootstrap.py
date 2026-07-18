@@ -43,5 +43,15 @@ def build_system(enable_long_term_memory: bool = True) -> CoordinatorAgent:
     coordinator.register_agent("db", db_agent)
     coordinator.register_agent("server", server_agent)
     coordinator.register_agent("log", log_agent)
-
     return coordinator
+
+
+def build_judge_llm() -> LLMClient:
+    """构建真实评测使用的独立裁判模型客户端。"""
+    config = load_config(require_judge_llm=True)
+    judge_config = config["judge_llm"]
+    return LLMClient(
+        api_key=judge_config["api_key"],
+        base_url=judge_config["base_url"],
+        model=judge_config["model"],
+    )

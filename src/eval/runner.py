@@ -13,7 +13,7 @@ from src.eval.metrics import compute_deterministic
 from src.eval.judge import judge_report
 
 
-def run_case(coordinator: Any, llm: Any, case: EvalCase) -> dict:
+def run_case(coordinator: Any, judge_llm: Any, case: EvalCase) -> dict:
     """跑单条用例：驱动 coordinator，计算确定性指标 + judge 打分。
 
     coordinator.route() 抛异常不向上传播：记录 error 字段，
@@ -28,7 +28,7 @@ def run_case(coordinator: Any, llm: Any, case: EvalCase) -> dict:
 
     trace = coordinator.get_trace()
     deterministic = compute_deterministic(trace, case)
-    judge = judge_report(llm, report, case)
+    judge = judge_report(judge_llm, report, case)
 
     result: dict = {
         "case_id": case.case_id,
@@ -41,6 +41,6 @@ def run_case(coordinator: Any, llm: Any, case: EvalCase) -> dict:
     return result
 
 
-def run_suite(coordinator: Any, llm: Any, cases: list[EvalCase]) -> list[dict]:
+def run_suite(coordinator: Any, judge_llm: Any, cases: list[EvalCase]) -> list[dict]:
     """遍历整套用例。单条崩溃已在 run_case 内部捕获，不影响后续用例。"""
-    return [run_case(coordinator, llm, case) for case in cases]
+    return [run_case(coordinator, judge_llm, case) for case in cases]

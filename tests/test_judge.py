@@ -46,7 +46,7 @@ class _FakeRealLLM:
 
     def __init__(self, content: str):
         self._content = content
-        self.client = type("Client", (), {"api_key": "sk-real-key"})()
+        self.client = type("Client", (), {"api_key": "test-real-key"})()
 
     def chat(self, messages, temperature=0.0):
         return {"role": "assistant", "content": self._content}
@@ -89,9 +89,9 @@ def test_mock_stub_root_cause_关键词重合():
 
 # ===== 真 LLM 路径 =====
 
-def test_real_llm_解析JSON打分():
+def test_real_llm_解析关键点ID打分():
     case = _case(golden_root_cause="索引缺失", golden_key_points=["全表扫描", "缺少索引"])
-    llm = _FakeRealLLM('{"root_cause_score": 0.8, "key_points_hit": ["全表扫描"]}')
+    llm = _FakeRealLLM('{"root_cause_score": 0.8, "key_point_ids": ["KP1"]}')
     result = judge_report(llm, "某份报告", case)
     assert result["method"] == "llm_judge"
     assert result["root_cause_score"] == 0.8
@@ -109,10 +109,33 @@ def test_real_llm_JSON解析失败兜底为0分():
     assert result["key_points_hit"] == []
 
 
-def test_real_llm_hit列表过滤非法项():
+def test_real_llm_关键点ID过滤非法与重复项():
     case = _case(golden_key_points=["点1", "点2"])
-    llm = _FakeRealLLM('{"root_cause_score": 0.5, "key_points_hit": ["点1", "不存在的点"]}')
+    llm = _FakeRealLLM(
+        '{"root_cause_score": 0.5, "key_point_ids": ["KP1", "KP1", "KP99", "foo", "KP2"]}'
+    )
     result = judge_report(llm, "某份报告", case)
-    # 只认可 golden_key_points 里真实存在的项，防止 LLM 幻觉出不存在的点
-    assert result["key_points_hit"] == ["点1"]
-    assert result["key_points_recall"] == pytest.approx(0.5)
+    assert result["key_points_hit"] == ["点1", "点2"]
+    assert result["key_points_recall"] == 1.0
+
+
+def test_real_llm_关键点ID缺失或非列表按空处理():
+    case = _case(golden_key_points=["点1", "点2"])
+    llm = _FakeRealLLM('{"root_cause_score": 0.5, "key_point_ids": "KP1"}')
+    result = judge_report(llm, "某份报告", case)
+    assert result["key_points_hit"] == []
+    assert result["key_points_recall"] == 0.0
+
+
+@pytest.mark.parametrize(
+    ("raw_score", "expected_score"),
+    [(1.5, 1.0), (-0.2, 0.0), ("bad", 0.0)],
+)
+def test_real_llm_根因分数归一化(raw_score, expected_score):
+    case = _case(golden_key_points=["点1"])
+    json_score = repr(raw_score).replace("'", '"')
+    llm = _FakeRealLLM(
+        '{"root_cause_score": ' + json_score + ', "key_point_ids": []}'
+    )
+    result = judge_report(llm, "某份报告", case)
+    assert result["root_cause_score"] == expected_score

@@ -25,7 +25,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 from data.eval.validate import load_cases
-from src.core.bootstrap import build_system
+from src.core.bootstrap import build_judge_llm, build_system
 from src.eval.result_schema import CaseResult, build_summary
 from src.eval.runner import run_suite
 
@@ -38,9 +38,16 @@ def _is_mock_llm(coordinator) -> bool:
     return getattr(getattr(coordinator.llm, "client", None), "api_key", None) == "mock"
 
 
-def _config_hash(cases_path: str, seed: int, is_mock: bool, model: str, arm: str) -> str:
-    """对（数据集路径 + 种子 + 是否 mock + model 名 + 实验组标签）做哈希，保证同配置覆盖、异配置分目录。"""
-    fingerprint = f"{os.path.abspath(cases_path)}|{seed}|{is_mock}|{model}|{arm}"
+def _config_hash(
+    cases_path: str,
+    seed: int,
+    is_mock: bool,
+    model: str,
+    judge_model: str,
+    arm: str,
+) -> str:
+    """对数据集、模型、裁判模型和实验组做哈希，避免不同评分条件覆盖产物。"""
+    fingerprint = f"{os.path.abspath(cases_path)}|{seed}|{is_mock}|{model}|{judge_model}|{arm}"
     return hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()[:12]
 
 
@@ -63,6 +70,7 @@ def main() -> None:
     # 评测样例必须独立，禁止读取或写入长期记忆。
     coordinator = build_system(enable_long_term_memory=False)
     is_mock = _is_mock_llm(coordinator)
+    judge_llm = coordinator.llm if is_mock else build_judge_llm()
 
     if args.real and is_mock:
         print("❌ --real 要求非 mock 模式，但当前配置解析出的仍是 mock LLM。请检查 OPERMIND_API_KEY / config.local.yaml。")
@@ -71,14 +79,17 @@ def main() -> None:
     print(f"[run_eval] 用例数={len(cases)}  mock={is_mock}  model={coordinator.llm.model}")
 
     started = time.time()
-    raw_results = run_suite(coordinator, coordinator.llm, cases)
+    raw_results = run_suite(coordinator, judge_llm, cases)
     duration = time.time() - started
 
     case_results = [
         CaseResult.from_run_result(case, raw)
         for case, raw in zip(cases, raw_results)
     ]
-    config_hash = _config_hash(args.cases, args.seed, is_mock, coordinator.llm.model, args.arm)
+    judge_model = "mock_stub" if is_mock else judge_llm.model
+    config_hash = _config_hash(
+        args.cases, args.seed, is_mock, coordinator.llm.model, judge_model, args.arm
+    )
     summary = build_summary(config_hash, case_results)
 
     out_dir = os.path.join(EXPERIMENTS_DIR, config_hash)
@@ -97,6 +108,7 @@ def main() -> None:
         "seed": args.seed,
         "is_mock": is_mock,
         "model": coordinator.llm.model,
+        "judge_model": judge_model,
         "arm": args.arm,
         "total_cases": len(cases),
         "duration_seconds": round(duration, 2),
