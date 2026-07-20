@@ -87,6 +87,24 @@ def test_mock_stub_root_cause_关键词重合():
     assert hit["root_cause_score"] > miss["root_cause_score"]
 
 
+def test_mock_stub_多词元关键点过半即命中():
+    # 方案A：关键点按空白切词，过半词元出现即命中；旧版整句精确匹配会漏判此例
+    case = _case(golden_key_points=["orders.status 无索引"])
+    report = "分析发现 orders.status 上没有建立索引，属于无索引场景"
+    result = judge_report(_FakeMockLLM(), report, case)
+    assert result["key_points_hit"] == ["orders.status 无索引"]
+    assert result["key_points_recall"] == 1.0
+
+
+def test_mock_stub_词元不足半数不算命中():
+    # 4 个词元只命中 1 个（type=ALL），低于 0.5 阈值 → 不记命中
+    case = _case(golden_key_points=["type=ALL 全表扫描 需要 加索引"])
+    report = "报告里只提到 type=ALL"
+    result = judge_report(_FakeMockLLM(), report, case)
+    assert result["key_points_hit"] == []
+    assert result["key_points_recall"] == 0.0
+
+
 # ===== 真 LLM 路径 =====
 
 def test_real_llm_解析关键点ID打分():

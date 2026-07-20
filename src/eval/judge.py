@@ -1,8 +1,18 @@
 """LLM-as-judge —— 对照 golden 答案为诊断报告打分。"""
 
+import re
 from typing import Any
 
 from src.core.graph import _extract_json
+
+
+# stub 词元命中阈值：关键点按空白/标点切词后，过半词元出现即记为命中。
+_STUB_HIT_RATIO = 0.5
+
+
+def _tokenize(text: str) -> list[str]:
+    """按空白与常见中英文标点切分为词元（供 stub 粗粒度重合度用，非质量信号）。"""
+    return [tok for tok in re.split(r"[\s，。、；：,.;:]+", text) if tok]
 
 
 def _is_mock(llm: Any) -> bool:
@@ -11,14 +21,33 @@ def _is_mock(llm: Any) -> bool:
 
 
 def _mock_stub_judge(report: str, case: Any) -> dict[str, Any]:
-    """使用确定性关键词重合度为 mock 报告评分。"""
-    root_cause_words = set(case.golden_root_cause)
-    report_words = set(report)
-    overlap = root_cause_words & report_words
-    root_cause_score = len(overlap) / len(root_cause_words) if root_cause_words else 0.0
+    """mock 模式下的确定性占位打分。
 
-    key_points_hit = [point for point in case.golden_key_points if point in report]
-    key_points_recall = len(key_points_hit) / len(case.golden_key_points)
+    ⚠️ 本 stub 仅用于管道联通与冒烟回归，**分数不是质量信号**：mock 报告是
+    模板化文本，不会复现 golden 的具体措辞。任何质量结论都以真实 LLM 裁判
+    （见 _llm_judge）为准。这里用「词元级重合」替代早期的「整句精确子串匹配」，
+    仅为让冒烟数字可读、避免 0.0 假信号（历史上 mean_key_points_recall≈0.015
+    即该假信号所致），不代表诊断质量。
+    """
+    # 根因分数：golden 根因的词元在报告中出现的比例
+    root_cause_tokens = _tokenize(case.golden_root_cause)
+    if root_cause_tokens:
+        root_hit = sum(1 for tok in root_cause_tokens if tok in report)
+        root_cause_score = root_hit / len(root_cause_tokens)
+    else:
+        root_cause_score = 0.0
+
+    # 关键点命中：某关键点的词元过半出现在报告中即记为命中
+    key_points_hit: list[str] = []
+    for point in case.golden_key_points:
+        tokens = _tokenize(point)
+        if not tokens:
+            continue
+        hit_ratio = sum(1 for tok in tokens if tok in report) / len(tokens)
+        if hit_ratio >= _STUB_HIT_RATIO:
+            key_points_hit.append(point)
+    total = len(case.golden_key_points)
+    key_points_recall = len(key_points_hit) / total if total else 0.0
 
     return {
         "method": "mock_stub",
