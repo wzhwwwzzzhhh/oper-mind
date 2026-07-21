@@ -134,6 +134,7 @@ def main() -> None:
     print(f"  mean_root_cause      = {summary.mean_root_cause_score:.3f}")
     print(f"  mean_key_points      = {summary.mean_key_points_recall:.3f}")
     print(f"  mean_latency_ms      = {summary.mean_latency_ms:.1f}")
+    print(f"  mean_tokens          = {summary.mean_tokens:.1f}")
     print(f"  judge_is_stub        = {summary.judge_is_stub}")
     print(f"  error_count          = {summary.error_count}")
 

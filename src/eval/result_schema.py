@@ -7,6 +7,19 @@ from pydantic import BaseModel, Field
 from data.eval.schema import EvalCase
 
 
+def _case_group(case_id: str) -> str:
+    """按 case_id 前缀归组，便于按「区分度子集」切片对比。"""
+    for prefix, group in (
+        ("mislead", "mislead"),
+        ("conflict", "conflict"),
+        ("chain", "legacy_compound"),
+        ("parallel", "legacy_compound"),
+    ):
+        if case_id.startswith(prefix):
+            return group
+    return "single_domain"
+
+
 class CaseResult(BaseModel):
     """单条用例的扁平评测结果。"""
 
@@ -24,6 +37,9 @@ class CaseResult(BaseModel):
     key_points_hit: list[str] = Field(default_factory=list)
     judge_is_stub: bool
     latency_ms: float = Field(..., ge=0.0, description="诊断至 Judge 完成的端到端耗时")
+    tokens: int = Field(0, ge=0, description="本例诊断模型累计 token（mock 恒为 0）")
+    scenario: str = Field("S1", description="绑定的 mock 故障场景")
+    case_group: str = Field("", description="用例分组：mislead/conflict/legacy_compound/single_domain")
     report_text: str = ""
     error: str = ""
 
@@ -47,6 +63,9 @@ class CaseResult(BaseModel):
             key_points_hit=judge["key_points_hit"],
             judge_is_stub=judge["method"] == "mock_stub",
             latency_ms=run_result["latency_ms"],
+            tokens=run_result.get("tokens", 0),
+            scenario=case.scenario,
+            case_group=_case_group(case.case_id),
             report_text=run_result.get("report", ""),
             error=run_result.get("error", ""),
         )
@@ -61,6 +80,7 @@ class DomainStats(BaseModel):
     mean_root_cause_score: float
     mean_key_points_recall: float
     mean_latency_ms: float
+    mean_tokens: float = 0.0
 
 
 class EvalSummary(BaseModel):
@@ -76,10 +96,13 @@ class EvalSummary(BaseModel):
     mean_root_cause_score: float
     mean_key_points_recall: float
     mean_latency_ms: float
+    mean_tokens: float = 0.0
     judge_is_stub: bool
     error_count: int = 0
     by_domain: dict[str, DomainStats] = Field(default_factory=dict)
     by_difficulty: dict[str, DomainStats] = Field(default_factory=dict)
+    by_scenario: dict[str, DomainStats] = Field(default_factory=dict)
+    by_case_group: dict[str, DomainStats] = Field(default_factory=dict)
 
 
 def build_summary(config_hash: str, results: list[CaseResult]) -> EvalSummary:
@@ -95,6 +118,7 @@ def build_summary(config_hash: str, results: list[CaseResult]) -> EvalSummary:
                 mean_root_cause_score=0.0,
                 mean_key_points_recall=0.0,
                 mean_latency_ms=0.0,
+                mean_tokens=0.0,
             )
         return DomainStats(
             count=count,
@@ -103,6 +127,7 @@ def build_summary(config_hash: str, results: list[CaseResult]) -> EvalSummary:
             mean_root_cause_score=sum(result.root_cause_score for result in subset) / count,
             mean_key_points_recall=sum(result.key_points_recall for result in subset) / count,
             mean_latency_ms=sum(result.latency_ms for result in subset) / count,
+            mean_tokens=sum(result.tokens for result in subset) / count,
         )
 
     total = len(results)
@@ -113,6 +138,14 @@ def build_summary(config_hash: str, results: list[CaseResult]) -> EvalSummary:
     by_difficulty = {
         difficulty: _stats([result for result in results if result.difficulty == difficulty])
         for difficulty in sorted({result.difficulty for result in results})
+    }
+    by_scenario = {
+        scenario: _stats([result for result in results if result.scenario == scenario])
+        for scenario in sorted({result.scenario for result in results})
+    }
+    by_case_group = {
+        group: _stats([result for result in results if result.case_group == group])
+        for group in sorted({result.case_group for result in results})
     }
     return EvalSummary(
         config_hash=config_hash,
@@ -125,8 +158,11 @@ def build_summary(config_hash: str, results: list[CaseResult]) -> EvalSummary:
         mean_root_cause_score=sum(result.root_cause_score for result in results) / total if total else 0.0,
         mean_key_points_recall=sum(result.key_points_recall for result in results) / total if total else 0.0,
         mean_latency_ms=sum(result.latency_ms for result in results) / total if total else 0.0,
+        mean_tokens=sum(result.tokens for result in results) / total if total else 0.0,
         judge_is_stub=all(result.judge_is_stub for result in results) if results else True,
         error_count=sum(1 for result in results if result.error),
         by_domain=by_domain,
         by_difficulty=by_difficulty,
+        by_scenario=by_scenario,
+        by_case_group=by_case_group,
     )

@@ -8,6 +8,7 @@ class LLMClient:
     def __init__(self , api_key: str, base_url: str ,model: str = "qwen2.5:7b"):
         self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.model = model
+        self.total_tokens = 0  # 累计 token 用量（真实调用累加，mock 恒为 0，供评测成本核算）
 
     def chat(self,
              messages: list[dict],
@@ -37,6 +38,11 @@ class LLMClient:
         try:
             response = self.client.chat.completions.create(**kwargs,timeout=60)
             message = response.choices[0].message
+
+            # 累计 token 用量（供评测成本核算；usage 缺失时不计）
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                self.total_tokens += getattr(usage, "total_tokens", 0) or 0
 
             # 把OpenAI的响应对象转成普通字典，方便后续处理
             result = {"role": "assistant", "content": message.content}

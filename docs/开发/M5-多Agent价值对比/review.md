@@ -65,3 +65,31 @@ step2 结论把「全局状态并发切换」列为 step3 前置项——复核�
 - validate 77 条全过、全量 68 passed、smoke 退出码 0。
 
 - **结论：通过。**
+
+---
+
+## Step4 Review — 对比实验与指标（token / 切片）
+
+> 审查日期：2026-07-20　|　审查方式：**派 code-review 子 agent 独立审**（动 llm/runner/schema，非平凡）+ 全量回归
+
+### 核对结论（审查逐项确认，无 ≥80 阻断项）
+
+- **token 分离正确**：全系统共用同一 `llm` 实例（`bootstrap.py`），`coordinator.llm.total_tokens` 覆盖 direct/chain/parallel 全链路诊断调用；快照差取在 route 后、judge 前 → 只含诊断 token，不含裁判（真实模式裁判是独立实例，mock 下裁判不累加，双重保证）。
+- **mock=0 成立**：mock 路径在累加逻辑前 return，`mean_tokens` 恒 0。
+- **切片正确**：by_scenario/by_case_group 复用同一 `_stats`，与 by_domain 口径一致；`_case_group` 前缀归类无误伤。
+- **compare_arms 健壮**：无参/缺目录/缺 meta/新旧混用均安全。
+- **规范/兼容**：类型标注齐、无裸 except、旧结果缺 tokens 字段默认 0 不崩。
+
+### 发现与处置（均为低置信可选项）
+
+| # | 发现 | 处置 |
+|---|---|---|
+| 1 | compare_arms 的 `json.load` 未覆盖"文件损坏"场景 | ✅ 已加 `JSONDecodeError` 兜底 |
+| 2 | `_case_group` 用 `run_result["case_id"]` 而非 `case.case_id` | ✅ 已统一为 `case.case_id` |
+| 3 | `llm.py:64` `print` 生产日志违反 CLAUDE.md | ⏭ 既有技术债、非本次改动范围，不在此 commit 扩范围处理 |
+
+### 验收
+
+- 全量 72 passed；mock run_eval + compare_arms 全跑通、切片正确落盘。
+
+- **结论：通过（代码层面）。真实跑批的质量结论待用户执行 Phase A 后产出。**

@@ -17,11 +17,15 @@ def run_case(coordinator: Any, judge_llm: Any, case: EvalCase) -> dict:
     # 按用例切换 mock 故障场景；Runner 串行跑用例，进程级全局在此安全
     # （并行跑用例 / 并发 API 才需升级 contextvar，见 M5 step2 review）
     set_active_scenario(case.scenario)
+    # 在 route 前后（judge 之前）快照诊断模型累计 token，取差得本例诊断 token
+    diag_llm = getattr(coordinator, "llm", None)
+    tokens_before = getattr(diag_llm, "total_tokens", 0)
     try:
         report = coordinator.route(case.query)
     except Exception as error_instance:
         report = ""
         error = f"{type(error_instance).__name__}: {error_instance}"
+    tokens = getattr(diag_llm, "total_tokens", 0) - tokens_before
 
     trace = coordinator.get_trace()
     condition = getattr(coordinator, "experiment_condition", get_experiment_condition("full"))
@@ -35,6 +39,7 @@ def run_case(coordinator: Any, judge_llm: Any, case: EvalCase) -> dict:
         "deterministic": deterministic,
         "judge": judge,
         "latency_ms": latency_ms,
+        "tokens": tokens,
     }
     if error is not None:
         result["error"] = error
