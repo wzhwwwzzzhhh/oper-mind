@@ -1,6 +1,6 @@
 """服务器监控工具集 — 通过 psutil 采集系统指标"""
 
-import json
+from data.scenarios import get_active_scenario
 from src.core.tool_registry import Tool
 
 
@@ -20,6 +20,9 @@ class CheckCpuTool(Tool):
 
     def execute(self) -> str:
         """采集 CPU 指标"""
+        active = get_active_scenario()
+        if active is not None:  # mock 模式：读确定性场景指标，不走真机 psutil
+            return active.server["cpu"]
         try:
             import psutil
             cpu_percent = psutil.cpu_percent(interval=1)
@@ -49,6 +52,9 @@ class CheckMemoryTool(Tool):
         )
 
     def execute(self) -> str:
+        active = get_active_scenario()
+        if active is not None:  # mock 模式：读确定性场景指标
+            return active.server["memory"]
         try:
             import psutil
             mem = psutil.virtual_memory()
@@ -79,6 +85,9 @@ class CheckDiskTool(Tool):
         )
 
     def execute(self) -> str:
+        active = get_active_scenario()
+        if active is not None:  # mock 模式：读确定性场景指标
+            return active.server["disk"]
         try:
             import psutil
             disks = []
@@ -108,6 +117,9 @@ class CheckProcessTool(Tool):
         )
 
     def execute(self) -> str:
+        active = get_active_scenario()
+        if active is not None:  # mock 模式：读确定性场景指标
+            return active.server["process"]
         try:
             import psutil
             high_cpu = []
@@ -147,6 +159,9 @@ class CheckNetworkTool(Tool):
         )
 
     def execute(self) -> str:
+        active = get_active_scenario()
+        if active is not None:  # mock 模式：读确定性场景指标
+            return active.server["network"]
         try:
             import psutil
             conns = psutil.net_connections()

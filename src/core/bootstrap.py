@@ -14,6 +14,7 @@ from src.agents.report_agent import ReportAgent
 from src.core.debate import DebateArena
 from src.core.reflection import ReflectionEngine
 from src.config import load_config
+from data.scenarios import set_active_scenario, clear_active_scenario
 
 
 def build_system(
@@ -29,6 +30,12 @@ def build_system(
         base_url=llm_config["base_url"],
         model=llm_config.get("model", "qwen2.5:7b"),
     )
+
+    # mock 模式激活确定性场景（默认 S1）；真实模式清除，工具走真实数据源（如 psutil）
+    if llm_config["api_key"] == "mock":
+        set_active_scenario("S1")
+    else:
+        clear_active_scenario()
 
     # 领域 Agent
     db_agent = DBAgent(llm=llm, enable_long_term_memory=enable_long_term_memory)
