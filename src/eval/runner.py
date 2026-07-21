@@ -46,12 +46,30 @@ def run_case(coordinator: Any, judge_llm: Any, case: EvalCase) -> dict:
     return result
 
 
-def run_suite(coordinator: Any, judge_llm: Any, cases: list[EvalCase]) -> list[dict]:
-    """顺序运行整套用例；单条 Coordinator 异常不影响后续用例。"""
+def run_suite(
+    coordinator: Any,
+    judge_llm: Any,
+    cases: list[EvalCase],
+    verbose: bool = True,
+) -> list[dict]:
+    """顺序运行整套用例；单条 Coordinator 异常不影响后续用例。
+
+    verbose=True 时逐条打印实时进度并强制 flush，便于真实跑批时观察进度
+    （stdout 重定向到文件时默认块缓冲，不 flush 会看不到任何中间输出）。
+    """
     results: list[dict] = []
-    for case in cases:
+    total = len(cases)
+    for index, case in enumerate(cases, start=1):
         reset = getattr(coordinator, "reset_for_evaluation", None)
         if callable(reset):
             reset()
-        results.append(run_case(coordinator, judge_llm, case))
+        result = run_case(coordinator, judge_llm, case)
+        results.append(result)
+        if verbose:
+            status = "ERR" if result.get("error") else "ok"
+            print(
+                f"  [{index}/{total}] {case.case_id:14s} {status:3s} "
+                f"{result['latency_ms']:.0f}ms tok={result.get('tokens', 0)}",
+                flush=True,
+            )
     return results
