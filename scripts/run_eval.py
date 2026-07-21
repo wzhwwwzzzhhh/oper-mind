@@ -60,6 +60,7 @@ def main() -> None:
     parser.add_argument("--real", action="store_true", help="要求非 mock 模式；若仍是 mock 则报错退出")
     parser.add_argument("--arm", choices=supported_arms(), default="full", help="M4 实验组")
     parser.add_argument("--replicate", type=int, choices=(1, 2, 3), default=1, help="重复运行编号")
+    parser.add_argument("--limit", type=int, default=0, help="只跑前 N 条（0=全量），用于小规模试跑验证")
     args = parser.parse_args()
 
     random.seed(args.seed)
@@ -70,6 +71,9 @@ def main() -> None:
         for e in load_errors:
             print("  -", e)
         sys.exit(1)
+    if args.limit and args.limit > 0:
+        cases = cases[: args.limit]
+        print(f"[run_eval] --limit={args.limit}，只跑前 {len(cases)} 条")
     # 评测样例必须独立，禁止读取或写入长期记忆。
     experiment_condition = get_experiment_condition(args.arm)
     coordinator = build_system(
