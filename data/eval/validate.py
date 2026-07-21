@@ -30,6 +30,7 @@ if hasattr(sys.stdout, "reconfigure"):
 from pydantic import ValidationError
 
 from data.eval.schema import EvalCase
+from data.scenarios import supported_scenarios
 from src.core.graph import _keyword_strategy, _keyword_target
 
 DEFAULT_CASES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cases.jsonl")
@@ -80,10 +81,22 @@ def check_routing(cases: list[EvalCase]) -> list[str]:
     return errors
 
 
+def check_scenarios(cases: list[EvalCase]) -> list[str]:
+    """场景合法性：scenario 必须是 data/scenarios.py 注册的 key。"""
+    valid = set(supported_scenarios())
+    errors: list[str] = []
+    for c in cases:
+        if c.scenario not in valid:
+            errors.append(
+                f"[{c.case_id}] 未知场景 scenario='{c.scenario}'，合法：{sorted(valid)}"
+            )
+    return errors
+
+
 def print_distribution(cases: list[EvalCase]) -> None:
-    """打印领域 / 策略 / 难度 / 来源 / debate 分布统计"""
+    """打印领域 / 策略 / 难度 / 来源 / 场景 / debate 分布统计"""
     print(f"\n用例总数：{len(cases)}")
-    for field in ("domain", "expected_strategy", "difficulty", "source"):
+    for field in ("domain", "expected_strategy", "difficulty", "source", "scenario"):
         dist = Counter(getattr(c, field) for c in cases)
         pretty = "，".join(f"{k}={v}" for k, v in sorted(dist.items()))
         print(f"  {field:18s}: {pretty}")
@@ -99,7 +112,8 @@ def main() -> int:
 
     cases, struct_errors = load_cases(path)
     routing_errors = check_routing(cases)
-    all_errors = struct_errors + routing_errors
+    scenario_errors = check_scenarios(cases)
+    all_errors = struct_errors + routing_errors + scenario_errors
 
     print_distribution(cases)
 

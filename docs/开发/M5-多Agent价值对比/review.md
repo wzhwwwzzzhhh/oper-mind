@@ -34,3 +34,34 @@
 - 无阻断项；重要项均已处置或明确转 step3。
 
 - **结论：通过**（step3 须先解决全局状态的并发切换，再做按用例切场景）。
+
+---
+
+## Step3 Review — 区分度用例集
+
+> 审查日期：2026-07-20　|　审查方式：**派 code-review 子 agent 独立审**（动 schema/runner，非平凡）+ validate/全量回归
+
+### 对 step2 结论的纠正
+
+step2 结论把「全局状态并发切换」列为 step3 前置项——复核后确认 **over-flag**：Runner 逐条**串行**跑用例，单条内 parallel 三 agent 只读已设场景，无用例间串扰，全局对串行 Runner 安全。contextvar 仅在并行跑用例 / 并发 API 时才需要（YAGNI），本步不做、仅文档标注边界。
+
+### 发现与处置（审查无 ≥80 阻断项，均为可选建议）
+
+| # | 严重度 | 发现 | 处置 |
+|---|---|---|---|
+| 1 | 低 | mislead-004 的 `expected_agents` 顺序与其余不一致 | ✅ 已统一为 `["server","db","log"]` |
+| 2 | 低 | test 文件中部 import | ✅ 已提到文件顶部 |
+| 3 | 低 | schema 可用 `Literal` 在构造期收紧 scenario 取值 | ⏭ 不改：会使 schema 与 scenarios 的 key 两处需同步；现 str + validate 更解耦（决策） |
+| 4 | 低 | runner 非法 scenario 在 try 外 → 会中断整套 | ⏭ 不改：**有意 fail-fast**——非法 scenario 属数据错误、validate 已前置拦截，比"用残留场景静默跑错"更安全（决策） |
+
+### 核对结论（审查逐项确认）
+
+- 12 条 golden 与 `data/scenarios.py` 的 S2/S3/S4 数据**逐条一致、可核对**；表象误导型 golden 均指向"非表象"根因。
+- `expects_debate=true` 仅出现在 parallel；6 条 mislead-* 稳妥命中 chain、6 条 conflict-* 稳妥命中 parallel（parallel 优先级最高，含"慢/超时"也不误路由）。
+- 类型标注齐全、无裸 except、中文注释、mock 确定性。
+
+### 验收
+
+- validate 77 条全过、全量 68 passed、smoke 退出码 0。
+
+- **结论：通过。**

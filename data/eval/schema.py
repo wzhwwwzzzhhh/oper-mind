@@ -43,6 +43,9 @@ class EvalCase(BaseModel):
     )
     source: Source = Field(..., description="来源：seed=迁移自旧用例 / synthetic=新造")
     notes: str = Field("", description="备注，如注入的 mock 现象说明")
+    scenario: str = Field(
+        "S1", description="绑定的 mock 故障场景 key（见 data/scenarios.py），默认 S1"
+    )
 
     @field_validator("expected_agents")
     @classmethod

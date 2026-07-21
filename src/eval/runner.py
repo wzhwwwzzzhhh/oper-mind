@@ -4,6 +4,7 @@ import time
 from typing import Any
 
 from data.eval.schema import EvalCase
+from data.scenarios import set_active_scenario
 from src.core.experiment import get_experiment_condition
 from src.eval.judge import judge_report
 from src.eval.metrics import compute_deterministic
@@ -13,6 +14,9 @@ def run_case(coordinator: Any, judge_llm: Any, case: EvalCase) -> dict:
     """运行单条用例，返回报告、指标、评分和端到端延迟。"""
     started = time.perf_counter()
     error: str | None = None
+    # 按用例切换 mock 故障场景；Runner 串行跑用例，进程级全局在此安全
+    # （并行跑用例 / 并发 API 才需升级 contextvar，见 M5 step2 review）
+    set_active_scenario(case.scenario)
     try:
         report = coordinator.route(case.query)
     except Exception as error_instance:

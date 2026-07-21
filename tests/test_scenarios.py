@@ -22,6 +22,7 @@ from data.scenarios import (
     set_active_scenario,
     supported_scenarios,
 )
+from data.eval.schema import EvalCase
 from src.tools.log_tools import SearchLogsTool, QuerySlowLogTool
 from src.tools.server_tools import CheckDiskTool, CheckCpuTool, CheckProcessTool, CheckNetworkTool
 
@@ -99,3 +100,42 @@ def test_S4表象误导_连接卡在配置上限且资源正常():
     # 资源正常（CPU 低），排除"资源瓶颈"，指向配置
     cpu = CheckCpuTool().execute()
     assert "30%" in cpu
+
+
+# ===== step3：EvalCase.scenario 字段与 Runner 按用例切场景 =====
+
+
+def _eval_case(**kw) -> EvalCase:
+    base = dict(
+        case_id="t-001", query="测试", domain="db", expected_strategy="direct",
+        expected_agents=["db"], difficulty="easy", golden_root_cause="根因",
+        golden_key_points=["点1"], expects_debate=False, source="synthetic",
+    )
+    base.update(kw)
+    return EvalCase(**base)
+
+
+def test_evalcase_scenario_默认S1():
+    assert _eval_case().scenario == "S1"
+    assert _eval_case(scenario="S3").scenario == "S3"
+
+
+def test_runner_按用例设置激活场景(monkeypatch):
+    from src.eval import runner as rm
+
+    monkeypatch.setattr(rm, "compute_deterministic", lambda *a, **k: {})
+    monkeypatch.setattr(rm, "judge_report", lambda *a, **k: {})
+    captured = {}
+
+    class _FakeCoord:
+        experiment_condition = None
+
+        def route(self, q):
+            captured["scenario"] = get_active_scenario().key  # route 时场景已切
+            return "报告"
+
+        def get_trace(self):
+            return {}
+
+    rm.run_case(_FakeCoord(), object(), _eval_case(scenario="S2"))
+    assert captured["scenario"] == "S2"
