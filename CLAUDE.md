@@ -74,6 +74,7 @@ cd src/frontend && npm run dev  # 启动前端
 - **Mock 模式（`api_key="mock"`）是一等公民**：每个外部依赖（LLM / MySQL / psutil）都必须有确定性 mock fallback，保证答辩演示可复现。
 - **安全红线**：密钥只从环境变量读取，绝不进代码库；真实 DB 用只读账号 + 参数化查询，诊断工具禁止 DDL/DML；高危操作过审批门。
 - **测试**：direct / chain / parallel 三条路径各有 mock 冒烟测试；改了 graph/debate/reflection/approval 必跑回归（`scripts/smoke_pipeline.py`）。
+- **审查每步做、不后置**：每个 step 收尾必做 Review，动架构/删文件/非平凡改动**派 code-review 子 agent 审过再提交**；测试 + 审查 + git 三者不可省。详见 `docs/开发规范.md` 第 9 节。
 - **实验复现**：主实验跑 mock 模式，固定种子，结果落盘到带 config hash 的目录。
 - **Git**：commit 用 `<类型>: <中文描述>`；不直推 `main`；不提交 `.env`/`*.local.yaml`/含 `sk-` 的文件。
 - **改架构必须同步更新** `CLAUDE.md` 与 `docs/开发规范.md`。
