@@ -92,4 +92,8 @@ step2 结论把「全局状态并发切换」列为 step3 前置项——复核�
 
 - 全量 72 passed；mock run_eval + compare_arms 全跑通、切片正确落盘。
 
-- **结论：通过（代码层面）。真实跑批的质量结论待用户执行 Phase A 后产出。**
+- **结论：通过（代码层面）。**
+
+### 真实跑批结论（2026-07-22）
+
+Phase A 两 arm 已跑（single_agent `6f53f145fe33` / full `a2752bd48380`，各 77 条、error_count=0、judge_is_stub=False）。多 Agent 全局 root_cause 0.552→0.714（+29%）；分组头牌：legacy_compound +0.495、conflict +0.316、mislead 0.000、single_domain +0.016。结论详见 step4.md。**M5 全部完成。** Phase B 消融（no_debate/no_reflection）与 pitch 叙事待后续（见 docs/A-Plan/）。

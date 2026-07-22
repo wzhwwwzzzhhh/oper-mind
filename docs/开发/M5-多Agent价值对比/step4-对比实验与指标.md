@@ -1,11 +1,33 @@
 # M5 Step4 — 对比实验与指标
 
-> 状态：✅ 代码完成并通过 code-review + mock 验证；**真实跑批待用户执行**（花钱、外部调用，不擅自跑）。
+> 状态：✅ 完成（代码 + code-review + **真实跑批已执行**，2026-07-22）。
 > 分支：`feat/m5-agent-comparison`
 
 ## 目标
 
 产出「多 Agent（full）vs 单模型（single_agent）」对比曲线 + token/延迟成本，量化多 Agent 的收益边界。
+
+## 真实跑批结果（2026-07-22）
+
+- 模型：诊断 `deepseek-v4-flash`、裁判 `deepseek-v4-pro`（跨模型独立，pro 更强，缓解自偏好偏差）。
+- single_agent：`experiments/6f53f145fe33`（77 条，97 分钟）；full：`experiments/a2752bd48380`（77 条，98 分钟）。均 `error_count=0`、`judge_is_stub=False`。
+
+**全局**：root_cause 0.552 → 0.714（+29%）、recall 0.539 → 0.722（+34%）；token 12452 → 20000（+60%）；route_hit 58% → 90%。
+
+**按 case_group（核心结论）**：
+
+| 用例组 | single_agent | full | delta |
+|---|---|---|---|
+| legacy_compound（跨源复合） | 0.270 | 0.765 | **+0.495** |
+| conflict（真分歧+辩论） | 0.417 | 0.733 | **+0.316** |
+| mislead（表象误导） | 0.583 | 0.583 | 0.000 |
+| single_domain（单域） | 0.691 | 0.707 | +0.016 |
+
+**四条可辩护结论**：
+1. 多 Agent 在**跨源复合故障**上大幅领先（+0.495/+183%）——每个专家 Agent 各取一源、协作合并，是多 Agent 天然优势。
+2. **辩论机制**对真分歧场景有显著价值（conflict +0.316/+76%），印证 Debate 机制解决归因冲突。
+3. **表象误导型多 Agent 无优势（delta=0）**——所有 Agent 看到同样误导表象时辩论不能自动挖真因；这是诚实的局限，也指出未来方向（更强的跨源假设验证）。
+4. **单域几乎持平（+0.016）**——单模型对简单单源已够用，多 Agent 协作开销在此无 ROI，是路由优化方向。
 
 ## 决策（已确认）
 
