@@ -34,9 +34,9 @@ def build_mock_coordinator():
         reflection=ReflectionEngine(llm=llm),
         report=ReportAgent(),
     )
-    coordinator.register_agent("db", DBAgent(llm=llm))
-    coordinator.register_agent("server", ServerAgent(llm=llm))
-    coordinator.register_agent("log", LogAgent(llm=llm))
+    coordinator.register_agent("db", DBAgent(llm=llm, enable_long_term_memory=False))
+    coordinator.register_agent("server", ServerAgent(llm=llm, enable_long_term_memory=False))
+    coordinator.register_agent("log", LogAgent(llm=llm, enable_long_term_memory=False))
     return coordinator
 
 

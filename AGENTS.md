@@ -11,6 +11,7 @@ Python 3.10+、LangGraph、OpenAI SDK、FastAPI、React + TypeScript
 ```
 oper-mind/
 ├── src/
+│   ├── api/               # HTTP API 契约与 SSE 事件
 │   ├── core/              # 核心框架
 │   │   ├── agent.py       # Agent 基类
 │   │   ├── coordinator.py # Coordinator 路由调度
