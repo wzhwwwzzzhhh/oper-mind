@@ -1,4 +1,4 @@
-# OperMind — 多智能体运维诊断协作系统
+﻿# OperMind — 多智能体运维诊断协作系统
 
 基于多智能体协作的运维故障诊断系统，支持直达/链式/并行三种路由策略，集成 Debate 与 Reflection 质量保障机制。
 
@@ -66,5 +66,6 @@ cd src/frontend && npm run dev  # 启动前端
 - **测试与复现**：测试默认 mock；direct / chain / parallel 均需冒烟覆盖。修改 graph / debate / reflection / approval 必跑 `scripts/smoke_pipeline.py`。评测必须关闭长期记忆读写，实验固定种子并以 config hash 落盘。
 - **重要改动工作流**：架构、接口契约、安全、里程碑产出和非平凡 bug 均按 **Design → Step → Code → Test → Review → Commit** 执行。每个 step 收尾即做 Review；架构/删文件/非平凡改动须独立 code review 通过后才能提交；测试、审查、Git 不可后置。
 - **开发日志**：A-Plan 期间的重要开发日志默认放 `docs/开发/M<N>-<名称>/`：`design.md`、一个或多个 `stepN-*.md`、`review.md`。跨里程碑的规则/流程治理日志放 `docs/开发/治理-<名称>/`。日志是带日期与 commit 的快照，记录关键片段和 `文件路径:行号` 锚点，不贴整文件。`docs/初始开发/` 是历史归档，不再新增日志。
+- **上下文交接与恢复**：一个 step 必须在可控范围内完成 **Design → Code → Test → Review → Commit**；预计跨上下文、实现超过 3–5 个文件、出现 P1/P2 审查问题或上下文接近上限时，先在对应 `docs/开发/M<N>-<名称>/HANDOFF.md` 写清状态、基线提交、已完成项、未完成/阻塞项、唯一下一步、必跑验证和提交边界。恢复任务固定先执行 `git status --short`、查看最近提交、阅读 A-Plan 与该 `HANDOFF.md` / `design.md`、核对未提交 diff；未提交 diff 与交接记录不一致时，先核对，禁止猜测或提交。交接文件是当前 step 的临时恢复入口，step 提交后必须回填最终状态或移除。
 - **文档同步**：目录、节点流、Agent/Tool 关系、API/SSE 契约或工作流变更时，必须同步更新 `AGENTS.md`、`CLAUDE.md`、`docs/开发规范.md`；影响里程碑状态时同时更新 `docs/开发/_A-Plan-总览.md`。
 - **Git**：每个里程碑开独立 `feat/mN-*` 分支；commit 使用 `<类型>: <中文描述>`；不直推 `main`；不提交 `.env`、`*.local.yaml`、凭证或含 `sk-` 的文件。
