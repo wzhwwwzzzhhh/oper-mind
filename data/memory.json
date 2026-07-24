@@ -86,5 +86,125 @@
     "diagnosis": "Mock回复：收到了你的消息。如果是SQL诊断，请提供完整的SQL语句。",
     "tags": [],
     "timestamp": "2026-07-10T14:02:51.679134"
+  },
+  {
+    "id": 11,
+    "query": "帮我分析这个SQL：SELECT * FROM orders WHERE status = 'PENDING'",
+    "diagnosis": "【诊断结论】通过 EXPLAIN 分析发现该 SQL 存在全表扫描问题。\n问题根因：status 字段没有索引导致全表扫描 50000 行。\n优化建议：为 status 字段添加索引。\n```sql\nALTER TABLE `orders` ADD INDEX `idx_status` (`status`);\n```\n预期效果：访问类型从 ALL 变为 ref，扫描行数从 50000 降至约 80",
+    "tags": [
+      "索引",
+      "全表扫描"
+    ],
+    "timestamp": "2026-07-20T16:35:38.580778"
+  },
+  {
+    "id": 12,
+    "query": "检索相关日志:系统很慢，经常超时，帮我排查一下\n\n【上游诊断线索】\n\n[server] 【诊断结论】通过 EXPLAIN 分析发现该 SQL 存在全表扫描问题。\n问题根因：status 字段没有索引导致全表扫描 50000 行。\n优化建议：为 status 字段添加索引。\n```sql\nALTER TABLE `orders` ADD INDEX `idx_status` (`status`);\n```\n预期效果：访问类型从 ALL 变为 ref，扫描行数从 50000 降至约 80\n[db] 【诊断结论】通过 EXPLAIN 分析发现该 SQL 存在全表扫描问题。\n问题根因：status 字段没有索引导致全表扫描 50000 行。\n优化建议：为 status 字段添加索引。\n```sql\nALTER TABLE `orders` ADD INDEX `idx_status` (`status`);\n```\n预期效果：访问类型从 ALL 变为 ref，扫描行数从 50000 降至约 80",
+    "diagnosis": "Mock回复：收到了你的消息。如果是SQL诊断，请提供完整的SQL语句。",
+    "tags": [],
+    "timestamp": "2026-07-20T16:35:38.866844"
+  },
+  {
+    "id": 13,
+    "query": "明天大促，帮我全面体检一下系统整体健康度",
+    "diagnosis": "Mock回复：收到了你的消息。如果是SQL诊断，请提供完整的SQL语句。",
+    "tags": [],
+    "timestamp": "2026-07-20T16:35:39.164302"
+  },
+  {
+    "id": 14,
+    "query": "帮我分析这个SQL：SELECT * FROM orders WHERE status = 'PENDING'",
+    "diagnosis": "【诊断结论】通过 EXPLAIN 分析发现该 SQL 存在全表扫描问题。\n问题根因：status 字段没有索引导致全表扫描 50000 行。\n优化建议：为 status 字段添加索引。\n```sql\nALTER TABLE `orders` ADD INDEX `idx_status` (`status`);\n```\n预期效果：访问类型从 ALL 变为 ref，扫描行数从 50000 降至约 80",
+    "tags": [
+      "索引",
+      "全表扫描"
+    ],
+    "timestamp": "2026-07-20T17:14:39.802672"
+  },
+  {
+    "id": 15,
+    "query": "检索相关日志:系统很慢，经常超时，帮我排查一下\n\n【上游诊断线索】\n\n[server] 【诊断结论】通过 EXPLAIN 分析发现该 SQL 存在全表扫描问题。\n问题根因：status 字段没有索引导致全表扫描 50000 行。\n优化建议：为 status 字段添加索引。\n```sql\nALTER TABLE `orders` ADD INDEX `idx_status` (`status`);\n```\n预期效果：访问类型从 ALL 变为 ref，扫描行数从 50000 降至约 80\n[db] 【诊断结论】通过 EXPLAIN 分析发现该 SQL 存在全表扫描问题。\n问题根因：status 字段没有索引导致全表扫描 50000 行。\n优化建议：为 status 字段添加索引。\n```sql\nALTER TABLE `orders` ADD INDEX `idx_status` (`status`);\n```\n预期效果：访问类型从 ALL 变为 ref，扫描行数从 50000 降至约 80",
+    "diagnosis": "Mock回复：收到了你的消息。如果是SQL诊断，请提供完整的SQL语句。",
+    "tags": [],
+    "timestamp": "2026-07-20T17:14:40.113526"
+  },
+  {
+    "id": 16,
+    "query": "明天大促，帮我全面体检一下系统整体健康度",
+    "diagnosis": "Mock回复：收到了你的消息。如果是SQL诊断，请提供完整的SQL语句。",
+    "tags": [],
+    "timestamp": "2026-07-20T17:14:40.426503"
+  },
+  {
+    "id": 17,
+    "query": "帮我分析这个SQL：SELECT * FROM orders WHERE status = 'PENDING'",
+    "diagnosis": "【诊断结论】通过 EXPLAIN 分析发现该 SQL 存在全表扫描问题。\n问题根因：status 字段没有索引导致全表扫描 50000 行。\n优化建议：为 status 字段添加索引。\n```sql\nALTER TABLE `orders` ADD INDEX `idx_status` (`status`);\n```\n预期效果：访问类型从 ALL 变为 ref，扫描行数从 50000 降至约 80",
+    "tags": [
+      "索引",
+      "全表扫描"
+    ],
+    "timestamp": "2026-07-20T17:15:04.386872"
+  },
+  {
+    "id": 18,
+    "query": "检索相关日志:系统很慢，经常超时，帮我排查一下\n\n【上游诊断线索】\n\n[server] 【诊断结论】通过 EXPLAIN 分析发现该 SQL 存在全表扫描问题。\n问题根因：status 字段没有索引导致全表扫描 50000 行。\n优化建议：为 status 字段添加索引。\n```sql\nALTER TABLE `orders` ADD INDEX `idx_status` (`status`);\n```\n预期效果：访问类型从 ALL 变为 ref，扫描行数从 50000 降至约 80\n[db] 【诊断结论】通过 EXPLAIN 分析发现该 SQL 存在全表扫描问题。\n问题根因：status 字段没有索引导致全表扫描 50000 行。\n优化建议：为 status 字段添加索引。\n```sql\nALTER TABLE `orders` ADD INDEX `idx_status` (`status`);\n```\n预期效果：访问类型从 ALL 变为 ref，扫描行数从 50000 降至约 80",
+    "diagnosis": "Mock回复：收到了你的消息。如果是SQL诊断，请提供完整的SQL语句。",
+    "tags": [],
+    "timestamp": "2026-07-20T17:15:04.745197"
+  },
+  {
+    "id": 19,
+    "query": "明天大促，帮我全面体检一下系统整体健康度",
+    "diagnosis": "Mock回复：收到了你的消息。如果是SQL诊断，请提供完整的SQL语句。",
+    "tags": [],
+    "timestamp": "2026-07-20T17:15:05.130269"
+  },
+  {
+    "id": 20,
+    "query": "帮我分析这个SQL：SELECT * FROM orders WHERE status = 'PENDING'",
+    "diagnosis": "【诊断结论】通过 EXPLAIN 分析发现该 SQL 存在全表扫描问题。\n问题根因：status 字段没有索引导致全表扫描 50000 行。\n优化建议：为 status 字段添加索引。\n```sql\nALTER TABLE `orders` ADD INDEX `idx_status` (`status`);\n```\n预期效果：访问类型从 ALL 变为 ref，扫描行数从 50000 降至约 80",
+    "tags": [
+      "索引",
+      "全表扫描"
+    ],
+    "timestamp": "2026-07-21T12:30:12.046547"
+  },
+  {
+    "id": 21,
+    "query": "检索相关日志:系统很慢，经常超时，帮我排查一下\n\n【上游诊断线索】\n\n[server] 【诊断结论】通过 EXPLAIN 分析发现该 SQL 存在全表扫描问题。\n问题根因：status 字段没有索引导致全表扫描 50000 行。\n优化建议：为 status 字段添加索引。\n```sql\nALTER TABLE `orders` ADD INDEX `idx_status` (`status`);\n```\n预期效果：访问类型从 ALL 变为 ref，扫描行数从 50000 降至约 80\n[db] 【诊断结论】通过 EXPLAIN 分析发现该 SQL 存在全表扫描问题。\n问题根因：status 字段没有索引导致全表扫描 50000 行。\n优化建议：为 status 字段添加索引。\n```sql\nALTER TABLE `orders` ADD INDEX `idx_status` (`status`);\n```\n预期效果：访问类型从 ALL 变为 ref，扫描行数从 50000 降至约 80",
+    "diagnosis": "Mock回复：收到了你的消息。如果是SQL诊断，请提供完整的SQL语句。",
+    "tags": [],
+    "timestamp": "2026-07-21T12:30:12.352955"
+  },
+  {
+    "id": 22,
+    "query": "明天大促，帮我全面体检一下系统整体健康度",
+    "diagnosis": "Mock回复：收到了你的消息。如果是SQL诊断，请提供完整的SQL语句。",
+    "tags": [],
+    "timestamp": "2026-07-21T12:30:12.713222"
+  },
+  {
+    "id": 23,
+    "query": "帮我分析这个SQL：SELECT * FROM orders WHERE status = 'PENDING'",
+    "diagnosis": "【诊断结论】通过 EXPLAIN 分析发现该 SQL 存在全表扫描问题。\n问题根因：status 字段没有索引导致全表扫描 50000 行。\n优化建议：为 status 字段添加索引。\n```sql\nALTER TABLE `orders` ADD INDEX `idx_status` (`status`);\n```\n预期效果：访问类型从 ALL 变为 ref，扫描行数从 50000 降至约 80",
+    "tags": [
+      "索引",
+      "全表扫描"
+    ],
+    "timestamp": "2026-07-21T13:49:01.404262"
+  },
+  {
+    "id": 24,
+    "query": "检索相关日志:系统很慢，经常超时，帮我排查一下\n\n【上游诊断线索】\n\n[server] 【诊断结论】通过 EXPLAIN 分析发现该 SQL 存在全表扫描问题。\n问题根因：status 字段没有索引导致全表扫描 50000 行。\n优化建议：为 status 字段添加索引。\n```sql\nALTER TABLE `orders` ADD INDEX `idx_status` (`status`);\n```\n预期效果：访问类型从 ALL 变为 ref，扫描行数从 50000 降至约 80\n[db] 【诊断结论】通过 EXPLAIN 分析发现该 SQL 存在全表扫描问题。\n问题根因：status 字段没有索引导致全表扫描 50000 行。\n优化建议：为 status 字段添加索引。\n```sql\nALTER TABLE `orders` ADD INDEX `idx_status` (`status`);\n```\n预期效果：访问类型从 ALL 变为 ref，扫描行数从 50000 降至约 80",
+    "diagnosis": "Mock回复：收到了你的消息。如果是SQL诊断，请提供完整的SQL语句。",
+    "tags": [],
+    "timestamp": "2026-07-21T13:49:01.691532"
+  },
+  {
+    "id": 25,
+    "query": "明天大促，帮我全面体检一下系统整体健康度",
+    "diagnosis": "Mock回复：收到了你的消息。如果是SQL诊断，请提供完整的SQL语句。",
+    "tags": [],
+    "timestamp": "2026-07-21T13:49:01.977785"
   }
 ]
