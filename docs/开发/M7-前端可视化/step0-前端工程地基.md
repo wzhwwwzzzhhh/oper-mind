@@ -1,6 +1,6 @@
 # M7 Step0 — 前端工程地基
 
-> 日期：2026-07-24　|　状态：✅ 通过　|　分支：`feat/m7-frontend-visualization`
+> 日期：2026-07-24　|　状态：✅ 通过　|　关联 commit：`020b8e5`
 
 ## Design
 

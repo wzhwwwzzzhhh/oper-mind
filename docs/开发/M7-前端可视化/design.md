@@ -41,7 +41,7 @@ Vite 开发代理把 `/api/*` 转发给 `http://127.0.0.1:8000/*`；浏览器代
 | Step | 范围 | 交付与验收 | 当前状态 |
 |---|---|---|---|
 | **M7.0** | 工程地基 | Vite/React/TS、`/api` 代理、`GET /health`、最小页面壳；`typecheck + build` 通过 | ✅ 完成 |
-| **M7.1** | 同步诊断闭环 | 输入问题 → `POST /diagnose` → loading / 报告 / 复制 / 错误态；不引入 SSE | ⏳ 待开始 |
+| **M7.1** | 同步诊断闭环 | 输入问题 → `POST /diagnose` → loading / 报告 / 复制 / 错误态；不引入 SSE | ✅ 完成 |
 | **M7.2** | Trace 回放与三路拓扑 | 用真实同步 trace + 固定 fixture 表现 direct / chain / parallel；不推断质量节点 | ⏳ 待开始 |
 | **M7.3** | SSE 实时增量与降级 | 消费 `progress / complete / error`；逐步点亮；断流 / error / 取消回退同步 | ⏳ 待开始 |
 | **M7.4** | M5 指标看板 | ECharts 展示全局与 case_group 对比，标明数据来源、样本与局限 | ⏳ 待开始 |
