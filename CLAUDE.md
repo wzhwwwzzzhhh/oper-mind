@@ -11,6 +11,7 @@ Python 3.10+、LangGraph、OpenAI SDK、FastAPI、React + TypeScript
 ```
 oper-mind/
 ├── src/
+│   ├── api/               # HTTP API 契约与 SSE 事件
 │   ├── core/              # 核心框架
 │   │   ├── agent.py       # Agent 基类
 │   │   ├── coordinator.py # Coordinator 路由调度
@@ -39,18 +40,11 @@ oper-mind/
 └── requirements.txt
 ```
 
-## 开发阶段
+## 当前计划与里程碑
 
-1. 环境搭建
-2. 多 Agent 框架搭建（Coordinator + 注册机制）
-3. DB Agent 完善（真实 MySQL 对接）
-4. Server Agent（psutil 实时采集）
-5. Log Agent（日志解析）
-6. Debate + Reflection 机制
-7. Report Agent + 结构化报告
-8. 前端可视化（React + TS + ECharts）
-9. 复合测试 + 实验对比
-10. 论文撰写
+- **M5 之后的唯一进度真相源**：`docs/开发/_A-Plan-总览.md`。
+- 当前执行顺序：M5 多 Agent 对比 → M6 后端 SSE → M7 前端可视化 → M8 端到端打磨与面试材料。
+- 历史路线图 `docs/开发路线图与规划.md` 的 M5 之后定义仅供参考，不作为当前执行依据。
 
 ## 常用命令
 
@@ -63,19 +57,14 @@ cd src/frontend && npm run dev  # 启动前端
 
 ## 开发规则
 
-> 完整规范见 `docs/开发规范.md`（代码风格 / 架构约定 / Mock 纪律 / 安全 / Git / 测试 / 实验复现 / 文档，共 8 项）。
-> 开发路线与排期见 `docs/开发路线图与规划.md`。
-> 以下为必须遵守的核心硬约束：
+> `AGENTS.md` 与 `CLAUDE.md` 是**同一份精简硬约束的镜像**；两者内容必须保持一致。
+> 完整规范的唯一真相源是 `docs/开发规范.md`；开发进度的唯一真相源是 `docs/开发/_A-Plan-总览.md`。
 
-- **注释用中文**；类名大驼峰，函数/变量小写下划线，常量全大写。
-- **Tool** 继承 `Tool` 基类实现 `execute`；**Agent** 继承 `BaseAgent` 复用 ReAct 循环，不重写 `run()`。
-- **公开函数必须带类型标注**；结构化数据用 Pydantic / TypedDict，不裸传 dict。
-- **禁止裸 `except`**，禁止用 `print` 做生产日志。
-- **Mock 模式（`api_key="mock"`）是一等公民**：每个外部依赖（LLM / MySQL / psutil）都必须有确定性 mock fallback，保证答辩演示可复现。
-- **安全红线**：密钥只从环境变量读取，绝不进代码库；真实 DB 用只读账号 + 参数化查询，诊断工具禁止 DDL/DML；高危操作过审批门。
-- **测试**：direct / chain / parallel 三条路径各有 mock 冒烟测试；改了 graph/debate/reflection/approval 必跑回归（`scripts/smoke_pipeline.py`）。
-- **审查每步做、不后置**：每个 step 收尾必做 Review，动架构/删文件/非平凡改动**派 code-review 子 agent 审过再提交**；测试 + 审查 + git 三者不可省。详见 `docs/开发规范.md` 第 9 节。
-- **实验复现**：主实验跑 mock 模式，固定种子，结果落盘到带 config hash 的目录。
-- **Git**：commit 用 `<类型>: <中文描述>`；不直推 `main`；不提交 `.env`/`*.local.yaml`/含 `sk-` 的文件。
-- **改架构必须同步更新** `CLAUDE.md` 与 `docs/开发规范.md`。
-- **重要修改走文档驱动流程**：涉及架构/接口契约、安全、里程碑/论文实验产出或非平凡 bug 修复的改动，须在 `docs/初始开发/` 建一份分层开发日志（Design → Step → Code → Test → Review 五层），日志定位为「带日期+commit 的快照」，贴关键片段+`文件路径:行号`锚点而非整文件。详见 `docs/开发规范.md` 第 9 节。
+- **代码规范**：注释用中文；类名大驼峰，函数/变量小写下划线，常量全大写；公开函数必须带类型标注；跨层结构化数据用 Pydantic / TypedDict，不裸传 dict；禁止裸 `except` 和新增生产 `print`。
+- **架构套路**：Tool 继承 `Tool` 并实现 `execute`；Agent 继承 `BaseAgent` 并复用 ReAct `run()`；HTTP API 契约和 SSE 事件放 `src/api/`；Graph 状态走显式 `DiagnosisState`。
+- **Mock 与安全**：`api_key="mock"` 是一等公民；每个外部依赖必须有确定性 mock fallback。密钥只读环境变量，真实 DB 仅只读账号和参数化查询，诊断工具禁 DDL/DML，高危操作必须经过审批门。
+- **测试与复现**：测试默认 mock；direct / chain / parallel 均需冒烟覆盖。修改 graph / debate / reflection / approval 必跑 `scripts/smoke_pipeline.py`。评测必须关闭长期记忆读写，实验固定种子并以 config hash 落盘。
+- **重要改动工作流**：架构、接口契约、安全、里程碑产出和非平凡 bug 均按 **Design → Step → Code → Test → Review → Commit** 执行。每个 step 收尾即做 Review；架构/删文件/非平凡改动须独立 code review 通过后才能提交；测试、审查、Git 不可后置。
+- **开发日志**：A-Plan 期间的重要开发日志默认放 `docs/开发/M<N>-<名称>/`：`design.md`、一个或多个 `stepN-*.md`、`review.md`。跨里程碑的规则/流程治理日志放 `docs/开发/治理-<名称>/`。日志是带日期与 commit 的快照，记录关键片段和 `文件路径:行号` 锚点，不贴整文件。`docs/初始开发/` 是历史归档，不再新增日志。
+- **文档同步**：目录、节点流、Agent/Tool 关系、API/SSE 契约或工作流变更时，必须同步更新 `AGENTS.md`、`CLAUDE.md`、`docs/开发规范.md`；影响里程碑状态时同时更新 `docs/开发/_A-Plan-总览.md`。
+- **Git**：每个里程碑开独立 `feat/mN-*` 分支；commit 使用 `<类型>: <中文描述>`；不直推 `main`；不提交 `.env`、`*.local.yaml`、凭证或含 `sk-` 的文件。

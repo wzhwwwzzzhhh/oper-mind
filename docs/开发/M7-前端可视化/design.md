@@ -2,8 +2,8 @@
 
 > 里程碑：M7　|　分支：待建
 > 创建日期：2026-07-20
-> 状态：⚪ 计划
-> 关联：吸收并取代 `docs/前端开发路线图.md` 的规划
+> 状态：🟡 下一个（M6 已完成，待创建 M7 分支后启动）
+> 关联：吸收并取代 `docs/前端开发路线图.md` 的规划；后端依赖 M6 已在 `f6eb087` 完成。
 
 ## 1. 目标
 
@@ -37,7 +37,7 @@ src/frontend/
 
 | Step | 内容 | 主要改动 |
 |---|---|---|
-| step1 | 前端脚手架与 SSE 客户端 | `src/frontend/` 整套骨架 + `src/api/` |
+| step1 | 前端脚手架与 SSE 客户端 | `src/frontend/` 整套骨架 + `src/frontend/src/api/` |
 | step2 | 诊断链路实时视图 | `src/frontend/src/components/trace/*` |
 | step3 | 指标看板 ECharts | `src/frontend/src/components/charts/*` |
 
