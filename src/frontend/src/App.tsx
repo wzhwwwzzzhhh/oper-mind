@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { diagnose } from './api/diagnosis'
 import { getHealth } from './api/health'
+import { TracePlayback } from './components/trace/TracePlayback'
 import type { DiagnoseResponse, HealthResponse } from './types/api'
 
 const DEMO_CASES = [
@@ -10,7 +11,6 @@ const DEMO_CASES = [
 ] as const
 
 const NEXT_STEPS = [
-  ['M7.2', 'Trace 回放拓扑', 'direct / chain / parallel 固定 fixture'],
   ['M7.3', 'SSE 实时增量', 'progress / complete / error 与同步回退'],
   ['M7.4', 'M5 指标看板', 'ECharts 与真实跑批收益边界'],
   ['M7.5', '端到端验收', '代理联调、截图、响应式与 demo 收口'],
@@ -91,14 +91,14 @@ export default function App() {
           <div className="brand-mark">OM</div>
           <div><strong>OperMind</strong><span>多智能体运维诊断协作系统</span></div>
         </div>
-        <span className="phase-chip">M7.1 · SYNC DIAGNOSIS</span>
+        <span className="phase-chip">M7.2 · TRACE REPLAY</span>
       </header>
 
       <main className="diagnosis-layout">
         <section className="hero-card">
-          <span className="eyebrow">SYNC DIAGNOSIS / 01</span>
-          <h1>先让一次诊断<br /><em>完整跑通。</em></h1>
-          <p>当前 Step 只接入同步 API：输入问题、等待 Coordinator 完成编排、查看最终报告。Trace 可回放和 SSE 实时点亮将在后续小步中加入。</p>
+          <span className="eyebrow">TRACE REPLAY / 02</span>
+          <h1>让协作过程<br /><em>可见、可回放。</em></h1>
+          <p>当前 Step 在同步诊断闭环之上，使用后端返回的 trace 回放三种路由拓扑。实时 SSE 点亮仍严格后置到 M7.3。</p>
         </section>
 
         <section className="health-card">
@@ -125,12 +125,14 @@ export default function App() {
 
         <section className="panel report-panel">
           <div className="section-heading"><div><span className="eyebrow">DIAGNOSIS REPORT</span><h2>最终报告</h2></div>{response && <button type="button" className="text-button" onClick={() => void copyReport()}>复制报告</button>}</div>
-          {running ? <div className="report-loading"><span /><span /><span /><span className="short" /></div> : response ? <><div className="report-meta">{reportStats(response)}</div><pre className="report-content">{response.result}</pre></> : <div className="report-empty"><strong>{status === 'error' ? '诊断没有完成' : '报告将在诊断完成后出现'}</strong><span>{status === 'error' ? '请检查后端连接和输入后重试。' : 'M7.1 先保证同步闭环，下一步再展示完整 trace。'}</span></div>}
+          {running ? <div className="report-loading"><span /><span /><span /><span className="short" /></div> : response ? <><div className="report-meta">{reportStats(response)}</div><pre className="report-content">{response.result}</pre></> : <div className="report-empty"><strong>{status === 'error' ? '诊断没有完成' : '报告将在诊断完成后出现'}</strong><span>{status === 'error' ? '请检查后端连接和输入后重试。' : '也可以直接使用下方固定 trace fixture 回放三种协作路径。'}</span></div>}
         </section>
+
+        <TracePlayback response={response} />
 
         <section className="next-steps-card"><div className="section-heading"><span className="eyebrow">EXECUTION GUIDE</span><h2>下一步</h2></div><div className="step-grid">{NEXT_STEPS.map(([id, title, detail]) => <article className="step-card" key={id}><span>{id}</span><strong>{title}</strong><p>{detail}</p></article>)}</div></section>
       </main>
-      <footer>OperMind · Mock-first · M7.1 同步诊断闭环</footer>
+      <footer>OperMind · Mock-first · M7.2 Trace 回放与三路拓扑</footer>
     </div>
   )
 }
