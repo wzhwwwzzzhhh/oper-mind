@@ -25,3 +25,7 @@ config/config.local.yaml
 
 # 评测/实验产出（可复现，不进代码库；只进库的是 harness 本身）
 experiments/
+# 前端构建产物与依赖
+src/frontend/node_modules/
+src/frontend/dist/
+src/frontend/*.log
