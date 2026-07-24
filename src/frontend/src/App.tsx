@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { diagnose } from './api/diagnosis'
+import { subscribeDiagnosisStream } from './api/stream'
 import { getHealth } from './api/health'
 import { TracePlayback } from './components/trace/TracePlayback'
-import type { DiagnoseResponse, HealthResponse } from './types/api'
+import type { DiagnoseResponse, HealthResponse, TraceEvent } from './types/api'
 
 const DEMO_CASES = [
   ['慢 SQL', "帮我分析这个SQL：SELECT * FROM orders WHERE status = 'PENDING'"],
@@ -11,12 +12,12 @@ const DEMO_CASES = [
 ] as const
 
 const NEXT_STEPS = [
-  ['M7.3', 'SSE 实时增量', 'progress / complete / error 与同步回退'],
   ['M7.4', 'M5 指标看板', 'ECharts 与真实跑批收益边界'],
   ['M7.5', '端到端验收', '代理联调、截图、响应式与 demo 收口'],
 ]
 
 type RunStatus = 'idle' | 'running' | 'success' | 'error'
+type DiagnosisMode = 'stream' | 'fallback'
 
 function reportStats(response: DiagnoseResponse): string {
   const traceCount = response.trace?.length ?? 0
@@ -30,9 +31,14 @@ export default function App() {
   const [healthError, setHealthError] = useState('')
   const [query, setQuery] = useState<string>(DEMO_CASES[2][1])
   const [response, setResponse] = useState<DiagnoseResponse | null>(null)
+  const [liveTrace, setLiveTrace] = useState<TraceEvent[]>([])
   const [status, setStatus] = useState<RunStatus>('idle')
+  const [mode, setMode] = useState<DiagnosisMode>('stream')
   const [error, setError] = useState('')
   const abortRef = useRef<AbortController | null>(null)
+  const closeStreamRef = useRef<(() => void) | null>(null)
+  const runIdRef = useRef(0)
+  const fallbackStartedRef = useRef(false)
 
   async function checkHealth() {
     setHealthLoading(true)
@@ -47,31 +53,81 @@ export default function App() {
     }
   }
 
+  function cancelActiveRun(): void {
+    runIdRef.current += 1
+    closeStreamRef.current?.()
+    closeStreamRef.current = null
+    abortRef.current?.abort()
+    abortRef.current = null
+  }
+
   useEffect(() => {
     void checkHealth()
-    return () => abortRef.current?.abort()
+    return cancelActiveRun
   }, [])
 
-  async function submitDiagnosis(nextQuery = query) {
-    const normalized = nextQuery.trim()
-    if (!normalized || status === 'running') return
-    abortRef.current?.abort()
+  async function runSyncFallback(normalized: string, runId: number, message?: string): Promise<void> {
+    if (fallbackStartedRef.current) return
+    fallbackStartedRef.current = true
+    closeStreamRef.current?.()
+    closeStreamRef.current = null
     const controller = new AbortController()
     abortRef.current = controller
-    setQuery(normalized)
-    setResponse(null)
-    setError('')
-    setStatus('running')
+    setMode('fallback')
+    if (message) setError(message)
 
     try {
       const result = await diagnose(normalized, controller.signal)
+      if (runId !== runIdRef.current) return
       setResponse(result)
+      setLiveTrace(result.trace ?? [])
       setStatus('success')
     } catch (requestError) {
-      if (controller.signal.aborted) return
-      setError(requestError instanceof Error ? requestError.message : '诊断请求失败')
+      if (controller.signal.aborted || runId !== runIdRef.current) return
+      setError(requestError instanceof Error ? requestError.message : '同步诊断请求失败')
       setStatus('error')
     }
+  }
+
+  function submitDiagnosis(nextQuery = query): void {
+    const normalized = nextQuery.trim()
+    if (!normalized || status === 'running') return
+
+    cancelActiveRun()
+    const runId = runIdRef.current + 1
+    runIdRef.current = runId
+    setQuery(normalized)
+    setResponse(null)
+    setLiveTrace([])
+    fallbackStartedRef.current = false
+    setError('')
+    setMode('stream')
+    setStatus('running')
+
+    closeStreamRef.current = subscribeDiagnosisStream(normalized, {
+      onProgress: (event) => {
+        if (runId !== runIdRef.current) return
+        setLiveTrace((trace) => [...trace, event])
+      },
+      onComplete: (event) => {
+        if (runId !== runIdRef.current) return
+        closeStreamRef.current = null
+        setResponse({ result: event.result, strategy: event.strategy, trace: event.trace })
+        setLiveTrace(event.trace)
+        setStatus('success')
+      },
+      onError: (streamError) => {
+        if (runId !== runIdRef.current) return
+        void runSyncFallback(normalized, runId, `实时流不可用，已切换同步诊断：${streamError.message}`)
+      },
+    })
+  }
+
+  function switchToSync(): void {
+    if (status !== 'running') return
+    const normalized = query.trim()
+    if (!normalized) return
+    void runSyncFallback(normalized, runIdRef.current, '已结束实时流，正在使用同步诊断完成本次请求。')
   }
 
   async function copyReport() {
@@ -84,6 +140,7 @@ export default function App() {
   }
 
   const running = status === 'running'
+  const modeLabel = mode === 'stream' ? 'SSE /diagnose/stream' : '同步降级 POST /diagnose'
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -91,14 +148,14 @@ export default function App() {
           <div className="brand-mark">OM</div>
           <div><strong>OperMind</strong><span>多智能体运维诊断协作系统</span></div>
         </div>
-        <span className="phase-chip">M7.2 · TRACE REPLAY</span>
+        <span className="phase-chip">M7.3 · LIVE STREAM</span>
       </header>
 
       <main className="diagnosis-layout">
         <section className="hero-card">
-          <span className="eyebrow">TRACE REPLAY / 02</span>
-          <h1>让协作过程<br /><em>可见、可回放。</em></h1>
-          <p>当前 Step 在同步诊断闭环之上，使用后端返回的 trace 回放三种路由拓扑。实时 SSE 点亮仍严格后置到 M7.3。</p>
+          <span className="eyebrow">LIVE DIAGNOSIS / 03</span>
+          <h1>让协作节点<br /><em>实时点亮。</em></h1>
+          <p>优先消费后端 SSE 事件逐步展示协作 trace；流不可用或主动结束时，同一次诊断会自动切换到同步接口完成。</p>
         </section>
 
         <section className="health-card">
@@ -112,12 +169,15 @@ export default function App() {
         </section>
 
         <section className="panel query-panel">
-          <div className="section-heading"><div><span className="eyebrow">DIAGNOSIS INPUT</span><h2>发起同步诊断</h2></div><span className="step-note">POST /diagnose</span></div>
-          <form onSubmit={(event) => { event.preventDefault(); void submitDiagnosis() }}>
+          <div className="section-heading"><div><span className="eyebrow">DIAGNOSIS INPUT</span><h2>发起实时诊断</h2></div><span className="step-note">{modeLabel}</span></div>
+          <form onSubmit={(event) => { event.preventDefault(); submitDiagnosis() }}>
             <textarea aria-label="运维问题" value={query} onChange={(event) => setQuery(event.target.value)} disabled={running} rows={4} placeholder="描述 SQL、服务器、日志或复合故障…" />
             <div className="form-footer">
               <div className="demo-buttons"><span>快速场景</span>{DEMO_CASES.map(([label, value]) => <button key={label} type="button" className="demo-chip" onClick={() => setQuery(value)} disabled={running}>{label}</button>)}</div>
-              <button className="primary-button" type="submit" disabled={running || !query.trim()}>{running ? <><span className="spinner" /> 诊断中</> : <>开始诊断 <span>→</span></>}</button>
+              <div className="diagnosis-actions">
+                {running ? <button type="button" className="text-button stream-fallback-button" onClick={switchToSync}>改用同步完成</button> : null}
+                <button className="primary-button" type="submit" disabled={running || !query.trim()}>{running ? <><span className="spinner" /> 诊断中</> : <>开始诊断 <span>→</span></>}</button>
+              </div>
             </div>
           </form>
           {error && <div className="notice notice-error">{error}</div>}
@@ -125,14 +185,14 @@ export default function App() {
 
         <section className="panel report-panel">
           <div className="section-heading"><div><span className="eyebrow">DIAGNOSIS REPORT</span><h2>最终报告</h2></div>{response && <button type="button" className="text-button" onClick={() => void copyReport()}>复制报告</button>}</div>
-          {running ? <div className="report-loading"><span /><span /><span /><span className="short" /></div> : response ? <><div className="report-meta">{reportStats(response)}</div><pre className="report-content">{response.result}</pre></> : <div className="report-empty"><strong>{status === 'error' ? '诊断没有完成' : '报告将在诊断完成后出现'}</strong><span>{status === 'error' ? '请检查后端连接和输入后重试。' : '也可以直接使用下方固定 trace fixture 回放三种协作路径。'}</span></div>}
+          {running ? <div className="report-loading"><span /><span /><span /><span className="short" /></div> : response ? <><div className="report-meta">{reportStats(response)}</div><pre className="report-content">{response.result}</pre></> : <div className="report-empty"><strong>{status === 'error' ? '诊断没有完成' : '报告将在实时流完成后出现'}</strong><span>{status === 'error' ? '请检查后端连接后重试。' : '实时 trace 会在下方逐步点亮；流失败时会自动切换同步诊断。'}</span></div>}
         </section>
 
-        <TracePlayback response={response} />
+        <TracePlayback response={response} liveTrace={liveTrace} isStreaming={running && mode === 'stream'} isDiagnosticRunning={running} />
 
         <section className="next-steps-card"><div className="section-heading"><span className="eyebrow">EXECUTION GUIDE</span><h2>下一步</h2></div><div className="step-grid">{NEXT_STEPS.map(([id, title, detail]) => <article className="step-card" key={id}><span>{id}</span><strong>{title}</strong><p>{detail}</p></article>)}</div></section>
       </main>
-      <footer>OperMind · Mock-first · M7.2 Trace 回放与三路拓扑</footer>
+      <footer>OperMind · Mock-first · M7.3 SSE 实时增量与同步降级</footer>
     </div>
   )
 }

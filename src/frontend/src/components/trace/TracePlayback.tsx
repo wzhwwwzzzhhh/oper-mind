@@ -4,6 +4,9 @@ import { buildReplaySnapshot, strategyFromResponse, strategyFromTrace, TRACE_FIX
 
 interface TracePlaybackProps {
   response: DiagnoseResponse | null
+  liveTrace: TraceEvent[]
+  isStreaming: boolean
+  isDiagnosticRunning: boolean
 }
 
 const AGENTS: Array<{ id: AgentId; label: string; short: string; color: string }> = [
@@ -22,29 +25,40 @@ function displayTime(event: TraceEvent): string {
   return new Date(event.timestamp).toLocaleTimeString()
 }
 
-export function TracePlayback({ response }: TracePlaybackProps) {
+export function TracePlayback({ response, liveTrace, isStreaming, isDiagnosticRunning }: TracePlaybackProps) {
   const [fixtureId, setFixtureId] = useState('parallel')
   const [useResponse, setUseResponse] = useState(true)
   const [visibleCount, setVisibleCount] = useState(0)
   const timerRef = useRef<number | null>(null)
 
   const fixture = TRACE_FIXTURES.find((item) => item.id === fixtureId) ?? TRACE_FIXTURES[2]
+  const hasLiveTrace = liveTrace.length > 0
   const hasResponseTrace = Boolean(response?.trace?.length)
-  const useResponseTrace = useResponse && hasResponseTrace
-  const trace = useResponseTrace ? response?.trace ?? [] : fixture.trace
-  const strategy = useResponseTrace
+  const useCurrentDiagnosis = useResponse && (isDiagnosticRunning || response !== null || hasLiveTrace || hasResponseTrace)
+  const trace = useCurrentDiagnosis ? (hasLiveTrace ? liveTrace : response?.trace ?? []) : fixture.trace
+  const strategy = useCurrentDiagnosis
     ? strategyFromResponse(response) || strategyFromTrace(trace)
     : fixture.strategy
-  const sourceLabel = useResponseTrace ? '本次同步诊断' : fixture.label
+  const sourceLabel = useCurrentDiagnosis
+    ? isStreaming ? '本次实时诊断（SSE）' : isDiagnosticRunning ? '本次同步降级（等待报告）' : '本次诊断'
+    : fixture.label
   const snapshot = useMemo(
     () => buildReplaySnapshot(trace, strategy, visibleCount),
     [trace, strategy, visibleCount],
   )
 
   useEffect(() => {
+    if (isDiagnosticRunning) setUseResponse(true)
+  }, [isDiagnosticRunning])
+  useEffect(() => {
+    if (useCurrentDiagnosis && (isDiagnosticRunning || hasLiveTrace)) {
+      if (timerRef.current !== null) window.clearInterval(timerRef.current)
+      setVisibleCount(trace.length)
+      return
+    }
     setVisibleCount(0)
     if (timerRef.current !== null) window.clearInterval(timerRef.current)
-  }, [trace, strategy])
+  }, [trace, strategy, useCurrentDiagnosis, isDiagnosticRunning])
 
   useEffect(() => () => {
     if (timerRef.current !== null) window.clearInterval(timerRef.current)
@@ -55,6 +69,7 @@ export function TracePlayback({ response }: TracePlaybackProps) {
   }
 
   function replay() {
+    if (useCurrentDiagnosis && isDiagnosticRunning) return
     if (timerRef.current !== null) window.clearInterval(timerRef.current)
     setVisibleCount(0)
     timerRef.current = window.setInterval(() => {
@@ -69,22 +84,23 @@ export function TracePlayback({ response }: TracePlaybackProps) {
     }, 520)
   }
 
+  const controlsLocked = useCurrentDiagnosis && isDiagnosticRunning
   return (
     <section className="panel trace-panel">
       <div className="section-heading">
         <div><span className="eyebrow">TRACE REPLAY</span><h2>诊断链路回放</h2></div>
         <span className={`strategy-badge strategy-${strategy || 'unknown'}`}>{strategy || 'unknown'}</span>
       </div>
-      <p className="trace-caption">过程只由后端 trace 驱动。当前来源：<strong>{sourceLabel}</strong></p>
+      <p className="trace-caption">过程只由后端 trace 驱动。当前来源：<strong>{sourceLabel}</strong>{isStreaming && useResponse ? <em className="streaming-indicator">实时接收中</em> : null}</p>
 
       <div className="trace-source-switch">
-        {hasResponseTrace ? <button className={useResponse ? 'active' : ''} type="button" onClick={() => setUseResponse(true)}>本次诊断</button> : null}
+        {useCurrentDiagnosis ? <button className={useResponse ? 'active' : ''} type="button" onClick={() => setUseResponse(true)}>本次诊断</button> : null}
         {TRACE_FIXTURES.map((item) => <button key={item.id} className={!useResponse && fixtureId === item.id ? 'active' : ''} type="button" onClick={() => { setUseResponse(false); setFixtureId(item.id) }}>{item.label}</button>)}
       </div>
 
       <div className="trace-controls">
-        <button type="button" className="text-button" onClick={replay}>从头播放</button>
-        <button type="button" className="text-button" onClick={stepForward} disabled={visibleCount >= trace.length}>下一步</button>
+        <button type="button" className="text-button" onClick={replay} disabled={controlsLocked}>从头播放</button>
+        <button type="button" className="text-button" onClick={stepForward} disabled={controlsLocked || visibleCount >= trace.length}>下一步</button>
         <span>{visibleCount} / {trace.length} 个事件</span>
       </div>
 
@@ -106,7 +122,7 @@ export function TracePlayback({ response }: TracePlaybackProps) {
 
       <div className="trace-events">
         {trace.slice(0, visibleCount).map((event, index) => <div className="trace-event" key={`${event.timestamp}-${index}`}><span>{displayTime(event)}</span><b>{event.type}</b><p>{event.detail}</p></div>)}
-        {visibleCount === 0 ? <div className="trace-empty">点击“下一步”或“从头播放”查看由 trace 驱动的拓扑变化。</div> : null}
+        {visibleCount === 0 ? <div className="trace-empty">{controlsLocked ? '等待后端 SSE trace 事件…' : '点击“下一步”或“从头播放”查看由 trace 驱动的拓扑变化。'}</div> : null}
       </div>
     </section>
   )

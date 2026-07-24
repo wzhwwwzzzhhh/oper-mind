@@ -114,3 +114,8 @@ footer { width: min(1120px, 90vw); margin: 0 auto; padding-bottom: 28px; color: 
 .trace-event b { color: var(--mint); font-weight: 600; }
 .trace-event p { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .trace-empty { padding: 8px 0 2px; color: var(--text-soft); font-size: 11px; }
+.diagnosis-actions { display: flex; align-items: center; gap: 9px; }
+.stream-fallback-button { padding: 9px 11px; border: 1px solid rgba(255, 179, 107, .42); border-radius: 8px; color: var(--orange); }
+.streaming-indicator { margin-left: 8px; color: var(--mint); font-size: 10px; font-style: normal; }
+.streaming-indicator::before { content: '●'; margin-right: 4px; animation: stream-pulse 1s ease-in-out infinite; }
+@keyframes stream-pulse { 50% { opacity: .35; } }
