@@ -259,13 +259,14 @@ Design → Step → Code → Minimum Test → Review → Commit
 
 ## 11. 当前唯一下一步
 
-进入 **P0：产品化基线收敛**，但先只做规划与原型，不直接大规模编码：
+**P0.3：API v1 契约草案**。P0.1 的规划边界与 P0.2 的架构盘点已经完成；本 Step 定义稳定契约，不直接大规模编码：
 
-1. 核对并同步 `_A-Plan-总览.md`、前端路线图、开发规范、AGENTS/CLAUDE；
-2. 建立 P0 `design.md`，拆出可单独提交的 Step；
-3. 盘点现有后端模型/API/Agent 输入输出，输出“现状 → V1 契约”差距；
-4. 给出核心实体关系图、状态机和 `/api/v1` 草案；
-5. 重做 `frontend/mockup.html`；
-6. 用户确认原型，再决定 React 工程初始化。
+1. 定义资源 ID、UTC 时间、分页、统一错误体、request ID 与 trace ID；
+2. 定义 Session / Message / DiagnosisRun / RunEvent / DiagnosisResult 的 Pydantic 与 TypeScript 对应契约；
+3. 定义“创建 Run → 订阅 SSE → 刷新恢复”的事件信封、event ID 与最终状态语义；
+4. 明确旧 `/diagnose`、`/diagnose/stream` 的兼容范围和 `/api/v1` 的新边界；
+5. 独立 Review 后，以文档提交收口。
+
+P0.3 完成后才进入 P0.4 的 `frontend/mockup.html` 原型；用户确认原型后再初始化 React 工程。P1/P2 的 ORM、Migration、Repository 和新路由实现必须遵循 P0.3 契约，且先解决已记录的配置/数据路径与 Python 环境前置问题。
 
 本计划是方向基线，不是不可修改的瀑布计划；边做边优化，但任何范围变化必须回写本文件和 `_A-Plan-总览.md`，避免口头决策漂移。

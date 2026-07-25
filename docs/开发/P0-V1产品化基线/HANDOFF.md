@@ -1,7 +1,7 @@
 # P0 HANDOFF — V1 产品化基线
 
 > 更新时间：2026-07-25
-> 状态：P0.1 已提交，P0.2 待接手
+> 状态：P0.2 已提交，P0.3 待接手
 > 分支：`feat/p0-product-baseline`　|　基线提交：`f4478ab refactor: 重组项目结构 - backend/report/frontend 三目录分离`
 > 唯一真实项目：`D:\market-handsome\oper-mind`
 
@@ -13,6 +13,7 @@
 - `frontend/` 仍为用户未跟踪内容，本 Step 未读取、修改、暂存或提交；`report/` 未修改、暂存或删除。
 - P0.1 已以 `docs: 同步P0产品化基线文档` 提交。用户删除的旧 M7 HANDOFF 已按要求纳入该提交。
 - 当前工作区只剩用户未跟踪的 `frontend/`；它不属于 P0.1 提交，也未被读取、修改、暂存或提交。
+- P0.2 已完成只读审计、架构基线与独立 Review，并已创建文档提交；未修改业务代码、`frontend/` 或 `report/`。
 
 ## 2. 产品方向与已确认决策
 
@@ -59,7 +60,7 @@ D:\market-handsome\oper-mind
 - AGENTS/CLAUDE 已改为逐字一致的硬约束镜像。
 - 已同步 P 阶段日志命名、阶段调整记录、真实数据源/前后端联调共同确认与 mock fallback 规则。
 
-### P0.2 现状盘点与产品架构 — P0.1 提交后唯一下一步
+### P0.2 现状盘点与产品架构 — 已完成，已提交
 
 - 审计 `backend/src`、现有 schema、SSE 与 Agent 输出。
 - 输出 Application Service / Agent Core / Infrastructure 边界与渐进目录方案。
@@ -93,7 +94,7 @@ Get-Content -Raw -Encoding UTF8 docs\开发\P0-V1产品化基线\HANDOFF.md
 1. 确认 `frontend/` 仍未被误纳入 diff 或暂存区；不删除、不覆盖用户改动。
 2. 阅读 `design.md`、`step1-规划与边界同步.md`、`review.md` 与本 HANDOFF，确认 P0.1 已收口。
 3. 不读取、修改、暂存或提交用户未跟踪的 `frontend/`，除非后续 Step 获得明确授权。
-4. 进入 P0.2，先审计 `backend/src`、现有 schema、SSE 和 Agent 输出；不与 HTML 原型或业务代码混成一个提交。
+4. 阅读 P0.2 架构盘点文档与本 HANDOFF，确认 P0.2 已收口；然后进入 P0.3 契约草案，不与 HTML 原型或业务代码混成一个提交。
 
 ## 7. 提交边界和禁止事项
 
@@ -107,6 +108,6 @@ Get-Content -Raw -Encoding UTF8 docs\开发\P0-V1产品化基线\HANDOFF.md
 
 ## 8. 唯一下一步
 
-**P0.2：现状盘点与产品架构。**
+**P0.3：API v1 契约草案。**
 
-输出后端现状到 V1 契约的差距、Application Service / Agent Core / Infrastructure 边界、渐进目录方案、核心实体 ER 图以及 Session、Run、Incident、Approval 状态机；不进行大规模代码迁移。
+定义 ID、UTC 时间、分页、错误体、request/trace ID、SSE event ID、Session/Run 契约和结构化 `DiagnosisResult`；不实现 ORM、数据库、迁移或新 API 路由。P1 前置风险已记录：配置/数据路径迁移未收口，且当前 `.venv` 解释器失效；P0.3 不得以此绕过或隐藏运行环境问题。

@@ -32,3 +32,32 @@
 ## 结论
 
 未发现阻塞提交的 P1/P2 问题。本次指定文档与用户删除的旧 M7 HANDOFF 已精确暂存并提交。
+
+---
+
+# P0 Review — P0.2 后端现状与产品架构
+
+> 日期：2026-07-25　|　审查范围：P0.2 文档盘点　|　结论：通过，已提交
+
+## 审查范围
+
+- `backend/src/app.py`、`backend/src/api/`、`backend/src/core/`、`backend/src/agents/`、`backend/src/tools/`、`backend/src/memory/`、`backend/src/eval/`
+- `backend/tests/`、根 `data/`、根 `config/`
+- P0.2 架构盘点、A-Plan、阶段二计划、AGENTS/CLAUDE、P0 设计与交接记录
+
+## 检查项
+
+| 检查项 | 结果 | 结论 |
+|---|---|---|
+| 现状锚点 | 通过 | API/SSE、Coordinator 状态、Graph、报告、记忆、审批、mock 场景和评测结论均可回溯至代码路径与行号锚点 |
+| 产品边界 | 通过 | Application Service、Domain、Infrastructure 与 Agent Core 职责分离；未要求一次性搬迁现有编排 |
+| 数据模型 | 通过 | Session、Run、RunEvent、DiagnosisResult、Incident、ActionProposal、Approval 与阶段二计划一致，未声称已经建表 |
+| 状态机 | 通过 | Run 终态、事件追加限制、审批异步化与 P2/P5 切分明确 |
+| 历史兼容 | 通过 | 旧 `/diagnose`、`/diagnose/stream` 与 `report/` 保留，产品闭环只规划从 `/api/v1` 进入 |
+| 路径风险 | 已记录 | `backend/src/config.py` 与根 `config/` 不一致、运行时依赖根 `data/`、脚本在 `backend/scripts/`；P1 前必须收口 |
+| 环境风险 | 已记录 | `.venv\\Scripts\\python.exe` 指向缺失 Python，P0.2 未运行测试且未伪造通过结果 |
+| 范围边界 | 通过 | 仅修改文档；`frontend/` 保持未跟踪且未读取/暂存，`report/` 无改动 |
+
+## 结论
+
+未发现阻塞本次文档提交的 P1/P2 问题。P0.2 形成了后续 P0.3/P1/P2 的可执行边界；配置路径和 Python 环境是 P1 前必须显式解决的前置条件，不能在实现时被忽略。
