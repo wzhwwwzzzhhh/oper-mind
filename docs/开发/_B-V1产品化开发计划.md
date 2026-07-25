@@ -259,14 +259,14 @@ Design → Step → Code → Minimum Test → Review → Commit
 
 ## 11. 当前唯一下一步
 
-**P0.3：API v1 契约草案**。P0.1 的规划边界与 P0.2 的架构盘点已经完成；本 Step 定义稳定契约，不直接大规模编码：
+**P0.4：主前端产品原型**。P0.1 的规划边界、P0.2 的架构盘点和 P0.3 的 API v1 契约已完成；本 Step 只创建高保真 HTML 原型，不初始化 React 工程：
 
-1. 定义资源 ID、UTC 时间、分页、统一错误体、request ID 与 trace ID；
-2. 定义 Session / Message / DiagnosisRun / RunEvent / DiagnosisResult 的 Pydantic 与 TypeScript 对应契约；
-3. 定义“创建 Run → 订阅 SSE → 刷新恢复”的事件信封、event ID 与最终状态语义；
-4. 明确旧 `/diagnose`、`/diagnose/stream` 的兼容范围和 `/api/v1` 的新边界；
-5. 独立 Review 后，以文档提交收口。
+1. 在用户明确授权后审计并编辑 `frontend/` 的原型文件；
+2. 设计会话、环境、问题输入、实时进度、根因、证据、影响、建议、风险和审批的结果优先工作区；
+3. 将 Agent 协作呈现为摘要，完整 Trace 只通过受控入口跳转 `report/`；
+4. 对未实现资源、告警、审批与数据源使用诚实空状态，不伪造产品能力；
+5. 用户确认原型后，才决定 React 工程初始化与 P1/P2/P3 的交错实现顺序。
 
-P0.3 完成后才进入 P0.4 的 `frontend/mockup.html` 原型；用户确认原型后再初始化 React 工程。P1/P2 的 ORM、Migration、Repository 和新路由实现必须遵循 P0.3 契约，且先解决已记录的配置/数据路径与 Python 环境前置问题。
+P1/P2 的 ORM、Migration、Repository 和新路由必须遵循 P0.3 契约，且先解决已记录的配置/数据路径与 Python 环境前置问题。
 
 本计划是方向基线，不是不可修改的瀑布计划；边做边优化，但任何范围变化必须回写本文件和 `_A-Plan-总览.md`，避免口头决策漂移。

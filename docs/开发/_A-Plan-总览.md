@@ -61,11 +61,11 @@ M7 原计划中的“联调与视觉收口”不再作为独立产品里程碑�
 
 ## 4. 当前唯一下一步
 
-**P0.3：API v1 契约草案**。
+**P0.4：主前端产品原型**。
 
-P0.1 已完成并提交，统一了产品方向、真实目录、阶段真相源、前端职责、日志/交接规则和历史基线提示。P0.2 已完成后端现状盘点，固化了 Application Service / Agent Core / Infrastructure 职责、核心实体关系、状态机、可保留模块、P1 前置路径风险与后续迁移顺序。
+P0.1 已完成并提交，统一了产品方向、真实目录、阶段真相源、前端职责、日志/交接规则和历史基线提示。P0.2 已完成后端现状盘点，固化了 Application Service / Agent Core / Infrastructure 职责、核心实体关系、状态机、可保留模块、P1 前置路径风险与后续迁移顺序。P0.3 已完成 API v1 契约草案，锁定 UUID、UTC、cursor、统一错误体、RunEvent/SSE 恢复语义和结构化 `DiagnosisResult`。
 
-P0.3 定义 ID、UTC 时间、分页、错误体、request/trace ID、SSE event ID、Session/Run 契约和结构化 `DiagnosisResult`；不实现 ORM、数据库、迁移或新 API 路由。契约应保持旧 `/diagnose`、`/diagnose/stream` 兼容，同时为 P1/P2 的持久化会话闭环提供唯一输入。
+P0.4 重做 `frontend/mockup.html` 的高保真主产品原型：会话、环境、用户问题、实时进度、根因、证据、影响、建议、风险与审批；默认结果优先，完整 Trace 受控跳转 `report/`。用户确认原型后才初始化正式 React 工程。P0.4 开始前必须获得对用户未跟踪 `frontend/` 的明确编辑授权。
 
 ## 5. 执行与降级原则
 

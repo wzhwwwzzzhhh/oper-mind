@@ -61,3 +61,39 @@
 ## 结论
 
 未发现阻塞本次文档提交的 P1/P2 问题。P0.2 形成了后续 P0.3/P1/P2 的可执行边界；配置路径和 Python 环境是 P1 前必须显式解决的前置条件，不能在实现时被忽略。
+
+---
+
+# P0 Review — P0.3 API v1 契约草案
+
+> 日期：2026-07-25　|　审查范围：P0.3 文档与类型草案　|　结论：通过，已提交
+
+## 审查范围
+
+- `docs/开发/P0-V1产品化基线/api-v1-contract.md`
+- `docs/开发/P0-V1产品化基线/step3-API-v1契约草案.md`
+- A-Plan、阶段二计划、开发规范、AGENTS/CLAUDE、P0 设计与交接记录
+- 既有 `backend/src/api/schemas.py`、`backend/src/api/events.py`、`backend/src/app.py` 的兼容边界
+
+## 检查项
+
+| 检查项 | 结果 | 结论 |
+|---|---|---|
+| 默认约束 | 通过 | 单租户、UUID、UTC `Z`、cursor 分页和安全错误体均有明确协议语义 |
+| 资源契约 | 通过 | Session、Message、DiagnosisRun、RunEvent、DiagnosisResult、Evidence 与嵌套类型均有 Pydantic/TypeScript 对应草案 |
+| 结构化结果 | 通过 | `DiagnosisResult` 为成功 Run 的最终事实；Markdown 限为可选展示补充 |
+| SSE 与恢复 | 通过 | `RunEvent.sequence` 一一映射 SSE `id`；Last-Event-ID、after_sequence、终态关闭与事件列表补齐规则明确 |
+| 状态码与幂等 | 通过 | 创建 Run 使用必填幂等键；未受理失败用 `503`，已受理 Run 失败用持久化 `run_failed` 终态表达 |
+| 旧接口兼容 | 通过 | `/diagnose` 与 `/diagnose/stream` 保持无状态阶段一行为，不伪装为 v1 持久化 API |
+| 类型一致性 | 通过 | 修复并补齐 TypeScript 嵌套、请求、错误与事件信封类型；未定义 `event_id` 被收敛为 `RunEvent.id` |
+| 范围边界 | 通过 | 未修改 `backend/`、`frontend/`、`report/`；未创建 ORM、数据库、Migration 或 FastAPI 路由 |
+
+## 风险与限制
+
+- Pydantic/TypeScript 仍是文档草案，P1 必须从单一 OpenAPI/生成或校验链路落地，避免两份字段漂移。
+- 运行环境的 Python 解释器失效、配置/数据路径未收口仍是 P1 前置风险；本契约不宣称接口已可运行。
+- Approval、Incident、Environment、DataSource 的完整端点不属于第一个会话诊断闭环，将在 P4/P5 分阶段补齐。
+
+## 结论
+
+未发现阻塞 P0.3 文档提交的 P1/P2 问题。允许精确暂存本 Step 文档与同步规则文件；根据交接约束，提交前必须先获得用户授权。
