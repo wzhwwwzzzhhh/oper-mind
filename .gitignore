@@ -1,4 +1,4 @@
-# 虚拟环境
+﻿# 虚拟环境
 .venv/
 
 # Python 缓存
@@ -24,8 +24,19 @@ data/__pycache__/
 config/config.local.yaml
 
 # 评测/实验产出（可复现，不进代码库；只进库的是 harness 本身）
-experiments/
+/experiments/
 # 前端构建产物与依赖
 src/frontend/node_modules/
 src/frontend/dist/
 src/frontend/*.log
+
+# 报告前端（旧前端迁移至此）
+report/node_modules/
+report/dist/
+report/*.log
+
+# 临时环境
+.m7-qa-venv/
+
+# 旧目录残留
+newproject/
