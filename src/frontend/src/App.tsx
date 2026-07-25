@@ -3,6 +3,7 @@ import { diagnose } from './api/diagnosis'
 import { subscribeDiagnosisStream } from './api/stream'
 import { getHealth } from './api/health'
 import { TracePlayback } from './components/trace/TracePlayback'
+import { MetricsDashboard } from './components/charts/MetricsDashboard'
 import type { DiagnoseResponse, HealthResponse, TraceEvent } from './types/api'
 
 const DEMO_CASES = [
@@ -12,7 +13,6 @@ const DEMO_CASES = [
 ] as const
 
 const NEXT_STEPS = [
-  ['M7.4', 'M5 指标看板', 'ECharts 与真实跑批收益边界'],
   ['M7.5', '端到端验收', '代理联调、截图、响应式与 demo 收口'],
 ]
 
@@ -148,14 +148,14 @@ export default function App() {
           <div className="brand-mark">OM</div>
           <div><strong>OperMind</strong><span>多智能体运维诊断协作系统</span></div>
         </div>
-        <span className="phase-chip">M7.3 · LIVE STREAM</span>
+        <span className="phase-chip">M7.4 · EVIDENCE DASHBOARD</span>
       </header>
 
       <main className="diagnosis-layout">
         <section className="hero-card">
-          <span className="eyebrow">LIVE DIAGNOSIS / 03</span>
-          <h1>让协作节点<br /><em>实时点亮。</em></h1>
-          <p>优先消费后端 SSE 事件逐步展示协作 trace；流不可用或主动结束时，同一次诊断会自动切换到同步接口完成。</p>
+          <span className="eyebrow">EVIDENCE DASHBOARD / 04</span>
+          <h1>让协作价值<br /><em>可量化、可追溯。</em></h1>
+          <p>在实时诊断闭环之外，展示 M5 两臂真实跑批的质量、成本和分组收益边界；图表不替代统计显著性检验。</p>
         </section>
 
         <section className="health-card">
@@ -190,9 +190,11 @@ export default function App() {
 
         <TracePlayback response={response} liveTrace={liveTrace} isStreaming={running && mode === 'stream'} isDiagnosticRunning={running} />
 
+        <MetricsDashboard />
+
         <section className="next-steps-card"><div className="section-heading"><span className="eyebrow">EXECUTION GUIDE</span><h2>下一步</h2></div><div className="step-grid">{NEXT_STEPS.map(([id, title, detail]) => <article className="step-card" key={id}><span>{id}</span><strong>{title}</strong><p>{detail}</p></article>)}</div></section>
       </main>
-      <footer>OperMind · Mock-first · M7.3 SSE 实时增量与同步降级</footer>
+      <footer>OperMind · Mock-first · M7.4 M5 指标看板（ECharts）</footer>
     </div>
   )
 }
