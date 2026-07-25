@@ -1,6 +1,6 @@
 # P0 设计 — V1 产品化基线
 
-> 日期：2026-07-25　|　状态：P0.1、P0.2、P0.3 已完成并提交，P0.4 待授权开始　|　基线提交：`f4478ab`
+> 日期：2026-07-25　|　状态：P0.1–P0.4 已完成并提交　|　基线提交：`f4478ab`
 
 ## 目标
 
@@ -35,7 +35,7 @@
 | P0.1 | 规划与边界同步 | 已完成 | 入口文档与真实目录、阶段边界和工作流互相一致 |
 | P0.2 | 现状盘点与产品架构 | 已完成，已提交 | 现状到 V1 契约差距、分层边界、ER 图与状态机 |
 | P0.3 | API v1 契约草案 | 已完成，已提交 | 统一 API、SSE、错误体和结构化结果契约 |
-| P0.4 | 主前端产品原型 | 待授权开始 | 用户确认结果优先的 HTML 原型，再决定 React 初始化 |
+| P0.4 | 主前端产品原型 | 已完成，已提交 | 用户确认结果优先的 HTML 原型，再决定 React 初始化 |
 
 ## P0.2 目标与范围
 
@@ -53,6 +53,15 @@ P0.2 非目标：不修改 `backend/` 业务代码；不读取、修改、暂存
 - 只输出契约与迁移说明；不引入 ORM、Migration、Repository 或新 API 路由。
 
 P0.3 默认锁定：单租户 MVP、UUID、UTC ISO 8601、cursor 分页、`RunEvent.sequence` 映射 SSE `id`、`DiagnosisResult` 为最终结构化事实、旧 `/diagnose` 与 `/diagnose/stream` 保持兼容。
+
+## P0.4 目标与范围
+
+- 在获得用户授权后审计并重构未跟踪资产 `frontend/mockup.html`，保留其深色控制台以外的可复用信息密度，不继承 Trace 主导布局。
+- 以 P0.3 契约呈现 Session、DiagnosisRun、RunEvent、DiagnosisResult、Evidence、`requires_approval` 与错误/空/恢复状态。
+- 主屏优先展示结构化根因、证据、影响、建议与风险；Agent 协作仅作为摘要，完整 Trace 仅链接 `report/`。
+- 使用静态交互切换成功、运行中、失败、空状态；所有数据标为原型/未接入，不调用 API。
+
+P0.4 非目标：不初始化 React/Vite；不改 `backend/`、`report/`；不新增数据库、API 路由或伪造实现；用户确认前不推进 React 工程。
 
 ## 变更文件
 

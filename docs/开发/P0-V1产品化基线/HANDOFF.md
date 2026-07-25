@@ -1,7 +1,7 @@
 # P0 HANDOFF — V1 产品化基线
 
 > 更新时间：2026-07-25
-> 状态：P0.3 已提交，P0.4 待明确编辑授权
+> 状态：P0 已完成，P1 待接手
 > 分支：`feat/p0-product-baseline`　|　基线提交：`f4478ab refactor: 重组项目结构 - backend/report/frontend 三目录分离`
 > 唯一真实项目：`D:\market-handsome\oper-mind`
 
@@ -15,6 +15,7 @@
 - 当前工作区只剩用户未跟踪的 `frontend/`；它不属于 P0.1 提交，也未被读取、修改、暂存或提交。
 - P0.2 已完成只读审计、架构基线与独立 Review，并已创建文档提交；未修改业务代码、`frontend/` 或 `report/`。
 - P0.3 已完成文档与类型草案及独立 Review，并已创建文档提交；未实现 ORM、数据库、迁移、新 FastAPI 路由，也未读取、修改或暂存 `frontend/`。
+- 用户已授权 P0.4 读取、编辑 `frontend/mockup.html`，并已确认原型视觉方向；原型按 API v1 契约重构并已提交，未初始化 React/Vite，未修改 `backend/` 或 `report/`。
 
 ## 2. 产品方向与已确认决策
 
@@ -73,7 +74,7 @@ D:\market-handsome\oper-mind
 - 定义 Session / Message / Run / RunEvent / DiagnosisResult。
 - 设计“POST 创建 run + GET SSE”的恢复语义，结构化结果不再只返回 Markdown。
 
-### P0.4 主前端产品原型
+### P0.4 主前端产品原型 — 已完成，已提交
 
 - 重做 `frontend/mockup.html`，展示会话、环境、问题、实时进度、根因、证据、影响、建议、风险与审批。
 - Agent 协作只做摘要，完整 Trace 跳转 `report/`。
@@ -95,7 +96,7 @@ Get-Content -Raw -Encoding UTF8 docs\开发\P0-V1产品化基线\HANDOFF.md
 1. 确认 `frontend/` 仍未被误纳入 diff 或暂存区；不删除、不覆盖用户改动。
 2. 阅读 `design.md`、`step1-规划与边界同步.md`、`review.md` 与本 HANDOFF，确认 P0.1 已收口。
 3. 不读取、修改、暂存或提交用户未跟踪的 `frontend/`，除非后续 Step 获得明确授权。
-4. 阅读 `api-v1-contract.md` 与 `step3-API-v1契约草案.md`，确认 P0.3 已收口；P0.4 仅在用户明确授权编辑 `frontend/` 后才开始，不与后端业务代码混成一个提交。
+4. 阅读 `api-v1-contract.md`、`step4-主前端产品原型.md` 与 `review.md`，确认 P0.4 已收口；不因原型提交而初始化 React 工程。
 
 ## 7. 提交边界和禁止事项
 
@@ -109,6 +110,6 @@ Get-Content -Raw -Encoding UTF8 docs\开发\P0-V1产品化基线\HANDOFF.md
 
 ## 8. 唯一下一步
 
-**P0.4：主前端产品原型。**
+**P1.1：环境/配置路径收口与应用后端地基设计。**
 
-必须先获得编辑用户未跟踪 `frontend/` 的明确授权，才能审计和修改其原型文件。P1 前置风险仍为配置/数据路径迁移未收口和 `.venv` 解释器失效。
+先修复或重建可用 Python 环境，收口 `backend/src`、根 `config/` 与根 `data/` 的路径约定，再根据 P0.3 契约设计 SQLAlchemy、Alembic、Domain、Repository 和 Application Service 的最小落地步骤。React 工程初始化需单独决定，不由 P0.4 自动触发。
