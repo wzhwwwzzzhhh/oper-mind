@@ -140,7 +140,7 @@ def test_persistence_runtime_拒绝非目标数据库方言() -> None:
 
 
 def test_alembic_upgrade_head_仅创建迁移版本元数据(tmp_path: Path) -> None:
-    """空业务 schema 的 fresh-db 迁移只创建 Alembic 版本元数据。"""
+    """P2 首个业务 migration 的 fresh-db 迁移创建预期业务表。"""
     database_path = tmp_path / "fresh.sqlite3"
     env = os.environ.copy()
     env.update(
@@ -172,6 +172,14 @@ def test_alembic_upgrade_head_仅创建迁移版本元数据(tmp_path: Path) -> 
     assert result.returncode == 0, result.stderr
     engine = create_app_engine(env["OPERMIND_APP_DATABASE_URL"])
     try:
-        assert inspect_engine(engine).get_table_names() == ["alembic_version"]
+        assert set(inspect_engine(engine).get_table_names()) == {
+            "alembic_version",
+            "sessions",
+            "messages",
+            "diagnosis_runs",
+            "run_events",
+            "diagnosis_results",
+            "run_idempotency_keys",
+        }
     finally:
         engine.dispose()

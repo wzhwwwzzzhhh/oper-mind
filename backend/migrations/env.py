@@ -18,6 +18,7 @@ for path in (PROJECT_ROOT, BACKEND_ROOT):
 
 from src.config import load_persistence_settings
 from src.infrastructure.persistence.database import Base, create_app_engine
+from src.infrastructure.persistence import models  # noqa: F401
 
 
 config = context.config

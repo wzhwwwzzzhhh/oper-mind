@@ -1,6 +1,6 @@
 # P2 设计 — 会话诊断闭环
 
-> 日期：2026-07-26　|　状态：P2.1 已完成并提交　|　分支：`feat/p2-session-diagnosis`　|　稳定基线：`6aa3302 feat: 建立P1应用持久化地基`
+> 日期：2026-07-26　|　状态：P2.2a 已完成，待用户授权提交　|　分支：`feat/p2-session-diagnosis`　|　设计基线：`8f27717 docs: 完成P2会话诊断闭环设计`
 
 ## 目标
 
@@ -20,8 +20,9 @@ P2 只新增 `/api/v1`，不改阶段一 `POST /diagnose`、`GET /diagnose/strea
 
 | Step | 名称 | 状态 | 交付与边界 |
 |---|---|---|---|
-| P2.1 | 领域、迁移与闭环设计 | Review 通过，待本次提交 | 固定表关系、状态机、事务、Trace 映射、端点切片与测试门；不写业务实现 |
-| P2.2 | 领域模型、首个业务迁移与 Repository | 下一步 | ORM mapper、首个非空 Alembic revision、Repository 端口/实现与数据库测试；不接入 HTTP/Agent |
+| P2.1 | 领域、迁移与闭环设计 | 已提交 | 固定表关系、状态机、事务、Trace 映射、端点切片与测试门；不写业务实现 |
+| P2.2a | 领域模型、首个业务迁移与 schema 验证 | 已完成，待用户授权提交 | 领域常量、ORM mapper、首个非空 Alembic revision、fresh DB/约束/降级/方言测试；不接入 HTTP/Agent |
+| P2.2b | Repository 端口与 SQLAlchemy 实现 | 下一步 | Repository ports/实现、查询与事务边界测试；不接入 Application Service/HTTP/Agent |
 | P2.3 | Session/Run Application Service | 待开始 | 受理、幂等、状态迁移、事件追加、结果写入与 Agent 适配端口；不实现 v1 HTTP/SSE |
 | P2.4 | `/api/v1` 与 SSE 恢复 | 待开始 | Pydantic 契约、路由、SSE 重放、错误映射与 API 测试；旧接口不改 |
 | P2.5 | 刷新恢复与闭环验收 | 待开始 | 端到端恢复、失败、幂等、结构化结果和 `report/` 受控 Trace 链接验收 |
@@ -38,7 +39,7 @@ DiagnosisRun 1 ── 0..1 Message(assistant)
 Session 1 ── * RunIdempotencyKey
 ```
 
-`Message.run_id` 是可空外键：输入用户消息在创建 Run 的受理事务中先持久化，因而 `DiagnosisRun.input_message_id` 可以是非空外键；成功后的助手消息在 Run 成功事务中写入并带 `run_id`。不在 `DiagnosisRun` 保存助手消息 ID，避免双向外键循环。
+`Message.run_id` 是可空、带索引但**不设物理外键**的应用层校验引用：输入用户消息在创建 Run 的受理事务中先持久化，因而 `DiagnosisRun.input_message_id` 是非空物理外键；成功后的助手消息在 Run 成功事务中写入并带 `run_id`。若在 `messages.run_id` 再加反向外键会与 `diagnosis_runs.input_message_id` 形成循环 DDL，故 P2.3 Application Service 必须校验该 `run_id` 所属 Run 与 Message 的 `session_id` 一致。
 
 P2.2 第一份非空 revision 创建以下表：
 
@@ -52,6 +53,15 @@ P2.2 第一份非空 revision 创建以下表：
 | `run_idempotency_keys` | UUID `id`、session、endpoint、key、request fingerprint、run、expires_at、UTC 创建时间 | `UNIQUE(session_id, endpoint, idempotency_key)`；同键不同指纹冲突 |
 
 所有业务主键、`trace_id` 和幂等键以 Python UUID v4 生成；所有内部时间为 UTC aware datetime；对外由 P2.4 统一序列化为 `Z`。数据库 JSON 只保存经 Pydantic 校验、可展示且脱敏的对象；Evidence 的原始日志、SQL、连接串和工具原始响应绝不入库。
+
+
+## 1.1 P2.2a 实际落地与 schema 验证
+
+- `backend/src/domain/diagnosis.py` 提供 Session、Message、Run、RunEvent 的受控枚举与终态集合。项目支持 Python 3.10+，枚举使用 `str, Enum`，不依赖 Python 3.11 才提供的 `StrEnum`。
+- `backend/src/infrastructure/persistence/models.py` 映射六张表；主键、`trace_id` 与幂等键均使用 UUID，默认时间由 UTC aware `utc_now()` 生成。ORM 不声明关系级联，不创建表，也不持有事务边界。
+- `backend/migrations/versions/20260726_01_p2_session_diagnosis.py` 是首份非空 revision（`20260726_01_p2`）；仅创建六张 P2 表及必要索引、外键、唯一键和检查约束。`backend/migrations/env.py` 显式导入 ORM mapper，使 Alembic `target_metadata` 完整加载。
+- `backend/tests/test_p2_schema.py` 使用独立临时 SQLite，覆盖 fresh DB、绝对 `alembic.ini` 的跨目录执行、降级至 base 后业务表消失、再次升级、SQLite 外键、受控值、唯一/检查约束、无循环 `messages.run_id` 外键、UTC 默认时间，以及 ORM metadata 与 migration 的 PostgreSQL 离线 DDL 编译；不连接真实 PostgreSQL。
+- JSON 列仅是结构化结果/事件的存储边界，不在 mapper 层接受原始日志、SQL、连接串或工具原始输出。P2.3/P2.4 必须在写入前与读取后以 Pydantic 契约完成可展示、脱敏 JSON 的校验。
 
 ## 2. Run 状态机与事务
 

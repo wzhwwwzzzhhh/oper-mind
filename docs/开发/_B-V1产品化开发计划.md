@@ -259,8 +259,8 @@ Design → Step → Code → Minimum Test → Review → Commit
 
 ## 11. 当前唯一下一步
 
-**P2.2：领域模型、首个业务迁移与 Repository**。P2 已在 `feat/p2-session-diagnosis` 开始，P2.1 已完成并提交：Session、Message、DiagnosisRun、RunEvent、DiagnosisResult、Evidence 与幂等记录的领域关系、首个 migration、Run 状态机、事件 sequence、事务、Trace 映射和 API/SSE 切片已确定；旧 `/diagnose`、`/diagnose/stream` 保持兼容。
+**P2.2b：Repository 端口与 SQLAlchemy 实现**。P2 已在 `feat/p2-session-diagnosis` 开始，P2.1 已完成并提交；P2.2a 已完成实现、独立审查和验证，等待用户授权提交：Session、Message、DiagnosisRun、RunEvent、DiagnosisResult、幂等记录的领域常量、ORM mapper、首个非空 migration 及 schema 约束已固定；旧 `/diagnose`、`/diagnose/stream` 保持兼容。
 
-P2.2 只实现 ORM mapper、第一份非空 Alembic revision、Repository ports/SQLAlchemy implementations 和 fresh-db/约束/查询测试。P2.3 才实现 Application Service、幂等和 Agent 适配，P2.4 才新增 `/api/v1` 与 SSE 重放，P2.5 才进行刷新恢复和闭环验收。
+P2.2b 只实现 Repository ports、SQLAlchemy implementations 与查询/事务边界测试；Repository 不自行 `commit`/`rollback`。P2.3 才实现 Application Service、幂等和 Agent 适配，P2.4 才新增 `/api/v1` 与 SSE 重放，P2.5 才进行刷新恢复和闭环验收。
 
 本计划是方向基线，不是不可修改的瀑布计划；边做边优化，但任何范围变化必须回写本文件和 `_A-Plan-总览.md`，避免口头决策漂移。

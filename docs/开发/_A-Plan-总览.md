@@ -50,7 +50,7 @@ M7 原计划中的“联调与视觉收口”不再作为独立产品里程碑�
 |---|---|---|---|
 | **P0** | **V1 产品化基线** | 已完成 | 产品边界、架构、API v1 契约与主前端原型已收口 |
 | **P1** | **应用后端与持久化地基** | 已完成 | 环境、路径、持久化 Settings、Engine/Session factory 与 Alembic 骨架已收口；提交后进入 P2 首个资源纵向切片 |
-| P2 | 会话诊断闭环 | 🟡 P2.1 已完成 | Session、Run、结构化结果、SSE 持久化与恢复的领域/迁移/事务设计已收口 |
+| P2 | 会话诊断闭环 | 🟡 P2.2a 已完成，待提交授权 | 领域状态常量、六张核心业务表、首份非空 Alembic migration 与 schema 验证已收口 |
 | P3 | 主前端工作台 | 待开始 | `frontend/` 产品外壳、会话与结果优先工作区 |
 | P4 | 环境、数据源与知识 | 待开始 | Environment、DataSource、连接器、Runbook 与记忆治理 |
 | P5 | 告警、事件与审批闭环 | 待开始 | Alert、Incident、ActionProposal、Approval 与审计 |
@@ -61,11 +61,11 @@ M7 原计划中的“联调与视觉收口”不再作为独立产品里程碑�
 
 ## 4. 当前唯一下一步
 
-**P2.2：领域模型、首个业务迁移与 Repository**。
+**P2.2b：Repository 端口与 SQLAlchemy 实现**。
 
-P2 已从 `6aa3302 feat: 建立P1应用持久化地基` 开始，分支为 `feat/p2-session-diagnosis`。P2.1 已完成并提交：P0.3 的 Session、Message、DiagnosisRun、RunEvent、DiagnosisResult、Evidence 和幂等契约已被拆解为首个业务 migration、状态机、短事务、Trace 映射和 `/api/v1` 实现切片；阶段一旧接口保持不变。
+P2 从 `6aa3302 feat: 建立P1应用持久化地基` 开始，分支为 `feat/p2-session-diagnosis`；P2.1 的领域/迁移/事务设计已在 `8f27717 docs: 完成P2会话诊断闭环设计` 提交。P2.2a 已完成实现、独立审查与验证，正等待用户授权提交：新增领域状态/事件常量、六张核心业务表的 ORM mapper、首份非空 Alembic revision 与临时 SQLite/离线 PostgreSQL schema 测试；阶段一旧接口保持不变。
 
-P2.1 提交后，唯一下一步为 **P2.2：领域模型、首个业务迁移与 Repository**。只创建 ORM mapper、第一份非空 Alembic revision、Repository ports/SQLAlchemy implementations 和数据库测试；不得接入 Coordinator、Application Service、`/api/v1`、SSE、前端或真实数据源。
+唯一下一步为 **P2.2b：Repository 端口与 SQLAlchemy 实现**。只实现 Repository ports、SQLAlchemy implementations 与查询/事务边界测试；Repository 不自行 `commit`/`rollback`，不得接入 Coordinator、Application Service、`/api/v1`、SSE、前端或真实数据源。
 ## 5. 执行与降级原则
 
 ```text
