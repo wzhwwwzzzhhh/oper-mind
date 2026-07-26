@@ -1,4 +1,4 @@
-﻿# 虚拟环境
+# 虚拟环境
 .venv/
 
 # Python 缓存
@@ -19,6 +19,7 @@ Thumbs.db
 
 # 测试数据
 data/__pycache__/
+data/*.sqlite3
 
 # 本地配置文件（包含敏感信息）
 config/config.local.yaml

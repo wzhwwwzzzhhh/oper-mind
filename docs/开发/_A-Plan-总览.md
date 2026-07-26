@@ -49,7 +49,7 @@ M7 原计划中的“联调与视觉收口”不再作为独立产品里程碑�
 | 里程碑 | 名称 | 状态 | 目标 |
 |---|---|---|---|
 | **P0** | **V1 产品化基线** | 已完成 | 产品边界、架构、API v1 契约与主前端原型已收口 |
-| **P1** | **应用后端与持久化地基** | 🟡 P1.1c 已完成 | 持久化、迁移、事务与安全边界已设计；下一步落地最小基础设施，再进入 P2 资源实现 |
+| **P1** | **应用后端与持久化地基** | 已完成 | 环境、路径、持久化 Settings、Engine/Session factory 与 Alembic 骨架已收口；提交后进入 P2 首个资源纵向切片 |
 | P2 | 会话诊断闭环 | 待开始 | Session、Run、结构化结果、SSE 持久化与恢复 |
 | P3 | 主前端工作台 | 待开始 | `frontend/` 产品外壳、会话与结果优先工作区 |
 | P4 | 环境、数据源与知识 | 待开始 | Environment、DataSource、连接器、Runbook 与记忆治理 |
@@ -61,11 +61,11 @@ M7 原计划中的“联调与视觉收口”不再作为独立产品里程碑�
 
 ## 4. 当前唯一下一步
 
-**P1.1d：最小应用层地基落地**。
+**P2：会话诊断闭环（第一个纵向切片）**。
 
-P1.1a 已以 `1559266 chore: 恢复P1环境基线` 提交，P1.1b 已以 `3d9d810 refactor: 收口P1配置与数据路径` 提交。P1.1c 已完成并提交：固定同步 SQLAlchemy 2.x + Alembic、SQLite 本地/ PostgreSQL 生产兼容、应用数据库与诊断数据源隔离、显式迁移、Application Service 事务边界、提交后 SSE 事件与 v1 不可静默内存降级。
+P1.1d 已完成并提交：`1559266` 恢复根 Python 环境，`3d9d810` 收口根配置/数据路径，`22b58b0` 固定持久化设计。同步 SQLAlchemy/Alembic/psycopg、独立应用数据库 Settings、SQLite/PostgreSQL Engine、Session factory、SQLite foreign keys 和跨目录 Alembic 空业务骨架已经就绪；应用启动不建表、不迁移。
 
-P1.1c 提交后，唯一下一步为 **P1.1d：最小应用层地基落地**。只新增锁定依赖、应用数据库 Settings、Engine/Session factory、Alembic 环境和迁移测试底座；不得创建 P2 Session/Run 业务表、Repository、Application Service 或 `/api/v1` 路由。
+P1.1d 提交后，唯一下一步为 **P2：会话诊断闭环**。先完成 P2.1 Design，再建立 Session、Message、DiagnosisRun、RunEvent、DiagnosisResult、Evidence 与幂等记录的第一份非空 migration、Repository 端口、Application Service 事务和 `/api/v1` 端点。严格遵守 P0.3：UUID、UTC `Z`、cursor、幂等、终态不可逆、`sequence`/SSE `id` 与结构化结果；旧 `/diagnose`、`/diagnose/stream` 不变。
 ## 5. 执行与降级原则
 
 ```text

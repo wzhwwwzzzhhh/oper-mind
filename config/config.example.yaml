@@ -15,3 +15,10 @@ judge_llm:
   api_key: "your-judge-api-key"
   base_url: "https://api.deepseek.com"
   model: "your-judge-model"
+# 应用元数据数据库：Session、Run、Event、Result、幂等与审计。
+# 未配置时，开发默认使用仓库根 data/opermind.sqlite3；真实 URL 只放环境变量
+# OPERMIND_APP_DATABASE_URL 或被忽略的 config.local.yaml，绝不复用诊断数据源账号。
+persistence: {}
+# 本地配置示例：
+# persistence:
+#   database_url: "postgresql+psycopg://opermind:password@db.example/opermind"

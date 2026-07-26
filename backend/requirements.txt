@@ -21,6 +21,10 @@ scipy==1.17.1       # src/eval/stats.py 的 t 分布、Wilcoxon 与 Friedman 检
 pytest==9.1.1       # tests/ 测试套件
 fpdf==1.7.2         # scripts/ 生成方案 PDF
 
-# ===== 真实数据源（后续接入 MySQL 时启用） =====
-# sqlalchemy>=2.0.0
+# ===== 应用持久化与迁移（P1.1d） =====
+SQLAlchemy==2.0.51  # 同步 ORM；P2 应用元数据持久化基础
+alembic==1.18.5     # 显式 schema migration；服务启动不自动迁移
+psycopg[binary]==3.3.4  # PostgreSQL 应用数据库驱动；本地测试仍使用 SQLite
+
+# ===== 真实诊断数据源（后续接入 MySQL 时启用） =====
 # pymysql>=1.1.0
