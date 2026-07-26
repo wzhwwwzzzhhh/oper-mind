@@ -1,6 +1,6 @@
 # P2 设计 — 会话诊断闭环
 
-> 日期：2026-07-26　|　状态：P2.2b 已完成，待用户授权提交　|　分支：`feat/p2-session-diagnosis`　|　实现基线：`11634b4 feat: 完成P2.2a领域模型与首个业务迁移`
+> 日期：2026-07-26　|　状态：P2.3 已完成，待用户授权提交　|　分支：`feat/p2-session-diagnosis`　|　实现基线：`5cf2c6b feat: 完成P2.2b Repository端口与SQLAlchemy实现`
 
 ## 目标
 
@@ -22,9 +22,9 @@ P2 只新增 `/api/v1`，不改阶段一 `POST /diagnose`、`GET /diagnose/strea
 |---|---|---|---|
 | P2.1 | 领域、迁移与闭环设计 | 已提交 | 固定表关系、状态机、事务、Trace 映射、端点切片与测试门；不写业务实现 |
 | P2.2a | 领域模型、首个业务迁移与 schema 验证 | 已提交 `11634b4` | 领域常量、ORM mapper、首个非空 Alembic revision、fresh DB/约束/降级/方言测试；不接入 HTTP/Agent |
-| P2.2b | Repository 端口与 SQLAlchemy 实现 | 已完成，待用户授权提交 | Repository ports/实现、固定 cursor 查询、Pydantic 数据边界与事务边界测试；不接入 Application Service/HTTP/Agent |
-| P2.3 | Session/Run Application Service | 下一步 | 受理、幂等、状态迁移、事件追加、结果写入与 Agent 适配端口；不实现 v1 HTTP/SSE |
-| P2.4 | `/api/v1` 与 SSE 恢复 | 待开始 | Pydantic 契约、路由、SSE 重放、错误映射与 API 测试；旧接口不改 |
+| P2.2b | Repository 端口与 SQLAlchemy 实现 | 已提交 `5cf2c6b` | Repository ports/实现、固定 cursor 查询、Pydantic 数据边界与事务边界测试；不接入 Application Service/HTTP/Agent |
+| P2.3 | Session/Run Application Service | 已完成，待用户授权提交 | 受理、幂等、短事务、状态迁移、事件追加、结果写入与安全诊断适配；不实现 v1 HTTP/SSE |
+| P2.4 | `/api/v1` 与 SSE 恢复 | 下一步 | Pydantic 契约、路由、SSE 重放、错误映射与 API 测试；旧接口不改 |
 | P2.5 | 刷新恢复与闭环验收 | 待开始 | 端到端恢复、失败、幂等、结构化结果和 `report/` 受控 Trace 链接验收 |
 
 ## 1. 领域关系与首个业务 migration
@@ -102,6 +102,15 @@ queued/running --cancel committed--> cancelled
 - 现有 `CoordinatorAgent.route_stream()` 的 TraceRecord 映射为 P0.3 同名 `route_decided`、`agent_start`、`agent_done`、`conflict_checked`、`debate_round`、`report`、`reflection` 事件。每个事件先持久化、提交后才成为 SSE 可读数据。
 - 现阶段 `CoordinatorAgent` 输出的是 Markdown 终稿和 Trace，尚不生产 P0.3 的结构化 DiagnosisResult。P2.3 必须增加可测试的 ResultAssembler 端口：mock 路径生成确定性、字段完整的结构化结果；真实路径在缺乏安全结构化证据时写安全的保守默认值，而不从 Markdown 正则猜测根因。
 - 成功短事务原子写入 DiagnosisResult、助手 Message、Run `succeeded`、finished_at 与最后 `run_succeeded`；失败短事务写安全 `RunError`、Run `failed`、finished_at 与 `run_failed`。Run 的 `result` 与 `error` 在数据库层和 Service 层互斥校验。
+
+
+## 2.3 P2.3 实际 Application Service 与适配结论
+
+- `backend/src/application/services.py` 是唯一的事务所有者：每个 Session/Run 用例打开短生命周期 Session，成功时 commit、异常时 rollback、最后 close。Repository 保持 staged add/read/条件更新，不自行控制事务。
+- Run 受理事务显式按 Message → Run 的外键顺序 flush（ORM 未声明二者 relationship 以避免循环 DDL），再写幂等记录和 `run_queued`；同 key/同 SHA-256 规范 query 指纹回放同一 Run，同 key/不同指纹抛出 `IDEMPOTENCY_KEY_REUSED`。Session 活动时间在受理及终态写入时更新。
+- Run 执行只使用已持久化的输入用户 Message；短事务条件认领 `queued → running` 并写 `run_started` 后，执行器在无事务状态运行。事件逐条在独立短事务中原子预留 sequence 并写入。已 running/终态 Run 不被重复 worker 执行。
+- 成功短事务原子写 Result、助手 Message、`succeeded`、`run_succeeded`；失败短事务写安全错误、`failed`、`run_failed`。Application Service 校验 input Message 与 Run 的同 Session/user 关系，并校验助手 Message 的 `run_id`/`session_id` 一致，承担无物理 `messages.run_id` 外键的跨表一致性责任。
+- `CoordinatorDiagnosisExecutor` 仅映射受控 event type/node/time 与有限 strategy，丢弃 Trace detail、原始报告 Markdown 和执行器任意 data；`ConservativeResultAssembler` 生成字段完整、低置信度、无未审查 evidence 的结果，不从 Markdown 推断事实。
 
 ## 3. API、SSE 与恢复映射
 

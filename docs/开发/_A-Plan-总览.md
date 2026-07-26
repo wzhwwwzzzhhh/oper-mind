@@ -50,7 +50,7 @@ M7 原计划中的“联调与视觉收口”不再作为独立产品里程碑�
 |---|---|---|---|
 | **P0** | **V1 产品化基线** | 已完成 | 产品边界、架构、API v1 契约与主前端原型已收口 |
 | **P1** | **应用后端与持久化地基** | 已完成 | 环境、路径、持久化 Settings、Engine/Session factory 与 Alembic 骨架已收口；提交后进入 P2 首个资源纵向切片 |
-| P2 | 会话诊断闭环 | 🟡 P2.2b 已完成，待提交授权 | Repository 端口、SQLAlchemy 实现、固定排序查询与事务边界验证已收口 |
+| P2 | 会话诊断闭环 | 🟡 P2.3 已完成，待提交授权 | Session/Run Application Service、短事务、幂等、执行适配与终态写入已收口 |
 | P3 | 主前端工作台 | 待开始 | `frontend/` 产品外壳、会话与结果优先工作区 |
 | P4 | 环境、数据源与知识 | 待开始 | Environment、DataSource、连接器、Runbook 与记忆治理 |
 | P5 | 告警、事件与审批闭环 | 待开始 | Alert、Incident、ActionProposal、Approval 与审计 |
@@ -61,11 +61,11 @@ M7 原计划中的“联调与视觉收口”不再作为独立产品里程碑�
 
 ## 4. 当前唯一下一步
 
-**P2.3：Session/Run Application Service**。
+**P2.4：`/api/v1` 与 SSE 恢复**。
 
-P2 从 `6aa3302 feat: 建立P1应用持久化地基` 开始，分支为 `feat/p2-session-diagnosis`；P2.1 已在 `8f27717 docs: 完成P2会话诊断闭环设计` 提交，P2.2a 已在 `11634b4 feat: 完成P2.2a领域模型与首个业务迁移` 提交。P2.2b 已完成实现、独立审查与验证，正等待用户授权提交：领域化 Pydantic Repository 数据对象、六个 Repository ports、六个 SQLAlchemy 实现、固定 cursor 查询与由调用方控制的事务边界；阶段一旧接口保持不变。
+P2 从 `6aa3302 feat: 建立P1应用持久化地基` 开始，分支为 `feat/p2-session-diagnosis`；P2.1 已在 `8f27717 docs: 完成P2会话诊断闭环设计` 提交，P2.2a 已在 `11634b4 feat: 完成P2.2a领域模型与首个业务迁移` 提交，P2.2b 已在 `5cf2c6b feat: 完成P2.2b Repository端口与SQLAlchemy实现` 提交。P2.3 已完成实现、独立审查与验证，正等待用户授权提交：Session/Run Application Service、短事务、幂等受理、条件状态迁移、sequence 预留、成功/失败终态、保守 ResultAssembler 与 Coordinator 诊断适配；阶段一旧接口保持不变。
 
-唯一下一步为 **P2.3：Session/Run Application Service**。实现 Session/Run 用例、短事务、幂等、状态迁移、事件追加、结果写入与诊断适配端口；不得新增 `/api/v1`、SSE、前端或真实数据源。Repository 不自行 `commit`/`rollback` 的边界必须保持。
+唯一下一步为 **P2.4：`/api/v1` 与 SSE 恢复**。实现 P0.3 Pydantic API 契约、依赖装配、路由、安全错误映射、持久化事件重放与 API/SSE 测试；不得修改阶段一旧接口、前端或真实数据源。P2.3 Application Service/Repository 的事务边界必须保持。
 ## 5. 执行与降级原则
 
 ```text

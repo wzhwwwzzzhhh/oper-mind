@@ -13,6 +13,9 @@ oper-mind/
 ├── backend/                 # FastAPI、Agent Core、应用服务、持久化、测试和脚本
 │   ├── src/
 │   │   ├── api/             # 当前 HTTP/SSE 契约、事件与路由边界
+│   │   ├── application/     # P2 产品用例、短事务、幂等与执行/结果端口
+│   │   ├── domain/          # P2 状态、值对象与 Repository ports
+│   │   ├── infrastructure/  # ORM、Repository 与 Coordinator 诊断适配
 │   │   ├── agents/          # Server / DB / Log / Report Agent
 │   │   ├── core/            # 编排、LLM、Debate、Reflection、Approval
 │   │   ├── tools/           # 诊断工具
@@ -37,7 +40,7 @@ oper-mind/
 - **总进度唯一真相源**：`docs/开发/_A-Plan-总览.md`。阶段一 M0–M7 已完成并冻结为历史基线；阶段二 P0–P7 是当前主线。
 - **阶段二详细计划**：`docs/开发/_B-V1产品化开发计划.md`。它展开 P0–P7 的产品范围与顺序，但不替代总览中的进度状态。
 - `docs/开发路线图与规划.md`、`docs/初始开发/` 与 M 阶段日志均为历史材料，保留但不作为当前执行入口。
-- 当前唯一下一步以 A-Plan 为准：**P2.3 Session/Run Application Service**（P2.2b Repository 端口与 SQLAlchemy 实现已完成，待用户授权提交）。
+- 当前唯一下一步以 A-Plan 为准：**P2.4 `/api/v1` 与 SSE 恢复**（P2.3 Session/Run Application Service 已完成，待用户授权提交）。
 
 ## 常用命令
 

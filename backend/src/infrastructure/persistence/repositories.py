@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Callable, TypeVar
 from uuid import UUID
 
-from sqlalchemy import Select, and_, or_, select
+from sqlalchemy import Select, and_, or_, select, update
 from sqlalchemy.orm import Session
 
 from src.domain.diagnosis import DiagnosisSeverity, MessageRole, RunEventType, RunStatus, SessionStatus
@@ -89,6 +89,19 @@ class SqlAlchemySessionRepository:
         """按主键读取会话。"""
         record = self._session.get(SessionRecord, session_id)
         return _session_data(record) if record is not None else None
+
+    def save(self, session: SessionData) -> bool:
+        """保存已有会话，返回是否找到目标记录，不提交。"""
+        record = self._session.get(SessionRecord, session.id)
+        if record is None:
+            return False
+        record.title = session.title
+        record.status = session.status.value
+        record.environment_id = session.environment_id
+        record.incident_id = session.incident_id
+        record.updated_at = session.updated_at
+        record.archived_at = session.archived_at
+        return True
 
     def list_page(
         self,
@@ -209,6 +222,50 @@ class SqlAlchemyDiagnosisRunRepository:
         """按主键读取 Run。"""
         record = self._session.get(DiagnosisRunRecord, run_id)
         return _diagnosis_run_data(record) if record is not None else None
+
+    def transition_status(
+        self,
+        run_id: UUID,
+        expected_statuses: set[RunStatus],
+        status: RunStatus,
+        started_at: datetime | None = None,
+        finished_at: datetime | None = None,
+        error_code: str | None = None,
+        error_message: str | None = None,
+    ) -> DiagnosisRunData | None:
+        """仅在当前状态属于预期集合时更新 Run，返回更新后的值。"""
+        values: dict[str, object] = {"status": status.value}
+        if started_at is not None:
+            values["started_at"] = started_at
+        if finished_at is not None:
+            values["finished_at"] = finished_at
+        if error_code is not None:
+            values["error_code"] = error_code
+        if error_message is not None:
+            values["error_message"] = error_message
+        result = self._session.execute(
+            update(DiagnosisRunRecord)
+            .where(
+                DiagnosisRunRecord.id == run_id,
+                DiagnosisRunRecord.status.in_([item.value for item in expected_statuses]),
+            )
+            .values(**values)
+            .execution_options(synchronize_session="fetch")
+        )
+        if result.rowcount != 1:
+            return None
+        record = self._session.get(DiagnosisRunRecord, run_id)
+        return _diagnosis_run_data(record) if record is not None else None
+
+    def reserve_event_sequence(self, run_id: UUID) -> int | None:
+        """原子预留下一事件 sequence，返回预留值，不提交。"""
+        next_sequence = self._session.scalar(
+            update(DiagnosisRunRecord)
+            .where(DiagnosisRunRecord.id == run_id)
+            .values(next_event_sequence=DiagnosisRunRecord.next_event_sequence + 1)
+            .returning(DiagnosisRunRecord.next_event_sequence)
+        )
+        return int(next_sequence) - 1 if next_sequence is not None else None
 
     def list_by_session(
         self,

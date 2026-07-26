@@ -1,36 +1,42 @@
 # P2 独立审查 — 会话诊断闭环
 
-> 更新时间：2026-07-26　|　结论：P2.2b 已通过独立审查，待用户授权提交
+> 更新时间：2026-07-26　|　结论：P2.3 已通过独立审查，待用户授权提交
 
 ## 已提交基线
 
-- P2.1 设计提交：`8f27717 docs: 完成P2会话诊断闭环设计`。
-- P2.2a schema 提交：`11634b4 feat: 完成P2.2a领域模型与首个业务迁移`。
+- P2.1 设计：`8f27717 docs: 完成P2会话诊断闭环设计`。
+- P2.2a schema：`11634b4 feat: 完成P2.2a领域模型与首个业务迁移`。
+- P2.2b Repository：`5cf2c6b feat: 完成P2.2b Repository端口与SQLAlchemy实现`。
 
-## P2.2b 审查范围
+## P2.3 审查范围
 
-审查 Pydantic Repository 数据对象、六个领域 ports、六个 SQLAlchemy 实现、固定排序查询、cursor 页片段、UTC/JSON/受控值边界、调用方事务纪律以及旧接口与前端范围。Application Service、条件更新/锁、HTTP/SSE 不在本 Step 范围内。
+审查 Application Service 短事务、Session/Run 受理与归档、幂等、条件状态更新、事件 sequence、成功/失败终态、Message/Run 跨表一致性、Coordinator/ResultAssembler 适配、安全 JSON 边界、Repository 事务纪律和旧接口范围。P2.4 HTTP/SSE 不在本 Step。
 
 | 检查项 | 结论 | 审查结果 |
 |---|---|---|
-| 端口与 ORM 隔离 | 通过 | `domain/repositories.py` 仅依赖领域 Pydantic 对象和 `Protocol`；domain 不导入 SQLAlchemy 或 ORM mapper；Repository 对外不返回 Record |
-| Repository 覆盖 | 通过 | Session、Message、DiagnosisRun、RunEvent、DiagnosisResult、RunIdempotencyKey 均具备对应 port 和 SQLAlchemy staged add/read 实现 |
-| 事务边界 | 通过 | SQLAlchemy Repository 只使用注入 Session 的 `add/get/select`，静态扫描与 monkeypatch 测试确认不自行 `commit()`/`rollback()`；P2.3 负责短事务 |
-| 固定排序与 cursor | 通过 | Session/Run 倒序复合 `(time, id)`；Message 升序复合 `(time, id)`；RunEvent `sequence asc`。均按 `limit + 1` 生成 `has_more`/下一已解码 cursor，拒绝非正 limit |
-| 数据边界 | 通过 | 数据对象强制 UTC aware；SQLite 无时区读值归一化 UTC；Role/Status/EventType/Severity、sequence、schema version、confidence 在进入 ORM 前验证 |
-| JSON 安全边界 | 通过 | Result/Event 仅传递 Pydantic `JsonValue` 结构；未引入原始日志、SQL、连接串或工具输出持久化路径。正式子结构和脱敏校验仍留给 P2.3/P2.4 |
-| schema/现有约束对齐 | 通过 | Repository 直接映射 P2.2a 六张表；外键、唯一键、检查约束仍由 migration 最终保护；没有新增 migration 或表 |
-| 越界检查 | 通过 | 无 Application Service、Coordinator/Agent、`/api/v1`、SSE、旧 API、`frontend/`、`report/` 或真实数据源改动 |
-| 回归 | 通过 | 定向 23 passed；完整后端 109 passed；既有 pipeline direct/chain/parallel/debate smoke 通过；仅保留既有 1 条弃用警告 |
-| 入口同步 | 通过 | `AGENTS.md` 与 `CLAUDE.md` 已逐字同步，当前下一步为 P2.3 |
+| 事务归属 | 通过 | 仅 `application/services.py` 的统一事务辅助函数调用 commit/rollback；Repository、Coordinator 适配和 Agent 不控制事务 |
+| 受理原子性 | 通过 | 单短事务写 input Message、queued Run、幂等记录和 sequence=1 `run_queued`；显式 flush 保证无 ORM relationship 时的 Message→Run 外键写入顺序 |
+| 幂等 | 通过 | 固定 endpoint + Session + key 作用域；规范 query SHA-256；同 key/同指纹回放、不同指纹抛应用冲突；非幂等完整性错误不被伪装为重放 |
+| 状态与重复 worker | 通过 | queued→running 由条件更新认领并写 `run_started`；已 running/终态 Run 不重复执行；成功/失败仅从运行态收口 |
+| sequence 与事件 | 通过 | Run `next_event_sequence` 通过原子 update returning 预留，逐事件短事务写入；最终仍由 `UNIQUE(run_id, sequence)` 保护 |
+| 成功/失败原子性 | 通过 | 成功事务写 Result/助手 Message/succeeded/final event；组装失败会 rollback 成功写入后再安全失败；失败只写安全 code/message 与 `run_failed` |
+| Message/Run 一致性 | 通过 | 执行前验证 input Message 存在、同 Session 且为 user；助手 Message 写入前验证 `run_id`/`session_id` 与 Run 一致，承担无物理 `messages.run_id` FK 的责任 |
+| 执行隔离 | 通过 | `run_started` 提交后才调用 executor；测试以独立 Session 读取 running 状态确认执行器处于无事务区间 |
+| Coordinator/JSON 安全 | 通过 | Adapter 仅传 type/node/time/有限 strategy，丢弃 detail、原始 Markdown 和 executor data；保守 assembler 不伪造 Evidence/根因 |
+| 分层与越界 | 通过 | 新增 application/ 与 infrastructure/diagnosis/ 已同步规则；domain 无 SQLAlchemy 泄露；未新增 API/SSE/旧 API/前端/真实数据源改动 |
+| 回归 | 通过 | P2 定向 32 passed；完整后端 119 passed；direct/chain/parallel/debate pipeline smoke 通过；1 条既有弃用警告 |
 
-## 已知风险与 P2.3 门槛
+## 已知风险与 P2.4 门槛
 
-- Repository 并不实现状态机条件更新、幂等并发冲突处理或 `next_event_sequence` 原子递增；P2.3 必须在 Application Service/Repository 扩展中引入条件更新与必要锁策略，不能依赖内存串行。
-- `messages.run_id` 保持无物理外键；P2.3 写入助手 Message 时必须校验该 Run 存在且 `session_id` 一致。
-- Repository 的 decoded cursor 不是 P0.3 对外不透明 cursor；P2.4 必须负责安全编码、验证、默认 `limit=20`、最大 `100` 与 API 错误映射。
-- Result/Event JSON 容器不等价于正式 Evidence/Result 安全校验；P2.3/P2.4 必须拒绝未经 Pydantic 资源契约校验或脱敏的原始诊断输出。
+- SQLite 测试不能替代 PostgreSQL 高并发的幂等唯一键竞争、`UPDATE ... RETURNING` 和 sequence 锁语义；P2.4/P7 必须增加受控 PostgreSQL 集成或等价并发门。
+- P2.3 暂无 HTTP 层，`ApplicationError` 尚未映射 P0.3 错误体/状态码；P2.4 必须实现安全错误映射、请求/trace ID、Pydantic 资源模型和不透明 cursor。
+- SSE 只能在 P2.4 重放已提交 RunEvent；不得在 executor 内直接推送或读取未提交数据。
+- 结构化 Result JSON 的正式 Pydantic 资源级脱敏/校验必须在 P2.4 衔接，保守 assembler 不应被误作真实诊断事实。
+
+## 外部未提交改动
+
+工作区存在 `docs/00-项目方案说明书.md` 的外部 1 行文本改动；本 Step 未读取内容、未修改、未暂存，且必须排除在 P2.3 提交之外。另有两个包初始化文件显示为修改但内容 hash 与 HEAD 一致、无 diff，不纳入提交。
 
 ## 结论
 
-P2.2b 在既定边界内通过独立审查。待用户授权后可提交；提交后的唯一下一步为 **P2.3：Session/Run Application Service**。
+P2.3 在既定边界内通过独立审查。待用户授权后可提交；提交后的唯一下一步为 **P2.4：`/api/v1` 与 SSE 恢复**。

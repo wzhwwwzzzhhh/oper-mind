@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
-from src.domain.diagnosis import SessionStatus
+from src.domain.diagnosis import RunStatus, SessionStatus
 from src.domain.records import (
     DiagnosisResultData,
     DiagnosisRunCursor,
@@ -29,6 +30,9 @@ class SessionRepository(Protocol):
 
     def get_by_id(self, session_id: UUID) -> SessionData | None:
         """按主键读取会话。"""
+
+    def save(self, session: SessionData) -> bool:
+        """保存已有会话，返回是否找到目标记录，不提交。"""
 
     def list_page(
         self,
@@ -65,6 +69,21 @@ class DiagnosisRunRepository(Protocol):
 
     def get_by_id(self, run_id: UUID) -> DiagnosisRunData | None:
         """按主键读取 Run。"""
+
+    def transition_status(
+        self,
+        run_id: UUID,
+        expected_statuses: set[RunStatus],
+        status: RunStatus,
+        started_at: datetime | None = None,
+        finished_at: datetime | None = None,
+        error_code: str | None = None,
+        error_message: str | None = None,
+    ) -> DiagnosisRunData | None:
+        """仅在当前状态属于预期集合时更新 Run，返回更新后的值。"""
+
+    def reserve_event_sequence(self, run_id: UUID) -> int | None:
+        """原子预留下一事件 sequence，返回预留值，不提交。"""
 
     def list_by_session(
         self,
