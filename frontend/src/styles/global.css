@@ -1,0 +1,158 @@
+:root {
+  color: #17212b;
+  background: #f3f7f9;
+  font-family: Inter, "Microsoft YaHei", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: #f3f7f9;
+}
+
+button {
+  font: inherit;
+}
+
+.product-shell {
+  min-height: 100vh;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 72px;
+  padding: 0 20px;
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.brand-mark {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #27a6c8, #6dd8bc);
+  color: #062534;
+  font-size: 12px;
+}
+
+.main-navigation {
+  border-inline-end: 0 !important;
+}
+
+.navigation-note {
+  position: absolute;
+  right: 16px;
+  bottom: 20px;
+  left: 16px;
+  color: #8ca2b0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.product-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 72px;
+  padding: 0 28px;
+  background: #ffffff;
+  border-bottom: 1px solid #dce7eb;
+}
+
+.navigation-trigger {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #28536a;
+  cursor: pointer;
+}
+
+.navigation-trigger:hover {
+  background: #e8f4f7;
+}
+
+.header-context {
+  margin-left: 10px;
+  color: #6f8490;
+}
+
+.product-content {
+  padding: 28px;
+}
+
+.workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(250px, 320px);
+  gap: 24px;
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+.workbench-page,
+.context-rail {
+  min-height: 500px;
+  padding: 32px;
+  border: 1px solid #dce7eb;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 8px 28px rgb(24 68 83 / 6%);
+}
+
+.page-eyebrow,
+.rail-kicker {
+  margin-bottom: 8px;
+  color: #0f6f8f;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.page-description {
+  max-width: 720px;
+  color: #58707e;
+}
+
+.workbench-empty {
+  margin: 72px 0 40px;
+}
+
+.honest-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.context-rail {
+  min-height: auto;
+  align-self: start;
+  background: linear-gradient(180deg, #ffffff, #f7fbfc);
+}
+
+@media (max-width: 960px) {
+  .product-content {
+    padding: 16px;
+  }
+
+  .workspace-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .context-rail {
+    min-height: auto;
+  }
+}

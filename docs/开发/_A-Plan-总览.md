@@ -51,7 +51,7 @@ M7 原计划中的“联调与视觉收口”不再作为独立产品里程碑�
 | **P0** | **V1 产品化基线** | 已完成 | 产品边界、架构、API v1 契约与主前端原型已收口 |
 | **P1** | **应用后端与持久化地基** | 已完成 | 环境、路径、持久化 Settings、Engine/Session factory 与 Alembic 骨架已收口；提交后进入 P2 首个资源纵向切片 |
 | **P2** | **会话诊断闭环** | **已完成** | `54f02e5` 已提交刷新恢复读模型、成功/失败恢复、终态 SSE、OpenAPI 与旧接口兼容回归 |
-| **P3** | **主前端工作台** | **🟡 Design 已完成审查，待提交授权** | `frontend/` 产品外壳、会话与结果优先工作区；提交后进入 P3.1 工程初始化 |
+| **P3** | **主前端工作台** | **🟡 P3.1 已完成；P3.2 Design 待开始** | 独立 React/Vite 产品外壳、基础路由、Providers、测试与构建已收口；下一步为 v1 API 客户端与会话恢复读模型设计 |
 | P4 | 环境、数据源与知识 | 待开始 | Environment、DataSource、连接器、Runbook 与记忆治理 |
 | P5 | 告警、事件与审批闭环 | 待开始 | Alert、Incident、ActionProposal、Approval 与审计 |
 | P6 | 报告与产品收口 | 待开始 | 报告、导出、搜索、通知、偏好及 `report/` 高级分析入口 |
@@ -61,11 +61,11 @@ M7 原计划中的“联调与视觉收口”不再作为独立产品里程碑�
 
 ## 4. 当前唯一下一步
 
-**P3：主前端工作台的 Design 已完成并通过独立审查，待用户授权暂存/提交。**
+**P3.2：v1 API 客户端与会话恢复读模型（先完成 Design）。**
 
-P2 从 `6aa3302 feat: 建立P1应用持久化地基` 开始，历史分支为 `feat/p2-session-diagnosis`；P2.1 至 P2.5 分别提交为 `8f27717`、`11634b4`、`5cf2c6b`、`ae2f978`、`440f03d`、`54f02e5`。P2.5 已以独立临时 Alembic SQLite 验收刷新恢复读模型、跨请求成功/失败 Run 恢复、Message/Result/Event、终态 SSE 空流关闭、trace 一致性、OpenAPI 与旧 `/diagnose`、`/diagnose/stream` 兼容回归。
+P2 从 `6aa3302 feat: 建立P1应用持久化地基` 开始，历史分支为 `feat/p2-session-diagnosis`；P2.1 至 P2.5 分别提交为 `8f27717`、`11634b4`、`5cf2c6b`、`ae2f978`、`440f03d`、`54f02e5`。P3 Design 已提交为 `12bed37 docs: 完成P3主前端工作台设计`。
 
-P3 Design 已固定 `frontend/` 尚未初始化的事实、工程初始化策略、产品外壳和结果优先工作区、v1 API/幂等/SSE 恢复消费、诚实空状态、`report/` 受控跳转以及最小质量门；本轮未初始化前端、未改 `frontend/`、`report/` 或后端。**用户授权提交 P3 Design 后，唯一下一步为 P3.1：前端工程初始化与产品外壳**；不得提前接入真实数据源、P4/P5/P6 资源或改动阶段一旧接口。
+P3.1 在 `frontend/` 建立了独立 React + TypeScript + Vite 工程、React Router、TanStack Query、Zustand、Ant Design、Vitest/RTL/MSW 基础及 `/workbench` 结果优先产品外壳；`frontend/mockup.html` 保留，未改 `report/`、后端、旧 API、真实数据源或运行时资产。已通过 typecheck、Vitest、production build 和本地人工视觉验收；构建仅有 Ant Design 初始包体超过 Vite 500 kB 提示，未阻塞本 Step。**唯一下一步为 P3.2：v1 API 客户端与会话恢复读模型的 Design**；不得提前创建 Run、接入 SSE 或 P4/P5/P6 资源。
 ## 5. 执行与降级原则
 
 ```text

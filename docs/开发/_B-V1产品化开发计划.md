@@ -259,8 +259,8 @@ Design → Step → Code → Minimum Test → Review → Commit
 
 ## 11. 当前唯一下一步
 
-**P3：主前端工作台的 Design 已完成并通过独立审查，待用户授权暂存/提交。** P2.5 已于 `54f02e5 feat: 完成P2.5刷新恢复与闭环验收` 提交：`GET /api/v1/sessions/{session_id}/runs` 补齐刷新恢复读模型；独立临时 Alembic SQLite 跨请求验收覆盖 Session/Run/Message/Result/Event、成功与安全失败、终态 SSE、trace、OpenAPI 及旧 `/diagnose`、`/diagnose/stream` 兼容。
+**P3.2：v1 API 客户端与会话恢复读模型（先完成 Design）。** P3 Design 已提交为 `12bed37`；P3.1 在 `frontend/` 初始化独立 React + TypeScript + Vite、React Router、TanStack Query、Zustand、Ant Design 和 Vitest/RTL/MSW 测试基础，保留 P0 `mockup.html`，且未改 `report/`、后端、旧 API 或真实数据源。
 
-P3 Design 已固定 `frontend/` 初始化与产品外壳、会话/结果工作区、v1 API 消费、空/错/断线状态及人工验收；不伪造 P4/P5/P6 能力、不接入真实数据源。**P3 Design 提交后的唯一下一步是 P3.1：前端工程初始化与产品外壳**。
+P3.1 已通过 typecheck、Vitest、production build 和人工视觉验收；Ant Design 初始包体超出 Vite 500 kB 提示留待后续按实际页面进行按需优化。**唯一下一步是 P3.2：v1 API 客户端与会话恢复读模型的 Design**；不得提前受理 Run、接入 SSE 或伪造 P4/P5/P6 能力。
 
 本计划是方向基线，不是不可修改的瀑布计划；边做边优化，但任何范围变化必须回写本文件和 `_A-Plan-总览.md`，避免口头决策漂移。

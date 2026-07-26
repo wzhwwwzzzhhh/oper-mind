@@ -1,6 +1,6 @@
 # P3 设计 — 主前端工作台
 
-> 日期：2026-07-26　|　状态：✅ Design 与独立审查完成，待用户授权暂存/提交
+> 日期：2026-07-26　|　状态：🟡 P3.1 已完成并提交；P3.2 Design 待开始
 >
 > 工作分支：`feat/p3-workbench`　|　设计基线：`54f02e5 feat: 完成P2.5刷新恢复与闭环验收`
 >
@@ -100,7 +100,7 @@ P4 的 Environment/DataSource/Connector/Runbook/Knowledge，P5 的 Alert/Inciden
 | Step | 交付 | 不混入 |
 |---|---|---|
 | P3.0（本轮） | Design、Review、HANDOFF、计划/规则/P2 历史状态校正 | 前端初始化或业务代码 |
-| P3.1 | Vite React TS、Router/Query/Zustand/AntD Providers、产品外壳、基础路由、build/test 基线 | Session 恢复、Run 创建、SSE、P4/P5/P6 页面 |
+| P3.1 | 已完成并提交 | Vite React TS、Router/Query/Zustand/AntD Providers、产品外壳、基础路由、build/test 基线 | 未接入 Session 恢复、Run 创建、SSE 或 P4/P5/P6 页面 |
 | P3.2 | v1 client/同名类型/错误处理、Session/Message/Run 刷新读模型、MSW | Run 受理、旧 API |
 | P3.3 | 诊断受理、幂等重试、状态/事件摘要、SSE 恢复 | Approval、真实连接器、完整 Trace |
 | P3.4 | 结构化结果、失败/空/归档、report 受控跳转、交互收口 | P4/P5/P6 正式资源 |
@@ -110,4 +110,4 @@ P3 不修改 `/api/v1`、Application Service、Repository、ORM、Alembic、旧�
 
 ## 9. 结论
 
-本轮已完成 P3 Design，未初始化前端、安装依赖或修改业务代码。**用户授权提交后，唯一下一步为 P3.1：前端工程初始化与产品外壳。**
+P3 Design 已提交为 `12bed37`；P3.1 已完成独立工程初始化、产品外壳、最小测试和构建验证，未接入业务 API。**唯一下一步为 P3.2：v1 API 客户端与会话恢复读模型的 Design。**

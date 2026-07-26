@@ -1,33 +1,35 @@
-# P3 独立审查 — 主前端工作台 Design
+# P3 独立审查 — 主前端工作台
 
-> 日期：2026-07-26　|　结论：✅ 通过，待用户授权暂存/提交
+> 日期：2026-07-26　|　结论：✅ P3.1 已通过独立审查并提交
+>
+> P3 Design 已提交：`12bed37 docs: 完成P3主前端工作台设计`
 
-## 审查依据
+## P3 Design 历史审查
 
-独立核对 `54f02e5`、`backend/src/api/v1/routes.py:146-429`、`backend/src/api/v1/schemas.py:63-318`、`docs/开发/P0-V1产品化基线/api-v1-contract.md:426-514`、P0 原型、P3 Design 与计划真相源。本轮未实现前端或后端代码。
+P3 Design 的 API、刷新恢复、SSE、P3/P4/P5/P6、`frontend/`/`report/` 和文档一致性审查已通过，详见提交 `12bed37` 的历史快照。当前审查仅覆盖 P3.1 实际初始化。
+
+## P3.1 独立审查
+
+### 范围与方法
+
+审查 `frontend/` 新工程、依赖 lockfile、产品壳、测试基础、构建产物和本地人工验收；复核 `frontend/mockup.html` 保留、`report/`/后端/数据目录未进入 diff，以及 P3.1 未提前调用 v1 或旧 API。
 
 | 检查项 | 结论 | 审查结果 |
 |---|---|---|
-| P2 API 契约 | 通过 | 仅消费 `/api/v1` Session/Message/Run/Result/Event/SSE；结果来自 `GET /runs/{run_id}` 公开资源，未假设不存在端点 |
-| 刷新恢复 | 通过 | Session → Runs → Message → 选定 Run/Result/Event → 非终态 SSE；cursor 不解码且不跨 Session 复用 |
-| 幂等/关联 ID | 通过 | Run 创建 UUID 幂等键、超时同 key 重试；消费 request/trace header 与 meta、UTC `Z`，不伪造业务状态 |
-| SSE | 通过 | `Last-Event-ID` 自动恢复、主动重建 `after_sequence`、sequence 去重、终态关闭、错误读恢复；不使用旧即时 SSE |
-| P3/P4/P5/P6 边界 | 通过 | 仅展示 P2 实体；未实现能力是诚实空状态，无假资源/可操作控件 |
-| frontend/report 边界 | 通过 | frontend 被确认未初始化；P3.1 才建独立工程并保留原型。report 不嵌入、不改造、不复用，只提供可选无参数外部入口 |
-| 旧 API/真实资产 | 通过 | 禁止旧 `/diagnose`、`/diagnose/stream`；不接入真实 DB/数据源/认证，不创建 SQLite |
-| 分步和质量门 | 通过 | P3.1 仅初始化/外壳；后续读模型、Run/SSE、结果和联调独立；保留 build、测试、mock、pipeline 和人工验收 |
-| 文档一致性 | 通过 | A/B Plan、AGENTS/CLAUDE、P2 历史 HANDOFF 回填 `54f02e5`；AGENTS/CLAUDE 必须 hash 一致；提交后唯一下一步为 P3.1 |
+| 工程隔离 | 通过 | 新工程只落在 `frontend/`；保留 P0 `mockup.html`，未改 `report/`、`backend/`、`data/` 或配置 |
+| 依赖与工具链 | 通过 | Node 22.23.1/npm 10.9.8 下安装成功；Vite、React、Router、Query、Zustand、AntD、Vitest/RTL/MSW 均有明确职责 |
+| 路由与产品壳 | 通过 | `/` 和未知路由重定向 `/workbench`；顶部、导航、中心和右栏独立，导航折叠只使用 UI store |
+| 状态边界 | 通过 | QueryClient 只作 server-state 容器；Zustand 没有保存 Session/Run/Result；MSW server 无 handler，避免把静态假数据误作 API 接入 |
+| 诚实范围 | 通过 | 页面只显示“尚未接入会话数据”及 P4/P5/P6 待接入标识；没有环境、告警、审批、报告或 Trace 伪功能 |
+| API/Trace 边界 | 通过 | 没有 `/api/v1` 请求，更没有旧 `/diagnose`、`/diagnose/stream` 调用；右栏明确 `report/` 不嵌入/模拟 |
+| 自动化验证 | 通过 | `npm run typecheck`、`npm test`（1 passed）、`npm run build` 均成功 |
+| 人工验收 | 通过 | 本地页面的标题、空状态、右栏文案和导航收起/展开已视觉验证；临时服务和日志已清理 |
 
-## 发现与处置
+### 发现与处置
 
-1. P2.5 已在 Git 提交 `54f02e5`，但恢复时多份文档仍写“待提交”；本轮只回填状态并将 P2 HANDOFF 转为历史完成快照。
-2. EventSource 不能由应用任意设置自定义请求头；设计改为浏览器 `Last-Event-ID` 自动重连、主动重建用 `after_sequence`，不制造冲突游标。
-3. 没有确认的 `report/` trace deep-link 契约；P3 不拼 `trace_id`，P6 如需深链另行设计。
+1. 初次 production build 暴露 React 19 下 `JSX.Element` 命名空间类型和 Vite 配置类型不匹配。已改用 `ReactElement` 返回类型并从 `vitest/config` 导入 `defineConfig`；复跑 typecheck/test/build 全部通过。
+2. Vite 报告 Ant Design 初始 chunk 超过 500 kB 提示。当前仅 P3.1 shell，未通过过早的动态拆分改变结构；列为后续实际页面增长时的性能观察项，不阻塞初始化。
 
-## 已知风险
+### 结论
 
-P2 cursor 尚未绑定 Session scope；前端通过 Session 绑定的 query/cursor 生命周期降低跳过结果风险，服务端授权/scope 后续收口。P2 BackgroundTasks、SSE 短轮询和 SQLite 并发不是生产加固；P3 只正确显示和恢复。具体 Node/包版本/MSW handler 在 P3.1/P3.2 确认，不能假装已安装验证。
-
-## 结论
-
-P3 Design 通过独立审查。本轮只完成文档和状态校正，**待用户授权提交后，唯一下一步为 P3.1：前端工程初始化与产品外壳。**
+P3.1 在既定边界内通过独立审查并完成提交。它只建立主前端工程和产品外壳，未提前实现业务 API 或后续能力。**唯一下一步为 P3.2：v1 API 客户端与会话恢复读模型的 Design。**
