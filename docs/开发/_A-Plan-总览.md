@@ -48,8 +48,8 @@ M7 原计划中的“联调与视觉收口”不再作为独立产品里程碑�
 
 | 里程碑 | 名称 | 状态 | 目标 |
 |---|---|---|---|
-| **P0** | **V1 产品化基线** | 🟡 进行中 | 固化产品边界、架构、数据模型、API v1 草案与主前端原型 |
-| P1 | 应用后端与持久化地基 | 待开始 | SQLAlchemy、Migration、Repository、Application Service 与统一配置 |
+| **P0** | **V1 产品化基线** | 已完成 | 产品边界、架构、API v1 契约与主前端原型已收口 |
+| **P1** | **应用后端与持久化地基** | 🟡 P1.1a 进行中 | 先恢复环境并收口路径，再进入 SQLAlchemy、Migration、Repository、Application Service 与统一配置 |
 | P2 | 会话诊断闭环 | 待开始 | Session、Run、结构化结果、SSE 持久化与恢复 |
 | P3 | 主前端工作台 | 待开始 | `frontend/` 产品外壳、会话与结果优先工作区 |
 | P4 | 环境、数据源与知识 | 待开始 | Environment、DataSource、连接器、Runbook 与记忆治理 |
@@ -61,11 +61,13 @@ M7 原计划中的“联调与视觉收口”不再作为独立产品里程碑�
 
 ## 4. 当前唯一下一步
 
-**P0.4：主前端产品原型**。
+**P1.1a：环境基线恢复**。
 
-P0.1 已完成并提交，统一了产品方向、真实目录、阶段真相源、前端职责、日志/交接规则和历史基线提示。P0.2 已完成后端现状盘点，固化了 Application Service / Agent Core / Infrastructure 职责、核心实体关系、状态机、可保留模块、P1 前置路径风险与后续迁移顺序。P0.3 已完成 API v1 契约草案，锁定 UUID、UTC、cursor、统一错误体、RunEvent/SSE 恢复语义和结构化 `DiagnosisResult`。
+P0 已完成：产品边界、架构盘点、API v1 契约和结果优先的 HTML 原型均已收口；React 工程仍未初始化。
 
-P0.4 已完成并提交 `frontend/mockup.html`：会话、环境、用户问题、实时进度、根因、证据、影响、建议、风险与审批均按 API v1 契约表达；默认结果优先，完整 Trace 受控跳转 `report/`。用户已确认原型视觉方向；**确认不等于初始化 React 工程**。唯一下一步进入 P1 前置环境/配置路径修复与应用后端地基设计。
+P1.1a 只恢复可重复、可验证的 Python 后端环境并记录真实结果：固定根 `.venv`、明确导入路径、mock 健康检查、API smoke 与三路 pipeline 验证；不实现数据库、ORM、迁移、Repository、新 API 路由或 React 工程。
+
+P1.1a 提交后，唯一下一步切换为 **P1.1b：配置/数据路径收口**，解决 `backend/src`、根 `config/` 与根 `data/` 的运行路径约定，不改变阶段一 `/diagnose`、`/diagnose/stream` 的兼容行为。
 
 ## 5. 执行与降级原则
 

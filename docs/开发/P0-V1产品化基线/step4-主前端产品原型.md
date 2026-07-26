@@ -34,7 +34,7 @@ P0.4 保留专业运维工作台的克制样式，重构为三层信息优先级
 - 桌面布局：三列为 `252px / 主工作区 / 294px`；宽度小于 `1100px` 时隐藏右栏并把结果改为单列；宽度小于 `760px` 时隐藏会话栏、保留状态切换和单列结果区。
 - 文本约束：长 Run ID 使用省略；卡片标题、建议、证据和空状态均允许换行；按钮在窄屏可换行或占满可用宽度。
 - 交互检查：成功、运行中、失败、空状态可切换；“创建诊断 Run”只切换到运行中；完整 Trace 入口只提示转往 `report/`，不加载任何页面。
-- 静态检查：脚本经 `node --check` 通过；检查了 `DiagnosisResult`、`root_causes`、`evidence`、`impact`、`recommendations`、`risks`、`requires_approval`、`agent_summary`、`Last-Event-ID`、`after_sequence` 和移动端媒体查询。
+- 静态检查：提取 `mockup.html` 唯一内嵌 `<script>` 后交给 `node --check`，退出码为 `0`；检查了 `DiagnosisResult`、`root_causes`、`evidence`、`impact`、`recommendations`、`risks`、`requires_approval`、`agent_summary`、`Last-Event-ID`、`after_sequence` 和移动端媒体查询。
 - 浏览器截图：受 Codex 本地页面访问策略限制，`file://` 与 `http://127.0.0.1:4174` 预览均被阻止，未绕过限制。视觉验收以上述布局规则、DOM/脚本静态检查与人工 CSS 审读完成；用户应在本机打开原型确认视觉方向。
 
 ## Review

@@ -37,12 +37,12 @@ oper-mind/
 - **总进度唯一真相源**：`docs/开发/_A-Plan-总览.md`。阶段一 M0–M7 已完成并冻结为历史基线；阶段二 P0–P7 是当前主线。
 - **阶段二详细计划**：`docs/开发/_B-V1产品化开发计划.md`。它展开 P0–P7 的产品范围与顺序，但不替代总览中的进度状态。
 - `docs/开发路线图与规划.md`、`docs/初始开发/` 与 M 阶段日志均为历史材料，保留但不作为当前执行入口。
-- 当前唯一下一步以 A-Plan 为准：**P0.3 API v1 契约草案**。
+- 当前唯一下一步以 A-Plan 为准：**P1.1a 环境基线恢复**。
 
 ## 常用命令
 
 ```powershell
-.venv\Scripts\activate                         # 激活根目录虚拟环境
+.\.venv\Scripts\Activate.ps1                    # 激活根目录虚拟环境（PowerShell）
 $env:PYTHONPATH = "$PWD\backend;$PWD"           # 迁移期同时解析 backend/src 与根 data/config
 $env:OPERMIND_API_KEY = "mock"                   # 迁移期显式配置 mock，绕过尚未收口的配置路径
 $env:OPERMIND_BASE_URL = "http://mock"
