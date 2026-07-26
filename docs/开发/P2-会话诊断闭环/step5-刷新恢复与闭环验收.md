@@ -1,6 +1,6 @@
 # P2 Step5 — 刷新恢复与闭环验收
 
-> 日期：2026-07-26　|　状态：已完成验证与独立审查，待用户授权提交　|　关联 commit：待提交
+> 日期：2026-07-26　|　状态：✅ 已完成并提交　|　关联 commit：`54f02e5 feat: 完成P2.5刷新恢复与闭环验收`
 
 ## Design
 
@@ -54,4 +54,4 @@ backend/scripts/smoke_pipeline.py：direct / chain / parallel / debate 通过
 
 ## 下一步
 
-待用户授权提交 P2.5 后，唯一下一步为 **P3：主前端工作台** 的 Design。
+P2.5 已提交后，后续唯一下一步为 **P3：主前端工作台** 的 Design。
