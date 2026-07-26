@@ -37,7 +37,7 @@ oper-mind/
 - **总进度唯一真相源**：`docs/开发/_A-Plan-总览.md`。阶段一 M0–M7 已完成并冻结为历史基线；阶段二 P0–P7 是当前主线。
 - **阶段二详细计划**：`docs/开发/_B-V1产品化开发计划.md`。它展开 P0–P7 的产品范围与顺序，但不替代总览中的进度状态。
 - `docs/开发路线图与规划.md`、`docs/初始开发/` 与 M 阶段日志均为历史材料，保留但不作为当前执行入口。
-- 当前唯一下一步以 A-Plan 为准：**P1.1a 环境基线恢复**。
+- 当前唯一下一步以 A-Plan 为准：**P1.1c 应用后端地基设计**（P1.1b 已完成并提交）。
 
 ## 常用命令
 
@@ -54,7 +54,7 @@ Set-Location report
 npm run dev                                     # 启动研发/实验/Trace 可观察性前端
 ```
 
-`frontend/` 是 V1 主产品前端。P0.4 原型经用户确认并完成 React 工程初始化前，不假定其具有 `npm run dev` 启动命令；不得把 `report/` 当作主产品前端，也不得删除它。上述后端命令是 P0 迁移期 mock 启动约定；`backend/src/config.py` 的配置路径将在 P1 统一收口，真实环境只使用环境变量或完成收口后的 Settings。
+`frontend/` 是 V1 主产品前端。P0.4 原型经用户确认并完成 React 工程初始化前，不假定其具有 `npm run dev` 启动命令；不得把 `report/` 当作主产品前端，也不得删除它。`backend/src/project_paths.py` 是根 `config/`、`data/` 与 `experiments/` 的唯一资源路径来源；配置依次读取根 `config.local.yaml`、根 `config.example.yaml`，再由 `OPERMIND_*` 环境变量覆盖。脚本和测试不得依赖当前工作目录或把 `backend/` 当资源根；迁移期遗留 `PYTHONPATH` 即使存在也不得改变资源路径解析。
 
 ## 开发规则
 

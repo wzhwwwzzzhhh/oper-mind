@@ -14,7 +14,12 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+try:
+    from scripts._bootstrap import bootstrap_import_paths
+except ModuleNotFoundError:
+    from _bootstrap import bootstrap_import_paths
+
+bootstrap_import_paths()
 
 from src.core.llm import LLMClient
 from src.core.coordinator import CoordinatorAgent

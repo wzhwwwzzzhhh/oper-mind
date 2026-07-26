@@ -1,37 +1,34 @@
-# P1 Review — P1.1a 环境基线恢复
+# P1 独立审查 — 应用后端地基
 
-> 日期：2026-07-26　|　审查范围：环境恢复、验证记录与当前入口同步　|　结论：通过，待用户授权提交
+> 更新时间：2026-07-26　|　结论：P1.1a 已提交；P1.1b 已提交
 
-## 审查范围
+## P1.1a 复核
 
-- 根 `.venv` 的解释器、依赖安装与 Git 忽略边界
-- `backend/requirements.txt` 的锁定依赖恢复
-- mock 模式导入、健康检查、`backend/tests/test_api.py` 与 `backend/scripts/smoke_pipeline.py`
-- `docs/开发/P1-应用后端地基/` 的设计、Step 与 HANDOFF
-- A-Plan、阶段二计划、AGENTS/CLAUDE 与 P0.4 验证事实更正
+- 已提交：`1559266 chore: 恢复P1环境基线`。
+- 根 `.venv`、锁定依赖、mock 健康检查、API smoke 与 pipeline smoke 的实际结论已记录。
+- `.venv/`、本地配置、运行时数据、`frontend/`、`report/` 未进入该提交。
 
-## 检查项
+## P1.1b 审查范围
 
-| 检查项 | 结果 | 结论 |
+审查路径/配置集中实现、跨目录启动、环境变量优先级、敏感配置、旧 API 兼容、脚本/测试路径漂移与暂存边界。
+
+| 检查项 | 结论 | 依据 |
 |---|---|---|
-| 分支边界 | 通过 | 已从 P0 分支创建 `feat/p1-application-foundation`，符合阶段二 `feat/pN-*` 规则 |
-| 解释器基线 | 通过 | 发现 Python 3.10.11 与 3.11.9；根 `.venv` 固定为可用的 Python 3.11.9 |
-| 旧环境根因 | 通过 | 旧 `.venv/pyvenv.cfg` 的创建命令仍指向废弃 `newproject` 路径，失效原因已精确记录 |
-| 依赖恢复 | 通过 | `backend/requirements.txt` 安装完成，`pip check` 返回 `No broken requirements found.` |
-| mock 导入与健康检查 | 通过 | 依赖导入成功，`config_mode=mock`、根 `data` 导入成功，`GET /health` 返回 200 / mock |
-| API smoke | 通过 | `backend/tests/test_api.py` 为 11 passed；仅有既有 Starlette/httpx 弃用警告 |
-| pipeline smoke | 通过 | direct / chain / parallel 与 debate 分支全部通过 |
-| Git 与敏感资产 | 通过 | `.venv/`、`config/config.local.yaml` 被忽略，`data/memory.json` 无 diff；未把环境资产纳入提交范围 |
-| 业务范围 | 通过 | 未修改 `backend/` 业务代码、数据库、ORM、Migration、Repository、API 行为、`frontend/` 或 `report/` |
-| 文档准确性 | 通过 | P0.4 的 HTML 检查记录已更正为“提取内嵌脚本后运行 node --check”，不再声称 Node 直接检查 HTML |
-| 计划入口 | 通过 | A-Plan、阶段二计划和 AGENTS/CLAUDE 统一指向 P1.1a；P1.1b 被明确为提交后的唯一下一步 |
+| 资源路径唯一来源 | 通过 | `backend/src/project_paths.py` 统一提供根目录常量；配置、长期记忆、脚本与测试不再把 `backend/` 当作资源根 |
+| 跨目录启动 | 通过 | 从仓库根、`backend/` 与临时目录的路径测试、评测校验和 smoke pipeline 均真实通过 |
+| 配置优先级 | 通过 | `config.local.yaml` 优先模板，`OPERMIND_*` 环境变量覆盖；新增/既有配置测试共 8 项通过 |
+| mock fallback | 通过 | 显式 mock 配置下 `/health` 返回 `200`、`mode=mock`；未写入密钥 |
+| 阶段一 API 兼容 | 通过 | `backend/tests/test_api.py` 为 `11 passed`；未修改 `/diagnose`、`/diagnose/stream` 路由或契约 |
+| 业务回归 | 通过 | 完整 `backend/tests` 为 `87 passed`；pipeline 四条覆盖路径通过 |
+| 脚本路径漂移 | 通过 | `run_eval.py --help`、根评测校验、smoke pipeline 可由临时目录执行；无 `backend/data`、`backend/config`、`backend/experiments` 资源假设 |
+| 敏感资产与范围 | 通过 | 不暂存 `.venv/`、`config/config.local.yaml`、运行时数据、实验产物、`frontend/`、`report/`；未引入 ORM、Migration、新路由或 React |
 
-## 已知限制
+## 已知限制与风险
 
-- `backend/src/config.py` 仍从 `backend/config/` 搜索 YAML，而模板在根 `config/`；本 Step 通过 mock 环境变量验证，不修改实现。
-- 运行仍依赖 `PYTHONPATH="$PWD\backend;$PWD"` 同时解析 `backend/src` 与根 `data/`；这是 P1.1b 的唯一代码治理目标。
-- API smoke 的 Starlette/httpx 弃用警告已记录，不阻塞本 Step；不在环境恢复中升级或替换依赖。
+- `data/eval/validate.py` 作为根目录脚本仍需要一段最小启动桥接，原因是直接执行时 Python 仅把脚本目录放入 `sys.path`；业务资源定位仍集中在 `src.project_paths`，该桥接不读取当前工作目录。
+- `TestClient` 仍报告既有 Starlette/httpx 弃用警告；本 Step 不升级依赖，已在 P1.1a 与本次回归中如实记录。
+- 长期记忆的现有 `print` 输出和文件存储实现属于阶段一遗留，不在本 Step 清理；本次只修正默认资源路径。
 
 ## 结论
 
-P1.1a 达到可重复、可验证环境基线的成功标准。建议提交内容：`chore: 恢复P1环境基线`。提交后唯一下一步为 P1.1b 配置/数据路径收口；不得在该前置问题未解决前直接进入 ORM、Migration 或 `/api/v1` 实现。
+P1.1b 已达到成功标准并完成独立提交。提交信息：`refactor: 收口P1配置与数据路径`。提交后唯一下一步为 **P1.1c：应用后端地基设计**。

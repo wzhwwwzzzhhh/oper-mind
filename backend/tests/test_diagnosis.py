@@ -2,20 +2,16 @@
 
 import json
 import sys
-import os
-
-# 添加项目根目录到路径
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.core.fallback import RuleEngine
+from src.project_paths import DATA_DIR
 
 
 def load_test_cases():
-    """加载测试用例"""
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    path = os.path.join(base_dir, "data", "test_cases.json")
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    """加载测试用例。"""
+    path = DATA_DIR / "test_cases.json"
+    with path.open("r", encoding="utf-8") as file:
+        return json.load(file)
 
 
 def _run_fallback_engine() -> bool:
@@ -53,10 +49,10 @@ def _run_fallback_engine() -> bool:
     return passed == total
 
 
-
 def test_fallback_engine() -> None:
     """验证规则引擎能为所有 mock 用例产生诊断结论。"""
     assert _run_fallback_engine()
+
 
 if __name__ == "__main__":
     success = _run_fallback_engine()

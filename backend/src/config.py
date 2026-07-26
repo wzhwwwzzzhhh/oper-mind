@@ -1,8 +1,11 @@
 """配置管理：从 YAML 文件加载基础配置，并允许环境变量覆盖模型配置。"""
 
 import os
+from pathlib import Path
 
 import yaml
+
+from src.project_paths import CONFIG_DIR
 
 
 # 环境变量名 -> 配置段与字段名的映射。
@@ -18,16 +21,15 @@ _ENV_TO_CONFIG_KEY = {
 
 
 def _load_yaml_config() -> dict:
-    """从本地或示例 YAML 加载基础配置。"""
-    config_dir = os.path.join(os.path.dirname(__file__), "..", "config")
-    candidate_paths = [
-        os.path.join(config_dir, "config.local.yaml"),
-        os.path.join(config_dir, "config.example.yaml"),
+    """从仓库根的本地或示例 YAML 加载基础配置。"""
+    candidate_paths: list[Path] = [
+        CONFIG_DIR / "config.local.yaml",
+        CONFIG_DIR / "config.example.yaml",
     ]
 
     for path in candidate_paths:
-        if os.path.exists(path):
-            with open(path, "r", encoding="utf-8") as file:
+        if path.exists():
+            with path.open("r", encoding="utf-8") as file:
                 return yaml.safe_load(file) or {}
 
     return {}

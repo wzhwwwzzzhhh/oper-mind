@@ -13,14 +13,15 @@ import json
 import os
 import sys
 
-_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _ROOT not in sys.path:
-    sys.path.insert(0, _ROOT)
+try:
+    from scripts._bootstrap import EXPERIMENTS_DIR as PROJECT_EXPERIMENTS_DIR
+except ModuleNotFoundError:
+    from _bootstrap import EXPERIMENTS_DIR as PROJECT_EXPERIMENTS_DIR
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
-EXPERIMENTS_DIR = os.path.join(_ROOT, "experiments")
+EXPERIMENTS_DIR = str(PROJECT_EXPERIMENTS_DIR)
 
 
 def _load(config_hash: str) -> tuple[dict, dict] | None:

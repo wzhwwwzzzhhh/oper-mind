@@ -4,17 +4,18 @@
 from fpdf import FPDF
 import os
 
+try:
+    from scripts._bootstrap import PROJECT_ROOT
+except ModuleNotFoundError:
+    from _bootstrap import PROJECT_ROOT
+
 # ── 字体路径 ──────────────────────────────────────────────────
 FONT_DIR = "C:/Windows/Fonts"
 YAHEI = os.path.join(FONT_DIR, "msyh.ttc")
 YAHEI_BOLD = os.path.join(FONT_DIR, "msyhbd.ttc")
 SIMSUN = os.path.join(FONT_DIR, "simsun.ttc")
 
-OUTPUT = os.path.join(
-    os.path.dirname(os.path.dirname(__file__)),
-    "docs",
-    "项目方案说明书-汇报版.pdf",
-)
+OUTPUT = str(PROJECT_ROOT / "docs" / "项目方案说明书-汇报版.pdf")
 
 
 class ProposalPDF(FPDF):

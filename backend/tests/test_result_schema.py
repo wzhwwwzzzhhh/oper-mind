@@ -6,13 +6,6 @@ build_summary 从一批 CaseResult 聚合出 EvalSummary。
 不含 domain/difficulty(那些在 EvalCase 上)，因此需要 case + 原始结果字典两者拼装。
 """
 
-import os
-import sys
-
-_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _ROOT not in sys.path:
-    sys.path.insert(0, _ROOT)
-
 from data.eval.schema import EvalCase
 from src.eval.result_schema import CaseResult, build_summary, _case_group
 

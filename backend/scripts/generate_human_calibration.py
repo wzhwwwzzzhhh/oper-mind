@@ -7,9 +7,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-_ROOT = Path(__file__).resolve().parent.parent
-if str(_ROOT) not in sys.path:
-    sys.path.insert(0, str(_ROOT))
+try:
+    from scripts._bootstrap import DATA_DIR, EXPERIMENTS_DIR
+except ModuleNotFoundError:
+    from _bootstrap import DATA_DIR, EXPERIMENTS_DIR
 
 from data.eval.validate import load_cases
 from src.core.bootstrap import build_judge_llm, build_system
@@ -97,7 +98,7 @@ def _write_artifacts(output_dir: Path, records: list[dict[str, Any]]) -> None:
 
 def generate(output_dir: Path) -> None:
     """生成或续跑 12 条真实人工抽检样本。"""
-    cases, errors = load_cases(str(_ROOT / "data" / "eval" / "cases.jsonl"))
+    cases, errors = load_cases(str(DATA_DIR / "eval" / "cases.jsonl"))
     if errors:
         raise RuntimeError(f"评测数据加载失败：{errors}")
     case_by_id = {case.case_id: case for case in cases}
@@ -189,7 +190,7 @@ def main() -> None:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=_ROOT / "experiments" / "m4-human-calibration",
+        default=EXPERIMENTS_DIR / "m4-human-calibration",
         help="抽检产物目录；重复运行会跳过已完成样本。",
     )
     args = parser.parse_args()

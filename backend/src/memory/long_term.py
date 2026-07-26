@@ -3,6 +3,9 @@
 import json
 import os
 from datetime import datetime
+from pathlib import Path
+
+from src.project_paths import DATA_DIR
 
 
 class LongTermMemory:
@@ -12,8 +15,8 @@ class LongTermMemory:
     面试时可以说："我用文件存储做MVP，理解原理后可迁移到向量数据库。"
     """
 
-    def __init__(self, storage_path: str = "data/memory.json"):
-        self.storage_path = storage_path
+    def __init__(self, storage_path: str | Path | None = None):
+        self.storage_path = Path(storage_path) if storage_path else DATA_DIR / "memory.json"
         self.records: list[dict] = []
         self.load()
 

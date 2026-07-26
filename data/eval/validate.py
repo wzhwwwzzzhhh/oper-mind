@@ -17,11 +17,17 @@ import json
 import os
 import sys
 from collections import Counter
+from pathlib import Path
 
-# 让脚本能直接跑：把项目根加入 sys.path
-_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-if _ROOT not in sys.path:
-    sys.path.insert(0, _ROOT)
+# 根目录评测脚本的唯一启动桥接：后续路径均由 src.project_paths 提供。
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+BACKEND_ROOT = PROJECT_ROOT / "backend"
+for path in (PROJECT_ROOT, BACKEND_ROOT):
+    value = str(path)
+    if value not in sys.path:
+        sys.path.insert(0, value)
+
+from src.project_paths import DATA_DIR
 
 # Windows 控制台默认 GBK，无法编码 emoji；统一重配为 UTF-8
 if hasattr(sys.stdout, "reconfigure"):
@@ -33,7 +39,7 @@ from data.eval.schema import EvalCase
 from data.scenarios import supported_scenarios
 from src.core.graph import _keyword_strategy, _keyword_target
 
-DEFAULT_CASES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cases.jsonl")
+DEFAULT_CASES = str(DATA_DIR / "eval" / "cases.jsonl")
 
 
 def load_cases(path: str) -> tuple[list[EvalCase], list[str]]:

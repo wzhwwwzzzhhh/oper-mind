@@ -1,6 +1,6 @@
 # P1.1a Step1 — 环境基线恢复
 
-> 日期：2026-07-26　|　状态：已完成，Review 通过，待用户授权提交　|　分支：`feat/p1-application-foundation`　|　关联 commit：待提交
+> 日期：2026-07-26　|　状态：已完成并提交　|　分支：`feat/p1-application-foundation`　|　关联 commit：`1559266 chore: 恢复P1环境基线`
 
 ## Design
 
@@ -49,6 +49,6 @@ $env:OPERMIND_MODEL = "mock"
 
 ## Review
 
-- 已完成独立审查，详见 `docs/开发/P1-应用后端地基/review.md`。确认环境结论可复现、所有通过结果来自实际命令、ignored 环境资产或敏感配置未进入暂存，且未改动业务代码与前端资产。
+- 已完成独立审查并于 `1559266` 提交；环境结论可复现、所有通过结果来自实际命令、ignored 环境资产或敏感配置未进入暂存，且未改动业务代码与前端资产。
 - 当前已知限制：`backend/src/config.py` 仍向 `backend/config` 查找 YAML，而模板位于根 `config/`；本 Step 用环境变量覆盖并记录问题，不修改实现。
 - 唯一下一步：P1.1b 配置/数据路径收口。

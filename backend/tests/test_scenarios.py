@@ -4,13 +4,6 @@
 以及 S1 与 S3「同表象不同根因」、S4「表象误导」的关键区分点。
 """
 
-import os
-import sys
-
-_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _ROOT not in sys.path:
-    sys.path.insert(0, _ROOT)
-
 import pytest
 
 from data import scenarios

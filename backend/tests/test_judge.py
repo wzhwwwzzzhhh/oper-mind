@@ -4,13 +4,6 @@
 保证 mock 模式下 judge 环节可跑通（管道冒烟）；真 LLM 路径解析裁判返回的 JSON 打分。
 """
 
-import os
-import sys
-
-_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _ROOT not in sys.path:
-    sys.path.insert(0, _ROOT)
-
 import pytest
 
 from data.eval.schema import EvalCase

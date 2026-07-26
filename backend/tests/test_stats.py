@@ -3,14 +3,9 @@
 纯函数测试，不需要 LLM。运行：python tests/test_stats.py
 """
 
-import json
-import os
 import sys
 
-_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _ROOT not in sys.path:
-    sys.path.insert(0, _ROOT)
-
+import json
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 

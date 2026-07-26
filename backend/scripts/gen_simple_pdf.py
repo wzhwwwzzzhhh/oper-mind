@@ -4,15 +4,16 @@
 from fpdf import FPDF
 import os
 
+try:
+    from scripts._bootstrap import PROJECT_ROOT
+except ModuleNotFoundError:
+    from _bootstrap import PROJECT_ROOT
+
 FONT_DIR = "C:/Windows/Fonts"
 YAHEI = os.path.join(FONT_DIR, "msyh.ttc")
 YAHEI_BOLD = os.path.join(FONT_DIR, "msyhbd.ttc")
 
-OUTPUT = os.path.join(
-    os.path.dirname(os.path.dirname(__file__)),
-    "docs",
-    "架构示意图.pdf",
-)
+OUTPUT = str(PROJECT_ROOT / "docs" / "架构示意图.pdf")
 
 
 class SimplePDF(FPDF):

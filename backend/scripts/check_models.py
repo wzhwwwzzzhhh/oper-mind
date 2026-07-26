@@ -13,9 +13,12 @@ import argparse
 import os
 import sys
 
-_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _ROOT not in sys.path:
-    sys.path.insert(0, _ROOT)
+try:
+    from scripts._bootstrap import bootstrap_import_paths
+except ModuleNotFoundError:
+    from _bootstrap import bootstrap_import_paths
+
+bootstrap_import_paths()
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")

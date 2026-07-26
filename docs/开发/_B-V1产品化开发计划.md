@@ -259,14 +259,8 @@ Design → Step → Code → Minimum Test → Review → Commit
 
 ## 11. 当前唯一下一步
 
-**P1.1a：环境基线恢复**。P0 的规划边界、架构盘点、API v1 契约和 HTML 原型已完成；本 Step 只恢复可重复后端环境，不直接实现持久化功能：
+**P1.1c：应用后端地基设计**。P1.1a 已以 `1559266` 完成环境基线；P1.1b 已完成集中式路径/配置收口并已提交：根 `.venv` 为固定环境，`backend/src/project_paths.py` 是根 `config/`、`data/`、`experiments/` 与 `backend/` 的唯一资源路径来源，YAML 由本地/模板配置加载后再受 `OPERMIND_*` 覆盖，显式 mock fallback 保持可用。
 
-1. 确认可用 Python 3.10+、当前 `.venv`、后端依赖和仓库根导入路径；
-2. 在用户授权后以当前仓库根 `.venv` 重建环境并安装 `backend/requirements.txt`；
-3. 用 mock 配置验证 Python、依赖导入、健康检查、`backend/tests` 最小 smoke 和 direct / chain / parallel pipeline；
-4. 如实记录命令、结果、失败原因和环境限制，不为通过验证修改业务逻辑；
-5. 独立 Review 后以文档提交收口。
-
-P1.1a 完成后进入 P1.1b 的配置/数据路径收口。P1 后续的 ORM、Migration、Repository 和新路由必须遵循 P0.3 契约；旧 `/diagnose`、`/diagnose/stream` 必须保持兼容。
+P1.1c 只设计 SQLAlchemy/Alembic、SQLite/PostgreSQL 兼容、Migration 节奏、Domain/Repository/Application Service 边界与安全降级；不得直接实现持久化功能。P1 后续 ORM、Migration、Repository 和新路由必须遵循 P0.3 契约；旧 `/diagnose`、`/diagnose/stream` 必须保持兼容。
 
 本计划是方向基线，不是不可修改的瀑布计划；边做边优化，但任何范围变化必须回写本文件和 `_A-Plan-总览.md`，避免口头决策漂移。

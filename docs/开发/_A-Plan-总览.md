@@ -49,7 +49,7 @@ M7 原计划中的“联调与视觉收口”不再作为独立产品里程碑�
 | 里程碑 | 名称 | 状态 | 目标 |
 |---|---|---|---|
 | **P0** | **V1 产品化基线** | 已完成 | 产品边界、架构、API v1 契约与主前端原型已收口 |
-| **P1** | **应用后端与持久化地基** | 🟡 P1.1a 进行中 | 先恢复环境并收口路径，再进入 SQLAlchemy、Migration、Repository、Application Service 与统一配置 |
+| **P1** | **应用后端与持久化地基** | 🟡 P1.1b 已完成 | 环境、配置与根资源路径已收口；下一步先设计持久化地基，再进入 SQLAlchemy、Migration、Repository 与 Application Service |
 | P2 | 会话诊断闭环 | 待开始 | Session、Run、结构化结果、SSE 持久化与恢复 |
 | P3 | 主前端工作台 | 待开始 | `frontend/` 产品外壳、会话与结果优先工作区 |
 | P4 | 环境、数据源与知识 | 待开始 | Environment、DataSource、连接器、Runbook 与记忆治理 |
@@ -61,14 +61,13 @@ M7 原计划中的“联调与视觉收口”不再作为独立产品里程碑�
 
 ## 4. 当前唯一下一步
 
-**P1.1a：环境基线恢复**。
+**P1.1c：应用后端地基设计**。
 
-P0 已完成：产品边界、架构盘点、API v1 契约和结果优先的 HTML 原型均已收口；React 工程仍未初始化。
+P0 已完成：产品边界、架构盘点、API v1 契约和结果优先的 HTML 原型均已收口；React 工程仍未初始化。P1.1a 已以 `1559266 chore: 恢复P1环境基线` 提交，根 `.venv`、锁定依赖、mock 健康检查、API smoke 与 pipeline 已形成稳定环境基线。
 
-P1.1a 只恢复可重复、可验证的 Python 后端环境并记录真实结果：固定根 `.venv`、明确导入路径、mock 健康检查、API smoke 与三路 pipeline 验证；不实现数据库、ORM、迁移、Repository、新 API 路由或 React 工程。
+P1.1b 已完成并提交：集中式 `backend/src/project_paths.py` 固定解析仓库根、`backend/`、根 `config/`、`data/` 与 `experiments/`；配置按本地 YAML、模板 YAML、`OPERMIND_*` 覆盖运行，显式 `api_key="mock"` fallback 保持可用。脚本、pytest 与根评测校验不再依赖启动目录，阶段一 `/diagnose`、`/diagnose/stream` 保持兼容。
 
-P1.1a 提交后，唯一下一步切换为 **P1.1b：配置/数据路径收口**，解决 `backend/src`、根 `config/` 与根 `data/` 的运行路径约定，不改变阶段一 `/diagnose`、`/diagnose/stream` 的兼容行为。
-
+P1.1b 提交后，唯一下一步为 **P1.1c：应用后端地基设计**：先依据 P0.3 设计 SQLAlchemy/Alembic、SQLite/PostgreSQL 兼容、迁移节奏、Domain/Repository/Application Service 边界与安全降级；不得直接实现数据库、迁移或 `/api/v1` 路由。
 ## 5. 执行与降级原则
 
 ```text

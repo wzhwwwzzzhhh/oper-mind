@@ -17,9 +17,10 @@ import random
 import sys
 import time
 
-_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _ROOT not in sys.path:
-    sys.path.insert(0, _ROOT)
+try:
+    from scripts._bootstrap import DATA_DIR, EXPERIMENTS_DIR as PROJECT_EXPERIMENTS_DIR
+except ModuleNotFoundError:
+    from _bootstrap import DATA_DIR, EXPERIMENTS_DIR as PROJECT_EXPERIMENTS_DIR
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
@@ -30,8 +31,8 @@ from src.core.experiment import get_experiment_condition, supported_arms
 from src.eval.result_schema import CaseResult, build_summary
 from src.eval.runner import run_suite
 
-DEFAULT_CASES = os.path.join(_ROOT, "data", "eval", "cases.jsonl")
-EXPERIMENTS_DIR = os.path.join(_ROOT, "experiments")
+DEFAULT_CASES = str(DATA_DIR / "eval" / "cases.jsonl")
+EXPERIMENTS_DIR = str(PROJECT_EXPERIMENTS_DIR)
 
 
 def _is_mock_llm(coordinator) -> bool:

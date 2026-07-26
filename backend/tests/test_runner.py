@@ -5,13 +5,6 @@ route(query) -> str 与 get_trace() -> list[dict] 两个公开接口（见
 src/core/coordinator.py），因此可用一个假 coordinator 隔离测试。
 """
 
-import os
-import sys
-
-_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _ROOT not in sys.path:
-    sys.path.insert(0, _ROOT)
-
 from data.eval.schema import EvalCase
 from src.eval.runner import run_case, run_suite
 
