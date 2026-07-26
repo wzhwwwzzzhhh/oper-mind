@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from src.application.contracts import (
     CreateRunCommand,
     CreateSessionCommand,
+    UpdateSessionCommand,
     DiagnosisExecutionError,
     DiagnosisExecutionEvent,
     DiagnosisExecutionResult,
@@ -85,24 +86,39 @@ class SessionApplicationService:
 
     def archive_session(self, session_id: UUID) -> SessionData:
         """逻辑归档 Session；重复归档保持幂等。"""
+        return self.update_session(
+            UpdateSessionCommand(session_id=session_id, status=SessionStatus.ARCHIVED)
+        )
+
+    def update_session(self, command: UpdateSessionCommand) -> SessionData:
+        """在一个短事务内更新标题或逻辑归档，不允许重新激活。"""
 
         def operation(session: Session) -> SessionData:
             repository = SqlAlchemySessionRepository(session)
-            current = repository.get_by_id(session_id)
+            current = repository.get_by_id(command.session_id)
             if current is None:
                 raise SessionNotFoundError()
-            if current.status == SessionStatus.ARCHIVED:
+            if command.status == SessionStatus.ACTIVE and current.status == SessionStatus.ARCHIVED:
+                raise SessionArchivedError("已归档会话不能重新激活。")
+
+            should_archive = command.status == SessionStatus.ARCHIVED
+            if command.title is None and (
+                current.status == SessionStatus.ARCHIVED
+                or command.status == SessionStatus.ACTIVE
+            ):
                 return current
+
             now = _utc_now()
-            archived = current.model_copy(
+            updated = current.model_copy(
                 update={
-                    "status": SessionStatus.ARCHIVED,
-                    "archived_at": now,
+                    "title": command.title if command.title is not None else current.title,
+                    "status": SessionStatus.ARCHIVED if should_archive else current.status,
+                    "archived_at": now if should_archive and current.archived_at is None else current.archived_at,
                     "updated_at": now,
                 }
             )
-            repository.save(archived)
-            return archived
+            repository.save(updated)
+            return updated
 
         return _in_transaction(self._session_factory, operation)
 
@@ -132,13 +148,13 @@ class RunApplicationService:
             return self._load_idempotency_after_conflict(command, fingerprint, error)
 
     def execute_run(self, run_id: UUID) -> DiagnosisRunData:
-        """使用已持久化输入消息执行 Run，并写入安全终态。"""
-        running, query, claimed = self._claim_run(run_id)
-        if not claimed:
-            return running
-
-        execution_result: DiagnosisExecutionResult | None = None
+        """使用已持久化输入消息执行 Run，并把任何可处理异常收敛为安全终态。"""
         try:
+            running, query, claimed = self._claim_run(run_id)
+            if not claimed:
+                return running
+
+            execution_result: DiagnosisExecutionResult | None = None
             for item in self._executor.stream(query or ""):
                 if isinstance(item, DiagnosisExecutionEvent):
                     self._append_event(
@@ -152,10 +168,10 @@ class RunApplicationService:
             if execution_result is None:
                 raise DiagnosisExecutionError()
             return self._complete_success(run_id, execution_result)
-        except DiagnosisExecutionError as error:
-            return self._complete_failure(run_id, error.code, error.message)
+        except RunNotFoundError:
+            raise
         except Exception:
-            return self._complete_failure(run_id, "DIAGNOSIS_FAILED", "诊断执行失败，请稍后重试")
+            return self._complete_failure(run_id, *_safe_failure())
 
     def _accept_run_in_transaction(
         self,
@@ -417,6 +433,11 @@ def _in_transaction(session_factory: SessionFactory, operation: Callable[[Sessio
 def _query_fingerprint(query: str) -> str:
     """计算已规范化 query 的稳定 SHA-256 语义指纹。"""
     return sha256(query.strip().encode("utf-8")).hexdigest()
+
+
+def _safe_failure() -> tuple[str, str]:
+    """返回唯一允许写入 Run、事件和 API 的执行失败信息。"""
+    return "DIAGNOSIS_FAILED", "诊断执行失败，请稍后重试"
 
 
 def _safe_event_data(event: DiagnosisExecutionEvent) -> dict[str, object]:

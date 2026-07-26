@@ -259,8 +259,8 @@ Design → Step → Code → Minimum Test → Review → Commit
 
 ## 11. 当前唯一下一步
 
-**P2.4：`/api/v1` 与 SSE 恢复**。P2 已在 `feat/p2-session-diagnosis` 开始；P2.1、P2.2a、P2.2b 已提交，P2.3 已完成实现、独立审查和验证，等待用户授权提交：Session/Run Application Service、短事务、幂等受理、条件状态更新、RunEvent sequence、成功/失败终态和 Coordinator/ResultAssembler 适配均已固定；旧 `/diagnose`、`/diagnose/stream` 保持兼容。
+**P2.5：刷新恢复与闭环验收**。P2 已在 `feat/p2-session-diagnosis` 开始；P2.1、P2.2a、P2.2b、P2.3 已提交，P2.4 已完成实现、独立审查和验证，等待用户授权提交：`/api/v1` Pydantic 资源契约、请求/trace ID、UTC `Z` 序列化、Session/Run 路由、Run 后台执行、安全错误映射、cursor 分页和仅重放已提交 RunEvent 的 SSE 已固定；旧 `/diagnose`、`/diagnose/stream` 保持兼容。
 
-P2.4 实现 `/api/v1` Pydantic 契约、依赖装配、Session/Run 路由、安全错误映射与仅重放已提交 RunEvent 的 SSE；P2.5 才进行刷新恢复和闭环验收。不得在 P2.4 修改阶段一旧接口、前端或真实数据源。
+P2.5 进行刷新恢复和闭环验收，覆盖 Session/Run/Message/Result/事件读取、失败与幂等、终态 SSE 关闭、结构化结果安全边界及受控 Trace 链路；不得直接进入前端、真实数据源、P4/P5 数据表或接口。
 
 本计划是方向基线，不是不可修改的瀑布计划；边做边优化，但任何范围变化必须回写本文件和 `_A-Plan-总览.md`，避免口头决策漂移。

@@ -277,8 +277,8 @@ def test_run执行失败写入安全错误与终态事件(persistence_runtime: P
 
     failed = run_service.execute_run(accepted.run.id)
     assert failed.status == RunStatus.FAILED
-    assert failed.error_code == "UPSTREAM_TIMEOUT"
-    assert failed.error_message == "上游超时，请稍后重试"
+    assert failed.error_code == "DIAGNOSIS_FAILED"
+    assert failed.error_message == "诊断执行失败，请稍后重试"
     session = persistence_runtime.session_factory()
     try:
         assert SqlAlchemyDiagnosisResultRepository(session).get_by_run_id(accepted.run.id) is None
@@ -290,7 +290,7 @@ def test_run执行失败写入安全错误与终态事件(persistence_runtime: P
         RunEventType.RUN_STARTED,
         RunEventType.RUN_FAILED,
     ]
-    assert events[-1].data == {"state": "failed", "code": "UPSTREAM_TIMEOUT"}
+    assert events[-1].data == {"state": "failed", "code": "DIAGNOSIS_FAILED"}
 
 
 def test_result组装失败回滚成功事务但保持running(persistence_runtime: PersistenceRuntime) -> None:
@@ -365,9 +365,14 @@ def test_run执行拒绝跨Session输入消息(persistence_runtime: PersistenceR
         executor,
         ConservativeResultAssembler(),
     )
-    with pytest.raises(RunInputMessageInvalidError):
-        service.execute_run(invalid_run.id)
+    failed = service.execute_run(invalid_run.id)
+    assert failed.status == RunStatus.FAILED
+    assert failed.error_code == "DIAGNOSIS_FAILED"
+    assert failed.error_message == "诊断执行失败，请稍后重试"
     assert executor.calls == []
+    events = _load_events(persistence_runtime, invalid_run.id)
+    assert [event.type for event in events] == [RunEventType.RUN_FAILED]
+    assert events[-1].data == {"state": "failed", "code": "DIAGNOSIS_FAILED"}
 
 
 

@@ -2,6 +2,7 @@
 
 from collections.abc import Iterator
 import logging
+from uuid import UUID, uuid4
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -25,6 +26,11 @@ from src.api.schemas import (
     StreamQuery,
     TraceEvent,
 )
+from src.api.v1.dependencies import build_v1_services
+from src.api.v1.errors import ApiV1Error
+from src.api.v1.routes import router as v1_router
+from src.api.v1.schemas import ApiError as V1ApiError
+from src.api.v1.schemas import ErrorEnvelope, FieldIssue, ResponseMeta
 from src.core.bootstrap import build_system
 
 
@@ -36,16 +42,72 @@ app = FastAPI(
     version="1.1.0",
 )
 
-# 系统装配保持单例；测试可替换该变量以隔离外部依赖。
+# 系统装配保持单例；测试可替换该变量与 v1_services 以隔离外部依赖。
 coordinator = build_system()
+app.state.v1_services = build_v1_services(coordinator)
+
+
+@app.middleware("http")
+async def v1_request_id_middleware(request: Request, call_next):
+    """仅为 `/api/v1` 验证或生成 request id，并在所有 v1 响应回显。"""
+    if not request.url.path.startswith("/api/v1"):
+        return await call_next(request)
+
+    supplied_request_id = request.headers.get("X-Request-Id")
+    try:
+        request_id = UUID(supplied_request_id) if supplied_request_id else uuid4()
+    except (TypeError, ValueError, AttributeError):
+        request_id = uuid4()
+        meta = ResponseMeta(request_id=request_id)
+        envelope = ErrorEnvelope(
+            error=V1ApiError(code="INVALID_REQUEST_ID", message="请求关联 ID 无效"),
+            meta=meta,
+        )
+        return JSONResponse(
+            status_code=400,
+            content=envelope.model_dump(mode="json"),
+            headers={"X-Request-Id": str(request_id)},
+        )
+
+    request.state.v1_request_id = request_id
+    response = await call_next(request)
+    response.headers.setdefault("X-Request-Id", str(request_id))
+    return response
+
+
+@app.exception_handler(ApiV1Error)
+async def api_v1_error_handler(request: Request, exc: ApiV1Error) -> JSONResponse:
+    """将 v1 协议异常转换为 P0.3 安全错误包络。"""
+    meta = _v1_response_meta(request)
+    envelope = ErrorEnvelope(error=V1ApiError(code=exc.code, message=exc.message), meta=meta)
+    headers = {"X-Request-Id": str(meta.request_id)}
+    if meta.trace_id is not None:
+        headers["X-Trace-Id"] = str(meta.trace_id)
+    return JSONResponse(status_code=exc.status_code, content=envelope.model_dump(mode="json"), headers=headers)
 
 
 @app.exception_handler(RequestValidationError)
 async def request_validation_error_handler(
-    _request: Request,
+    request: Request,
     exc: RequestValidationError,
 ) -> JSONResponse:
-    """把 FastAPI 参数校验失败统一为前端可消费的错误体。"""
+    """按接口版本输出稳定的字段校验错误体。"""
+    if request.url.path.startswith("/api/v1"):
+        meta = _v1_response_meta(request)
+        envelope = ErrorEnvelope(
+            error=V1ApiError(
+                code="VALIDATION_ERROR",
+                message="请求参数不合法",
+                details=_v1_validation_details(exc.errors()),
+            ),
+            meta=meta,
+        )
+        return JSONResponse(
+            status_code=422,
+            content=envelope.model_dump(mode="json"),
+            headers={"X-Request-Id": str(meta.request_id)},
+        )
+
     response = ErrorResponse(
         code="VALIDATION_ERROR",
         message="请求参数不合法",
@@ -55,19 +117,54 @@ async def request_validation_error_handler(
 
 
 @app.exception_handler(HTTPException)
-async def http_exception_handler(_request: Request, exc: HTTPException) -> JSONResponse:
-    """统一业务 HTTP 异常的输出格式。"""
+async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    """保留阶段一业务 HTTP 异常输出；v1 使用安全包络。"""
     message = exc.detail if isinstance(exc.detail, str) else "请求处理失败"
+    if request.url.path.startswith("/api/v1"):
+        meta = _v1_response_meta(request)
+        envelope = ErrorEnvelope(error=V1ApiError(code="HTTP_ERROR", message=message), meta=meta)
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=envelope.model_dump(mode="json"),
+            headers={"X-Request-Id": str(meta.request_id)},
+        )
     response = ErrorResponse(code="HTTP_ERROR", message=message)
     return JSONResponse(status_code=exc.status_code, content=response.model_dump(mode="json"))
 
 
 @app.exception_handler(Exception)
-async def unhandled_exception_handler(_request: Request, exc: Exception) -> JSONResponse:
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """隐藏内部异常细节，避免通过 API 暴露配置或实现信息。"""
     LOGGER.exception("诊断 API 未处理异常", exc_info=exc)
+    if request.url.path.startswith("/api/v1"):
+        meta = _v1_response_meta(request)
+        envelope = ErrorEnvelope(
+            error=V1ApiError(code="INTERNAL_ERROR", message="服务内部错误，请稍后重试"),
+            meta=meta,
+        )
+        return JSONResponse(
+            status_code=500,
+            content=envelope.model_dump(mode="json"),
+            headers={"X-Request-Id": str(meta.request_id)},
+        )
     response = ErrorResponse(code="INTERNAL_ERROR", message="服务内部错误，请稍后重试")
     return JSONResponse(status_code=500, content=response.model_dump(mode="json"))
+
+
+def _v1_response_meta(request: Request) -> ResponseMeta:
+    """在 v1 错误分支也稳定提供 request id。"""
+    request_id = getattr(request.state, "v1_request_id", None)
+    return ResponseMeta(request_id=request_id if isinstance(request_id, UUID) else uuid4())
+
+
+def _v1_validation_details(errors: list[dict[str, object]]) -> list[FieldIssue]:
+    """将框架校验错误收敛为可安全展示的字段和原因。"""
+    details: list[FieldIssue] = []
+    for error in errors:
+        location = [str(part) for part in error.get("loc", ()) if part not in {"body", "query", "path", "header"}]
+        field = ".".join(location) or "request"
+        details.append(FieldIssue(field=field, reason=str(error.get("msg", "参数不合法"))))
+    return details
 
 
 def _validation_details(errors: list[dict[str, object]]) -> list[ErrorDetail]:
@@ -212,3 +309,6 @@ def memory_stats() -> MemoryResponse:
 def clear_memory() -> MemoryResponse:
     """保留旧接口，避免把未实现的清理动作伪装为成功。"""
     raise HTTPException(status_code=501, detail="记忆清理接口尚未实现")
+
+
+app.include_router(v1_router)

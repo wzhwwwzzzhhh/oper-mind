@@ -7,9 +7,9 @@ from datetime import datetime, timezone
 from typing import Protocol
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
 
-from src.domain.diagnosis import RunEventType
+from src.domain.diagnosis import RunEventType, SessionStatus
 from src.domain.records import DiagnosisResultData, DiagnosisRunData
 
 
@@ -34,6 +34,32 @@ class CreateSessionCommand(ApplicationCommand):
         if not normalized:
             raise ValueError("title 不能为空。")
         return normalized
+
+
+class UpdateSessionCommand(ApplicationCommand):
+    """更新会话标题或将会话归档。"""
+
+    session_id: UUID
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    status: SessionStatus | None = None
+
+    @field_validator("title")
+    @classmethod
+    def normalize_optional_title(cls, value: str | None) -> str | None:
+        """去除可选标题首尾空白并拒绝空值。"""
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("title 不能为空。")
+        return normalized
+
+    @model_validator(mode="after")
+    def require_change(self) -> "UpdateSessionCommand":
+        """拒绝没有任何更新字段的命令。"""
+        if self.title is None and self.status is None:
+            raise ValueError("至少提供一个可更新字段。")
+        return self
 
 
 class CreateRunCommand(ApplicationCommand):

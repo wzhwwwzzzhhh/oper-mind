@@ -1,6 +1,6 @@
 # P2 设计 — 会话诊断闭环
 
-> 日期：2026-07-26　|　状态：P2.3 已完成，待用户授权提交　|　分支：`feat/p2-session-diagnosis`　|　实现基线：`5cf2c6b feat: 完成P2.2b Repository端口与SQLAlchemy实现`
+> 日期：2026-07-26　|　状态：P2.4 已完成，待用户授权提交　|　分支：`feat/p2-session-diagnosis`　|　实现基线：`ae2f978 feat: 完成P2.3会话诊断应用服务`
 
 ## 目标
 
@@ -23,8 +23,8 @@ P2 只新增 `/api/v1`，不改阶段一 `POST /diagnose`、`GET /diagnose/strea
 | P2.1 | 领域、迁移与闭环设计 | 已提交 | 固定表关系、状态机、事务、Trace 映射、端点切片与测试门；不写业务实现 |
 | P2.2a | 领域模型、首个业务迁移与 schema 验证 | 已提交 `11634b4` | 领域常量、ORM mapper、首个非空 Alembic revision、fresh DB/约束/降级/方言测试；不接入 HTTP/Agent |
 | P2.2b | Repository 端口与 SQLAlchemy 实现 | 已提交 `5cf2c6b` | Repository ports/实现、固定 cursor 查询、Pydantic 数据边界与事务边界测试；不接入 Application Service/HTTP/Agent |
-| P2.3 | Session/Run Application Service | 已完成，待用户授权提交 | 受理、幂等、短事务、状态迁移、事件追加、结果写入与安全诊断适配；不实现 v1 HTTP/SSE |
-| P2.4 | `/api/v1` 与 SSE 恢复 | 下一步 | Pydantic 契约、路由、SSE 重放、错误映射与 API 测试；旧接口不改 |
+| P2.3 | Session/Run Application Service | 已提交 `ae2f978` | 受理、幂等、短事务、状态迁移、事件追加、结果写入与安全诊断适配；不实现 v1 HTTP/SSE |
+| P2.4 | `/api/v1` 与 SSE 恢复 | 已完成，待用户授权提交 | Pydantic 契约、路由、SSE 重放、错误映射与 API 测试；旧接口不改 |
 | P2.5 | 刷新恢复与闭环验收 | 待开始 | 端到端恢复、失败、幂等、结构化结果和 `report/` 受控 Trace 链接验收 |
 
 ## 1. 领域关系与首个业务 migration
@@ -152,3 +152,17 @@ api/v1 routes + Pydantic models
 P2.2/P2.3/P2.4 合并完成前，每一步独立通过自身测试。P2 闭环验收必须覆盖：fresh DB migration、Session 归档、同幂等键重试、同键不同 query 冲突、Run 终态不可逆、sequence 单调递增、提交后 SSE 重放、断线恢复、结构化 Result/Evidence 脱敏、失败安全错误和旧 API/pipeline 回归。
 
 P2 不做 `frontend/` React 工程、P4 真实环境/数据源、P5 审批执行、通知、复杂 RBAC、事件保留过期、真实 PostgreSQL 连接或 `report/` 改造。P3 才初始化主产品前端；P2 仅提供可被它消费的稳定 API。
+
+## 6. P2.4 实际 API/SSE 落地
+
+- 新增隔离的 `backend/src/api/v1/`：资源/请求 Pydantic 契约默认 `extra="forbid"`，响应由统一字段序列化为 UTC `Z`；`X-Request-Id` 接受有效 UUID 或生成新值并回显，带 Run 的响应同时回显稳定 `X-Trace-Id`。
+- `/api/v1` 已实现 Session 创建、固定 cursor 列表、读取、标题更新、逻辑归档、消息列表、Run 受理/后台执行、Run/Result 读取、RunEvent 列表和 SSE 重放。写入仅委派 Application Service，读取仅通过 Repository；没有 API 层 commit/rollback。
+- `POST /sessions/{session_id}/runs` 强制 UUID `Idempotency-Key`。首次受理提交 queued Run 后返回 `202`，由 BackgroundTasks 调用已持久化 Run 的执行用例；同键同 query 返回同 Run，不会重新加入后台执行；同键不同 query 为 `409 IDEMPOTENCY_KEY_REUSED`。
+- `GET /runs/{run_id}/stream` 只读取已提交 RunEvent；SSE 固定为 `event: run_event`，`id` 为十进制 sequence，`Last-Event-ID` 与 `after_sequence` 支持断线续传，不一致、非法或超过当前最大 sequence 时返回 `400 INVALID_EVENT_CURSOR`。终态事件发送后关闭，绝不把 executor 的即时输出或未提交事件写入 SSE。
+- Result 读取必须经过公开 Pydantic 资源模型；不合规结构化 JSON 不向客户端透传。当前保守 ResultAssembler 仍只写低置信度、无未审查证据的结果，真实证据组装不在 P2.4 范围。执行失败在 Application Service 和 v1 资源映射两层均收敛为固定公开错误，防止未来非受控写入透传。
+
+## 7. P2.4 验收与遗留
+
+- 使用 Alembic 创建独立临时 SQLite 的 v1 测试覆盖资源 meta、UTC `Z`、cursor、Session 更新/归档、Run 幂等、后台执行、结构化 Result、消息、RunEvent sequence、SSE 全量/续传重放、游标错误、request ID 和旧 API 隔离。
+- 已通过：P2.4 定向 5 passed；P2 应用/API/旧 API 联合 23 passed；完整后端 124 passed（1 条既有 TestClient 弃用警告）；direct/chain/parallel/debate pipeline smoke 通过；未生成 `data/opermind.sqlite3`。
+- P2.5 仍需作为独立验收 step 覆盖真实刷新顺序和失败执行路径的跨请求恢复、完整契约/OpenAPI 审查、SSE 长连接/轮询行为与受控 Trace 链路；SQLite 不替代 PostgreSQL 并发幂等/sequence 语义验证。

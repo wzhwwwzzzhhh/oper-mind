@@ -1,6 +1,6 @@
 # P2 独立审查 — 会话诊断闭环
 
-> 更新时间：2026-07-26　|　结论：P2.3 已通过独立审查，待用户授权提交
+> 更新时间：2026-07-26　|　结论：P2.4 已通过独立审查，待用户授权提交
 
 ## 已提交基线
 
@@ -40,3 +40,43 @@
 ## 结论
 
 P2.3 在既定边界内通过独立审查。待用户授权后可提交；提交后的唯一下一步为 **P2.4：`/api/v1` 与 SSE 恢复**。
+
+---
+
+## P2.4 独立审查
+
+### 审查范围
+
+审查 `/api/v1` 的 Pydantic 资源契约、依赖装配、Session/Message/Run/RunEvent 路由、后台执行触发、统一 request/trace 元数据、安全错误映射、cursor 分页、持久化 SSE 重放、结构化 Result 读取边界，以及对阶段一旧 API、事务规则和工作区隔离的影响。
+
+| 检查项 | 结论 | 审查结果 |
+|---|---|---|
+| 路由隔离 | 通过 | 新增实现位于 `backend/src/api/v1/`；`backend/src/api/` 阶段一模型/事件未被修改，`test_api.py` 旧 `/diagnose` 与 `/diagnose/stream` 回归通过 |
+| 应用装配 | 通过 | `backend/src/app.py` 只装配 v1 服务、request ID 中间件、v1 错误处理和 router；启动不执行 Alembic、`create_all()` 或写入业务数据 |
+| 事务边界 | 通过 | API 写入只调用 `SessionApplicationService` / `RunApplicationService`；扫描确认 commit/rollback 仍只在 `application/services.py` 的统一短事务辅助函数中出现 |
+| Run 受理/后台执行 | 通过 | `POST /runs` 强制 UUID 幂等键；首次受理提交后才由 BackgroundTasks 调用 `execute_run`；同键重放不会重复调度执行器 |
+| Resource/JSON 安全 | 通过 | v1 资源默认拒绝额外字段，Result 读取再次经过 Pydantic 资源模型；保守 assembler 的空证据/低置信度结果没有被包装成真实诊断事实 |
+| 时间与关联 ID | 通过 | v1 JSON datetime 统一序列化为 UTC `Z`；有效 `X-Request-Id` 回显，无效值安全返回 `400 INVALID_REQUEST_ID`；Run/事件/SSE 返回稳定 trace ID |
+| Cursor 与读取 | 通过 | Session/Message/Event 固定排序 cursor 经过 URL-safe 不透明编解码；非法 cursor 返回 `400 INVALID_CURSOR`；不存在 Session/Run 返回安全 `404` |
+| SSE 协议 | 通过 | v1 固定 `event: run_event`，SSE `id` 与提交后的 sequence 一一映射；支持 Last-Event-ID/after_sequence 续传，冲突/非法/超范围为 `400 INVALID_EVENT_CURSOR`；终态事件发送后关闭 |
+| 未提交数据隔离 | 通过 | SSE 每次读取短 Session 中 Repository 已提交事件；不订阅 executor 即时输出，也不产生临时 complete/error 帧 |
+| 越界检查 | 通过 | 未改动 `frontend/`、`report/`、`backend/src/core/`、`backend/src/agents/`；没有真实 PostgreSQL、真实数据源或运行时 SQLite 资产 |
+| 回归 | 通过 | P2.4 定向 5 passed；P2 应用/API/旧 API 联合 23 passed；完整后端 124 passed；pipeline smoke 通过；仅保留既有 Starlette TestClient 弃用警告 |
+
+### 审查发现与修复
+
+- 初次审查发现执行器异常文本可被持久化/API 透传；现已在 `RunApplicationService` 统一收敛为 `DIAGNOSIS_FAILED` 与固定公开文案，并在 v1 资源映射增加纵深防御。对抗性测试覆盖 `postgresql://`、SQL 与 token 不进入 Run HTTP/SSE。
+- 初次审查发现 `_claim_run()` 在 try 之外可能使异常 Run 保持 queued；现已纳入失败收口。跨 Session 输入消息测试验证不调用 executor、写入 `run_failed` 且终态可重放。
+- 初次审查发现 API fixture 在导入 `src.app` 前未显式固定数据库 URL；现已先设 `OPERMIND_APP_DATABASE_URL` 指向临时 Alembic SQLite。
+- 修复后独立复审结论：通过，无阻塞项。
+
+### 已知风险与 P2.5 门槛
+
+- FastAPI BackgroundTasks 适合当前单进程 mock/开发闭环，但不等价于生产级队列、重试或多进程 worker；P2.5/P7 要明确进程重启后的 queued/running Run 恢复策略。
+- SSE 当前采用短连接轮询已提交事件，满足 sequence 重放而非高吞吐实时推送；P2.5/P7 应覆盖连接取消、慢客户端和长期轮询资源上限。
+- SQLite 覆盖了约束和 API 行为，不能替代 PostgreSQL 的并发幂等唯一键竞争与 sequence 语义验证；真实 PostgreSQL 仍不在本 Step 接入范围。
+- Session 创建请求的可选 `Idempotency-Key` 因 schema 尚无对应记录表而没有伪实现；P2.4 只对 Run 落实已设计且已迁移的幂等语义。
+
+### 结论
+
+P2.4 在既定边界内通过独立审查。实现、文档和测试已经准备完成；待用户授权后，只能暂存并提交 P2.4 范围文件。提交后的唯一下一步为 **P2.5：刷新恢复与闭环验收**。
