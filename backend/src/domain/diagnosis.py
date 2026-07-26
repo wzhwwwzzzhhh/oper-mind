@@ -30,6 +30,16 @@ class RunStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class DiagnosisSeverity(str, Enum):
+    """结构化诊断结果的严重性。"""
+
+    INFO = "info"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
 class RunEventType(str, Enum):
     """可持久化、可重放的诊断运行事件类型。"""
 

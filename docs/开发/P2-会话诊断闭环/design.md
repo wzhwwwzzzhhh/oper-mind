@@ -1,6 +1,6 @@
 # P2 设计 — 会话诊断闭环
 
-> 日期：2026-07-26　|　状态：P2.2a 已完成，待用户授权提交　|　分支：`feat/p2-session-diagnosis`　|　设计基线：`8f27717 docs: 完成P2会话诊断闭环设计`
+> 日期：2026-07-26　|　状态：P2.2b 已完成，待用户授权提交　|　分支：`feat/p2-session-diagnosis`　|　实现基线：`11634b4 feat: 完成P2.2a领域模型与首个业务迁移`
 
 ## 目标
 
@@ -21,9 +21,9 @@ P2 只新增 `/api/v1`，不改阶段一 `POST /diagnose`、`GET /diagnose/strea
 | Step | 名称 | 状态 | 交付与边界 |
 |---|---|---|---|
 | P2.1 | 领域、迁移与闭环设计 | 已提交 | 固定表关系、状态机、事务、Trace 映射、端点切片与测试门；不写业务实现 |
-| P2.2a | 领域模型、首个业务迁移与 schema 验证 | 已完成，待用户授权提交 | 领域常量、ORM mapper、首个非空 Alembic revision、fresh DB/约束/降级/方言测试；不接入 HTTP/Agent |
-| P2.2b | Repository 端口与 SQLAlchemy 实现 | 下一步 | Repository ports/实现、查询与事务边界测试；不接入 Application Service/HTTP/Agent |
-| P2.3 | Session/Run Application Service | 待开始 | 受理、幂等、状态迁移、事件追加、结果写入与 Agent 适配端口；不实现 v1 HTTP/SSE |
+| P2.2a | 领域模型、首个业务迁移与 schema 验证 | 已提交 `11634b4` | 领域常量、ORM mapper、首个非空 Alembic revision、fresh DB/约束/降级/方言测试；不接入 HTTP/Agent |
+| P2.2b | Repository 端口与 SQLAlchemy 实现 | 已完成，待用户授权提交 | Repository ports/实现、固定 cursor 查询、Pydantic 数据边界与事务边界测试；不接入 Application Service/HTTP/Agent |
+| P2.3 | Session/Run Application Service | 下一步 | 受理、幂等、状态迁移、事件追加、结果写入与 Agent 适配端口；不实现 v1 HTTP/SSE |
 | P2.4 | `/api/v1` 与 SSE 恢复 | 待开始 | Pydantic 契约、路由、SSE 重放、错误映射与 API 测试；旧接口不改 |
 | P2.5 | 刷新恢复与闭环验收 | 待开始 | 端到端恢复、失败、幂等、结构化结果和 `report/` 受控 Trace 链接验收 |
 
@@ -62,6 +62,15 @@ P2.2 第一份非空 revision 创建以下表：
 - `backend/migrations/versions/20260726_01_p2_session_diagnosis.py` 是首份非空 revision（`20260726_01_p2`）；仅创建六张 P2 表及必要索引、外键、唯一键和检查约束。`backend/migrations/env.py` 显式导入 ORM mapper，使 Alembic `target_metadata` 完整加载。
 - `backend/tests/test_p2_schema.py` 使用独立临时 SQLite，覆盖 fresh DB、绝对 `alembic.ini` 的跨目录执行、降级至 base 后业务表消失、再次升级、SQLite 外键、受控值、唯一/检查约束、无循环 `messages.run_id` 外键、UTC 默认时间，以及 ORM metadata 与 migration 的 PostgreSQL 离线 DDL 编译；不连接真实 PostgreSQL。
 - JSON 列仅是结构化结果/事件的存储边界，不在 mapper 层接受原始日志、SQL、连接串或工具原始输出。P2.3/P2.4 必须在写入前与读取后以 Pydantic 契约完成可展示、脱敏 JSON 的校验。
+
+
+## 1.2 P2.2b Repository 端口与实现结论
+
+- `backend/src/domain/records.py` 定义跨层 Pydantic 数据对象、已解码 cursor 与页片段。端口仅传递这些对象，不暴露 SQLAlchemy mapper；所有时间均要求 UTC aware，基础设施从 SQLite 读取无时区值时按既有 UTC 存储约定归一化。
+- `backend/src/domain/repositories.py` 定义 Session、Message、DiagnosisRun、RunEvent、DiagnosisResult、RunIdempotencyKey 六个 ports。它们不负责 HTTP cursor 编码、签名、limit 默认值/上限或错误体映射；这些仍是 P2.4 API 的职责。
+- `backend/src/infrastructure/persistence/repositories.py` 只接受调用方注入的同步 SQLAlchemy `Session`，只做 staged `add`、按主键/唯一作用域读取和固定排序查询，未调用 `commit()`/`rollback()`。P2.3 Application Service 负责短事务和错误语义。
+- 固定排序：Session 为 `(updated_at desc, id desc)`，Message 为 `(created_at asc, id asc)`，Run 为 `(created_at desc, id desc)`，RunEvent 为 `sequence asc`；实现通过 `limit + 1` 构造 `has_more` 和下一条已解码 cursor，拒绝非正页大小。
+- 数据对象在进入 ORM 前校验 UTC、Role/Status/EventType/Severity、`sequence >= 1`、`next_event_sequence >= 1`、`schema_version >= 1` 与 `0 <= confidence <= 1`。Result/Event JSON 仍只是受控 JSON 容器，P2.3/P2.4 才接入正式的结构化资源校验和脱敏逻辑。
 
 ## 2. Run 状态机与事务
 
