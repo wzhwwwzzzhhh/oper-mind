@@ -259,8 +259,8 @@ Design → Step → Code → Minimum Test → Review → Commit
 
 ## 11. 当前唯一下一步
 
-**P2：会话诊断闭环（第一个纵向切片）**。P1.1a 已以 `1559266` 完成环境基线，P1.1b 已以 `3d9d810` 完成集中式路径/配置收口，P1.1c 已以 `22b58b0` 固定持久化边界，P1.1d 已完成并提交：同步 SQLAlchemy 2.x、Alembic、psycopg、独立应用数据库 Settings、SQLite/PostgreSQL Engine、Session factory、SQLite foreign keys 与跨目录迁移骨架均已验证；没有业务表或新路由。
+**P2.2：领域模型、首个业务迁移与 Repository**。P2 已在 `feat/p2-session-diagnosis` 开始，P2.1 已完成并提交：Session、Message、DiagnosisRun、RunEvent、DiagnosisResult、Evidence 与幂等记录的领域关系、首个 migration、Run 状态机、事件 sequence、事务、Trace 映射和 API/SSE 切片已确定；旧 `/diagnose`、`/diagnose/stream` 保持兼容。
 
-P2 首先完成 P2.1 Design，再以 P0.3 契约为边界创建 Session、Message、DiagnosisRun、RunEvent、DiagnosisResult、Evidence 和幂等记录的第一份非空 migration、Repository 端口、Application Service 事务与 `/api/v1` API。旧 `/diagnose`、`/diagnose/stream` 必须保持兼容，不能把状态/事务/持久化逻辑塞进 Agent 节点。
+P2.2 只实现 ORM mapper、第一份非空 Alembic revision、Repository ports/SQLAlchemy implementations 和 fresh-db/约束/查询测试。P2.3 才实现 Application Service、幂等和 Agent 适配，P2.4 才新增 `/api/v1` 与 SSE 重放，P2.5 才进行刷新恢复和闭环验收。
 
 本计划是方向基线，不是不可修改的瀑布计划；边做边优化，但任何范围变化必须回写本文件和 `_A-Plan-总览.md`，避免口头决策漂移。
