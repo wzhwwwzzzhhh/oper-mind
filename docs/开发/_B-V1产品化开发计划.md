@@ -259,8 +259,8 @@ Design → Step → Code → Minimum Test → Review → Commit
 
 ## 11. 当前唯一下一步
 
-**P1.1c：应用后端地基设计**。P1.1a 已以 `1559266` 完成环境基线；P1.1b 已完成集中式路径/配置收口并已提交：根 `.venv` 为固定环境，`backend/src/project_paths.py` 是根 `config/`、`data/`、`experiments/` 与 `backend/` 的唯一资源路径来源，YAML 由本地/模板配置加载后再受 `OPERMIND_*` 覆盖，显式 mock fallback 保持可用。
+**P1.1d：最小应用层地基落地**。P1.1a 已以 `1559266` 完成环境基线，P1.1b 已以 `3d9d810` 完成集中式路径/配置收口。P1.1c 已完成并提交：应用元数据数据库与诊断数据源隔离；同步 SQLAlchemy 2.x + Alembic；SQLite 本地开发、PostgreSQL 生产兼容；迁移显式运行；Service 管理短事务；RunEvent 仅在提交后进入 SSE。
 
-P1.1c 只设计 SQLAlchemy/Alembic、SQLite/PostgreSQL 兼容、Migration 节奏、Domain/Repository/Application Service 边界与安全降级；不得直接实现持久化功能。P1 后续 ORM、Migration、Repository 和新路由必须遵循 P0.3 契约；旧 `/diagnose`、`/diagnose/stream` 必须保持兼容。
+P1.1d 只新增锁定依赖、应用数据库 Settings、Engine/Session factory、Alembic 环境和迁移测试底座，不创建业务表、Repository、Application Service 或新路由。P2 才以 P0.3 契约创建 Session、Message、DiagnosisRun、RunEvent、DiagnosisResult 和第一个业务 migration；旧 `/diagnose`、`/diagnose/stream` 必须保持兼容。
 
 本计划是方向基线，不是不可修改的瀑布计划；边做边优化，但任何范围变化必须回写本文件和 `_A-Plan-总览.md`，避免口头决策漂移。

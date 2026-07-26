@@ -37,7 +37,7 @@ oper-mind/
 - **总进度唯一真相源**：`docs/开发/_A-Plan-总览.md`。阶段一 M0–M7 已完成并冻结为历史基线；阶段二 P0–P7 是当前主线。
 - **阶段二详细计划**：`docs/开发/_B-V1产品化开发计划.md`。它展开 P0–P7 的产品范围与顺序，但不替代总览中的进度状态。
 - `docs/开发路线图与规划.md`、`docs/初始开发/` 与 M 阶段日志均为历史材料，保留但不作为当前执行入口。
-- 当前唯一下一步以 A-Plan 为准：**P1.1c 应用后端地基设计**（P1.1b 已完成并提交）。
+- 当前唯一下一步以 A-Plan 为准：**P1.1d 最小应用层地基落地**（P1.1c 已完成并提交）。
 
 ## 常用命令
 
@@ -63,7 +63,7 @@ npm run dev                                     # 启动研发/实验/Trace 可�
 
 - **代码规范**：注释用中文；类名大驼峰，函数/变量小写下划线，常量全大写；公开函数必须带类型标注；跨层结构化数据用 Pydantic / TypedDict，不裸传 dict；禁止裸 `except` 和新增生产 `print`。
 - **架构边界**：Tool 继承 `backend/src/core/tool_registry.py` 的 `Tool` 并实现 `execute`；Agent 继承 `BaseAgent` 并复用 ReAct `run()`；当前 HTTP API、SSE 事件和公开契约位于 `backend/src/api/`，`backend/src/app.py` 只负责入口与装配。阶段二产品 API 统一向 `/api/v1` 演进，业务用例、持久化与权限不得直接塞入 Agent 节点；Graph 状态走显式 `DiagnosisState`。
-- **Mock、真实数据与安全**：`api_key="mock"` 是一等公民；每个外部依赖必须有确定性 mock fallback。接入真实数据库、数据源或前后端联调前，必须共同确认连接目标、最小权限、可用数据、接口契约、回退路径和验收场景；密钥只读环境变量，真实 DB 仅只读账号和参数化查询，诊断工具禁 DDL/DML，高危操作必须经过审批门。
+- **Mock、真实数据与安全**：`api_key="mock"` 是一等公民；每个外部依赖必须有确定性 mock fallback。应用元数据数据库与诊断数据源必须隔离，`/api/v1` 不得在持久化不可用时静默降级为内存；应用 schema 只经显式 Alembic 迁移，启动不得 `create_all()` 或自动升级。接入真实数据库、数据源或前后端联调前，必须共同确认连接目标、最小权限、可用数据、接口契约、回退路径和验收场景；密钥只读环境变量，真实 DB 仅只读账号和参数化查询，诊断工具禁 DDL/DML，高危操作必须经过审批门。
 - **测试与复现**：测试默认 mock；direct / chain / parallel 均需冒烟覆盖。修改 graph / debate / reflection / approval 必跑 `backend/scripts/smoke_pipeline.py`。评测必须关闭长期记忆读写，实验固定种子并以 config hash 落盘。产品切片至少保留启动检查、Migration、核心 API smoke、SSE 联调、前端构建和主流程人工验收。
 - **重要改动工作流**：架构、接口契约、安全、里程碑产出和非平凡 bug 均按 **Design → Step → Code → Test → Review → Commit** 执行。每个 step 收尾即做 Review；架构、删文件、非平凡改动须独立 code review 通过后才能提交；测试、审查、Git 不可后置。
 - **开发日志**：重要里程碑日志放 `docs/开发/M<N>-<名称>/` 或 `docs/开发/P<N>-<名称>/`，包含 `design.md`、一个或多个 `stepN-*.md`、`review.md`。跨阶段规则/流程治理日志放 `docs/开发/治理-<名称>/`。日志是带日期与 commit 的快照，记录关键片段和 `文件路径:行号` 锚点，不贴整文件。`docs/初始开发/` 是历史归档，不再新增日志。

@@ -49,7 +49,7 @@ M7 原计划中的“联调与视觉收口”不再作为独立产品里程碑�
 | 里程碑 | 名称 | 状态 | 目标 |
 |---|---|---|---|
 | **P0** | **V1 产品化基线** | 已完成 | 产品边界、架构、API v1 契约与主前端原型已收口 |
-| **P1** | **应用后端与持久化地基** | 🟡 P1.1b 已完成 | 环境、配置与根资源路径已收口；下一步先设计持久化地基，再进入 SQLAlchemy、Migration、Repository 与 Application Service |
+| **P1** | **应用后端与持久化地基** | 🟡 P1.1c 已完成 | 持久化、迁移、事务与安全边界已设计；下一步落地最小基础设施，再进入 P2 资源实现 |
 | P2 | 会话诊断闭环 | 待开始 | Session、Run、结构化结果、SSE 持久化与恢复 |
 | P3 | 主前端工作台 | 待开始 | `frontend/` 产品外壳、会话与结果优先工作区 |
 | P4 | 环境、数据源与知识 | 待开始 | Environment、DataSource、连接器、Runbook 与记忆治理 |
@@ -61,13 +61,11 @@ M7 原计划中的“联调与视觉收口”不再作为独立产品里程碑�
 
 ## 4. 当前唯一下一步
 
-**P1.1c：应用后端地基设计**。
+**P1.1d：最小应用层地基落地**。
 
-P0 已完成：产品边界、架构盘点、API v1 契约和结果优先的 HTML 原型均已收口；React 工程仍未初始化。P1.1a 已以 `1559266 chore: 恢复P1环境基线` 提交，根 `.venv`、锁定依赖、mock 健康检查、API smoke 与 pipeline 已形成稳定环境基线。
+P1.1a 已以 `1559266 chore: 恢复P1环境基线` 提交，P1.1b 已以 `3d9d810 refactor: 收口P1配置与数据路径` 提交。P1.1c 已完成并提交：固定同步 SQLAlchemy 2.x + Alembic、SQLite 本地/ PostgreSQL 生产兼容、应用数据库与诊断数据源隔离、显式迁移、Application Service 事务边界、提交后 SSE 事件与 v1 不可静默内存降级。
 
-P1.1b 已完成并提交：集中式 `backend/src/project_paths.py` 固定解析仓库根、`backend/`、根 `config/`、`data/` 与 `experiments/`；配置按本地 YAML、模板 YAML、`OPERMIND_*` 覆盖运行，显式 `api_key="mock"` fallback 保持可用。脚本、pytest 与根评测校验不再依赖启动目录，阶段一 `/diagnose`、`/diagnose/stream` 保持兼容。
-
-P1.1b 提交后，唯一下一步为 **P1.1c：应用后端地基设计**：先依据 P0.3 设计 SQLAlchemy/Alembic、SQLite/PostgreSQL 兼容、迁移节奏、Domain/Repository/Application Service 边界与安全降级；不得直接实现数据库、迁移或 `/api/v1` 路由。
+P1.1c 提交后，唯一下一步为 **P1.1d：最小应用层地基落地**。只新增锁定依赖、应用数据库 Settings、Engine/Session factory、Alembic 环境和迁移测试底座；不得创建 P2 Session/Run 业务表、Repository、Application Service 或 `/api/v1` 路由。
 ## 5. 执行与降级原则
 
 ```text
