@@ -299,6 +299,14 @@ class RunResponse(ApiV1Model):
     meta: ResponseMeta
 
 
+class DiagnosisRunListResponse(ApiV1Model):
+    """会话下 Run 的固定排序分页响应。"""
+
+    items: list[DiagnosisRunResource]
+    page: CursorPage
+    meta: ResponseMeta
+
+
 class RunEventListResponse(ApiV1Model):
     """Run 事件列表响应。"""
 

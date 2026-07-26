@@ -1,6 +1,6 @@
 # P2 设计 — 会话诊断闭环
 
-> 日期：2026-07-26　|　状态：P2.4 已完成，待用户授权提交　|　分支：`feat/p2-session-diagnosis`　|　实现基线：`ae2f978 feat: 完成P2.3会话诊断应用服务`
+> 日期：2026-07-26　|　状态：P2.5 已完成验证与审查，待用户授权提交　|　分支：`feat/p2-session-diagnosis`　|　提交基线：`440f03d feat: 完成P2.4 API与SSE恢复`
 
 ## 目标
 
@@ -24,8 +24,8 @@ P2 只新增 `/api/v1`，不改阶段一 `POST /diagnose`、`GET /diagnose/strea
 | P2.2a | 领域模型、首个业务迁移与 schema 验证 | 已提交 `11634b4` | 领域常量、ORM mapper、首个非空 Alembic revision、fresh DB/约束/降级/方言测试；不接入 HTTP/Agent |
 | P2.2b | Repository 端口与 SQLAlchemy 实现 | 已提交 `5cf2c6b` | Repository ports/实现、固定 cursor 查询、Pydantic 数据边界与事务边界测试；不接入 Application Service/HTTP/Agent |
 | P2.3 | Session/Run Application Service | 已提交 `ae2f978` | 受理、幂等、短事务、状态迁移、事件追加、结果写入与安全诊断适配；不实现 v1 HTTP/SSE |
-| P2.4 | `/api/v1` 与 SSE 恢复 | 已完成，待用户授权提交 | Pydantic 契约、路由、SSE 重放、错误映射与 API 测试；旧接口不改 |
-| P2.5 | 刷新恢复与闭环验收 | 待开始 | 端到端恢复、失败、幂等、结构化结果和 `report/` 受控 Trace 链接验收 |
+| P2.4 | `/api/v1` 与 SSE 恢复 | 已提交 `440f03d` | Pydantic 契约、路由、SSE 重放、错误映射与 API 测试；旧接口不改 |
+| P2.5 | 刷新恢复与闭环验收 | 已完成验证与审查，待提交 | Session→Run 恢复读模型、跨请求成功/失败恢复、终态 SSE、OpenAPI 与旧接口回归；不改 `report/` |
 
 ## 1. 领域关系与首个业务 migration
 
@@ -165,4 +165,6 @@ P2 不做 `frontend/` React 工程、P4 真实环境/数据源、P5 审批执行
 
 - 使用 Alembic 创建独立临时 SQLite 的 v1 测试覆盖资源 meta、UTC `Z`、cursor、Session 更新/归档、Run 幂等、后台执行、结构化 Result、消息、RunEvent sequence、SSE 全量/续传重放、游标错误、request ID 和旧 API 隔离。
 - 已通过：P2.4 定向 5 passed；P2 应用/API/旧 API 联合 23 passed；完整后端 124 passed（1 条既有 TestClient 弃用警告）；direct/chain/parallel/debate pipeline smoke 通过；未生成 `data/opermind.sqlite3`。
-- P2.5 仍需作为独立验收 step 覆盖真实刷新顺序和失败执行路径的跨请求恢复、完整契约/OpenAPI 审查、SSE 长连接/轮询行为与受控 Trace 链路；SQLite 不替代 PostgreSQL 并发幂等/sequence 语义验证。
+- P2.5 已完成：新增 `GET /sessions/{session_id}/runs` 的固定 `created_at desc, id desc` cursor 读模型与 `DiagnosisRunListResponse`；它先确认 Session 存在，再只通过 Repository 读取 Run/Result，不调用 executor、Application Service 写用例或 API 层事务。
+- 独立 Alembic 临时 SQLite 的跨 TestClient 验收覆盖成功和安全失败 Run：刷新后可恢复 Session、Run、Message、Result、RunEvent；Run/Event/SSE 的 trace_id 一致；终态 `Last-Event-ID` 或 `after_sequence` 重连立即关闭；错误中的连接串、令牌与 SQL 不会出现在资源或 SSE。
+- 已通过：P2 定向回归 20 passed、完整后端 126 passed（均仅有既有 Starlette TestClient 弃用警告）、direct/chain/parallel/debate pipeline smoke；未生成 `data/opermind.sqlite3`。SQLite 仍不替代 PostgreSQL 的并发幂等/sequence 验证；BackgroundTasks 也仍不等价于可崩溃恢复的持久化任务队列，留作 P7 生产加固风险。

@@ -1,6 +1,6 @@
 # P2 独立审查 — 会话诊断闭环
 
-> 更新时间：2026-07-26　|　结论：P2.4 已通过独立审查，待用户授权提交
+> 更新时间：2026-07-26　|　结论：P2.5 已通过独立审查，待用户授权提交
 
 ## 已提交基线
 
@@ -80,3 +80,38 @@ P2.3 在既定边界内通过独立审查。待用户授权后可提交；提交
 ### 结论
 
 P2.4 在既定边界内通过独立审查。实现、文档和测试已经准备完成；待用户授权后，只能暂存并提交 P2.4 范围文件。提交后的唯一下一步为 **P2.5：刷新恢复与闭环验收**。
+
+---
+
+## P2.5 独立审查（刷新恢复与闭环验收）
+
+### 审查范围
+
+审查 Session→Run 恢复读模型、固定 cursor 排序、跨 TestClient 刷新后的成功/失败资源恢复、Result/Message/RunEvent/SSE trace 链路、读取只读性、OpenAPI/P0.3 契约、旧接口兼容与范围隔离。独立复审未修改、测试、暂存或提交文件。
+
+| 检查项 | 结论 | 审查结果 |
+|---|---|---|
+| 恢复读模型 | 通过 | `GET /api/v1/sessions/{session_id}/runs` 先验证 Session，再以 `session_id` 调用 Repository 固定 `created_at desc, id desc` 查询；没有调用 executor、写 Application Service、BackgroundTask、commit 或 rollback |
+| cursor 与范围 | 通过（有已知风险） | 查询始终以目标 `session_id` 过滤，不会通过其他 Session cursor 读到其 Run；但 cursor payload 尚未绑定 Session scope，跨 Session 复用 cursor 可能跳过结果 |
+| 跨刷新成功/失败 | 通过 | 新 TestClient 从已迁移临时 SQLite 恢复 Session、Run、Message、Result、Event；失败路径只公开固定 `DIAGNOSIS_FAILED`，连接串、token 与 SQL 不会进入 Run 或 SSE |
+| 只读性 | 通过 | ORM 快照比较 Session 状态/时间、Run 状态与 sequence、Message/Event/Result 数量；所有 GET 与 SSE 重放后快照相等，executor 调用次数不变 |
+| SSE/Trace | 通过 | Run、Event meta 与 SSE envelope 使用相同 trace_id；客户端已收到最终 sequence 时，终态 SSE 重连返回 `200` 空流并立即关闭 |
+| OpenAPI 与契约 | 通过 | 新读取路径、cursor/limit 参数、`DiagnosisRunListResponse(items/page/meta)` 及旧 `/diagnose`、`/diagnose/stream` 同时存在；P0.3 纠正了未实现的 Session 幂等重放声明，并测试 OpenAPI 没有该 header |
+| 事务/迁移/范围 | 通过 | 测试只经 Alembic 使用临时 SQLite；不使用 `create_all()`、默认运行时数据库、真实 PostgreSQL 或真实数据源；未改旧 API、`frontend/`、`report/` |
+| 回归 | 通过 | P2.5 2 passed；P2 定向 20 passed；完整后端 126 passed；direct/chain/parallel/debate pipeline smoke 通过；仅保留既有 Starlette TestClient 弃用警告 |
+
+### 审查发现与修复
+
+- 初审发现 P0.3 仍声称 `POST /api/v1/sessions` 支持可选 `Idempotency-Key` 重放，但当前 schema、Application Service 与 OpenAPI 均未实现该语义。已改为“每次请求创建新 Session；当前未定义 `Idempotency-Key` 重放语义”，并在 OpenAPI 回归中断言该 header 不存在。
+- 初审建议证明恢复读取不会产生任何持久化副作用。已增加 ORM 快照，覆盖 Session、Run、Message、RunEvent 与 Result 的持久化状态和数量；成功、失败刷新路径均在读取/SSE 后比较相等。
+- 独立复审结论：通过，无阻塞项。
+
+### 已知风险
+
+- 不透明 cursor 尚未绑定 Session scope：跨 Session 复用 cursor 不会越权，但可能导致目标 Session 的结果被跳过。待引入统一 cursor scope 或鉴权上下文时收口。
+- P2 尚无真实租户/RBAC；后续引入认证授权时，Session→Run、Run 详情、Event 和 SSE 均须校验主体归属。
+- `BackgroundTasks`、SSE 短连接轮询和 SQLite 并发语义的生产级加固仍属于 P7，不在 P2.5 伪造实现。
+
+### P2.5 结论
+
+P2.5 在既定范围内通过独立审查。用户授权后，只能暂存并提交 P2.5 精确清单；提交后的唯一下一步为 **P3：主前端工作台的 Design**。

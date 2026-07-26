@@ -230,6 +230,11 @@ class DiagnosisRun(ApiV1Model):
     finished_at: datetime | None = None
 
 
+class DiagnosisRunListResponse(ApiV1Model):
+    items: list[DiagnosisRun]
+    page: CursorPage
+    meta: ResponseMeta
+
 class RunEvent(ApiV1Model):
     id: UUID
     run_id: UUID
@@ -391,6 +396,11 @@ export interface DiagnosisRun {
   finished_at: UtcDateTime | null;
 }
 
+export interface DiagnosisRunListResponse {
+  items: DiagnosisRun[];
+  page: CursorPage;
+  meta: ResponseMeta;
+}
 export interface RunEvent {
   id: Uuid;
   run_id: Uuid;
@@ -417,12 +427,13 @@ export type RunEventType =
 
 | 方法与路径 | 请求 | 成功响应 | 状态码与排序 | 幂等语义 |
 |---|---|---|---|---|
-| `POST /api/v1/sessions` | `CreateSessionRequest` | `Session + meta` | `201` | 可选 `Idempotency-Key`；同键同请求返回原 Session |
+| `POST /api/v1/sessions` | `CreateSessionRequest` | `Session + meta` | `201` | 每次请求创建新 Session；当前未定义 `Idempotency-Key` 重放语义 |
 | `GET /api/v1/sessions` | `cursor`、`limit`、可选 `status` | `items: Session[]`、`page`、`meta` | `200`；`updated_at desc, id desc` | 安全读取 |
 | `GET /api/v1/sessions/{session_id}` | 路径 ID | `Session + meta` | `200` | 安全读取 |
 | `PATCH /api/v1/sessions/{session_id}` | `UpdateSessionRequest` | `Session + meta` | `200` | 重复相同请求结果相同 |
 | `DELETE /api/v1/sessions/{session_id}` | 路径 ID | 空响应 | `204`；逻辑归档 | 重复删除仍为 `204` |
 | `GET /api/v1/sessions/{session_id}/messages` | `cursor`、`limit` | `items: Message[]`、`page`、`meta` | `200`；`created_at asc, id asc` | 安全读取 |
+| `GET /api/v1/sessions/{session_id}/runs` | `cursor`、`limit` | `items: DiagnosisRun[]`、`page`、`meta` | `200`；`created_at desc, id desc` | 刷新恢复只读，不触发执行 |
 | `POST /api/v1/sessions/{session_id}/runs` | `CreateRunRequest` + 必填 `Idempotency-Key` | `DiagnosisRun + meta` | `202`；新 Run 初始为 `queued` | 同 session、同 key、同 query 返回原 Run；不同 query 返回 `409` |
 | `GET /api/v1/runs/{run_id}` | 路径 ID | `DiagnosisRun + meta` | `200` | 安全读取 |
 | `GET /api/v1/runs/{run_id}/events` | `cursor`、`limit` | `items: RunEvent[]`、`page`、`meta` | `200`；`sequence asc` | 安全读取 |
@@ -444,7 +455,7 @@ POST /sessions/{session_id}/runs
   6. succeeded 时在同一产品事务边界写入 DiagnosisResult 与 run_succeeded
 ```
 
-客户端拿到 `run.id` 后再打开 SSE；页面刷新时先 `GET /runs/{run_id}`，若非终态则读取事件或重连 SSE。产品 Run 不依赖当前单例 Coordinator 的“最近 trace”。
+客户端拿到 `run.id` 后再打开 SSE；页面刷新时先 `GET /sessions/{session_id}/runs` 恢复可见 Run，再对选定 Run 调用 `GET /runs/{run_id}`；若非终态则读取事件或重连 SSE。产品 Run 不依赖当前单例 Coordinator 的“最近 trace”。
 
 ### 6.2 SSE 帧
 

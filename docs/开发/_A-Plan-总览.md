@@ -50,7 +50,7 @@ M7 原计划中的“联调与视觉收口”不再作为独立产品里程碑�
 |---|---|---|---|
 | **P0** | **V1 产品化基线** | 已完成 | 产品边界、架构、API v1 契约与主前端原型已收口 |
 | **P1** | **应用后端与持久化地基** | 已完成 | 环境、路径、持久化 Settings、Engine/Session factory 与 Alembic 骨架已收口；提交后进入 P2 首个资源纵向切片 |
-| P2 | 会话诊断闭环 | 🟡 P2.4 已完成，待提交授权 | `/api/v1`、持久化 SSE 重放、安全错误映射、短事务与结构化结果读取已收口 |
+| P2 | 会话诊断闭环 | 🟡 P2.5 已完成验证与独立审查，待提交授权 | 刷新恢复读模型、成功/失败恢复、终态 SSE、OpenAPI 与旧接口回归已收口 |
 | P3 | 主前端工作台 | 待开始 | `frontend/` 产品外壳、会话与结果优先工作区 |
 | P4 | 环境、数据源与知识 | 待开始 | Environment、DataSource、连接器、Runbook 与记忆治理 |
 | P5 | 告警、事件与审批闭环 | 待开始 | Alert、Incident、ActionProposal、Approval 与审计 |
@@ -61,11 +61,11 @@ M7 原计划中的“联调与视觉收口”不再作为独立产品里程碑�
 
 ## 4. 当前唯一下一步
 
-**P2.5：刷新恢复与闭环验收**。
+**P3：主前端工作台（先完成 Design）**。
 
-P2 从 `6aa3302 feat: 建立P1应用持久化地基` 开始，分支为 `feat/p2-session-diagnosis`；P2.1 已在 `8f27717` 提交，P2.2a 已在 `11634b4` 提交，P2.2b 已在 `5cf2c6b` 提交，P2.3 已在 `ae2f978 feat: 完成P2.3会话诊断应用服务` 提交。P2.4 已完成实现、验证与独立审查，等待用户授权提交：隔离的 `/api/v1` Pydantic 契约、请求/trace 元数据与 UTC `Z` 序列化、Session/Message/Run/RunEvent 路由、Run 后台执行、已提交事件的 sequence SSE 重放、断线 cursor、安全错误映射与临时迁移数据库 API 测试；阶段一旧接口保持不变。
+P2 从 `6aa3302 feat: 建立P1应用持久化地基` 开始，分支为 `feat/p2-session-diagnosis`；P2.1 至 P2.4 分别已提交为 `8f27717`、`11634b4`、`5cf2c6b`、`ae2f978`、`440f03d`。P2.5 已完成实现、临时 Alembic SQLite 验收与独立审查，等待用户授权提交：Session→Run 只读恢复列表、跨请求成功/失败 Run 恢复、Message/Result/Event、终态 SSE 空流关闭、trace 一致性、OpenAPI 与旧 `/diagnose`、`/diagnose/stream` 兼容回归均已验证。
 
-唯一下一步为 **P2.5：刷新恢复与闭环验收**。验证页面刷新后的 Session/Run/Message/Result/事件恢复、失败 Run、幂等重试、终态 SSE 关闭、结构化 Result 安全边界及完整产品链路验收；不得直接进入前端、真实数据源或后续 P4/P5 表。P2.4 Application Service/Repository 的事务边界必须保持。
+用户授权提交 P2.5 后，唯一下一步为 **P3：主前端工作台的 Design**。先明确 `frontend/` 初始化、页面信息架构、v1 API 消费、空/错/断线状态和人工验收，再进入任何前端实现；不得提前接入真实数据源、P4/P5 表或改动阶段一旧接口。
 ## 5. 执行与降级原则
 
 ```text

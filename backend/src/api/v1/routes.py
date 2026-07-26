@@ -9,6 +9,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Header, Query, Request,
 from fastapi.responses import StreamingResponse
 
 from src.api.v1.cursors import (
+    DiagnosisRunCursor,
     InvalidCursorError,
     MessageCursor,
     RunEventCursor,
@@ -28,6 +29,7 @@ from src.api.v1.schemas import (
     CreateRunRequest,
     CreateSessionRequest,
     CursorPage,
+    DiagnosisRunListResponse,
     DiagnosisRunResource,
     MessageListResponse,
     ResponseMeta,
@@ -52,7 +54,7 @@ from src.infrastructure.persistence.repositories import (
 )
 
 
-CursorT = TypeVar("CursorT", SessionCursor, MessageCursor, RunEventCursor)
+CursorT = TypeVar("CursorT", SessionCursor, MessageCursor, DiagnosisRunCursor, RunEventCursor)
 
 router = APIRouter(prefix="/api/v1", tags=["v1"])
 DEFAULT_PAGE_SIZE = 20
@@ -269,6 +271,40 @@ def list_messages(
     apply_headers(response, meta)
     return MessageListResponse(
         items=[message_resource(item) for item in page.items],
+        page=CursorPage(next_cursor=encode_cursor(page.next_cursor) if page.next_cursor else None, has_more=page.has_more),
+        meta=meta,
+    )
+
+
+@router.get("/sessions/{session_id}/runs", response_model=DiagnosisRunListResponse)
+def list_session_runs(
+    session_id: UUID,
+    request: Request,
+    response: Response,
+    cursor: str | None = None,
+    limit: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
+    services: V1Services = Depends(get_v1_services),
+) -> DiagnosisRunListResponse:
+    """按创建时间倒序读取 Session 下的 Run，供刷新后恢复诊断工作区。"""
+    decoded_cursor = parse_page_cursor(cursor, DiagnosisRunCursor)
+    try:
+        _load_session(services, session_id)
+    except ApplicationError as error:
+        raise_application_error(error)
+
+    session = services.session_factory()
+    try:
+        run_repository = SqlAlchemyDiagnosisRunRepository(session)
+        result_repository = SqlAlchemyDiagnosisResultRepository(session)
+        page = run_repository.list_by_session(session_id, decoded_cursor, limit)
+        items = [run_resource(run, result_repository.get_by_run_id(run.id)) for run in page.items]
+    finally:
+        session.close()
+
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return DiagnosisRunListResponse(
+        items=items,
         page=CursorPage(next_cursor=encode_cursor(page.next_cursor) if page.next_cursor else None, has_more=page.has_more),
         meta=meta,
     )
