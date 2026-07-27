@@ -259,8 +259,8 @@ Design → Step → Code → Minimum Test → Review → Commit
 
 ## 11. 当前唯一下一步
 
-**P3.2：v1 API 客户端与会话恢复读模型的 Design 已完成并通过独立审查，待用户授权暂存/提交。** P3.1 已提交为 `4862752`；P3.2 将以 OpenAPI 生成的 TypeScript 类型避免手工字段漂移，建立安全 v1 GET 客户端、MSW 契约场景和 Session/Message/Run 只读恢复查询边界。
+**P3.2 Design 已提交为 `ec45ee2`；P3.2a OpenAPI 类型、v1 API 客户端与 MSW 契约实现已完成 Code / Test / 独立 Review，待用户授权暂存/提交。** P3.1 已提交为 `4862752`；P3.2a 已以 OpenAPI 生成的 TypeScript 类型建立安全 v1 GET 客户端、MSW 契约场景和 Session/Message/Run 只读查询边界，尚未实现页面恢复体验。
 
-P3.2 不创建 Session/Run、不接入 SSE、不实现结构化结果，不访问旧 `/diagnose` 或 `/diagnose/stream`。本机健康/OpenAPI 可读，但当前 `GET /api/v1/sessions` 返回安全 `500 INTERNAL_ERROR`；实施先用 MSW，真实 API 验收必须显式确认应用数据库迁移、连接目标、最小权限、回退路径和验收场景。**P3.2 Design 提交后的唯一下一步为 P3.2a：OpenAPI 类型、v1 API 客户端与 MSW 契约实现。**
+P3.2 不创建 Session/Run、不接入 SSE、不实现结构化结果，不访问旧 `/diagnose` 或 `/diagnose/stream`。本机健康/OpenAPI 可读，但当前 `GET /api/v1/sessions` 返回安全 `500 INTERNAL_ERROR`；实施先用 MSW，真实 API 验收必须显式确认应用数据库迁移、连接目标、最小权限、回退路径和验收场景。**P3.2a 提交后的唯一下一步为 P3.2b：Session 工作台只读 UI 与刷新/深链恢复实现。**
 
 本计划是方向基线，不是不可修改的瀑布计划；边做边优化，但任何范围变化必须回写本文件和 `_A-Plan-总览.md`，避免口头决策漂移。

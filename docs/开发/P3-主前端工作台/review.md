@@ -1,6 +1,6 @@
 # P3 独立审查 — 主前端工作台
 
-> 日期：2026-07-27　|　结论：🟡 P3.2 Design 已通过独立审查，待用户授权暂存/提交
+> 日期：2026-07-27　|　结论：🟡 P3.2 Design 已提交；P3.2a 已通过独立审查，待用户授权暂存/提交
 >
 > 已提交基线：`12bed37 docs: 完成P3主前端工作台设计`、`4862752 feat: 初始化P3主前端工程与产品外壳`
 
@@ -45,4 +45,28 @@ P3 Design 与 P3.1 的 API 边界、产品壳、工程隔离、测试/构建和�
 
 ## 结论
 
-P3.2 Design 在既定范围内通过独立审查。本轮没有实现 API client、MSW、路由读模型或任何后端改动。**待用户授权暂存/提交后，唯一下一步为 P3.2a：OpenAPI 类型、v1 API 客户端与 MSW 契约实现。**
+P3.2 Design 已提交为 `ec45ee2`。P3.2a 在既定范围内通过独立审查：已实现 OpenAPI 类型、只读 API client、Query 边界与 MSW 契约测试，未实现路由读模型或任何后端改动。**待用户授权暂存/提交后，唯一下一步为 P3.2b：Session 工作台只读 UI 与刷新/深链恢复实现。**
+## P3.2a 实现独立审查
+
+### 审查依据
+
+- `frontend/package.json:7-12`、`frontend/src/api/v1/generated.ts:1`：显式 OpenAPI 生成命令与提交产物；
+- `frontend/src/api/v1/client.ts:1-275`：五个 GET、请求关联、安全错误和 transport/protocol 分类；
+- `frontend/src/api/v1/queries.ts:1-57`：TanStack Query 的 key/request 边界；
+- `frontend/src/test/handlers.ts:54-171`、`frontend/src/api/v1/client.test.ts:7-139`：MSW 场景与客户端断言；
+- `docs/开发/P3-主前端工作台/step2a-openapi类型与v1客户端.md`：范围、验证和风险记录。
+
+| 检查项 | 结论 | 审查结果 |
+|---|---|---|
+| P2 v1 GET 契约 | 通过 | 仅实现 Session 列表/详情、Message 列表、Session Run 列表、Run 详情五个 GET；无 Result 单端点、Event/SSE 或写调用 |
+| 关联与错误语义 | 通过 | `X-Request-Id`、`X-Trace-Id`、`meta` 与安全 `{ error, meta }` 都进入 diagnostics / `ApiClientError`；网络、取消、非 JSON 不被伪造成 Run failed 或 `INTERNAL_ERROR` |
+| cursor 与缓存边界 | 通过 | cursor 只经 `URLSearchParams` 原样传递；Query key 含 Session/筛选参数，未把资源放入 Zustand |
+| OpenAPI 类型 | 有风险但可接受 | `generated.ts` 由实际 `/openapi.json` 生成；部分 Pydantic 业务字段为 `unknown`，客户端不以手写 DTO 掩盖此问题，后续加强类型需先审查后端契约 |
+| MSW 场景 | 通过 | 覆盖 active/empty/分页/archived、安全 404/500、网络中断和 succeeded Run；正常响应回显请求 ID，避免错误模拟关联语义 |
+| P3/P4/P5/P6 和旧 API | 通过 | 没有页面、写操作、Run 受理、SSE、结果卡、Trace 跳转、旧 `/diagnose`、真实数据源或认证 |
+| 验证 | 通过 | `npm run typecheck`、`npm test`（2 files / 8 tests）、`npm run build`、`npm run generate:api` 均通过；仅保留既有 Ant Design 大包警告 |
+| 工作区隔离 | 通过 | 未改 `report/`、`backend/`、`data/`、`frontend/mockup.html`；三个外部隔离改动未读取、未修改、未暂存 |
+
+### 结论
+
+P3.2a 可以进入提交候选。真实 FastAPI Session 读取仍因既有安全 `500 INTERNAL_ERROR` 而未验收；MSW 通过不等同于真实 API 成功。提交后只进入 P3.2b 的只读 UI 与刷新/深链恢复，不得提前实施写操作或 SSE。

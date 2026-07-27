@@ -1,6 +1,6 @@
 # P3 设计 — 主前端工作台
 
-> 日期：2026-07-27　|　状态：🟡 P3.2 Design 已完成审查，待用户授权暂存/提交
+> 日期：2026-07-27　|　状态：🟡 P3.2 Design 已提交；P3.2a 已完成 Code / Test / Review，待用户授权暂存/提交
 >
 > 工作分支：`feat/p3-workbench`　|　设计基线：`54f02e5 feat: 完成P2.5刷新恢复与闭环验收`
 >
@@ -110,4 +110,4 @@ P3 不修改 `/api/v1`、Application Service、Repository、ORM、Alembic、旧�
 
 ## 9. 结论
 
-P3 Design 已提交为 `12bed37`，P3.1 已提交为 `4862752`；P3.2 Design 已固定 v1 只读恢复边界，未接入业务 API。**用户授权提交后，唯一下一步为 P3.2a：OpenAPI 类型、v1 API 客户端与 MSW 契约实现。**
+P3 Design 已提交为 `12bed37`，P3.1 已提交为 `4862752`；P3.2 Design 已提交为 `ec45ee2`；P3.2a 已落实 OpenAPI 类型、只读 v1 客户端和 MSW 契约，尚未接入工作台页面。**用户授权提交 P3.2a 后，唯一下一步为 P3.2b：Session 工作台只读 UI 与刷新/深链恢复实现。**

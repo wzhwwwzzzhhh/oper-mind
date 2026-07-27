@@ -1,0 +1,141 @@
+import { HttpResponse, http } from 'msw'
+import { describe, expect, it } from 'vitest'
+
+import { create_api_v1_client } from './client'
+import { api_v1_contract_fixtures } from '../../test/handlers'
+import { server } from '../../test/server'
+
+describe('v1 API 客户端', () => {
+  it('传递原样 cursor、Accept 与 X-Request-Id，并读取关联信息', async () => {
+    const client = create_api_v1_client({ request_id_factory: () => 'client-request-id' })
+    server.use(
+      http.get('/api/v1/sessions', ({ request }) => {
+        const url = new URL(request.url)
+        expect(url.searchParams.get('cursor')).toBe('opaque+/cursor==')
+        expect(request.headers.get('Accept')).toBe('application/json')
+        expect(request.headers.get('X-Request-Id')).toBe('client-request-id')
+        return HttpResponse.json(
+          {
+            items: [],
+            page: { next_cursor: null, has_more: false },
+            meta: { request_id: 'client-request-id', trace_id: 'server-trace-id' },
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Request-Id': 'client-request-id',
+              'X-Trace-Id': 'server-trace-id',
+            },
+          },
+        )
+      }),
+    )
+
+    const result = await client.list_sessions({
+      cursor: 'opaque+/cursor==',
+      limit: 20,
+      status: 'active',
+    })
+
+    expect(result.data.items).toHaveLength(0)
+    expect(result.diagnostics).toMatchObject({
+      request_id: 'client-request-id',
+      response_request_id: 'client-request-id',
+      response_trace_id: 'server-trace-id',
+      status: 200,
+      protocol_issues: [],
+    })
+  })
+
+  it('读取受控的 SESSION_NOT_FOUND 错误而不伪造成内部错误', async () => {
+    const client = create_api_v1_client({ request_id_factory: () => 'missing-session-request-id' })
+
+    await expect(client.get_session('not-found')).rejects.toMatchObject({
+      name: 'ApiClientError',
+      code: 'SESSION_NOT_FOUND',
+      message: '会话不存在',
+      diagnostics: {
+        status: 404,
+        response_trace_id: api_v1_contract_fixtures.trace_id,
+      },
+    })
+  })
+
+  it('保留 run 的 session_id，供后续 UI 阶段做跨会话保护', async () => {
+    const client = create_api_v1_client()
+    const result = await client.get_run(api_v1_contract_fixtures.run_id)
+
+    expect(result.data.run).toMatchObject({
+      id: api_v1_contract_fixtures.run_id,
+      session_id: api_v1_contract_fixtures.session_id,
+      status: 'succeeded',
+    })
+  })
+
+  it('将网络中断明确标记为 transport 错误', async () => {
+    const client = create_api_v1_client({
+      fetch_impl: async () => Promise.reject(new TypeError('network unavailable')),
+      request_id_factory: () => 'network-request-id',
+    })
+
+    await expect(client.list_sessions()).rejects.toEqual(
+      expect.objectContaining({
+        code: 'NETWORK_ERROR',
+        diagnostics: expect.objectContaining({ request_id: 'network-request-id', status: 0 }),
+      }),
+    )
+  })
+
+  it('将取消明确标记为 abort，而不标记为 Run 失败', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const client = create_api_v1_client({
+      fetch_impl: async () => Promise.reject(new DOMException('aborted', 'AbortError')),
+      request_id_factory: () => 'abort-request-id',
+    })
+
+    await expect(client.list_sessions({}, { signal: controller.signal })).rejects.toEqual(
+      expect.objectContaining({
+        code: 'REQUEST_ABORTED',
+        diagnostics: expect.objectContaining({ request_id: 'abort-request-id', status: 0 }),
+      }),
+    )
+  })
+
+  it('将非 JSON 成功响应标记为协议错误', async () => {
+    const client = create_api_v1_client({
+      fetch_impl: async () => new Response('<html>gateway</html>', { status: 200 }),
+      request_id_factory: () => 'protocol-request-id',
+    })
+
+    await expect(client.list_sessions()).rejects.toEqual(
+      expect.objectContaining({
+        code: 'INVALID_API_RESPONSE',
+        diagnostics: expect.objectContaining({ request_id: 'protocol-request-id', status: 200 }),
+      }),
+    )
+  })
+
+  it('记录 header 与 meta 的关联 ID 不一致，而不把它写入资源状态', async () => {
+    const client = create_api_v1_client({
+      fetch_impl: async () =>
+        HttpResponse.json(
+          { items: [], page: { next_cursor: null, has_more: false }, meta: { request_id: 'meta-id' } },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Request-Id': 'header-id',
+              'X-Trace-Id': 'header-trace-id',
+            },
+          },
+        ),
+      request_id_factory: () => 'client-id',
+    })
+
+    const result = await client.list_sessions()
+    expect(result.diagnostics.protocol_issues).toEqual([
+      'request_id_mismatch',
+      'request_id_header_meta_mismatch',
+    ])
+  })
+})

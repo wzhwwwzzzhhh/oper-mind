@@ -1,6 +1,6 @@
 # P3 Step2 — v1 API 客户端与会话恢复读模型
 
-> 日期：2026-07-27　|　状态：✅ Design 与独立审查完成，待用户授权暂存/提交　|　实现基线：`4862752 feat: 初始化P3主前端工程与产品外壳`
+> 日期：2026-07-27　|　状态：✅ Design 已提交；P3.2a 已完成 Code / Test / Review，待用户授权暂存/提交　|　实现基线：`ec45ee2 docs: 完成P3.2接口与恢复读模型设计`
 >
 > 范围：只设计 P3.2a/P3.2b 的 v1 读取边界；本轮不修改 `frontend/` 源码、不请求写接口、不改后端、`report/`、真实数据源或运行时资产。
 
@@ -117,4 +117,4 @@ P3.2c 人工验收：MSW 与 FastAPI mock 分开执行；刷新时严格按恢�
 
 本轮仅提交 P3.2 Design/Review/HANDOFF、计划和规则状态校正；不提交 `frontend/` 源码、依赖、后端、`report/`、数据、运行时 SQLite 或隔离文件。
 
-**用户授权提交本 Design 后，唯一下一步为 P3.2a：OpenAPI 类型、v1 API 客户端与 MSW 契约实现。**
+P3.2a 已按本设计完成 OpenAPI 类型、只读 v1 客户端、Query 边界、MSW 与测试；详细实现记录见 `step2a-openapi类型与v1客户端.md`。`r`n`r`n**用户授权提交 P3.2a 后，唯一下一步为 P3.2b：Session 工作台只读 UI 与刷新/深链恢复实现。**
