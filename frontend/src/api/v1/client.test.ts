@@ -1,7 +1,7 @@
 import { HttpResponse, http } from 'msw'
 import { describe, expect, it } from 'vitest'
 
-import { create_api_v1_client } from './client'
+import { api_v1_client, create_api_v1_client } from './client'
 import { api_v1_contract_fixtures } from '../../test/handlers'
 import { server } from '../../test/server'
 
@@ -9,7 +9,7 @@ describe('v1 API 客户端', () => {
   it('传递原样 cursor、Accept 与 X-Request-Id，并读取关联信息', async () => {
     const client = create_api_v1_client({ request_id_factory: () => 'client-request-id' })
     server.use(
-      http.get('/api/v1/sessions', ({ request }) => {
+      http.get('http://localhost/api/v1/sessions', ({ request }) => {
         const url = new URL(request.url)
         expect(url.searchParams.get('cursor')).toBe('opaque+/cursor==')
         expect(request.headers.get('Accept')).toBe('application/json')
@@ -47,6 +47,12 @@ describe('v1 API 客户端', () => {
     })
   })
 
+  it('默认客户端在请求时读取当前 fetch，供页面 MSW 契约测试使用', async () => {
+    const result = await api_v1_client.list_sessions()
+
+    expect(result.data.items).toHaveLength(1)
+    expect(result.diagnostics.status).toBe(200)
+  })
   it('读取受控的 SESSION_NOT_FOUND 错误而不伪造成内部错误', async () => {
     const client = create_api_v1_client({ request_id_factory: () => 'missing-session-request-id' })
 

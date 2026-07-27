@@ -1,18 +1,19 @@
 # P3 HANDOFF — 主前端工作台
 
 > 更新时间：2026-07-27
-> 状态：P3.2 Design 已提交；P3.2a 已完成 Code / Test / 独立 Review，待用户明确授权暂存/提交
-> 分支：`feat/p3-workbench`　|　当前提交基线：`ec45ee2 docs: 完成P3.2接口与恢复读模型设计`
+> 状态：P3.2a 已提交；P3.2b 已完成 Code / Test / 独立 Review，待用户明确授权暂存/提交
+> 分支：`feat/p3-workbench`　|　当前提交基线：`75d6598 feat: 完成P3.2a v1 API客户端与MSW契约`
 
 ## 已完成基线
 
-- P2.5 已提交为 `54f02e5`；P3 Design 已提交为 `12bed37`；P3.1 独立前端工程/产品外壳已提交为 `4862752`；P3.2 Design 已提交为 `ec45ee2`。
-- `frontend/` 保持 React + TypeScript + Vite、React Router、TanStack Query、Zustand、Ant Design、Vitest/RTL/MSW 基础；`frontend/mockup.html` 未修改。`report/` 仍仅为阶段一 Trace 研发界面。
-- P3.2a 已新增 OpenAPI 类型生成命令和提交型产物、统一 v1 五个 GET client、Query key/request functions、MSW 契约场景与 8 项客户端测试；没有页面、路由、写操作、SSE 或真实 API 读模型接入。
-- 已运行：`npm run typecheck`、`npm test`（2 files / 8 tests）、`npm run build`、`npm run generate:api`，均通过。构建仅保留 Ant Design 主包超过 500 kB 的既有警告。
-- 已读取运行中的 `/health` 与 `/openapi.json`。此前 `GET /api/v1/sessions?limit=1` 返回安全 `500 INTERNAL_ERROR`；不在 P3.2a 修复、绕过或以 MSW 掩盖，真实 API 验收仍需确认迁移和持久化环境。
+- P2.5 已提交为 `54f02e5`；P3 Design 已提交为 `12bed37`；P3.1 产品外壳已提交为 `4862752`；P3.2 Design 已提交为 `ec45ee2`；P3.2a 已提交为 `75d6598`。
+- `frontend/` 保持 React + TypeScript + Vite、React Router、TanStack Query、Zustand、Ant Design、Vitest/RTL/MSW；`frontend/mockup.html` 未修改。`report/` 仍仅为阶段一 Trace 研发界面。
+- P3.2b 已增加 `/workbench`、Session、Run 深链的只读 UI，恢复 active Session、Session、Run、Message、选定 Run；MSW 页面测试锁定 Session → Runs → Message → Run 请求顺序。
+- 页面在 Run 与当前 Session 不匹配时显示安全 `RUN_SESSION_MISMATCH`；已持久化 result 只说明待 P3.4 展示；无写操作、Run 受理、SSE、Event、Trace 跳转或 P4/P5/P6 资源。
+- 已运行：`npm run typecheck`、`npm test`（2 files / 12 tests）、`npm run build`，均通过。构建保留 Ant Design 主包约 732 kB（gzip 约 234 kB）的警告。
+- 人工验收：本机 `http://[::1]:5174/workbench` 的真实后端读取仍收到安全 `INTERNAL_ERROR`；页面展示错误码、通用消息和 request ID，不伪造 Session。MSW 成功恢复路径已由页面测试覆盖；这不等于真实 API 成功。
 
-## 当前未提交的 P3.2a 精确边界
+## 当前未提交的 P3.2b 精确边界
 
 只允许逐文件暂存：
 
@@ -24,19 +25,21 @@ docs/开发/_B-V1产品化开发计划.md
 docs/开发/P3-主前端工作台/design.md
 docs/开发/P3-主前端工作台/step2-v1-api客户端与会话恢复读模型.md
 docs/开发/P3-主前端工作台/step2a-openapi类型与v1客户端.md
+docs/开发/P3-主前端工作台/step2b-session工作台只读恢复.md
 docs/开发/P3-主前端工作台/review.md
 docs/开发/P3-主前端工作台/HANDOFF.md
-frontend/package.json
-frontend/package-lock.json
-frontend/src/api/v1/generated.ts
 frontend/src/api/v1/client.ts
-frontend/src/api/v1/queries.ts
 frontend/src/api/v1/client.test.ts
+frontend/src/app/App.tsx
+frontend/src/app/App.test.tsx
+frontend/src/features/workbench/WorkbenchPage.tsx
+frontend/src/features/workbench/resource-readers.ts
+frontend/src/styles/global.css
 frontend/src/test/handlers.ts
-frontend/src/test/server.ts
+frontend/vite.config.ts
 ```
 
-以下是外部隔离改动，禁止读取内容、修改、暂存、提交或 reset：
+以下为外部隔离改动，禁止读取内容、修改、暂存、提交或 reset：
 
 ```text
 docs/00-项目方案说明书.md
@@ -53,18 +56,16 @@ Set-Location frontend
 npm run typecheck
 npm test
 npm run build
-npm run generate:api
 
 Set-Location ..
 git diff --check
 git diff --name-only
-git diff -- AGENTS.md CLAUDE.md docs/开发/P3-主前端工作台 frontend
 ```
 
 确认 `AGENTS.md` 和 `CLAUDE.md` hash 一致，且暂存清单不包含 `report/`、`backend/`、`data/`、运行时 SQLite 或上述隔离文件。
 
 ## 唯一下一步
 
-用户授权后，按精确清单暂存并提交。建议提交信息：`feat: 完成P3.2a v1 API客户端与MSW契约`。
+用户授权后，按精确清单暂存并提交。建议提交信息：`feat: 完成P3.2b会话工作台只读恢复`。
 
-**提交后的唯一下一步为 P3.2b：Session 工作台只读 UI 与刷新/深链恢复实现。**它可消费本 Step 的五个 GET/query key，但不得混入写操作、Run 受理、SSE、完整结果卡、Trace 跳转或 P4/P5/P6 资源。
+**提交后的唯一下一步为 P3.2c：mock FastAPI 联调、刷新/深链人工验收与真实读模型前置条件核对。**真实 API 读取前必须共同确认迁移、连接目标、最小权限、可用 mock 数据、回退路径和验收场景；不得把当前安全 500 解释为前端可降级为假数据的条件。

@@ -73,99 +73,59 @@ function error_response(request: Request, code: string, message: string, status:
 }
 
 export const api_v1_handlers = [
-  http.get('/api/v1/sessions', ({ request }) => {
+  http.get(/\/api\/v1\/sessions$/, ({ request }) => {
     const cursor = new URL(request.url).searchParams.get('cursor')
     if (cursor === 'empty-page') {
-      return response(request, {
-        items: [],
-        page: { next_cursor: null, has_more: false },
-      })
+      return response(request, { items: [], page: { next_cursor: null, has_more: false } })
     }
     if (cursor === 'session-page-2') {
-      return response(request, {
-        items: [archived_session],
-        page: { next_cursor: null, has_more: false },
-      })
+      return response(request, { items: [archived_session], page: { next_cursor: null, has_more: false } })
     }
-
-    return response(request, {
-      items: [session],
-      page: { next_cursor: 'session-page-2', has_more: true },
-    })
+    return response(request, { items: [session], page: { next_cursor: 'session-page-2', has_more: true } })
   }),
-  http.get('/api/v1/sessions/:session_id', ({ params, request }) => {
-    if (params.session_id === archived_session_id) {
-      return response(request, { session: archived_session })
-    }
-    if (params.session_id !== session_id) {
-      return error_response(request, 'SESSION_NOT_FOUND', '会话不存在', 404)
-    }
-
+  http.get(/\/api\/v1\/sessions\/([^/]+)$/, ({ request }) => {
+    const requested_session_id = new URL(request.url).pathname.split('/').at(-1)
+    if (requested_session_id === archived_session_id) return response(request, { session: archived_session })
+    if (requested_session_id !== session_id) return error_response(request, 'SESSION_NOT_FOUND', '会话不存在', 404)
     return response(request, { session })
   }),
-  http.get('/api/v1/sessions/:session_id/messages', ({ params, request }) => {
-    if (params.session_id !== session_id) {
-      return error_response(request, 'SESSION_NOT_FOUND', '会话不存在', 404)
-    }
-
-    const cursor = new URL(request.url).searchParams.get('cursor')
+  http.get(/\/api\/v1\/sessions\/([^/]+)\/messages$/, ({ request }) => {
+    const url = new URL(request.url)
+    const requested_session_id = url.pathname.split('/').at(-2)
+    if (requested_session_id !== session_id) return error_response(request, 'SESSION_NOT_FOUND', '会话不存在', 404)
+    const cursor = url.searchParams.get('cursor')
     return response(request, {
       items: cursor
-        ? [
-            {
-              id: '88888888-8888-4888-8888-888888888888',
-              session_id,
-              run_id,
-              role: 'assistant',
-              content: '诊断已完成。',
-              created_at: '2026-07-27T01:00:34.000Z',
-            },
-          ]
-        : [
-            {
-              id: '66666666-6666-4666-8666-666666666666',
-              session_id,
-              run_id: null,
-              role: 'user',
-              content: '请检查 Nginx 5xx。',
-              created_at: '2026-07-27T01:00:00.000Z',
-            },
-          ],
-      page: cursor
-        ? { next_cursor: null, has_more: false }
-        : { next_cursor: 'message-page-2', has_more: true },
+        ? [{ id: '88888888-8888-4888-8888-888888888888', session_id, run_id, role: 'assistant', content: '诊断已完成。', created_at: '2026-07-27T01:00:34.000Z' }]
+        : [{ id: '66666666-6666-4666-8666-666666666666', session_id, run_id: null, role: 'user', content: '请检查 Nginx 5xx。', created_at: '2026-07-27T01:00:00.000Z' }],
+      page: cursor ? { next_cursor: null, has_more: false } : { next_cursor: 'message-page-2', has_more: true },
     })
   }),
-  http.get('/api/v1/sessions/:session_id/runs', ({ params, request }) => {
-    if (params.session_id !== session_id) {
-      return error_response(request, 'SESSION_NOT_FOUND', '会话不存在', 404)
-    }
-
-    const cursor = new URL(request.url).searchParams.get('cursor')
+  http.get(/\/api\/v1\/sessions\/([^/]+)\/runs$/, ({ request }) => {
+    const url = new URL(request.url)
+    const requested_session_id = url.pathname.split('/').at(-2)
+    if (requested_session_id !== session_id) return error_response(request, 'SESSION_NOT_FOUND', '会话不存在', 404)
+    const cursor = url.searchParams.get('cursor')
     return response(request, {
       items: cursor ? [] : [run],
-      page: cursor
-        ? { next_cursor: null, has_more: false }
-        : { next_cursor: 'run-page-2', has_more: true },
+      page: cursor ? { next_cursor: null, has_more: false } : { next_cursor: 'run-page-2', has_more: true },
     })
   }),
-  http.get('/api/v1/runs/:run_id', ({ params, request }) => {
-    if (params.run_id !== run_id) {
-      return error_response(request, 'RUN_NOT_FOUND', '诊断运行不存在', 404)
-    }
-
+  http.get(/\/api\/v1\/runs\/([^/]+)$/, ({ request }) => {
+    const requested_run_id = new URL(request.url).pathname.split('/').at(-1)
+    if (requested_run_id !== run_id) return error_response(request, 'RUN_NOT_FOUND', '诊断运行不存在', 404)
     return response(request, { run })
   }),
 ]
 
 export const api_v1_contract_scenarios = {
-  active_empty_session_list: http.get('/api/v1/sessions', ({ request }) =>
+  active_empty_session_list: http.get(/\/api\/v1\/sessions$/, ({ request }) =>
     response(request, { items: [], page: { next_cursor: null, has_more: false } }),
   ),
-  internal_error: http.get('/api/v1/sessions', ({ request }) =>
+  internal_error: http.get(/\/api\/v1\/sessions$/, ({ request }) =>
     error_response(request, 'INTERNAL_ERROR', '服务内部错误，请稍后重试', 500),
   ),
-  network_interruption: http.get('/api/v1/sessions', () => HttpResponse.error()),
+  network_interruption: http.get(/\/api\/v1\/sessions$/, () => HttpResponse.error()),
 }
 
 export const api_v1_contract_fixtures = { session_id, archived_session_id, run_id, trace_id }

@@ -1,16 +1,16 @@
 # P3 设计 — 主前端工作台
 
-> 日期：2026-07-27　|　状态：🟡 P3.2 Design 已提交；P3.2a 已完成 Code / Test / Review，待用户授权暂存/提交
+> 日期：2026-07-27　|　状态：🟡 P3.2 Design 已提交；P3.2a 已提交 `75d6598`；P3.2b 已完成 Code / Test / 独立 Review，待用户授权暂存/提交
 >
-> 工作分支：`feat/p3-workbench`　|　设计基线：`54f02e5 feat: 完成P2.5刷新恢复与闭环验收`
+> 工作分支：`feat/p3-workbench`　|　当前实现基线：`75d6598 feat: 完成P3.2a v1 API客户端与MSW契约`
 >
-> 范围：仅定义后续前端初始化和工作台纵向切片；本轮不初始化工程、不安装依赖、不修改 `frontend/`、`report/`、后端或运行时资产。
+> 范围：保留 P3 纵向切片设计，并同步 P3.2b 当前只读恢复的交付边界；P3.2b 不接入写接口、SSE、真实数据源、`report/` 或运行时资产。
 
 ## 1. 目标与已核实事实
 
 P3 的目标是将 P2 已持久化的会话诊断闭环呈现为面向运维/SRE 用户的**结果优先工作台**：恢复 Session、Message 和 Run；受理一次幂等诊断；观察已持久化事件；展示安全的结构化结果；完整 Agent Trace 仅受控跳转到 `report/`。
 
-- `frontend/` 当前仅有 `frontend/mockup.html`，没有 `package.json`、React/Vite、npm 脚本或依赖；P0 原型只作视觉/状态参考，P3.1 不得覆盖它。
+- `frontend/` 已由 P3.1 建立 React + TypeScript + Vite 主产品工程；`frontend/mockup.html` 仍保留且未被覆盖。P3.2b 仅在该工程内添加只读恢复页面。
 - `report/` 是阶段一 M7 的独立研发/实验/Trace 前端；P3 不嵌入、不改造、不复用其依赖或路由。
 - 已实现 v1 路由在 `backend/src/api/v1/routes.py:146-429`，公开模型在 `backend/src/api/v1/schemas.py:63-318`；P3 字段和协议以 `docs/开发/P0-V1产品化基线/api-v1-contract.md:426-514` 为准。
 - 旧 `POST /diagnose` 和 `GET /diagnose/stream` 是阶段一兼容接口，P3 主产品不得调用、包装或以它们模拟 v1 Run。
@@ -28,9 +28,9 @@ P3 的目标是将 P2 已持久化的会话诊断闭环呈现为面向运维/SRE
 
 所有时间按 API 的 UTC `Z` 解析/显示；cursor 永远不解码、不生成，切换 Session 时清除该 Session 之外的 cursor。安全错误统一使用 `error.code`、`error.message`、安全 `details` 和 `meta.request_id`；网络/协议失败不伪造成业务错误码。
 
-## 3. 后续 P3.1 工程策略（本轮不实施）
+## 3. P3.1 工程策略（已实施基线）
 
-P3.1 才在 `frontend/` 建立独立的 **React + TypeScript + Vite** 工程，并锁定与仓库 Node 运行时兼容的具体版本、包管理器和 lockfile。技术职责固定为：
+P3.1 已在 `frontend/` 建立独立的 **React + TypeScript + Vite** 工程，并锁定包管理器和 lockfile。以下职责作为后续 P3 切片的固定基线：
 
 - React Router：URL 定位选中的 Session/Run；
 - TanStack Query：v1 服务器资源、cursor 页面、失效和刷新；
@@ -38,7 +38,7 @@ P3.1 才在 `frontend/` 建立独立的 **React + TypeScript + Vite** 工程，�
 - Ant Design：产品外壳、表单、状态、空/错误反馈；
 - Vitest + React Testing Library + MSW：组件/交互及确定性 v1 mock；Vite build 作为构建质量门。
 
-建议职责目录为 `src/app/`、`src/api/`、`src/features/sessions/`、`src/features/runs/`、`src/features/results/`、`src/components/`、`src/stores/`、`src/test/`；本 Design 不创建任何上述目录。
+职责目录以 `src/app/`、`src/api/`、`src/features/`、`src/components/`、`src/stores/`、`src/test/` 逐步演进；P3.2b 已增加 `src/features/workbench/`，不建立第二套资源 DTO。
 
 路由：`/` 重定向工作台；`/workbench` 展示真实空状态；`/workbench/sessions/:session_id` 恢复 Session；`/workbench/sessions/:session_id/runs/:run_id` 恢复选定 Run。外壳为顶部产品栏、左侧会话导航、中心工作区和右侧受控上下文栏，中心顺序固定为 Message → Run 状态/事件摘要 → 结构化结果。
 
@@ -101,7 +101,7 @@ P4 的 Environment/DataSource/Connector/Runbook/Knowledge，P5 的 Alert/Inciden
 |---|---|---|
 | P3.0（本轮） | Design、Review、HANDOFF、计划/规则/P2 历史状态校正 | 前端初始化或业务代码 |
 | P3.1 | 已完成并提交 | Vite React TS、Router/Query/Zustand/AntD Providers、产品外壳、基础路由、build/test 基线 | 未接入 Session 恢复、Run 创建、SSE 或 P4/P5/P6 页面 |
-| P3.2 | Design 已完成审查，待提交 | OpenAPI 类型、v1 GET client、错误/关联元数据、MSW 契约与 Session/Message/Run 只读恢复读模型 | Run 受理、SSE、结果展示、旧 API |
+| P3.2 | 🟡 Design 已提交；P3.2a 已提交 `75d6598`；P3.2b 已完成审查、待提交 | OpenAPI 类型、v1 GET client、错误/关联元数据、MSW 契约与 Session/Message/Run 只读恢复读模型 | Run 受理、SSE、结果展示、旧 API |
 | P3.3 | 诊断受理、幂等重试、状态/事件摘要、SSE 恢复 | Approval、真实连接器、完整 Trace |
 | P3.4 | 结构化结果、失败/空/归档、report 受控跳转、交互收口 | P4/P5/P6 正式资源 |
 | P3.5 | mock API 联调、人工验收、回归、独立 Review | 真实基础设施/生产认证 |
@@ -110,4 +110,4 @@ P3 不修改 `/api/v1`、Application Service、Repository、ORM、Alembic、旧�
 
 ## 9. 结论
 
-P3 Design 已提交为 `12bed37`，P3.1 已提交为 `4862752`；P3.2 Design 已提交为 `ec45ee2`；P3.2a 已落实 OpenAPI 类型、只读 v1 客户端和 MSW 契约，尚未接入工作台页面。**用户授权提交 P3.2a 后，唯一下一步为 P3.2b：Session 工作台只读 UI 与刷新/深链恢复实现。**
+P3 Design 已提交为 `12bed37`，P3.1 已提交为 `4862752`，P3.2 Design 已提交为 `ec45ee2`，P3.2a 已提交为 `75d6598`。P3.2b 已增加只读 Session 工作台、Session/Run 深链、cursor 读取、严格 Session → Runs → Message → Run 恢复顺序和安全错误态；当前只待用户授权暂存/提交。**P3.2b 提交后的唯一下一步为 P3.2c：mock FastAPI 联调、刷新/深链人工验收与真实读模型前置条件核对。**

@@ -1,7 +1,7 @@
 import { MenuFoldOutlined, MenuUnfoldOutlined, MonitorOutlined } from '@ant-design/icons'
 import { Layout, Menu, Typography } from 'antd'
 import type { ReactElement } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
 
 import { WorkbenchPage } from '../features/workbench/WorkbenchPage'
 import { useUiStore } from '../stores/use-ui-store'
@@ -40,9 +40,7 @@ function ProductShell(): ReactElement {
           mode="inline"
           theme="dark"
         />
-        <div className="navigation-note">
-          {!isNavigationCollapsed && 'V1 主产品 · 结果优先'}
-        </div>
+        <div className="navigation-note">{!isNavigationCollapsed && 'V1 主产品 · 结果优先'}</div>
       </Sider>
       <Layout>
         <Header className="product-header">
@@ -56,23 +54,28 @@ function ProductShell(): ReactElement {
           </button>
           <div>
             <Typography.Text strong>主前端工作台</Typography.Text>
-            <Typography.Text className="header-context">P3.1 产品外壳</Typography.Text>
+            <Typography.Text className="header-context">P3.2 只读恢复</Typography.Text>
           </div>
         </Header>
         <Content className="product-content">
           <div className="workspace-grid">
-            <WorkbenchPage />
+            <Outlet />
             <aside className="context-rail" aria-labelledby="context-title">
-              <div className="rail-kicker">CURRENT CONTEXT</div>
+              <div className="rail-kicker">READ-ONLY BOUNDARY</div>
               <Typography.Title id="context-title" level={4}>
-                当前上下文
+                当前边界
               </Typography.Title>
               <Typography.Paragraph>
-                尚未选择诊断会话。P3.2 将从 <code>/api/v1/sessions</code> 恢复真实会话和 Run。
+                工作台只从 <code>/api/v1</code> 恢复 Session、Message 和 Run；刷新后的资源事实由服务端决定。
               </Typography.Paragraph>
               <Typography.Paragraph type="secondary">
-                完整 Agent Trace 保持在研发界面 <code>report/</code>；当前产品外壳不会嵌入或模拟它。
+                Run 受理与实时事件待 P3.3，结构化结果视觉待 P3.4；完整 Agent Trace 仍只在研发界面可用。
               </Typography.Paragraph>
+              <div className="honest-status" aria-label="阶段能力状态">
+                <span className="context-status">环境与数据源：待 P4</span>
+                <span className="context-status">告警与审批：待 P5</span>
+                <span className="context-status">报告与导出：待 P6</span>
+              </div>
             </aside>
           </div>
         </Content>
@@ -87,7 +90,11 @@ export function App(): ReactElement {
       <BrowserRouter>
         <Routes>
           <Route element={<Navigate replace to="/workbench" />} path="/" />
-          <Route element={<ProductShell />} path="/workbench" />
+          <Route element={<ProductShell />} path="/workbench">
+            <Route element={<WorkbenchPage />} index />
+            <Route element={<WorkbenchPage />} path="sessions/:session_id" />
+            <Route element={<WorkbenchPage />} path="sessions/:session_id/runs/:run_id" />
+          </Route>
           <Route element={<Navigate replace to="/workbench" />} path="*" />
         </Routes>
       </BrowserRouter>

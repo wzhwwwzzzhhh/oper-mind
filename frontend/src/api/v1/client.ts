@@ -148,7 +148,15 @@ function append_query<TQuery>(path: string, query: TQuery | undefined): string {
 }
 
 function resolve_url(base_url: string, path: string): string {
-  return base_url ? new URL(path, base_url).toString() : path
+  if (base_url) {
+    return new URL(path, base_url).toString()
+  }
+
+  if (typeof window !== 'undefined') {
+    return new URL(path, window.location.origin).toString()
+  }
+
+  return path
 }
 
 function build_diagnostics(
@@ -253,14 +261,14 @@ async function request_json<TData>(
 }
 
 export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Client {
-  const fetch_impl = options.fetch_impl ?? globalThis.fetch
+  const fetch_impl = options.fetch_impl
   const request_id_factory = options.request_id_factory ?? create_request_id
   const base_url = options.base_url ?? ''
 
   return {
     list_sessions: (query = {}, request_options) =>
       request_json<SessionListResponse>(
-        fetch_impl,
+        fetch_impl ?? globalThis.fetch,
         request_id_factory,
         base_url,
         append_query('/api/v1/sessions', query),
@@ -268,7 +276,7 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
       ),
     get_session: (session_id, request_options) =>
       request_json<SessionResponse>(
-        fetch_impl,
+        fetch_impl ?? globalThis.fetch,
         request_id_factory,
         base_url,
         `/api/v1/sessions/${encodeURIComponent(session_id)}`,
@@ -276,7 +284,7 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
       ),
     list_session_messages: (session_id, query = {}, request_options) =>
       request_json<MessageListResponse>(
-        fetch_impl,
+        fetch_impl ?? globalThis.fetch,
         request_id_factory,
         base_url,
         append_query(`/api/v1/sessions/${encodeURIComponent(session_id)}/messages`, query),
@@ -284,7 +292,7 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
       ),
     list_session_runs: (session_id, query = {}, request_options) =>
       request_json<DiagnosisRunListResponse>(
-        fetch_impl,
+        fetch_impl ?? globalThis.fetch,
         request_id_factory,
         base_url,
         append_query(`/api/v1/sessions/${encodeURIComponent(session_id)}/runs`, query),
@@ -292,7 +300,7 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
       ),
     get_run: (run_id, request_options) =>
       request_json<RunResponse>(
-        fetch_impl,
+        fetch_impl ?? globalThis.fetch,
         request_id_factory,
         base_url,
         `/api/v1/runs/${encodeURIComponent(run_id)}`,

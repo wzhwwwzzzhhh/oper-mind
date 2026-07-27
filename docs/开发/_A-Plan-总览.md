@@ -51,7 +51,7 @@ M7 原计划中的“联调与视觉收口”不再作为独立产品里程碑�
 | **P0** | **V1 产品化基线** | 已完成 | 产品边界、架构、API v1 契约与主前端原型已收口 |
 | **P1** | **应用后端与持久化地基** | 已完成 | 环境、路径、持久化 Settings、Engine/Session factory 与 Alembic 骨架已收口；提交后进入 P2 首个资源纵向切片 |
 | **P2** | **会话诊断闭环** | **已完成** | `54f02e5` 已提交刷新恢复读模型、成功/失败恢复、终态 SSE、OpenAPI 与旧接口兼容回归 |
-| **P3** | **主前端工作台** | **🟡 P3.2a 已完成审查，待提交授权** | P3.2 Design 已提交；P3.2a 已实现 OpenAPI 类型、v1 读取客户端、MSW 契约与 Query 读取边界，P3.2b 才进入工作台 UI 恢复 |
+| **P3** | **主前端工作台** | **🟡 P3.2b 已完成审查，待提交授权** | P3.2a 已提交；P3.2b 已实现只读 Session 工作台、分页和刷新/Run 深链恢复，P3.2c 才进入 mock FastAPI 联调与验收前置核对 |
 | P4 | 环境、数据源与知识 | 待开始 | Environment、DataSource、连接器、Runbook 与记忆治理 |
 | P5 | 告警、事件与审批闭环 | 待开始 | Alert、Incident、ActionProposal、Approval 与审计 |
 | P6 | 报告与产品收口 | 待开始 | 报告、导出、搜索、通知、偏好及 `report/` 高级分析入口 |
@@ -61,13 +61,13 @@ M7 原计划中的“联调与视觉收口”不再作为独立产品里程碑�
 
 ## 4. 当前唯一下一步
 
-**P3.2 Design 已提交为 `ec45ee2`；P3.2a OpenAPI 类型、v1 API 客户端与 MSW 契约实现已完成 Code / Test / 独立 Review，待用户授权暂存/提交。**
+**P3.2a 已提交为 `75d6598`；P3.2b Session 工作台只读 UI 与刷新/深链恢复已完成 Code / Test / 独立 Review，待用户授权暂存/提交。**
 
-P2 从 `6aa3302 feat: 建立P1应用持久化地基` 开始，历史分支为 `feat/p2-session-diagnosis`；P2.1 至 P2.5 分别提交为 `8f27717`、`11634b4`、`5cf2c6b`、`ae2f978`、`440f03d`、`54f02e5`。P3 Design、P3.1 与 P3.2 Design 分别提交为 `12bed37 docs: 完成P3主前端工作台设计`、`4862752 feat: 初始化P3主前端工程与产品外壳`、`ec45ee2 docs: 完成P3.2接口与恢复读模型设计`。
+P2 从 `6aa3302 feat: 建立P1应用持久化地基` 开始，历史分支为 `feat/p2-session-diagnosis`；P2.1 至 P2.5 分别提交为 `8f27717`、`11634b4`、`5cf2c6b`、`ae2f978`、`440f03d`、`54f02e5`。P3 Design、P3.1、P3.2 Design 与 P3.2a 分别提交为 `12bed37 docs: 完成P3主前端工作台设计`、`4862752 feat: 初始化P3主前端工程与产品外壳`、`ec45ee2 docs: 完成P3.2接口与恢复读模型设计`、`75d6598 feat: 完成P3.2a v1 API客户端与MSW契约`。
 
-P3.2a 已从本机 OpenAPI 生成 TypeScript 类型，建立带 `X-Request-Id`、安全错误、关联 metadata、opaque cursor 和取消/网络分类的 `/api/v1` 五个 GET client，以及 MSW 确定性契约场景和 TanStack Query 读取边界；尚未实现页面恢复顺序。它只消费 GET `/api/v1` 资源，不创建 Session/Run、不连接 SSE、不访问旧 `/diagnose` 或 `/diagnose/stream`。本机预检确认 `/health` 和 OpenAPI 可用；当前本地 `GET /api/v1/sessions` 返回安全 `500 INTERNAL_ERROR`，MSW 通过不等于真实 API 验收，后续必须按既有规则确认应用数据库迁移/连接目标和回退路径，不能前端静默降级或伪造数据。
+P3.2a 已从本机 OpenAPI 生成 TypeScript 类型，建立带 `X-Request-Id`、安全错误、关联 metadata、opaque cursor 和取消/网络分类的 `/api/v1` 五个 GET client，以及 MSW 确定性契约场景和 TanStack Query 读取边界。P3.2b 已接入 Session/Run 深链与只读工作台，页面测试锁定 Session → Runs → Message → Run 的恢复顺序；它仍只消费 GET `/api/v1` 资源，不创建 Session/Run、不连接 SSE、不访问旧 `/diagnose` 或 `/diagnose/stream`。本机预检确认 `/health` 和 OpenAPI 可用；当前本地 `GET /api/v1/sessions` 返回安全 `500 INTERNAL_ERROR`，页面如实显示错误码、通用消息和 request ID。MSW 通过不等于真实 API 验收，P3.2c 前须按既有规则确认应用数据库迁移、连接目标、最小权限、可用 mock 数据、接口契约与回退路径，不能前端静默降级或伪造数据。
 
-**用户授权提交 P3.2a 后，唯一下一步为 P3.2b：Session 工作台只读 UI 与刷新/深链恢复实现。** P3.2b 可消费本 Step 的 GET/query 边界，但不混入 Run 受理、SSE、完整结果卡、Trace 跳转或 P4/P5/P6 资源。
+**用户授权提交 P3.2b 后，唯一下一步为 P3.2c：mock FastAPI 联调、刷新/深链人工验收与真实读模型前置条件核对。** P3.2c 不得把当前安全 500 静默降级为假数据，也不混入 Run 受理、SSE、完整结果卡、Trace 跳转或 P4/P5/P6 资源。
 ## 5. 执行与降级原则
 
 ```text
