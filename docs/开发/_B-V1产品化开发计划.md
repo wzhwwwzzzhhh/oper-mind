@@ -259,8 +259,8 @@ Design → Step → Code → Minimum Test → Review → Commit
 
 ## 11. 当前唯一下一步
 
-**P3.2：v1 API 客户端与会话恢复读模型（先完成 Design）。** P3 Design 已提交为 `12bed37`；P3.1 在 `frontend/` 初始化独立 React + TypeScript + Vite、React Router、TanStack Query、Zustand、Ant Design 和 Vitest/RTL/MSW 测试基础，保留 P0 `mockup.html`，且未改 `report/`、后端、旧 API 或真实数据源。
+**P3.2：v1 API 客户端与会话恢复读模型的 Design 已完成并通过独立审查，待用户授权暂存/提交。** P3.1 已提交为 `4862752`；P3.2 将以 OpenAPI 生成的 TypeScript 类型避免手工字段漂移，建立安全 v1 GET 客户端、MSW 契约场景和 Session/Message/Run 只读恢复查询边界。
 
-P3.1 已通过 typecheck、Vitest、production build 和人工视觉验收；Ant Design 初始包体超出 Vite 500 kB 提示留待后续按实际页面进行按需优化。**唯一下一步是 P3.2：v1 API 客户端与会话恢复读模型的 Design**；不得提前受理 Run、接入 SSE 或伪造 P4/P5/P6 能力。
+P3.2 不创建 Session/Run、不接入 SSE、不实现结构化结果，不访问旧 `/diagnose` 或 `/diagnose/stream`。本机健康/OpenAPI 可读，但当前 `GET /api/v1/sessions` 返回安全 `500 INTERNAL_ERROR`；实施先用 MSW，真实 API 验收必须显式确认应用数据库迁移、连接目标、最小权限、回退路径和验收场景。**P3.2 Design 提交后的唯一下一步为 P3.2a：OpenAPI 类型、v1 API 客户端与 MSW 契约实现。**
 
 本计划是方向基线，不是不可修改的瀑布计划；边做边优化，但任何范围变化必须回写本文件和 `_A-Plan-总览.md`，避免口头决策漂移。
