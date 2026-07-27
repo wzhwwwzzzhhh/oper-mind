@@ -24,6 +24,13 @@ const archived_session = {
   archived_at: '2026-07-27T01:03:00.000Z',
 }
 
+const paged_active_session = {
+  ...session,
+  id: '99999999-9999-4999-8999-999999999999',
+  title: '第二页的活跃会话',
+  updated_at: '2026-07-27T01:01:00.000Z',
+}
+
 const run = {
   id: run_id,
   session_id,
@@ -79,7 +86,7 @@ export const api_v1_handlers = [
       return response(request, { items: [], page: { next_cursor: null, has_more: false } })
     }
     if (cursor === 'session-page-2') {
-      return response(request, { items: [archived_session], page: { next_cursor: null, has_more: false } })
+      return response(request, { items: [paged_active_session], page: { next_cursor: null, has_more: false } })
     }
     return response(request, { items: [session], page: { next_cursor: 'session-page-2', has_more: true } })
   }),

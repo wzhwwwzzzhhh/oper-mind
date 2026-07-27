@@ -1,10 +1,10 @@
 # P3 设计 — 主前端工作台
 
-> 日期：2026-07-27　|　状态：🟡 P3.2 Design 已提交；P3.2a 已提交 `75d6598`；P3.2b 已完成 Code / Test / 独立 Review，待用户授权暂存/提交
+> 日期：2026-07-27　|　状态：🟡 P3.2b 已提交 `3170e6a`；P3.2c.1 已完成 Code / Test / 独立 Review，待用户授权暂存/提交
 >
-> 工作分支：`feat/p3-workbench`　|　当前实现基线：`75d6598 feat: 完成P3.2a v1 API客户端与MSW契约`
+> 工作分支：`feat/p3-workbench`　|　当前实现基线：`3170e6a feat: 完成P3.2b会话工作台只读恢复`
 >
-> 范围：保留 P3 纵向切片设计，并同步 P3.2b 当前只读恢复的交付边界；P3.2b 不接入写接口、SSE、真实数据源、`report/` 或运行时资产。
+> 范围：保留 P3 纵向切片设计，并同步 P3.2c.1 的 mock FastAPI 联调边界；不接入真实 DB/数据源、写接口、SSE、`report/` 或运行时资产。
 
 ## 1. 目标与已核实事实
 
@@ -101,7 +101,7 @@ P4 的 Environment/DataSource/Connector/Runbook/Knowledge，P5 的 Alert/Inciden
 |---|---|---|
 | P3.0（本轮） | Design、Review、HANDOFF、计划/规则/P2 历史状态校正 | 前端初始化或业务代码 |
 | P3.1 | 已完成并提交 | Vite React TS、Router/Query/Zustand/AntD Providers、产品外壳、基础路由、build/test 基线 | 未接入 Session 恢复、Run 创建、SSE 或 P4/P5/P6 页面 |
-| P3.2 | 🟡 Design 已提交；P3.2a 已提交 `75d6598`；P3.2b 已完成审查、待提交 | OpenAPI 类型、v1 GET client、错误/关联元数据、MSW 契约与 Session/Message/Run 只读恢复读模型 | Run 受理、SSE、结果展示、旧 API |
+| P3.2 | 🟡 P3.2a / P3.2b 已提交；P3.2c.1 已完成审查、待提交 | OpenAPI 类型、v1 GET client、只读恢复、独立 mock FastAPI 代理联调与人工验收 | Run 受理、SSE、结果展示、旧 API、真实 DB/数据源 |
 | P3.3 | 诊断受理、幂等重试、状态/事件摘要、SSE 恢复 | Approval、真实连接器、完整 Trace |
 | P3.4 | 结构化结果、失败/空/归档、report 受控跳转、交互收口 | P4/P5/P6 正式资源 |
 | P3.5 | mock API 联调、人工验收、回归、独立 Review | 真实基础设施/生产认证 |
@@ -110,4 +110,4 @@ P3 不修改 `/api/v1`、Application Service、Repository、ORM、Alembic、旧�
 
 ## 9. 结论
 
-P3 Design 已提交为 `12bed37`，P3.1 已提交为 `4862752`，P3.2 Design 已提交为 `ec45ee2`，P3.2a 已提交为 `75d6598`。P3.2b 已增加只读 Session 工作台、Session/Run 深链、cursor 读取、严格 Session → Runs → Message → Run 恢复顺序和安全错误态；当前只待用户授权暂存/提交。**P3.2b 提交后的唯一下一步为 P3.2c：mock FastAPI 联调、刷新/深链人工验收与真实读模型前置条件核对。**
+P3 Design、P3.1、P3.2 Design、P3.2a、P3.2b 已分别提交为 `12bed37`、`4862752`、`ec45ee2`、`75d6598`、`3170e6a`。P3.2c.1 已以独立 mock FastAPI 和可切换 Vite 代理完成根入口、深链/刷新、cursor、404/500、归档、跨 Session Run 和代理上游中断的人工验收；当前只待用户授权暂存/提交。**P3.2c.1 提交后的唯一下一步为 P3.2c.2：真实读模型前置条件核对。**

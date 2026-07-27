@@ -1,19 +1,19 @@
 # P3 HANDOFF — 主前端工作台
 
 > 更新时间：2026-07-27
-> 状态：P3.2a 已提交；P3.2b 已完成 Code / Test / 独立 Review，待用户明确授权暂存/提交
-> 分支：`feat/p3-workbench`　|　当前提交基线：`75d6598 feat: 完成P3.2a v1 API客户端与MSW契约`
+> 状态：P3.2b 已提交 `3170e6a`；P3.2c.1 已完成 Code / Test / 独立 Review，待用户明确授权暂存/提交
+> 分支：`feat/p3-workbench`　|　当前提交基线：`3170e6a feat: 完成P3.2b会话工作台只读恢复`
 
 ## 已完成基线
 
-- P2.5 已提交为 `54f02e5`；P3 Design 已提交为 `12bed37`；P3.1 产品外壳已提交为 `4862752`；P3.2 Design 已提交为 `ec45ee2`；P3.2a 已提交为 `75d6598`。
-- `frontend/` 保持 React + TypeScript + Vite、React Router、TanStack Query、Zustand、Ant Design、Vitest/RTL/MSW；`frontend/mockup.html` 未修改。`report/` 仍仅为阶段一 Trace 研发界面。
-- P3.2b 已增加 `/workbench`、Session、Run 深链的只读 UI，恢复 active Session、Session、Run、Message、选定 Run；MSW 页面测试锁定 Session → Runs → Message → Run 请求顺序。
-- 页面在 Run 与当前 Session 不匹配时显示安全 `RUN_SESSION_MISMATCH`；已持久化 result 只说明待 P3.4 展示；无写操作、Run 受理、SSE、Event、Trace 跳转或 P4/P5/P6 资源。
-- 已运行：`npm run typecheck`、`npm test`（2 files / 12 tests）、`npm run build`，均通过。构建保留 Ant Design 主包约 732 kB（gzip 约 234 kB）的警告。
-- 人工验收：本机 `http://[::1]:5174/workbench` 的真实后端读取仍收到安全 `INTERNAL_ERROR`；页面展示错误码、通用消息和 request ID，不伪造 Session。MSW 成功恢复路径已由页面测试覆盖；这不等于真实 API 成功。
+- P2.5、P3 Design、P3.1、P3.2 Design、P3.2a、P3.2b 分别提交为 `54f02e5`、`12bed37`、`4862752`、`ec45ee2`、`75d6598`、`3170e6a`。
+- P3.2b 的主产品工作台只从 `/api/v1` 读取 Session、Run、Message；恢复顺序固定为 Session → Runs → Message → Run。没有写操作、Run 受理、SSE/Event、完整结果卡、Trace 跳转或 P4/P5/P6 资源。
+- P3.2c.1 新增独立本地 mock FastAPI（默认 8100）和 `VITE_API_PROXY_TARGET` 代理切换。mock 与 MSW 分开；默认开发代理仍为真实后端 8000。
+- c.1 浏览器验收通过：根入口、Session 深链 URL 回填、Run 深链刷新、Run 404、安全 500、归档只读、跨 Session Run 阻断和 active cursor。上游 mock 中断时 Vite 返回非 JSON 页面，前端显示 `INVALID_API_RESPONSE`，没有伪造空数据或成功。
+- 已通过：`npm run test:mock-api`（4 passed，1 条 TestClient 弃用警告）、`npm run typecheck`、`npm test`（2 files / 12 tests）、`npm run build`。构建仍有 Ant Design 约 732 kB（gzip 约 234 kB）警告。
+- 本轮临时 8100 mock、5175 前端和浏览器 tab 均已关闭；用户原有 `5174` 前端与 `8000` 后端保持运行。
 
-## 当前未提交的 P3.2b 精确边界
+## 当前未提交的 P3.2c.1 精确边界
 
 只允许逐文件暂存：
 
@@ -24,19 +24,14 @@ docs/开发/_A-Plan-总览.md
 docs/开发/_B-V1产品化开发计划.md
 docs/开发/P3-主前端工作台/design.md
 docs/开发/P3-主前端工作台/step2-v1-api客户端与会话恢复读模型.md
-docs/开发/P3-主前端工作台/step2a-openapi类型与v1客户端.md
-docs/开发/P3-主前端工作台/step2b-session工作台只读恢复.md
+docs/开发/P3-主前端工作台/step2c1-mock-fastapi联调验收.md
 docs/开发/P3-主前端工作台/review.md
 docs/开发/P3-主前端工作台/HANDOFF.md
-frontend/src/api/v1/client.ts
-frontend/src/api/v1/client.test.ts
-frontend/src/app/App.tsx
-frontend/src/app/App.test.tsx
-frontend/src/features/workbench/WorkbenchPage.tsx
-frontend/src/features/workbench/resource-readers.ts
-frontend/src/styles/global.css
-frontend/src/test/handlers.ts
+frontend/package.json
 frontend/vite.config.ts
+frontend/src/test/handlers.ts
+frontend/scripts/mock_v1_api.py
+frontend/scripts/test_mock_v1_api.py
 ```
 
 以下为外部隔离改动，禁止读取内容、修改、暂存、提交或 reset：
@@ -53,6 +48,7 @@ backend/src/infrastructure/persistence/__init__.py
 
 ```powershell
 Set-Location frontend
+npm run test:mock-api
 npm run typecheck
 npm test
 npm run build
@@ -62,10 +58,10 @@ git diff --check
 git diff --name-only
 ```
 
-确认 `AGENTS.md` 和 `CLAUDE.md` hash 一致，且暂存清单不包含 `report/`、`backend/`、`data/`、运行时 SQLite 或上述隔离文件。
+确认镜像规则文件 hash 一致，且暂存清单不包含 `report/`、`backend/`、`data/`、运行时 SQLite 或上述隔离文件。
 
 ## 唯一下一步
 
-用户授权后，按精确清单暂存并提交。建议提交信息：`feat: 完成P3.2b会话工作台只读恢复`。
+用户授权后，按精确清单暂存并提交。建议提交信息：`feat: 完成P3.2c1 mock FastAPI联调验收`。
 
-**提交后的唯一下一步为 P3.2c：mock FastAPI 联调、刷新/深链人工验收与真实读模型前置条件核对。**真实 API 读取前必须共同确认迁移、连接目标、最小权限、可用 mock 数据、回退路径和验收场景；不得把当前安全 500 解释为前端可降级为假数据的条件。
+**提交后的唯一下一步为 P3.2c.2：真实读模型前置条件核对。**只确认迁移、连接目标、最小权限、可用 mock 数据、接口契约、回退路径与验收场景；未共同确认前不得连接真实 DB 或数据源。

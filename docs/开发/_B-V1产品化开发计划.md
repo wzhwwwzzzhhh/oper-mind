@@ -259,8 +259,8 @@ Design → Step → Code → Minimum Test → Review → Commit
 
 ## 11. 当前唯一下一步
 
-**P3.2a 已提交为 `75d6598`；P3.2b Session 工作台只读 UI 与刷新/深链恢复已完成 Code / Test / 独立 Review，待用户授权暂存/提交。** P3.1 已提交为 `4862752`；P3.2b 已建立 Session 导航、Session/Run 深链、Run/Message 分页和只读恢复体验，仍不提供创建、编辑或实时事件。
+**P3.2b 已提交为 `3170e6a`；P3.2c.1 独立 mock FastAPI 联调与刷新/深链人工验收已完成 Code / Test / 独立 Review，待用户授权暂存/提交。** P3.2c.1 使用独立 8100 mock 与单独 5175 前端验收实例，默认开发代理仍指向 8000；它不创建、编辑或实时消费任何资源。
 
-P3.2 不创建 Session/Run、不接入 SSE、不实现结构化结果，不访问旧 `/diagnose` 或 `/diagnose/stream`。本机健康/OpenAPI 可读，但当前 `GET /api/v1/sessions` 返回安全 `500 INTERNAL_ERROR`；实施先用 MSW，真实 API 验收必须显式确认应用数据库迁移、连接目标、最小权限、回退路径和验收场景。**P3.2b 提交后的唯一下一步为 P3.2c：mock FastAPI 联调、刷新/深链人工验收与真实读模型前置条件核对。**
+P3.2 不创建 Session/Run、不接入 SSE、不实现结构化结果，不访问旧 `/diagnose` 或 `/diagnose/stream`。c.1 的 FastAPI mock 与 MSW 分开验收：根入口、深链回填、刷新、404、500、归档、cursor、跨 Session 保护已通过；Vite 代理上游中断时前端安全显示非 JSON 协议错误，不降级为假数据。**P3.2c.1 提交后的唯一下一步为 P3.2c.2：真实读模型前置条件核对。**真实 API 前必须显式确认应用数据库迁移、连接目标、最小权限、可用 mock 数据、接口契约、回退路径和验收场景。
 
 本计划是方向基线，不是不可修改的瀑布计划；边做边优化，但任何范围变化必须回写本文件和 `_A-Plan-总览.md`，避免口头决策漂移。

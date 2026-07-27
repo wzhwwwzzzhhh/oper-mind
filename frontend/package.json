@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "generate:api": "openapi-typescript http://127.0.0.1:8000/openapi.json -o src/api/v1/generated.ts"
+    "generate:api": "openapi-typescript http://127.0.0.1:8000/openapi.json -o src/api/v1/generated.ts",
+    "mock:api": "..\\.venv\\Scripts\\python.exe scripts/mock_v1_api.py",
+    "test:mock-api": "..\\.venv\\Scripts\\python.exe -m pytest scripts/test_mock_v1_api.py -q"
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.0",
