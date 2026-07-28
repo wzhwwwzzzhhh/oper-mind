@@ -1,35 +1,45 @@
 # P3 独立审查 — 主前端工作台
 
-> 日期：2026-07-28　|　结论：✅ P3.2c.2 离线前置核对已完成；真实数据库只读验收按用户决策延后；当前进入 P3.3 Design
+> 日期：2026-07-28　|　结论：✅ P3.3 Design 通过；等待 P3.3a 实现授权
 >
-> 已提交基线：`12bed37 docs: 完成P3主前端工作台设计`、`4862752 feat: 初始化P3主前端工程与产品外壳`、`ec45ee2 docs: 完成P3.2接口与恢复读模型设计`、`75d6598 feat: 完成P3.2a v1 API客户端与MSW契约`、`3170e6a feat: 完成P3.2b会话工作台只读恢复`、`5491829 feat: 完成P3.2c1 mock FastAPI联调验收`
+> 审查基线：`87c4f83 docs: 完成P3.2c2离线前置核对`　|　工作分支：`feat/p3-workbench`
 
 ## 1. 审查范围
 
-本次审查 P3.2c.2 的离线真实读模型前置核对及用户作出的延后决策：记录迁移、URL 优先级、启动装配、权限/数据/契约/回退门槛；不建立真实连接、查询、迁移、写入或读取本地密钥/运行时 SQLite 内容。
+本次为 P3.3 的独立设计审查：核实 P2 Run 受理、幂等、RunEvent、持久化 SSE 和刷新恢复契约；审查前端 Step 拆分、真实数据库延后决策、`frontend/`/`report/` 边界、错误与空状态。未执行任何前端业务代码、后端改动、真实 DB 连接、在线迁移或运行时资产写入。
 
 ## 2. 审查依据
 
-- 配置与装配：`backend/src/config.py:14-22,84-101`、`backend/src/api/v1/dependencies.py:25-42`、`backend/src/infrastructure/persistence/database.py:37-74`；
-- 迁移：`backend/migrations/env.py:27-69`、`backend/migrations/versions/20260726_01_p2_session_diagnosis.py`；
-- 离线验证：`alembic heads` 为 `20260726_01_p2`，PostgreSQL `alembic upgrade head --sql` 编译通过；
-- 决策记录：`step2c2-真实读模型前置条件核对.md`、`HANDOFF.md`、A/B Plan 与规则镜像。
+- API 合同：`docs/开发/P0-V1产品化基线/api-v1-contract.md:426-503`；
+- 后端既有实现：`backend/src/api/v1/routes.py:313-429`、`backend/src/api/v1/sse.py:20-65`；
+- P2 完成快照：`docs/开发/P2-会话诊断闭环/HANDOFF.md:8-32`、`review.md:89-116`；
+- 现有 P3 读模型与 client：`frontend/src/api/v1/client.ts:88-108,199-260`、`frontend/src/api/v1/queries.ts`、`frontend/src/features/workbench/WorkbenchPage.tsx`；
+- P3.2 离线接入门槛：`docs/开发/P3-主前端工作台/step2c2-真实读模型前置条件核对.md`。
 
 ## 3. 独立审查结果
 
 | 检查项 | 结论 | 审查结果 |
 |---|---|---|
-| 连接隔离 | 通过 | 未读取本地配置、未读取环境变量值、未连接真实 DB/数据源；只检查 URL 环境变量是否存在 |
-| URL 与装配 | 通过 | 优先级为环境变量 > 本地配置 > 根 SQLite；v1 服务装配 persistence runtime，不自动迁移或建表 |
-| 迁移可用性 | 通过（离线） | head 为 `20260726_01_p2`；PostgreSQL `psycopg` 方言离线 SQL 编译通过；不等价于目标实例已迁移 |
-| 默认回退风险 | 通过记录 | 根 SQLite 为 0 字节且未读取，不能假定为已迁移/有数据；真实失败不得改用它或 mock 伪造成功 |
-| 真实接入门槛 | 通过固化 | C1–C8 保留为后期强制条件：目标、受控 URL、只读权限、revision、安全数据、实例、契约与回退 |
-| 用户决策 | 通过 | 用户选择暂不接入真实数据库，待前后端大致开发完成后再启动真实只读验收；该决策解除当前 P3.3 的阻塞，不降低 C1–C8 要求 |
-| 范围与资产 | 通过 | 未改 `backend/`、`report/`、`data/`、`frontend/mockup.html`；未创建或访问 SQLite，未提前进入 P3.3/P3.4/P4/P5/P6 |
-| 文档与下一步 | 通过 | A/B Plan、P3 文档和规则镜像已同步为 P3.2 完成 mock/离线验证，唯一下一步为 P3.3 Design |
+| Run 受理契约 | 通过 | 设计固定为 `POST /sessions/{session_id}/runs`、必填 UUID `Idempotency-Key`、`202` 后以响应 Run 为准；没有调用旧 `/diagnose` |
+| 幂等与未知网络结果 | 通过 | 同一逻辑请求稳定复用 key/query；编辑或明确新请求才换 key；刷新不自动 POST；`409` 不自动换 key |
+| request/trace 关联 | 通过 | JSON POST 延续 `X-Request-Id` 与 headers/meta 核对；Run 的 trace 取自响应；SSE 只从 envelope meta 消费安全关联 |
+| 事件与 SSE | 通过，已修正风险 | 事件按 `(run_id, sequence)` 去重、按 sequence 排序；终态重读 Run；纠正了 EventSource 初连携带 `after_sequence` 会与自动重连 Last-Event-ID 冲突的设计缺陷，固定初连不带 query cursor |
+| 刷新/断线/错误 | 通过 | 恢复顺序为 Session → Runs → Message → Run → Events → 非终态 SSE；网络/SSE 失败不伪造成 Run failed；REST cursor 错误从首个可用页重新同步 |
+| P3/P4/P5/P6 边界 | 通过 | P3.3 仅做受理和过程摘要；结果卡留 P3.4，真实连接器/环境/告警/审批/知识/报告均不提前实现 |
+| `frontend/`/`report/` 边界 | 通过 | 只规划 `frontend/` 既有工程；不改、不嵌入、不复用 `report/`，P6 前无 Trace deep-link |
+| 真实数据与运行时资产 | 通过 | 用户已决定真实 DB 验收后置；C1–C8 保留；本设计不连接 8000/真实 DB、不运行 Alembic、不创建 SQLite |
+| Step 可控性 | 通过 | P3.3a（受理）→ P3.3b（事件/SSE）→ P3.3c（独立 mock 验收）分开 Review/Commit，避免一次混入协议、实时连接和人工联调 |
+| 文档与唯一下一步 | 通过 | A/B Plan、规则镜像、P3 design/step/review/HANDOFF 都应同步为 P3.3 Design 完成，唯一下一步 P3.3a |
 
-## 4. 结论与唯一下一步
+## 4. 已知风险与非目标
 
-P3.2c.2 以离线前置核对完成收口。真实数据库只读验收明确延后，届时必须重新执行 C1–C8 核对；当前不把它作为前端功能开发的阻塞。
+1. P2 SSE 是持久化事件短连接轮询，不是生产级消息总线；高吞吐、慢客户端、崩溃接管、重试策略与保留策略仍属于 P7。
+2. EventSource 首连从最早事件重放并由客户端去重，可能在长事件历史下增加读取量；这是现有 P2 双游标契约下避免自动重连冲突的正确性优先选择。性能优化须先另做协议设计。
+3. P2 cursor 尚未绑定 Session scope；P3.3 以 Query key/生命周期隔离避免前端误用，但后端统一 scope/授权仍待后续收口。
+4. 无认证/RBAC、无真实 DB/数据源验收；用户后续接入时仍必须重新确认 C1–C8，且真实失败不能降级为 mock。
 
-**当前唯一下一步：P3.3 Design：Run 受理、幂等与 SSE 恢复。**在 P3.3 Design 中仍不连接真实 DB 或数据源、不运行在线 Alembic，也不提前实现完整结果卡、Trace 跳转或 P4/P5/P6。
+## 5. 结论与唯一下一步
+
+P3.3 Design 通过独立审查。设计准确消费 P2 v1 Run、幂等、RunEvent 与持久化 SSE 契约，并将 EventSource 双游标冲突风险在实现前消除。未发现阻塞 P3.3a 的文档或范围矛盾。
+
+**当前唯一下一步：P3.3a：Run 受理与幂等重试实现。**开始前应按恢复流程核对隔离改动；本轮设计文档不自动暂存或提交，等待用户明确授权。
