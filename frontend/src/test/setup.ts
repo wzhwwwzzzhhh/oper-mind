@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 import { afterAll, afterEach, beforeAll } from 'vitest'
 
+import { TestEventSource } from './event-source'
 import { server } from './server'
 
 
@@ -13,6 +14,11 @@ class ResizeObserverMock {
 Object.defineProperty(window, 'ResizeObserver', {
   writable: true,
   value: ResizeObserverMock,
+})
+
+Object.defineProperty(window, 'EventSource', {
+  writable: true,
+  value: TestEventSource,
 })
 
 Object.defineProperty(window, 'matchMedia', {
@@ -30,5 +36,8 @@ Object.defineProperty(window, 'matchMedia', {
 })
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
-afterEach(() => server.resetHandlers())
+afterEach(() => {
+  TestEventSource.reset()
+  server.resetHandlers()
+})
 afterAll(() => server.close())

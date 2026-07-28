@@ -1,6 +1,6 @@
 # P3.3 Step 设计 — Run 受理、幂等与 SSE 恢复
 
-> 日期：2026-07-28　|　状态：🟡 P3.3b 已授权开始；P3.3a 已提交 `dc122cc`
+> 日期：2026-07-28　|　状态：✅ P3.3b 已完成 Review；P3.3c 未开始
 >
 > 工作分支：`feat/p3-workbench`　|　设计基线：`87c4f83 docs: 完成P3.2c2离线前置核对`
 >
@@ -67,6 +67,23 @@ frontend: npm run build      → 通过
 
 不改后端 SSE 协议；不使用 fetch 流替换 EventSource；不读取 SSE response headers、不手工设置 Last-Event-ID/X-Request-Id；不提前制作完整结果或 report 入口。
 
+### 实现记录与验证
+
+- v1 client 增加 `GET /api/v1/runs/{run_id}/events` 和 opaque cursor 类型/Query key；每页仍发送 `X-Request-Id` 并保留 headers/meta 关联诊断。
+- 新增纯前端 RunEvent 解析/合并器：只接受当前 Run、正整数 sequence、合同内事件 type、UTC `Z` 时间和对象 data；按 `(run_id, sequence)` 首次合法事件去重并升序排序，REST 与 SSE 共用。
+- 仅 queued/running Run 建立原生 `EventSource('/api/v1/runs/{run_id}/stream')`；初始 URL 不带 `after_sequence`，浏览器负责自动重连的 `Last-Event-ID`。切换/卸载/终态均关闭旧连接。
+- `error` 仅显示“事件连接中断，正在从持久化记录恢复”，调用 REST Run/Event 重同步且不建立第二条流；不把连接失败写为 Run failed。终态事件关闭流并重读 Run、Event、Session Runs 和 Messages。
+- 新增 TestEventSource 和 MSW event fixture，覆盖 REST cursor、合法性拒绝、去重/排序、无 `after_sequence`、断线 REST 重同步不双开、终态关闭/重读。
+
+```text
+frontend: npm run typecheck  → 通过
+frontend: npm run test       → 3 files / 22 tests passed
+frontend: npm run build      → 通过
+```
+
+构建仅有既有单一 chunk 超过 500 kB 的非阻断提示；不在本 Step 混入拆包优化。
+
+
 ### 建议验证
 
 ```powershell
@@ -98,6 +115,6 @@ npm run build
 
 ## 7. 当前状态与唯一下一步
 
-P3.3a 已提交为 `dc122cc feat: 完成P3.3a Run受理与幂等重试`。用户已授权进入 P3.3b；本 Step 只消费 P2 已提交 RunEvent/SSE 契约，不改后端、真实数据库或 8000。
+P3.3b 已完成独立 Review，尚未提交。本 Step 只消费 P2 已提交 RunEvent/SSE 契约，未改后端、真实数据库或 8000。
 
-**当前唯一下一步：P3.3b：持久化事件与 SSE 恢复实现。**
+**当前仅等待用户提交 P3.3b；提交后唯一下一步为 P3.3c：Mock FastAPI SSE 契约验收。**

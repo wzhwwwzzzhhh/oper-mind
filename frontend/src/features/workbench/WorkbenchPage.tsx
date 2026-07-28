@@ -12,7 +12,7 @@ import {
   Typography,
 } from 'antd'
 import type { ReactElement, ReactNode } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import {
@@ -36,6 +36,8 @@ import {
   resource_string,
   resource_value,
 } from './resource-readers'
+import { merge_persisted_run_events, run_event_summary, type PersistedRunEvent } from './run-events'
+import { use_run_event_stream } from './use-run-event-stream'
 
 function safe_error(error: unknown): { title: string; detail: ReactNode } {
   if (error instanceof ApiClientError) {
@@ -380,6 +382,58 @@ function MessagesPanel({
   )
 }
 
+function RunEventsPanel({
+  events,
+  error,
+  has_more,
+  is_fetching,
+  on_load_more,
+  pending,
+  stream_state,
+}: {
+  events: PersistedRunEvent[]
+  error: unknown
+  has_more: boolean
+  is_fetching: boolean
+  on_load_more: () => void
+  pending: boolean
+  stream_state: 'connected' | 'connecting' | 'idle' | 'recovering'
+}): ReactElement {
+  const stream_message = {
+    connected: '正在接收已持久化的诊断事件。',
+    connecting: '正在连接持久化事件流。',
+    idle: '当前 Run 已终态，不保持事件连接。',
+    recovering: '事件连接中断，正在从持久化记录恢复。',
+  }[stream_state]
+  return (
+    <Card className="workbench-card" size="small" title="诊断过程摘要">
+      <Typography.Text type="secondary">{stream_message}</Typography.Text>
+      {pending && <LoadingBlock label="正在恢复诊断事件" />}
+      {error !== null && error !== undefined && <ApiErrorNotice error={error} />}
+      {!pending && !error && events.length === 0 && (
+        <Empty description="该 Run 暂无已提交的诊断事件" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+      )}
+      {events.length > 0 && (
+        <Timeline
+          items={events.map((event) => ({
+            content: (
+              <div>
+                <Space size="small" wrap>
+                  <Tag>{event.type}</Tag>
+                  <Typography.Text type="secondary">#{event.sequence}</Typography.Text>
+                  <Typography.Text type="secondary">{event.occurred_at}</Typography.Text>
+                </Space>
+                <Typography.Paragraph className="message-content">{run_event_summary(event)}</Typography.Paragraph>
+              </div>
+            ),
+          }))}
+        />
+      )}
+      <LoadMoreButton has_more={has_more} is_fetching={is_fetching} on_click={on_load_more} />
+    </Card>
+  )
+}
+
 function SelectedRun({
   current_session_id,
   run_id,
@@ -389,7 +443,64 @@ function SelectedRun({
   run_id?: string
   enabled: boolean
 }): ReactElement {
+  const query_client = useQueryClient()
   const run_query = useQuery({ ...get_run_query(run_id ?? ''), enabled: enabled && Boolean(run_id) })
+  const run = run_query.isSuccess ? (run_query.data as ApiResponse<RunResponse>).data.run : undefined
+  const run_session_id = resource_optional_string(run, 'session_id')
+  const run_status = resource_string(run, 'status', 'unknown')
+  const run_matches_session = run_session_id === current_session_id
+  const events_query = useInfiniteQuery({
+    queryKey: api_v1_query_keys.run_events(run_id ?? '', { limit: API_V1_DEFAULT_PAGE_SIZE }),
+    enabled: Boolean(run_id) && run_query.isSuccess && run_matches_session,
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam, signal }) =>
+      api_v1_client.list_run_events(
+        run_id ?? '',
+        { cursor: pageParam, limit: API_V1_DEFAULT_PAGE_SIZE },
+        { signal },
+      ),
+    getNextPageParam: (last_page) => {
+      const page = read_page(last_page.data)
+      return page.has_more ? page.next_cursor : undefined
+    },
+  })
+  const rest_events = useMemo(
+    () => events_query.data?.pages.flatMap((page) => read_items(page.data)) ?? [],
+    [events_query.data],
+  )
+  const [events, set_events] = useState<PersistedRunEvent[]>([])
+
+  useEffect(() => {
+    if (!run_id) {
+      set_events([])
+      return
+    }
+    set_events((current_events) => merge_persisted_run_events(run_id, current_events, rest_events))
+  }, [rest_events, run_id])
+
+  const recover_persisted_events = useCallback(async (): Promise<void> => {
+    if (!run_id) return
+    await Promise.all([
+      query_client.refetchQueries({ queryKey: api_v1_query_keys.run(run_id) }),
+      query_client.refetchQueries({ queryKey: api_v1_query_keys.run_events(run_id, { limit: API_V1_DEFAULT_PAGE_SIZE }) }),
+    ])
+  }, [query_client, run_id])
+  const refresh_terminal_run = useCallback(async (): Promise<void> => {
+    if (!run_id) return
+    await Promise.all([
+      query_client.refetchQueries({ queryKey: api_v1_query_keys.run(run_id) }),
+      query_client.refetchQueries({ queryKey: api_v1_query_keys.run_events(run_id, { limit: API_V1_DEFAULT_PAGE_SIZE }) }),
+      query_client.refetchQueries({ queryKey: ['api-v1', 'session-runs', current_session_id] }),
+      query_client.refetchQueries({ queryKey: ['api-v1', 'session-messages', current_session_id] }),
+    ])
+  }, [current_session_id, query_client, run_id])
+  const stream_state = use_run_event_stream({
+    enabled: Boolean(run_id) && run_matches_session && (run_status === 'queued' || run_status === 'running'),
+    on_event: set_events,
+    on_recover: recover_persisted_events,
+    on_terminal: refresh_terminal_run,
+    run_id: run_id ?? '',
+  })
 
   if (!run_id) {
     return (
@@ -408,9 +519,7 @@ function SelectedRun({
   if (run_query.isPending) return <LoadingBlock label="正在恢复当前 Run" />
   if (run_query.isError) return <ApiErrorNotice error={run_query.error} />
 
-  const run = (run_query.data as ApiResponse<RunResponse>).data.run
-  const run_session_id = resource_optional_string(run, 'session_id')
-  if (run_session_id !== current_session_id) {
+  if (!run_matches_session) {
     return (
       <Alert
         description="该 Run 不属于当前 Session。为避免跨会话展示，工作台没有加载其内容。"
@@ -421,34 +530,44 @@ function SelectedRun({
     )
   }
 
-  const status = resource_string(run, 'status', 'unknown')
   const trace_id = resource_string(run, 'trace_id')
   const result = resource_value(run, 'result')
   const error = resource_value(run, 'error')
   return (
-    <Card className="workbench-card" size="small" title="当前 Run">
-      <Space orientation="vertical" size="middle">
-        <Space wrap>
-          <Typography.Text strong>{resource_string(run, 'id')}</Typography.Text>
-          <Tag color={status_color(status)}>{status}</Tag>
+    <>
+      <Card className="workbench-card" size="small" title="当前 Run">
+        <Space orientation="vertical" size="middle">
+          <Space wrap>
+            <Typography.Text strong>{resource_string(run, 'id')}</Typography.Text>
+            <Tag color={status_color(run_status)}>{run_status}</Tag>
+          </Space>
+          <Typography.Paragraph>
+            <strong>Trace：</strong>
+            {trace_id}
+          </Typography.Paragraph>
+          {result !== null && result !== undefined && (
+            <Alert
+              description="结构化结果已由服务端持久化；P3.4 才提供根因、证据、影响、建议和风险的结果卡。"
+              title="结构化结果待展示"
+              showIcon
+              type="info"
+            />
+          )}
+          {error !== null && error !== undefined && (
+            <Alert description="服务端返回了安全 Run 错误。" title="诊断运行返回安全错误" showIcon type="error" />
+          )}
         </Space>
-        <Typography.Paragraph>
-          <strong>Trace：</strong>
-          {trace_id}
-        </Typography.Paragraph>
-        {result !== null && result !== undefined && (
-          <Alert
-            description="结构化结果已由服务端持久化；P3.4 才提供根因、证据、影响、建议和风险的结果卡。"
-            title="结构化结果待展示"
-            showIcon
-            type="info"
-          />
-        )}
-        {error !== null && error !== undefined && (
-          <Alert description="服务端返回了安全 Run 错误。" title="诊断运行返回安全错误" showIcon type="error" />
-        )}
-      </Space>
-    </Card>
+      </Card>
+      <RunEventsPanel
+        error={events_query.error}
+        events={events}
+        has_more={Boolean(events_query.hasNextPage)}
+        is_fetching={events_query.isFetchingNextPage}
+        on_load_more={() => void events_query.fetchNextPage()}
+        pending={events_query.isPending}
+        stream_state={stream_state}
+      />
+    </>
   )
 }
 

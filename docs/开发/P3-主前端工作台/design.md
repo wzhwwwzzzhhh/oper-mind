@@ -1,6 +1,6 @@
 # P3 设计 — 主前端工作台
 
-> 日期：2026-07-28　|　状态：🟡 P3.3b 实现中；P3.3a 已提交 `dc122cc`
+> 日期：2026-07-28　|　状态：✅ P3.3b 已完成 Review；等待提交授权
 >
 > 工作分支：`feat/p3-workbench`　|　设计基线：`87c4f83 docs: 完成P3.2c2离线前置核对`
 >
@@ -140,7 +140,7 @@ P3.3 默认使用 MSW 和独立 Mock FastAPI；不得将真实 8000 后端或真
 |---|---|---|
 | P3.3（本轮） | Design、`step3` 边界、Review、HANDOFF、计划/规则同步 | 任何业务代码、真实连接或 mock 行为变更 |
 | P3.3a | ✅ 已完成：v1 POST Run client/mutation、受理表单、同 key 重试、安全错误、202 深链与 MSW/组件回归 | Event 列表/SSE、完整结果卡、Mock FastAPI 扩展 |
-| P3.3b | RunEvent REST cursor、事件合并器、原生 EventSource 生命周期与断线恢复 UI | 结果卡、Trace 跳转、真实 DB、P4/P5/P6 |
+| P3.3b | ✅ 已完成：RunEvent REST cursor、事件合并/去重、原生 EventSource 生命周期、断线 REST 重同步、终态重读与测试 | 结果卡、Trace 跳转、真实 DB、P4/P5/P6 |
 | P3.3c | MSW/独立 Mock FastAPI 的 POST/SSE 契约验收、浏览器主流程、Review | 真实后端/数据库联调、后端业务代码 |
 | P3.4 | 结构化结果、失败/空/归档收口和后续受控 Trace 设计入口 | P4/P5/P6 正式资源 |
 
@@ -148,4 +148,4 @@ P3 不修改 `/api/v1`、Application Service、Repository、ORM、Alembic、旧�
 
 ## 9. 结论
 
-P3.3a 已提交为 `dc122cc feat: 完成P3.3a Run受理与幂等重试`：实现了 v1 POST Run、同 key 重试、202 深链与安全错误，不包含 Event/SSE 或完整结果；typecheck、17 项 Vitest 与 production build 已通过。真实数据库验收继续延后，C1–C8 不降低。**当前唯一下一步为 P3.3b：持久化事件与 SSE 恢复实现。**
+P3.3a 已提交为 `dc122cc feat: 完成P3.3a Run受理与幂等重试`。P3.3b 已完成 RunEvent cursor 读取、`(run_id, sequence)` 合并/去重、无 `after_sequence` 的原生 EventSource、断线 REST 重同步和终态重读；typecheck、22 项 Vitest 与 production build 已通过。真实数据库验收继续延后，C1–C8 不降低。**当前处于 P3.3b Review 完成、等待用户提交授权状态；提交后唯一下一步为 P3.3c：Mock FastAPI SSE 契约验收。**

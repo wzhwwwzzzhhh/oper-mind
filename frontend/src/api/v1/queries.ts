@@ -5,6 +5,7 @@ import {
   api_v1_client,
   type ListSessionMessagesQuery,
   type ListSessionRunsQuery,
+  type ListRunEventsQuery,
   type CreateRunOptions,
   type CreateRunRequest,
   type ListSessionsQuery,
@@ -18,6 +19,7 @@ export const api_v1_query_keys = {
   session_runs: (session_id: string, query: ListSessionRunsQuery) =>
     ['api-v1', 'session-runs', session_id, query] as const,
   run: (run_id: string) => ['api-v1', 'run', run_id] as const,
+  run_events: (run_id: string, query: ListRunEventsQuery) => ['api-v1', 'run-events', run_id, query] as const,
 }
 
 export function list_sessions_query(query: ListSessionsQuery = {}) {
@@ -55,6 +57,14 @@ export function get_run_query(run_id: string) {
   return queryOptions({
     queryKey: api_v1_query_keys.run(run_id),
     queryFn: ({ signal }) => api_v1_client.get_run(run_id, { signal }),
+  })
+}
+
+
+export function list_run_events_query(run_id: string, query: ListRunEventsQuery = {}) {
+  return queryOptions({
+    queryKey: api_v1_query_keys.run_events(run_id, query),
+    queryFn: ({ signal }) => api_v1_client.list_run_events(run_id, query, { signal }),
   })
 }
 

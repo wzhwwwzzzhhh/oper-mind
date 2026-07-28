@@ -59,6 +59,25 @@ const run = {
   finished_at: '2026-07-27T01:00:33.000Z',
 }
 
+const run_events = [
+  {
+    id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    run_id,
+    sequence: 1,
+    type: 'run_queued',
+    occurred_at: '2026-07-27T01:00:30.000Z',
+    data: { summary: '诊断请求已持久化并进入队列。' },
+  },
+  {
+    id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    run_id,
+    sequence: 2,
+    type: 'run_started',
+    occurred_at: '2026-07-27T01:00:31.000Z',
+    data: { summary: '诊断任务已开始执行。' },
+  },
+]
+
 const accepted_run = {
   id: accepted_run_id,
   session_id,
@@ -141,6 +160,16 @@ export const api_v1_handlers = [
       page: cursor ? { next_cursor: null, has_more: false } : { next_cursor: 'run-page-2', has_more: true },
     })
   }),
+  http.get(/\/api\/v1\/runs\/([^/]+)\/events$/, ({ request }) => {
+    const url = new URL(request.url)
+    const requested_run_id = url.pathname.split('/').at(-2)
+    if (requested_run_id !== run_id) return error_response(request, 'RUN_NOT_FOUND', '诊断运行不存在', 404)
+    const cursor = url.searchParams.get('cursor')
+    return response(request, {
+      items: cursor ? [run_events[1]] : [run_events[0]],
+      page: cursor ? { next_cursor: null, has_more: false } : { next_cursor: 'run-event-page-2', has_more: true },
+    })
+  }),
   http.get(/\/api\/v1\/runs\/([^/]+)$/, ({ request }) => {
     const requested_run_id = new URL(request.url).pathname.split('/').at(-1)
     if (requested_run_id === accepted_run_id) return response(request, { run: accepted_run })
@@ -159,4 +188,4 @@ export const api_v1_contract_scenarios = {
   network_interruption: http.get(/\/api\/v1\/sessions$/, () => HttpResponse.error()),
 }
 
-export const api_v1_contract_fixtures = { accepted_run_id, archived_session_id, run_id, session_id, trace_id }
+export const api_v1_contract_fixtures = { accepted_run_id, archived_session_id, run_events, run_id, session_id, trace_id }

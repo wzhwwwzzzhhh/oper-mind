@@ -67,6 +67,22 @@ describe('v1 API 客户端', () => {
     })
   })
 
+  it('按 opaque cursor 读取 RunEvent，并保留请求关联诊断', async () => {
+    const client = create_api_v1_client({ request_id_factory: () => 'event-request-id' })
+
+    const result = await client.list_run_events(api_v1_contract_fixtures.run_id, {
+      cursor: 'run-event-page-2',
+      limit: 20,
+    })
+
+    expect(result.data.items).toEqual([api_v1_contract_fixtures.run_events[1]])
+    expect(result.diagnostics).toMatchObject({
+      request_id: 'event-request-id',
+      response_trace_id: api_v1_contract_fixtures.trace_id,
+      status: 200,
+    })
+  })
+
   it('保留 run 的 session_id，供后续 UI 阶段做跨会话保护', async () => {
     const client = create_api_v1_client()
     const result = await client.get_run(api_v1_contract_fixtures.run_id)

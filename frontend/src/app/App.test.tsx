@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { App } from './App'
 import { api_v1_contract_fixtures } from '../test/handlers'
+import { TestEventSource } from '../test/event-source'
 import { server } from '../test/server'
 
 function open_path(path: string): void {
@@ -46,6 +47,7 @@ describe('App', () => {
         `/api/v1/sessions/${api_v1_contract_fixtures.session_id}/runs`,
         `/api/v1/sessions/${api_v1_contract_fixtures.session_id}/messages`,
         `/api/v1/runs/${api_v1_contract_fixtures.run_id}`,
+        `/api/v1/runs/${api_v1_contract_fixtures.run_id}/events`,
       ]),
     )
     expect(
@@ -200,6 +202,108 @@ describe('App', () => {
     expect(await screen.findByText('会话已归档，仅可读取历史内容，不能受理新的诊断运行。')).toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: '诊断问题' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '开始诊断' })).not.toBeInTheDocument()
+  })
+
+  it('对非终态 Run 用无 after_sequence 的 EventSource 去重事件，并在终态后重读持久化资源', async () => {
+    let terminal = false
+    server.use(
+      http.get(/\/api\/v1\/runs\/99999999-9999-4999-8999-999999999999$/, ({ request }) =>
+        HttpResponse.json(
+          {
+            run: {
+              id: api_v1_contract_fixtures.accepted_run_id,
+              session_id: api_v1_contract_fixtures.session_id,
+              trace_id: api_v1_contract_fixtures.trace_id,
+              status: terminal ? 'succeeded' : 'running',
+              result: terminal ? { id: 'result-id' } : null,
+              error: null,
+            },
+            meta: { request_id: request.headers.get('X-Request-Id'), trace_id: api_v1_contract_fixtures.trace_id },
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Request-Id': request.headers.get('X-Request-Id') ?? '',
+              'X-Trace-Id': api_v1_contract_fixtures.trace_id,
+            },
+          },
+        ),
+      ),
+      http.get(/\/api\/v1\/runs\/99999999-9999-4999-8999-999999999999\/events$/, ({ request }) =>
+        HttpResponse.json(
+          {
+            items: terminal
+              ? [{
+                  id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+                  run_id: api_v1_contract_fixtures.accepted_run_id,
+                  sequence: 2,
+                  type: 'run_succeeded',
+                  occurred_at: '2026-07-27T01:05:02.000Z',
+                  data: { summary: '诊断已完成。' },
+                }]
+              : [{
+                  id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+                  run_id: api_v1_contract_fixtures.accepted_run_id,
+                  sequence: 1,
+                  type: 'run_started',
+                  occurred_at: '2026-07-27T01:05:01.000Z',
+                  data: { summary: '诊断正在执行。' },
+                }],
+            page: { next_cursor: null, has_more: false },
+            meta: { request_id: request.headers.get('X-Request-Id'), trace_id: api_v1_contract_fixtures.trace_id },
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Request-Id': request.headers.get('X-Request-Id') ?? '',
+              'X-Trace-Id': api_v1_contract_fixtures.trace_id,
+            },
+          },
+        ),
+      ),
+    )
+    open_path(`/workbench/sessions/${api_v1_contract_fixtures.session_id}/runs/${api_v1_contract_fixtures.accepted_run_id}`)
+    render(<App />)
+
+    expect(await screen.findByText('诊断正在执行。')).toBeInTheDocument()
+    await waitFor(() => expect(TestEventSource.instances).toHaveLength(1))
+    const source = TestEventSource.instances[0]
+    expect(source?.url).toBe(`/api/v1/runs/${api_v1_contract_fixtures.accepted_run_id}/stream`)
+    expect(source?.url).not.toContain('after_sequence')
+
+    source?.emit_open()
+    expect(await screen.findByText('正在接收已持久化的诊断事件。')).toBeInTheDocument()
+    source?.emit_error()
+    expect(await screen.findByText('事件连接中断，正在从持久化记录恢复。')).toBeInTheDocument()
+    await waitFor(() => expect(request_paths.filter((path) => path.endsWith('/events')).length).toBeGreaterThanOrEqual(2))
+    expect(TestEventSource.instances).toHaveLength(1)
+    expect(screen.queryByText('诊断运行返回安全错误')).not.toBeInTheDocument()
+    source?.emit_run_event({
+      event: {
+        id: 'duplicate-event',
+        run_id: api_v1_contract_fixtures.accepted_run_id,
+        sequence: 1,
+        type: 'run_started',
+        occurred_at: '2026-07-27T01:05:01.000Z',
+        data: { summary: '重复事件不应重复渲染。' },
+      },
+    })
+    expect(screen.getAllByText('#1')).toHaveLength(1)
+
+    terminal = true
+    source?.emit_run_event({
+      event: {
+        id: 'terminal-event',
+        run_id: api_v1_contract_fixtures.accepted_run_id,
+        sequence: 2,
+        type: 'run_succeeded',
+        occurred_at: '2026-07-27T01:05:02.000Z',
+        data: { summary: '诊断已完成。' },
+      },
+    })
+    expect(source?.closed).toBe(true)
+    expect(await screen.findByText('诊断已完成。')).toBeInTheDocument()
+    await waitFor(() => expect(request_paths.filter((path) => path.endsWith('/events')).length).toBeGreaterThanOrEqual(2))
   })
 
   it('Session 不存在时只显示安全读取错误', async () => {

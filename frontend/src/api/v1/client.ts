@@ -11,6 +11,8 @@ export type SessionListResponse = components['schemas']['SessionListResponse']
 export type MessageListResponse = components['schemas']['MessageListResponse']
 export type DiagnosisRunListResponse = components['schemas']['DiagnosisRunListResponse']
 export type RunResponse = components['schemas']['RunResponse']
+export type RunEventResource = components['schemas']['RunEventResource']
+export type RunEventListResponse = components['schemas']['RunEventListResponse']
 export type CreateRunRequest = components['schemas']['CreateRunRequest']
 
 export type ListSessionsQuery = NonNullable<
@@ -21,6 +23,9 @@ export type ListSessionMessagesQuery = NonNullable<
 >
 export type ListSessionRunsQuery = NonNullable<
   operations['list_session_runs_api_v1_sessions__session_id__runs_get']['parameters']['query']
+>
+export type ListRunEventsQuery = NonNullable<
+  operations['list_run_events_api_v1_runs__run_id__events_get']['parameters']['query']
 >
 
 export interface ApiRequestDiagnostics {
@@ -110,6 +115,11 @@ export interface ApiV1Client {
     options?: ApiRequestOptions,
   ): Promise<ApiResponse<DiagnosisRunListResponse>>
   get_run(run_id: string, options?: ApiRequestOptions): Promise<ApiResponse<RunResponse>>
+  list_run_events(
+    run_id: string,
+    query?: ListRunEventsQuery,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<RunEventListResponse>>
   create_run(
     session_id: string,
     payload: CreateRunRequest,
@@ -329,6 +339,14 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
         request_id_factory,
         base_url,
         `/api/v1/runs/${encodeURIComponent(run_id)}`,
+        request_options,
+      ),
+    list_run_events: (run_id, query = {}, request_options) =>
+      request_json<RunEventListResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        append_query(`/api/v1/runs/${encodeURIComponent(run_id)}/events`, query),
         request_options,
       ),
     create_run: (session_id, payload, request_options) =>
