@@ -1,6 +1,6 @@
 # P3.4 Step 设计 — 结构化结果、终态收口与受控 Trace 边界
 
-> 日期：2026-07-28　|　状态：✅ Design 完成，尚未授权代码实现
+> 日期：2026-07-28　|　状态：✅ P3.4a 已完成代码、验证与独立 Review；等待 P3.4b 代码授权
 >
 > 工作分支：`feat/p3-workbench`　|　设计基线：`306724d docs: 校正P3.3c提交状态并进入P3.4`
 
@@ -17,6 +17,13 @@
 1. 新增窄化的 Result 运行时 reader，校验选定 Run、`result.run_id`、必填字段、枚举、数值范围和 UTC `Z` 时间；Reader 不接受未知 Run/不完整 Result 并返回安全协议问题。
 2. 新增只读 `DiagnosisResultPanel`：摘要、severity/confidence、根因、证据与页内关联；数组为空展示局部空状态。
 3. 新增 Result reader/面板的单元与组件测试，夹具覆盖完整合法 Result、空数组、错配 run_id、缺 `created_at`、错误时间和未知枚举。
+
+### 实际交付与验证
+
+- 新增 `frontend/src/features/workbench/result-readers.ts:1-340`：对 P2 `DiagnosisResult` 的顶层和嵌套字段做运行时窄化，校验选定 `run_id`、全部必填字段、合法枚举、置信度、UTC `Z`、原子 attributes 与 agent duration；协议问题返回安全 `issues`，不构造成功结果。
+- 新增 `frontend/src/features/workbench/DiagnosisResultPanel.tsx:1-105`：只读渲染 severity/confidence/时间、摘要、根因、证据、页内 evidence 关联和局部空状态；不解析 `report_markdown`、不生成链接、不访问 locator/Trace。
+- 新增 `frontend/src/features/workbench/diagnosis-result.test.tsx:1-115`：覆盖完整 Result、run_id 错配、缺 `created_at`、未知 severity、越界 confidence、非 UTC 时间、合法空字符串、缺失证据页内标记、空数组、Markdown/外链不渲染。
+- 已通过：`npm run typecheck`；`npm run test`（4 files / 32 passed）；`npm run build`。构建仍有既有单 chunk 大于 500 kB 的非阻断 Vite 提示，本 Step 不做拆包。
 
 ### 不做
 
@@ -64,4 +71,4 @@ P3.4 不生成任何 Trace URL、按钮或 iframe。未来 P6 想开放入口前
 
 Review 必须逐项核对：P2 `DiagnosisResult`/终态不变量；成功/失败/取消与 API 错误区分；空数组和归档只读；刷新/SSE 不把事件当 Result；Mock 完整性；`report/`、P4/P5/P6、真实资源和旧 API 均未混入；文档、计划和 AGENTS/CLAUDE 的唯一下一步一致。
 
-**P3.4 Design 已完成。当前唯一下一步为 P3.4a：结构化结果读取模型与摘要面板实现；需用户明确代码授权后才可开始。**
+**P3.4a 已完成并通过独立 Review。当前唯一下一步为 P3.4b：将结果面板接入选定 Run，并收口失败/取消/空状态/归档；需用户明确代码授权后才可开始。**
