@@ -18,6 +18,66 @@ server.events.on('request:start', ({ request }) => {
   if (path.startsWith('/api/v1/')) request_paths.push(path)
 })
 
+function run_response_handler(run: Record<string, unknown>) {
+  return http.get(/\/api\/v1\/runs\/[^/]+$/, ({ request }) => {
+    const request_id = request.headers.get('X-Request-Id') ?? 'missing-client-request-id'
+    return HttpResponse.json(
+      { run, meta: { request_id, trace_id: api_v1_contract_fixtures.trace_id } },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Request-Id': request_id,
+          'X-Trace-Id': api_v1_contract_fixtures.trace_id,
+        },
+      },
+    )
+  })
+}
+
+function complete_result(run_id: string): Record<string, unknown> {
+  return {
+    agent_summary: [],
+    confidence: 0.92,
+    created_at: '2026-07-28T08:00:00.000Z',
+    evidence: [],
+    id: '77777777-7777-4777-8777-777777777777',
+    impact: null,
+    recommendations: [],
+    report_markdown: null,
+    requires_approval: false,
+    risks: [],
+    root_causes: [],
+    run_id,
+    severity: 'high',
+    summary: 'Nginx 上游连接池已耗尽。',
+  }
+}
+
+function run_resource({
+  error = null,
+  result = null,
+  session_id = api_v1_contract_fixtures.session_id,
+  status,
+}: {
+  error?: unknown
+  result?: unknown
+  session_id?: string
+  status: 'cancelled' | 'failed' | 'queued' | 'running' | 'succeeded'
+}): Record<string, unknown> {
+  return {
+    created_at: '2026-07-28T07:59:00.000Z',
+    error,
+    finished_at: status === 'queued' || status === 'running' ? null : '2026-07-28T08:00:00.000Z',
+    id: api_v1_contract_fixtures.run_id,
+    input_message_id: '66666666-6666-4666-8666-666666666666',
+    result,
+    session_id,
+    started_at: status === 'queued' ? null : '2026-07-28T07:59:01.000Z',
+    status,
+    trace_id: api_v1_contract_fixtures.trace_id,
+  }
+}
+
 describe('App', () => {
   beforeEach(() => {
     request_paths = []
@@ -40,7 +100,7 @@ describe('App', () => {
 
     expect(await screen.findByRole('heading', { name: /Nginx 5xx 排查/ })).toBeInTheDocument()
     expect(await screen.findByText('请检查 Nginx 5xx。')).toBeInTheDocument()
-    expect(await screen.findByText('结构化结果待展示')).toBeInTheDocument()
+    expect(await screen.findByText('RESULT_PROTOCOL_ERROR')).toBeInTheDocument()
     await waitFor(() =>
       expect(request_paths).toEqual([
         `/api/v1/sessions/${api_v1_contract_fixtures.session_id}`,
@@ -337,4 +397,85 @@ describe('App', () => {
     expect(screen.getByText('等待会话消息恢复完成后再读取当前 Run。')).toBeInTheDocument()
     expect(screen.queryByText('该会话还没有消息')).not.toBeInTheDocument()
   })
+
+  it('成功 Run 仅在完整结构化 Result 通过 reader 后展示摘要面板', async () => {
+    server.use(run_response_handler(run_resource({ status: 'succeeded', result: complete_result(api_v1_contract_fixtures.run_id) })))
+    open_path(`/workbench/sessions/${api_v1_contract_fixtures.session_id}/runs/${api_v1_contract_fixtures.run_id}`)
+    render(<App />)
+
+    expect(await screen.findByText('结构化诊断结果')).toBeInTheDocument()
+    expect(screen.getByLabelText('诊断结果摘要')).toHaveTextContent('Nginx 上游连接池已耗尽。')
+    expect(screen.queryByText('RESULT_PROTOCOL_ERROR')).not.toBeInTheDocument()
+  })
+
+  it('成功 Run 的不完整 Result 显示协议错误，而不伪造结构化结论', async () => {
+    open_path(`/workbench/sessions/${api_v1_contract_fixtures.session_id}/runs/${api_v1_contract_fixtures.run_id}`)
+    render(<App />)
+
+    expect(await screen.findByText('RESULT_PROTOCOL_ERROR')).toBeInTheDocument()
+    expect(screen.queryByText('结构化诊断结果')).not.toBeInTheDocument()
+  })
+
+  it('failed Run 只显示服务端安全错误，不展示结果面板', async () => {
+    server.use(run_response_handler(run_resource({
+      error: { code: 'TOOL_TIMEOUT', message: '上游日志查询超时。' },
+      status: 'failed',
+    })))
+    open_path(`/workbench/sessions/${api_v1_contract_fixtures.session_id}/runs/${api_v1_contract_fixtures.run_id}`)
+    render(<App />)
+
+    expect(await screen.findByText('TOOL_TIMEOUT')).toBeInTheDocument()
+    expect(screen.getByText('上游日志查询超时。')).toBeInTheDocument()
+    expect(screen.queryByText('结构化诊断结果')).not.toBeInTheDocument()
+  })
+
+  it('cancelled、queued 与 running Run 诚实显示终态或进度，不展示旧结果', async () => {
+    server.use(run_response_handler(run_resource({ status: 'cancelled' })))
+    open_path(`/workbench/sessions/${api_v1_contract_fixtures.session_id}/runs/${api_v1_contract_fixtures.run_id}`)
+    const cancelled_view = render(<App />)
+
+    expect(await screen.findByText('诊断运行已取消')).toBeInTheDocument()
+    expect(screen.queryByText('结构化诊断结果')).not.toBeInTheDocument()
+    cancelled_view.unmount()
+
+    server.use(run_response_handler(run_resource({ status: 'queued' })))
+    const queued_view = render(<App />)
+
+    expect(await screen.findByText('诊断正在排队')).toBeInTheDocument()
+    expect(screen.queryByText('结构化诊断结果')).not.toBeInTheDocument()
+    queued_view.unmount()
+
+    server.use(run_response_handler(run_resource({ status: 'running' })))
+    render(<App />)
+
+    expect(await screen.findByText('诊断正在运行')).toBeInTheDocument()
+    expect(screen.queryByText('结构化诊断结果')).not.toBeInTheDocument()
+  })
+
+  it('归档 Session 可只读展示历史成功 Result，且仍不提供新的诊断提交', async () => {
+    const archived_run = run_resource({
+      result: complete_result(api_v1_contract_fixtures.run_id),
+      session_id: api_v1_contract_fixtures.archived_session_id,
+      status: 'succeeded',
+    })
+    server.use(
+      http.get(/\/api\/v1\/sessions\/22222222-2222-4222-8222-222222222222\/runs$/, ({ request }) => {
+        const request_id = request.headers.get('X-Request-Id') ?? 'missing-client-request-id'
+        return HttpResponse.json({ items: [archived_run], page: { next_cursor: null, has_more: false }, meta: { request_id, trace_id: api_v1_contract_fixtures.trace_id } })
+      }),
+      http.get(/\/api\/v1\/sessions\/22222222-2222-4222-8222-222222222222\/messages$/, ({ request }) => {
+        const request_id = request.headers.get('X-Request-Id') ?? 'missing-client-request-id'
+        return HttpResponse.json({ items: [], page: { next_cursor: null, has_more: false }, meta: { request_id, trace_id: api_v1_contract_fixtures.trace_id } })
+      }),
+      run_response_handler(archived_run),
+    )
+    open_path(`/workbench/sessions/${api_v1_contract_fixtures.archived_session_id}/runs/${api_v1_contract_fixtures.run_id}`)
+    render(<App />)
+
+    expect(await screen.findByText('会话已归档，仅可读取历史内容，不能受理新的诊断运行。')).toBeInTheDocument()
+    expect(await screen.findByText('结构化诊断结果')).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: '诊断问题' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '开始诊断' })).not.toBeInTheDocument()
+  })
+
 })

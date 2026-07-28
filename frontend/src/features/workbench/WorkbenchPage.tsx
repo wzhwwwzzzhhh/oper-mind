@@ -36,6 +36,8 @@ import {
   resource_string,
   resource_value,
 } from './resource-readers'
+import { DiagnosisResultPanel } from './DiagnosisResultPanel'
+import { read_diagnosis_result } from './result-readers'
 import { merge_persisted_run_events, run_event_summary, type PersistedRunEvent } from './run-events'
 import { use_run_event_stream } from './use-run-event-stream'
 
@@ -76,6 +78,66 @@ function LoadingBlock({ label }: { label: string }): ReactElement {
 function ApiErrorNotice({ error }: { error: unknown }): ReactElement {
   const safe = safe_error(error)
   return <Alert description={safe.detail} title={safe.title} showIcon type="error" />
+}
+
+function ResultProtocolNotice({ description }: { description: string }): ReactElement {
+  return <Alert description={description} title="RESULT_PROTOCOL_ERROR" showIcon type="warning" />
+}
+
+function read_safe_run_error(value: unknown): { code: string; message: string } | undefined {
+  const code = resource_optional_string(value, 'code')
+  const message = resource_optional_string(value, 'message')
+  return code === undefined || message === undefined ? undefined : { code, message }
+}
+
+function RunOutcomePanel({
+  error,
+  result,
+  run_id,
+  run_status,
+}: {
+  error: unknown
+  result: unknown
+  run_id: string
+  run_status: string
+}): ReactElement {
+  if (run_status === 'succeeded') {
+    if (error !== null) return <ResultProtocolNotice description="成功 Run 不应携带安全错误；工作台没有展示结构化结果。" />
+    if (result === null) return <ResultProtocolNotice description="成功 Run 缺少结构化结果；工作台没有使用本地数据补齐。" />
+
+    const read = read_diagnosis_result(result, run_id)
+    if (!read.result) {
+      const first_issue = read.issues[0]
+      return <ResultProtocolNotice description={first_issue ? `${first_issue.field}：${first_issue.message}` : '结构化结果不符合公开契约。'} />
+    }
+    return <DiagnosisResultPanel result={read.result} />
+  }
+
+  if (run_status === 'failed') {
+    if (result !== null) return <ResultProtocolNotice description="失败 Run 不应携带结构化结果；工作台没有展示该结果。" />
+    const safe = read_safe_run_error(error)
+    if (!safe) return <ResultProtocolNotice description="失败 Run 缺少可安全展示的错误资源。" />
+    return <Alert description={safe.message} title={safe.code} showIcon type="error" />
+  }
+
+  if (run_status === 'cancelled') {
+    if (result !== null || error !== null) return <ResultProtocolNotice description="已取消 Run 不应携带结果或错误；工作台没有推断取消原因。" />
+    return <Alert description="诊断运行已取消；可查看已持久化事件，但不会显示结构化结果。" title="诊断运行已取消" showIcon type="warning" />
+  }
+
+  if (run_status === 'queued' || run_status === 'running') {
+    if (result !== null || error !== null) return <ResultProtocolNotice description="非终态 Run 不应携带结果或错误；工作台正在等待服务端持久化终态。" />
+    return (
+      <Alert
+        description={run_status === 'queued' ? '诊断请求已受理，正在等待执行。' : '诊断正在运行，正在同步已持久化的过程事件。'}
+        title={run_status === 'queued' ? '诊断正在排队' : '诊断正在运行'}
+        showIcon
+        type="info"
+      />
+    )
+  }
+
+  return <ResultProtocolNotice description="服务端返回了未知 Run 状态；工作台没有推断结果。" />
 }
 
 interface RetryableRunRequest {
@@ -545,17 +607,7 @@ function SelectedRun({
             <strong>Trace：</strong>
             {trace_id}
           </Typography.Paragraph>
-          {result !== null && result !== undefined && (
-            <Alert
-              description="结构化结果已由服务端持久化；P3.4 才提供根因、证据、影响、建议和风险的结果卡。"
-              title="结构化结果待展示"
-              showIcon
-              type="info"
-            />
-          )}
-          {error !== null && error !== undefined && (
-            <Alert description="服务端返回了安全 Run 错误。" title="诊断运行返回安全错误" showIcon type="error" />
-          )}
+          <RunOutcomePanel error={error} result={result} run_id={run_id} run_status={run_status} />
         </Space>
       </Card>
       <RunEventsPanel

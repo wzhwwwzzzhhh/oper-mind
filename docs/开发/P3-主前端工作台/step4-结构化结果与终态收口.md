@@ -1,6 +1,6 @@
 # P3.4 Step 设计 — 结构化结果、终态收口与受控 Trace 边界
 
-> 日期：2026-07-28　|　状态：✅ P3.4a 已完成代码、验证与独立 Review；等待 P3.4b 代码授权
+> 日期：2026-07-28　|　状态：✅ P3.4b 已完成代码、验证与独立 Review；等待 P3.4c 代码授权
 >
 > 工作分支：`feat/p3-workbench`　|　设计基线：`306724d docs: 校正P3.3c提交状态并进入P3.4`
 
@@ -43,6 +43,14 @@
 2. 把 Result、Event、Run 读取失败分离：API/网络/非 JSON/协议错误仍走安全 API 错误提示，不能写成业务失败。
 3. 完善 active 无 Run、Result 局部空数组、无 Event 的成功 Result、归档 Session 历史只读、404/跨 Session 与切换 Run 的回归测试。
 
+### 实际交付与验证
+
+- 修改 `frontend/src/features/workbench/WorkbenchPage.tsx`：新增 `RunOutcomePanel`，将 P3.4a `DiagnosisResultPanel` 接入 `SelectedRun`。成功 Run 仅在 `result.run_id` 与完整 Result reader 合法时展示；不完整 Result、状态载荷矛盾和未知状态均显示 `RESULT_PROTOCOL_ERROR`，不复用旧结果或构造结论。
+- `failed` 只显示服务端返回的安全 `error.code` / `error.message`；`cancelled` 明确不推断原因；`queued` / `running` 显示真实进度提示且不展示 Result。读取 API/网络/非 JSON 错误仍由既有 `ApiErrorNotice` 区分处理。
+- 归档 Session 的 Run 仍为只读：可显示合法历史成功 Result，既有提交区继续移除问题输入与“开始诊断”按钮。
+- 修改 `frontend/src/app/App.test.tsx`：既有深链的简化 Result 改为断言 `RESULT_PROTOCOL_ERROR`；新增成功、协议异常、failed、cancelled、queued、running 和归档历史 Result 的路由回归。
+- 已通过：`npm run typecheck`；`npm run test`（4 files / 37 passed）；`npm run build`。构建主 chunk 因 P3.4a 面板正式接入增至约 893 kB，仍为既有大 chunk 非阻断提示；本 Step 不混入拆包。
+
 ### 不做
 
 - 不实现重新执行、取消、恢复、归档编辑、审批、操作建议执行或报告导出；
@@ -71,4 +79,4 @@ P3.4 不生成任何 Trace URL、按钮或 iframe。未来 P6 想开放入口前
 
 Review 必须逐项核对：P2 `DiagnosisResult`/终态不变量；成功/失败/取消与 API 错误区分；空数组和归档只读；刷新/SSE 不把事件当 Result；Mock 完整性；`report/`、P4/P5/P6、真实资源和旧 API 均未混入；文档、计划和 AGENTS/CLAUDE 的唯一下一步一致。
 
-**P3.4a 已完成并通过独立 Review。当前唯一下一步为 P3.4b：将结果面板接入选定 Run，并收口失败/取消/空状态/归档；需用户明确代码授权后才可开始。**
+**P3.4b 已完成并通过独立 Review。当前唯一下一步为 P3.4c：补齐完整结构化 Result 的 MSW/独立 Mock FastAPI 契约，并完成独立代理与人工验收；需用户明确代码授权后才可开始。**

@@ -1,6 +1,6 @@
 # P3 设计 — 主前端工作台
 
-> 日期：2026-07-28　|　状态：✅ P3.4a 已完成代码、验证与独立 Review；当前等待 P3.4b 代码授权
+> 日期：2026-07-28　|　状态：✅ P3.4b 已完成代码、验证与独立 Review；当前等待 P3.4c 代码授权
 >
 > 工作分支：`feat/p3-workbench`　|　设计基线：`306724d docs: 校正P3.3c提交状态并进入P3.4`
 >
@@ -148,7 +148,7 @@ P3 不修改 `/api/v1`、Application Service、Repository、ORM、Alembic、旧�
 
 ## 9. 结论
 
-P3.3a 已提交为 `dc122cc feat: 完成P3.3a Run受理与幂等重试`。P3.3b 已提交为 `e7858ce feat: 完成P3.3b持久化事件与SSE恢复`。P3.3c 已提交为 `ca899e0 feat: 完成P3.3c Mock FastAPI SSE契约验收`，包含确定性 Mock FastAPI 的 Run 幂等、RunEvent/SSE 实现和自动验收：`test:mock-api` 10 项、typecheck、22 项 Vitest、production build，以及独立 Vite 5175 → Mock 8100 的真实 HTTP 代理主流程和用户可视化验收；临时实例均已关闭。真实数据库验收继续延后，C1–C8 不降低。**P3.4 Design 与 P3.4a 已完成并通过独立审查；当前唯一下一步为 P3.4b：将结果面板接入选定 Run，并收口失败/取消/空状态/归档（仍需用户后续代码授权）。**
+P3.3a 已提交为 `dc122cc feat: 完成P3.3a Run受理与幂等重试`。P3.3b 已提交为 `e7858ce feat: 完成P3.3b持久化事件与SSE恢复`。P3.3c 已提交为 `ca899e0 feat: 完成P3.3c Mock FastAPI SSE契约验收`，包含确定性 Mock FastAPI 的 Run 幂等、RunEvent/SSE 实现和自动验收：`test:mock-api` 10 项、typecheck、22 项 Vitest、production build，以及独立 Vite 5175 → Mock 8100 的真实 HTTP 代理主流程和用户可视化验收；临时实例均已关闭。真实数据库验收继续延后，C1–C8 不降低。**P3.4 Design、P3.4a 与 P3.4b 已完成并通过独立审查；当前唯一下一步为 P3.4c：补齐完整结构化 Result 的 MSW/独立 Mock FastAPI 契约，并完成独立代理与人工验收（仍需用户后续代码授权）。**
 
 ## 10. P3.4 设计 — 结构化结果、终态收口与受控 Trace 边界
 
@@ -215,4 +215,6 @@ P3.4 最低质量门：Result reader 的合法/缺失/错配/UTC 校验测试；
 
 P3.4a 已在限定 3 个前端文件内完成：`result-readers.ts` 对完整 Result 做运行时投影，`DiagnosisResultPanel.tsx` 只读展示摘要/根因/证据，`diagnosis-result.test.tsx` 覆盖合法、错配、缺失、未知枚举、UTC、空字符串、空数组和缺失证据关联。`npm run typecheck`、`npm run test`（32 passed）和 `npm run build` 均通过。它仍未接入 `SelectedRun`，未改 Mock、后端或 `report/`；失败/空/归档工作台收口因此留在下一独立 Step。
 
-**当前唯一下一步为 P3.4b：将结果面板接入选定 Run，并收口 failed/cancelled/queued/running、数组空状态与归档只读（需用户后续代码授权）。**
+P3.4b 已在 `WorkbenchPage.tsx` 将 P3.4a 面板接入选定 Run：成功 Run 只有完整 Result reader 通过后才显示；失败只显示安全 `Run.error`；取消、排队、运行与未知/矛盾载荷均显示诚实状态或 `RESULT_PROTOCOL_ERROR`；归档 Session 可只读显示历史成功 Result，提交区继续禁用。现有深链中 P3.3c 简化 Mock Result 缺 `created_at`，现在正确显示协议错误而不是旧的“待展示”占位。新增/更新 App 路由回归覆盖成功、协议异常、failed、cancelled、queued、running 和归档历史；`npm run typecheck`、`npm run test`（37 passed）和 `npm run build` 均通过。
+
+**当前唯一下一步为 P3.4c：补齐完整结构化 Result 的 MSW/独立 Mock FastAPI 契约，并完成独立 8100→5175 代理与人工验收（需用户后续代码授权）。**
