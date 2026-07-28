@@ -1,6 +1,6 @@
 # P3 设计 — 主前端工作台
 
-> 日期：2026-07-28　|　状态：✅ P3.3a 已实现并通过 Review；等待提交授权
+> 日期：2026-07-28　|　状态：🟡 P3.3b 实现中；P3.3a 已提交 `dc122cc`
 >
 > 工作分支：`feat/p3-workbench`　|　设计基线：`87c4f83 docs: 完成P3.2c2离线前置核对`
 >
@@ -148,4 +148,4 @@ P3 不修改 `/api/v1`、Application Service、Repository、ORM、Alembic、旧�
 
 ## 9. 结论
 
-P3.3a 已实现 v1 POST Run、同 key 重试、202 深链与安全错误，不包含 Event/SSE 或完整结果。typecheck、17 项 Vitest 与 production build 已通过；真实数据库验收继续延后，C1–C8 不降低。**当前处于 P3.3a Review 完成、等待用户提交授权状态；提交后唯一下一步为 P3.3b：持久化事件与 SSE 恢复实现。**
+P3.3a 已提交为 `dc122cc feat: 完成P3.3a Run受理与幂等重试`：实现了 v1 POST Run、同 key 重试、202 深链与安全错误，不包含 Event/SSE 或完整结果；typecheck、17 项 Vitest 与 production build 已通过。真实数据库验收继续延后，C1–C8 不降低。**当前唯一下一步为 P3.3b：持久化事件与 SSE 恢复实现。**
