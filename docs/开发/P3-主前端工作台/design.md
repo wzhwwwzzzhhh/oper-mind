@@ -1,6 +1,6 @@
 # P3 设计 — 主前端工作台
 
-> 日期：2026-07-28　|　状态：✅ P3.3b 已提交 `e7858ce`；✅ P3.3c 已通过自动、代理与用户可视化验收，等待提交授权
+> 日期：2026-07-28　|　状态：✅ P3.3b 已提交 `e7858ce`；✅ P3.3c 已提交 `ca899e0`；当前进入 P3.4 Design
 >
 > 工作分支：`feat/p3-workbench`　|　设计基线：`87c4f83 docs: 完成P3.2c2离线前置核对`
 >
@@ -148,4 +148,4 @@ P3 不修改 `/api/v1`、Application Service、Repository、ORM、Alembic、旧�
 
 ## 9. 结论
 
-P3.3a 已提交为 `dc122cc feat: 完成P3.3a Run受理与幂等重试`。P3.3b 已提交为 `e7858ce feat: 完成P3.3b持久化事件与SSE恢复`。P3.3c 已完成确定性 Mock FastAPI 的 Run 幂等、RunEvent/SSE 实现和自动验收：`test:mock-api` 10 项、typecheck、22 项 Vitest、production build，以及独立 Vite 5175 → Mock 8100 的真实 HTTP 代理主流程和用户可视化验收均通过；临时实例均已关闭。真实数据库验收继续延后，C1–C8 不降低。**P3.3c 已通过独立 Review，当前等待用户提交授权；提交后进入 P3.4 Design：结构化结果、失败/空/归档收口与受控 Trace 入口。**
+P3.3a 已提交为 `dc122cc feat: 完成P3.3a Run受理与幂等重试`。P3.3b 已提交为 `e7858ce feat: 完成P3.3b持久化事件与SSE恢复`。P3.3c 已提交为 `ca899e0 feat: 完成P3.3c Mock FastAPI SSE契约验收`，包含确定性 Mock FastAPI 的 Run 幂等、RunEvent/SSE 实现和自动验收：`test:mock-api` 10 项、typecheck、22 项 Vitest、production build，以及独立 Vite 5175 → Mock 8100 的真实 HTTP 代理主流程和用户可视化验收；临时实例均已关闭。真实数据库验收继续延后，C1–C8 不降低。**当前唯一下一步为 P3.4 Design：结构化结果、失败/空/归档收口与受控 Trace 入口。**
