@@ -1,6 +1,6 @@
 # P3.2 Design — v1 API 客户端与会话恢复读模型
 
-> 日期：2026-07-27　|　状态：🟡 P3.2a / P3.2b 已提交；P3.2c.1 已完成 Code / Test / 独立 Review，待用户授权暂存/提交
+> 日期：2026-07-28　|　状态：✅ P3.2 mock/离线验证完成；真实数据库只读验收延后；当前进入 P3.3 Design
 >
 > 实现基线：`75d6598 feat: 完成P3.2a v1 API客户端与MSW契约`
 >
@@ -51,8 +51,8 @@ P3.2 将 P3.1 的产品外壳连接到 P2 已交付的 `/api/v1` **只读恢复�
 |---|---|---|---|
 | P3.2a | ✅ 已提交 `75d6598` | OpenAPI 类型、只读 v1 client、TanStack Query 描述、MSW 契约与 client 测试 | 路由、工作台 UI、写接口、SSE |
 | P3.2b | ✅ 已提交 `3170e6a` | `/workbench`、Session/Run 深链、Session → Runs → Message → Run 恢复、cursor UI、安全错误与跨 Session 保护 | POST/PATCH/DELETE、Run 受理、Event/SSE、完整结果卡、Trace 跳转 |
-| P3.2c.1 | 🟡 Code/Test/Review 完成，待提交 | 独立 mock FastAPI、Vite 代理切换、刷新/深链与安全错误人工验收 | 真实 DB/数据源/认证接入、P3.3/P3.4/P4/P5/P6 |
-| P3.2c.2 | ⏳ c.1 提交后 | 真实读模型的迁移、连接目标、最小权限、mock 数据、契约、回退和验收前置核对 | 任何真实连接、P3.3/P3.4/P4/P5/P6 |
+| P3.2c.1 | ✅ 已提交 `5491829` | 独立 mock FastAPI、Vite 代理切换、刷新/深链与安全错误人工验收 | 真实 DB/数据源/认证接入、P3.3/P3.4/P4/P5/P6 |
+| P3.2c.2 | ✅ 离线核对完成；真实 DB 验收延后 | 真实读模型的迁移、连接目标、最小权限、安全验收数据、契约、回退和验收前置核对 | 真实连接、P3.3/P3.4/P4/P5/P6 |
 
 P3.2b 的实现锚点为：`frontend/src/app/App.tsx`、`frontend/src/features/workbench/WorkbenchPage.tsx`、`frontend/src/features/workbench/resource-readers.ts`、`frontend/src/api/v1/client.ts`、`frontend/src/test/handlers.ts` 与 `frontend/src/app/App.test.tsx`。详细提交边界记录在 `step2b-session工作台只读恢复.md`。
 
@@ -74,6 +74,6 @@ P3.2b 已通过 `npm run typecheck`、`npm test`（2 files / 12 tests）和 `npm
 
 ## 7. 唯一下一步
 
-P3.2c.1 当前只待用户明确授权按逐文件清单暂存并提交。建议提交信息：`feat: 完成P3.2c1 mock FastAPI联调验收`。
+P3.2c.2 已完成离线前置核对；用户决定真实数据库只读验收延后，详细 C1–C8 保留在 `step2c2-真实读模型前置条件核对.md` 作为后期强制门槛。
 
-**提交后的唯一下一步为 P3.2c.2：真实读模型前置条件核对。**未共同确认前不得连接真实 DB 或数据源。
+**当前唯一下一步：P3.3 Design：Run 受理、幂等与 SSE 恢复。**真实数据库验收延后；届时仍须先确认 C1–C8。

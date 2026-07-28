@@ -1,40 +1,34 @@
 # P3 HANDOFF — 主前端工作台
 
-> 更新时间：2026-07-27
-> 状态：P3.2b 已提交 `3170e6a`；P3.2c.1 已完成 Code / Test / 独立 Review，待用户明确授权暂存/提交
-> 分支：`feat/p3-workbench`　|　当前提交基线：`3170e6a feat: 完成P3.2b会话工作台只读恢复`
+> 更新时间：2026-07-28
+> 状态：P3.2c.1 已提交 `5491829`；P3.2c.2 离线核对已完成，真实数据库只读验收按用户决策延后
+> 分支：`feat/p3-workbench`　|　当前提交基线：`5491829 feat: 完成P3.2c1 mock FastAPI联调验收`
 
 ## 已完成基线
 
-- P2.5、P3 Design、P3.1、P3.2 Design、P3.2a、P3.2b 分别提交为 `54f02e5`、`12bed37`、`4862752`、`ec45ee2`、`75d6598`、`3170e6a`。
-- P3.2b 的主产品工作台只从 `/api/v1` 读取 Session、Run、Message；恢复顺序固定为 Session → Runs → Message → Run。没有写操作、Run 受理、SSE/Event、完整结果卡、Trace 跳转或 P4/P5/P6 资源。
-- P3.2c.1 新增独立本地 mock FastAPI（默认 8100）和 `VITE_API_PROXY_TARGET` 代理切换。mock 与 MSW 分开；默认开发代理仍为真实后端 8000。
-- c.1 浏览器验收通过：根入口、Session 深链 URL 回填、Run 深链刷新、Run 404、安全 500、归档只读、跨 Session Run 阻断和 active cursor。上游 mock 中断时 Vite 返回非 JSON 页面，前端显示 `INVALID_API_RESPONSE`，没有伪造空数据或成功。
-- 已通过：`npm run test:mock-api`（4 passed，1 条 TestClient 弃用警告）、`npm run typecheck`、`npm test`（2 files / 12 tests）、`npm run build`。构建仍有 Ant Design 约 732 kB（gzip 约 234 kB）警告。
-- 本轮临时 8100 mock、5175 前端和浏览器 tab 均已关闭；用户原有 `5174` 前端与 `8000` 后端保持运行。
+- P2.5、P3 Design、P3.1、P3.2 Design、P3.2a、P3.2b、P3.2c.1 分别提交为 `54f02e5`、`12bed37`、`4862752`、`ec45ee2`、`75d6598`、`3170e6a`、`5491829`。
+- P3.2c.1 已完成独立 mock FastAPI / Vite 代理 / 刷新深链人工验收；mock 仅用于本地联调，真实失败不降级为假数据。
+- P3.2c.2 已离线确认：URL 优先级、Alembic head `20260726_01_p2`、PostgreSQL 离线 SQL 编译、应用启动不自动迁移。未连接真实 DB/数据源。
+- 根 `data/opermind.sqlite3` 存在但为 0 字节、被忽略；未打开或读取，不能用作已迁移或可验收读模型的证据。`config/config.local.yaml` 不存在；当前 Codex 进程没有 `OPERMIND_APP_DATABASE_URL`。不能由此推断用户的 8000 后端目标。
 
-## 当前未提交的 P3.2c.1 精确边界
+## 后期真实接入门槛（当前不阻塞 P3.3）
 
-只允许逐文件暂存：
+用户决定在前后端大致开发完成后再接入真实数据库。届时只有以下全部确认后，才可开始真实只读 API 联调：
 
 ```text
-AGENTS.md
-CLAUDE.md
-docs/开发/_A-Plan-总览.md
-docs/开发/_B-V1产品化开发计划.md
-docs/开发/P3-主前端工作台/design.md
-docs/开发/P3-主前端工作台/step2-v1-api客户端与会话恢复读模型.md
-docs/开发/P3-主前端工作台/step2c1-mock-fastapi联调验收.md
-docs/开发/P3-主前端工作台/review.md
-docs/开发/P3-主前端工作台/HANDOFF.md
-frontend/package.json
-frontend/vite.config.ts
-frontend/src/test/handlers.ts
-frontend/scripts/mock_v1_api.py
-frontend/scripts/test_mock_v1_api.py
+C1 应用元数据目标（非诊断数据源）的非密钥标识
+C2 受控连接 URL 注入方式（不暴露密钥）
+C3 专用只读身份：连接/schema usage/六张 P2 表和 alembic_version 的 SELECT，无 DDL/DML
+C4 目标 revision = 20260726_01_p2
+C5 安全且可用的 active/archived/Message/Run 验收数据
+C6 指定后端实例及其只读身份
+C7 五个 GET、cursor、UTC Z、关联 ID、404/归档/分页验收契约
+C8 失败即停止、撤销前端代理指向、不以 mock/假数据降级的回退方案
 ```
 
-以下为外部隔离改动，禁止读取内容、修改、暂存、提交或 reset：
+详细核对记录见 `step2c2-真实读模型前置条件核对.md`。
+
+以下外部隔离改动禁止读取内容、修改、暂存、提交或 reset：
 
 ```text
 docs/00-项目方案说明书.md
@@ -44,24 +38,6 @@ backend/src/infrastructure/persistence/__init__.py
 
 后两个初始化文件经 `git diff -- <file>` 核对无内容 diff，仍不得触碰。
 
-## 提交前验证
-
-```powershell
-Set-Location frontend
-npm run test:mock-api
-npm run typecheck
-npm test
-npm run build
-
-Set-Location ..
-git diff --check
-git diff --name-only
-```
-
-确认镜像规则文件 hash 一致，且暂存清单不包含 `report/`、`backend/`、`data/`、运行时 SQLite 或上述隔离文件。
-
 ## 唯一下一步
 
-用户授权后，按精确清单暂存并提交。建议提交信息：`feat: 完成P3.2c1 mock FastAPI联调验收`。
-
-**提交后的唯一下一步为 P3.2c.2：真实读模型前置条件核对。**只确认迁移、连接目标、最小权限、可用 mock 数据、接口契约、回退路径与验收场景；未共同确认前不得连接真实 DB 或数据源。
+**P3.3 Design：Run 受理、幂等与 SSE 恢复。**真实数据库只读验收延后；届时仍须先确认 C1–C8。当前不连接真实 DB 或数据源、不运行在线 Alembic、不修改 8000 后端。

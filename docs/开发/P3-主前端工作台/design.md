@@ -1,10 +1,10 @@
 # P3 设计 — 主前端工作台
 
-> 日期：2026-07-27　|　状态：🟡 P3.2b 已提交 `3170e6a`；P3.2c.1 已完成 Code / Test / 独立 Review，待用户授权暂存/提交
+> 日期：2026-07-28　|　状态：🟡 P3.2 已完成 mock/离线验证；真实数据库验收延后；当前进入 P3.3 Design
 >
-> 工作分支：`feat/p3-workbench`　|　当前实现基线：`3170e6a feat: 完成P3.2b会话工作台只读恢复`
+> 工作分支：`feat/p3-workbench`　|　当前实现基线：`5491829 feat: 完成P3.2c1 mock FastAPI联调验收`
 >
-> 范围：保留 P3 纵向切片设计，并同步 P3.2c.1 的 mock FastAPI 联调边界；不接入真实 DB/数据源、写接口、SSE、`report/` 或运行时资产。
+> 范围：保留 P3 纵向切片设计，并同步 P3.2c.2 的离线核对与真实接入延后决策；P3.3 Design 前不接入真实 DB/数据源、`report/` 或运行时资产。
 
 ## 1. 目标与已核实事实
 
@@ -101,7 +101,7 @@ P4 的 Environment/DataSource/Connector/Runbook/Knowledge，P5 的 Alert/Inciden
 |---|---|---|
 | P3.0（本轮） | Design、Review、HANDOFF、计划/规则/P2 历史状态校正 | 前端初始化或业务代码 |
 | P3.1 | 已完成并提交 | Vite React TS、Router/Query/Zustand/AntD Providers、产品外壳、基础路由、build/test 基线 | 未接入 Session 恢复、Run 创建、SSE 或 P4/P5/P6 页面 |
-| P3.2 | 🟡 P3.2a / P3.2b 已提交；P3.2c.1 已完成审查、待提交 | OpenAPI 类型、v1 GET client、只读恢复、独立 mock FastAPI 代理联调与人工验收 | Run 受理、SSE、结果展示、旧 API、真实 DB/数据源 |
+| P3.2 | ✅ mock/离线验证完成；真实 DB 验收延后 | OpenAPI 类型、v1 GET client、只读恢复、独立 mock 联调、真实读模型离线前置核对 | Run 受理、SSE、结果展示、旧 API、真实 DB/数据源 |
 | P3.3 | 诊断受理、幂等重试、状态/事件摘要、SSE 恢复 | Approval、真实连接器、完整 Trace |
 | P3.4 | 结构化结果、失败/空/归档、report 受控跳转、交互收口 | P4/P5/P6 正式资源 |
 | P3.5 | mock API 联调、人工验收、回归、独立 Review | 真实基础设施/生产认证 |
@@ -110,4 +110,4 @@ P3 不修改 `/api/v1`、Application Service、Repository、ORM、Alembic、旧�
 
 ## 9. 结论
 
-P3 Design、P3.1、P3.2 Design、P3.2a、P3.2b 已分别提交为 `12bed37`、`4862752`、`ec45ee2`、`75d6598`、`3170e6a`。P3.2c.1 已以独立 mock FastAPI 和可切换 Vite 代理完成根入口、深链/刷新、cursor、404/500、归档、跨 Session Run 和代理上游中断的人工验收；当前只待用户授权暂存/提交。**P3.2c.1 提交后的唯一下一步为 P3.2c.2：真实读模型前置条件核对。**
+P3 Design、P3.1、P3.2 Design、P3.2a、P3.2b、P3.2c.1 已分别提交为 `12bed37`、`4862752`、`ec45ee2`、`75d6598`、`3170e6a`、`5491829`。P3.2c.2 已离线确认 URL 优先级、Alembic head `20260726_01_p2`、PostgreSQL 离线 SQL 编译和启动不自动迁移；用户决定真实数据库验收延后，C1–C8 保留为后期强制门槛。**当前唯一下一步为 P3.3 Design：Run 受理、幂等与 SSE 恢复。**
