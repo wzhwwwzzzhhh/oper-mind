@@ -1,8 +1,8 @@
 # P3 独立审查 — 主前端工作台
 
-> 日期：2026-07-28　|　结论：✅ P3.3b 持久化事件与 SSE 恢复通过独立 Review，等待提交授权
+> 日期：2026-07-28　|　结论：✅ P3.3b 持久化事件与 SSE 恢复通过独立 Review，已提交 `e7858ce`
 >
-> 审查基线：`181e601 docs: 校正P3.3a提交状态并进入P3.3b`　|　工作分支：`feat/p3-workbench`
+> 审查基线：`181e601 docs: 校正P3.3a提交状态并进入P3.3b`　|　实现提交：`e7858ce feat: 完成P3.3b持久化事件与SSE恢复`　|　工作分支：`feat/p3-workbench`
 
 ## 1. 审查范围
 
@@ -32,7 +32,7 @@
 
 - P3.2 既有深链测试原先只期望 4 个读取请求；P3.3b 合同正确新增 `/events` 后，该断言失败。已更新为 5 个按序请求，确认不是额外副作用。
 - 初次 production build 暴露 `Number.isSafeInteger(sequence)` 不会将 OpenAPI `unknown` 缩窄为 `number`；已加显式 `typeof sequence === 'number'`，重新执行完整质量门通过。
-- 普通 `git diff --name-only` 不显示未跟踪的新增事件合并器、EventSource hook 和 test helper；Review 已使用 `git status --short` 及文件清单核对，它们均属于 P3.3b 待提交范围。
+- 普通 `git diff --name-only` 不显示未跟踪的新增事件合并器、EventSource hook 和 test helper；Review 已使用 `git status --short` 及文件清单核对，它们均属于最终提交 `e7858ce` 的 P3.3b 范围。
 
 ## 5. 已知风险与非目标
 
@@ -45,4 +45,4 @@
 
 P3.3b 在既定范围内通过独立 Review。前端准确消费 P2 持久化 RunEvent/SSE 契约，断线和终态不会伪造成诊断失败，也没有引入旧 API、真实资产或后续阶段能力。
 
-**当前状态：等待用户明确提交授权。提交后唯一下一步为 P3.3c：Mock FastAPI SSE 契约验收。**
+**当前状态：P3.3b 已提交为 `e7858ce`；唯一下一步为 P3.3c：Mock FastAPI SSE 契约验收。**

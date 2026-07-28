@@ -1,6 +1,6 @@
 # P3.3 Step 设计 — Run 受理、幂等与 SSE 恢复
 
-> 日期：2026-07-28　|　状态：✅ P3.3b 已完成 Review；P3.3c 未开始
+> 日期：2026-07-28　|　状态：✅ P3.3b 已提交 `e7858ce`；P3.3c 待开始
 >
 > 工作分支：`feat/p3-workbench`　|　设计基线：`87c4f83 docs: 完成P3.2c2离线前置核对`
 >
@@ -115,6 +115,6 @@ npm run build
 
 ## 7. 当前状态与唯一下一步
 
-P3.3b 已完成独立 Review，尚未提交。本 Step 只消费 P2 已提交 RunEvent/SSE 契约，未改后端、真实数据库或 8000。
+P3.3b 已完成独立 Review 并提交为 `e7858ce feat: 完成P3.3b持久化事件与SSE恢复`。本 Step 只消费 P2 已提交 RunEvent/SSE 契约，未改后端、真实数据库或 8000。
 
-**当前仅等待用户提交 P3.3b；提交后唯一下一步为 P3.3c：Mock FastAPI SSE 契约验收。**
+**当前唯一下一步为 P3.3c：Mock FastAPI SSE 契约验收。**
