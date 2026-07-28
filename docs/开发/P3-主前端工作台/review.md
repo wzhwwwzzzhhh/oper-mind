@@ -1,45 +1,49 @@
 # P3 独立审查 — 主前端工作台
 
-> 日期：2026-07-28　|　结论：✅ P3.3 Design 通过；等待 P3.3a 实现授权
+> 日期：2026-07-28　|　结论：✅ P3.3a Run 受理与幂等重试通过独立 Review，等待提交授权
 >
-> 审查基线：`87c4f83 docs: 完成P3.2c2离线前置核对`　|　工作分支：`feat/p3-workbench`
+> 审查基线：`f038f09 docs: 完成P3.3 Run受理与SSE恢复设计`　|　工作分支：`feat/p3-workbench`
 
 ## 1. 审查范围
 
-本次为 P3.3 的独立设计审查：核实 P2 Run 受理、幂等、RunEvent、持久化 SSE 和刷新恢复契约；审查前端 Step 拆分、真实数据库延后决策、`frontend/`/`report/` 边界、错误与空状态。未执行任何前端业务代码、后端改动、真实 DB 连接、在线迁移或运行时资产写入。
+本次审查 P3.3a 的前端实现：`POST /api/v1/sessions/{session_id}/runs`、`Idempotency-Key`、请求/trace 关联、202 深链、未知网络结果的同 key 重试、归档与安全错误。未实现 RunEvent、EventSource、完整结构化结果、Trace 跳转、Mock FastAPI SSE 或真实数据库联调。
 
 ## 2. 审查依据
 
-- API 合同：`docs/开发/P0-V1产品化基线/api-v1-contract.md:426-503`；
-- 后端既有实现：`backend/src/api/v1/routes.py:313-429`、`backend/src/api/v1/sse.py:20-65`；
-- P2 完成快照：`docs/开发/P2-会话诊断闭环/HANDOFF.md:8-32`、`review.md:89-116`；
-- 现有 P3 读模型与 client：`frontend/src/api/v1/client.ts:88-108,199-260`、`frontend/src/api/v1/queries.ts`、`frontend/src/features/workbench/WorkbenchPage.tsx`；
-- P3.2 离线接入门槛：`docs/开发/P3-主前端工作台/step2c2-真实读模型前置条件核对.md`。
+- P2 合同与状态约束：`docs/开发/P0-V1产品化基线/api-v1-contract.md:426-503`；
+- P2 路由：`backend/src/api/v1/routes.py:313-340`；
+- P3.3 设计与 Step：`docs/开发/P3-主前端工作台/design.md`、`step3-run受理幂等与sse恢复.md`；
+- 实现：`frontend/src/api/v1/client.ts`、`queries.ts`、`frontend/src/features/workbench/WorkbenchPage.tsx`；
+- 测试：`frontend/src/api/v1/client.test.ts`、`frontend/src/app/App.test.tsx`、`frontend/src/test/handlers.ts`、`frontend/src/test/setup.ts`。
 
 ## 3. 独立审查结果
 
 | 检查项 | 结论 | 审查结果 |
 |---|---|---|
-| Run 受理契约 | 通过 | 设计固定为 `POST /sessions/{session_id}/runs`、必填 UUID `Idempotency-Key`、`202` 后以响应 Run 为准；没有调用旧 `/diagnose` |
-| 幂等与未知网络结果 | 通过 | 同一逻辑请求稳定复用 key/query；编辑或明确新请求才换 key；刷新不自动 POST；`409` 不自动换 key |
-| request/trace 关联 | 通过 | JSON POST 延续 `X-Request-Id` 与 headers/meta 核对；Run 的 trace 取自响应；SSE 只从 envelope meta 消费安全关联 |
-| 事件与 SSE | 通过，已修正风险 | 事件按 `(run_id, sequence)` 去重、按 sequence 排序；终态重读 Run；纠正了 EventSource 初连携带 `after_sequence` 会与自动重连 Last-Event-ID 冲突的设计缺陷，固定初连不带 query cursor |
-| 刷新/断线/错误 | 通过 | 恢复顺序为 Session → Runs → Message → Run → Events → 非终态 SSE；网络/SSE 失败不伪造成 Run failed；REST cursor 错误从首个可用页重新同步 |
-| P3/P4/P5/P6 边界 | 通过 | P3.3 仅做受理和过程摘要；结果卡留 P3.4，真实连接器/环境/告警/审批/知识/报告均不提前实现 |
-| `frontend/`/`report/` 边界 | 通过 | 只规划 `frontend/` 既有工程；不改、不嵌入、不复用 `report/`，P6 前无 Trace deep-link |
-| 真实数据与运行时资产 | 通过 | 用户已决定真实 DB 验收后置；C1–C8 保留；本设计不连接 8000/真实 DB、不运行 Alembic、不创建 SQLite |
-| Step 可控性 | 通过 | P3.3a（受理）→ P3.3b（事件/SSE）→ P3.3c（独立 mock 验收）分开 Review/Commit，避免一次混入协议、实时连接和人工联调 |
-| 文档与唯一下一步 | 通过 | A/B Plan、规则镜像、P3 design/step/review/HANDOFF 都应同步为 P3.3 Design 完成，唯一下一步 P3.3a |
+| v1 POST 契约 | 通过 | 只调用 `/api/v1/sessions/{session_id}/runs`；JSON body 为 `{ query }`，显式发送 `Idempotency-Key`，接受 `202 RunResponse`；未调用旧 `/diagnose` |
+| 请求/Trace 关联 | 通过 | 每次 HTTP 尝试通过既有 client 新建 `X-Request-Id`，保持 response header / `meta` 诊断；成功 Run 深链只使用服务端响应的 `run.id` |
+| 幂等重试 | 通过 | 网络或非 JSON 的受理结果未知时保存同一 key/query，显式“按原请求重试”复用 key；编辑 query 清除该重试上下文；不会自动 POST 或自动换 key |
+| 安全错误 | 通过 | `409 IDEMPOTENCY_KEY_REUSED`、`SESSION_ARCHIVED`、`422`、`503` 均由安全 `ApiClientError` 呈现；`409` 不出现自动重试/换 key行为；SSE/Run failed 未被伪造 |
+| 会话与缓存 | 通过 | 仅 active Session 显示输入；202 后失效当前 Session 的 Runs/Messages 与新 Run query，再跳转深链；归档只读 |
+| P3.3b 边界 | 通过 | 没有 `GET /events`、EventSource、`after_sequence`、`Last-Event-ID` 或事件 UI；未提前进入 SSE/结果卡/Trace |
+| 隔离与真实资产 | 通过 | 无后端、`report/`、`data/`、`frontend/mockup.html` 改动；未连接 8000、真实 DB/数据源，未运行 Alembic |
+| 测试与构建 | 通过 | `npm run typecheck` 通过；`npm run test` 为 2 files / 17 passed；`npm run build` 通过。构建仅有非阻断的 chunk 大小提示 |
 
-## 4. 已知风险与非目标
+## 4. 审查发现与处理
 
-1. P2 SSE 是持久化事件短连接轮询，不是生产级消息总线；高吞吐、慢客户端、崩溃接管、重试策略与保留策略仍属于 P7。
-2. EventSource 首连从最早事件重放并由客户端去重，可能在长事件历史下增加读取量；这是现有 P2 双游标契约下避免自动重连冲突的正确性优先选择。性能优化须先另做协议设计。
-3. P2 cursor 尚未绑定 Session scope；P3.3 以 Query key/生命周期隔离避免前端误用，但后端统一 scope/授权仍待后续收口。
-4. 无认证/RBAC、无真实 DB/数据源验收；用户后续接入时仍必须重新确认 C1–C8，且真实失败不能降级为 mock。
+- 新增 Ant Design `Input.TextArea` 后，jsdom 缺少 `ResizeObserver`，首次测试发生组件挂载错误。已在 `frontend/src/test/setup.ts` 增加最小测试专用 mock；随后完整前端测试恢复通过。该 mock 不进入生产代码。
+- 初次 MSW fixture 漏写 `accepted_run_id` 常量，测试加载阶段立即失败；已补齐 fixture 并重新运行完整验证。最终结果为 17 项测试全部通过。
+- P3.3a 没有为 malformed-but-JSON 的 RunResponse 新建第二套运行时 DTO 校验；这与现有 P3.2 OpenAPI 类型 + resource reader 边界一致。若真实契约发现字段缺口，必须先回到后端/合同 Design，不能在 UI 猜测资源。
 
-## 5. 结论与唯一下一步
+## 5. 已知风险与非目标
 
-P3.3 Design 通过独立审查。设计准确消费 P2 v1 Run、幂等、RunEvent 与持久化 SSE 契约，并将 EventSource 双游标冲突风险在实现前消除。未发现阻塞 P3.3a 的文档或范围矛盾。
+1. 未知网络结果在整页刷新后不会保存幂等键或草稿，因而不会自动重试；这是避免无用户确认的重复 POST 与本地持久化敏感上下文的有意边界。
+2. P3.3b 才会读取持久化事件和连接 SSE；P3.3a 的 queued Run 仅通过既有 Run 深链显示，不宣称实时进度。
+3. P2 的 BackgroundTasks、SSE 短轮询、SQLite 并发和生产队列问题仍属于 P7。
+4. 真实数据库/8000 后端验收仍须用户和数据库所有者后续确认 C1–C8；不得以本次 MSW 成功替代真实成功。
 
-**当前唯一下一步：P3.3a：Run 受理与幂等重试实现。**开始前应按恢复流程核对隔离改动；本轮设计文档不自动暂存或提交，等待用户明确授权。
+## 6. 结论与下一步
+
+P3.3a 在既定范围内通过独立 Review。实现准确消费 P2 v1 Run 受理与幂等契约，覆盖关键成功、未知网络结果、冲突和归档路径，且没有跨入 Event/SSE、结果、真实基础设施或后续阶段。
+
+**当前状态：等待用户明确提交授权。提交后唯一下一步为 P3.3b：持久化事件与 SSE 恢复实现。**

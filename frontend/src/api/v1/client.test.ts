@@ -78,6 +78,41 @@ describe('v1 API 客户端', () => {
     })
   })
 
+  it('以 POST JSON、幂等键和独立请求 ID 受理 Run', async () => {
+    const requests: Request[] = []
+    const client = create_api_v1_client({
+      fetch_impl: async (input, init) => {
+        requests.push(new Request(input, init))
+        return HttpResponse.json(
+          { run: { id: 'accepted-run', session_id: 'session-1' }, meta: { request_id: 'post-request-id' } },
+          {
+            status: 202,
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Request-Id': 'post-request-id',
+              'X-Trace-Id': 'post-trace-id',
+            },
+          },
+        )
+      },
+      request_id_factory: () => 'post-request-id',
+    })
+
+    const result = await client.create_run(
+      'session-1',
+      { query: '请检查 Nginx 5xx。' },
+      { idempotency_key: '55555555-5555-4555-8555-555555555555' },
+    )
+
+    expect(requests).toHaveLength(1)
+    expect(requests[0]?.method).toBe('POST')
+    expect(requests[0]?.headers.get('Content-Type')).toBe('application/json')
+    expect(requests[0]?.headers.get('Idempotency-Key')).toBe('55555555-5555-4555-8555-555555555555')
+    expect(requests[0]?.headers.get('X-Request-Id')).toBe('post-request-id')
+    await expect(requests[0]?.json()).resolves.toEqual({ query: '请检查 Nginx 5xx。' })
+    expect(result.diagnostics).toMatchObject({ status: 202, request_id: 'post-request-id' })
+  })
+
   it('将网络中断明确标记为 transport 错误', async () => {
     const client = create_api_v1_client({
       fetch_impl: async () => Promise.reject(new TypeError('network unavailable')),

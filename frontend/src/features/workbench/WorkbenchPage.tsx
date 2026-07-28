@@ -1,9 +1,10 @@
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Alert,
   Button,
   Card,
   Empty,
+  Input,
   Skeleton,
   Space,
   Tag,
@@ -11,7 +12,7 @@ import {
   Typography,
 } from 'antd'
 import type { ReactElement, ReactNode } from 'react'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import {
@@ -22,7 +23,12 @@ import {
   type RunResponse,
   type SessionResponse,
 } from '../../api/v1/client'
-import { api_v1_query_keys, get_run_query, get_session_query } from '../../api/v1/queries'
+import {
+  api_v1_query_keys,
+  create_run_mutation,
+  get_run_query,
+  get_session_query,
+} from '../../api/v1/queries'
 import {
   read_items,
   read_page,
@@ -68,6 +74,130 @@ function LoadingBlock({ label }: { label: string }): ReactElement {
 function ApiErrorNotice({ error }: { error: unknown }): ReactElement {
   const safe = safe_error(error)
   return <Alert description={safe.detail} title={safe.title} showIcon type="error" />
+}
+
+interface RetryableRunRequest {
+  idempotency_key: string
+  query: string
+}
+
+function is_retryable_unknown_error(error: unknown): boolean {
+  return error instanceof ApiClientError && (
+    error.code === 'NETWORK_ERROR' || error.code === 'INVALID_API_RESPONSE'
+  )
+}
+
+function RunSubmissionPanel({
+  session_id,
+  session_status,
+}: {
+  session_id: string
+  session_status: string
+}): ReactElement {
+  const navigate = useNavigate()
+  const query_client = useQueryClient()
+  const create_run = useMutation(create_run_mutation())
+  const [query, set_query] = useState('')
+  const [retry_request, set_retry_request] = useState<RetryableRunRequest | undefined>()
+  const active_session = session_status === 'active'
+
+  function accept_run(response: ApiResponse<RunResponse>): void {
+    const accepted_run_id = resource_optional_string(response.data.run, 'id')
+    if (!accepted_run_id) return
+
+    void Promise.all([
+      query_client.invalidateQueries({ queryKey: ['api-v1', 'session-runs', session_id] }),
+      query_client.invalidateQueries({ queryKey: ['api-v1', 'session-messages', session_id] }),
+      query_client.invalidateQueries({ queryKey: api_v1_query_keys.run(accepted_run_id) }),
+    ])
+    navigate(
+      `/workbench/sessions/${encodeURIComponent(session_id)}/runs/${encodeURIComponent(accepted_run_id)}`,
+    )
+  }
+
+  function submit_run(request: RetryableRunRequest): void {
+    create_run.mutate(
+      { session_id, query: request.query, idempotency_key: request.idempotency_key },
+      {
+        onError: (error) => {
+          if (is_retryable_unknown_error(error)) {
+            set_retry_request(request)
+          }
+        },
+        onSuccess: (response) => {
+          set_retry_request(undefined)
+          accept_run(response)
+        },
+      },
+    )
+  }
+
+  function start_new_run(): void {
+    const normalized_query = query.trim()
+    if (!normalized_query || create_run.isPending || !active_session) return
+
+    set_retry_request(undefined)
+    create_run.reset()
+    submit_run({ idempotency_key: globalThis.crypto.randomUUID(), query: normalized_query })
+  }
+
+  function update_query(next_query: string): void {
+    set_query(next_query)
+    if (retry_request && next_query !== retry_request.query) {
+      set_retry_request(undefined)
+    }
+    if (create_run.isError) create_run.reset()
+  }
+
+  return (
+    <Card className="workbench-card" size="small" title="发起诊断">
+      {!active_session && (
+        <Alert
+          description="会话已归档，仅可读取历史内容，不能受理新的诊断运行。"
+          title="已归档会话"
+          showIcon
+          type="info"
+        />
+      )}
+      {active_session && (
+        <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
+          <Typography.Text type="secondary">
+            描述需要诊断的问题。提交后服务端以幂等键受理；页面刷新不会自动重新提交。
+          </Typography.Text>
+          <Input.TextArea
+            aria-label="诊断问题"
+            autoSize={{ minRows: 3, maxRows: 8 }}
+            disabled={create_run.isPending}
+            maxLength={4000}
+            onChange={(event) => update_query(event.target.value)}
+            placeholder="例如：请检查 Nginx 5xx 的根因和影响范围"
+            value={query}
+          />
+          <Space wrap>
+            <Button
+              disabled={!query.trim() || create_run.isPending}
+              loading={create_run.isPending}
+              onClick={start_new_run}
+              type="primary"
+            >
+              开始诊断
+            </Button>
+            {retry_request && !create_run.isPending && (
+              <Button onClick={() => submit_run(retry_request)} type="default">
+                按原请求重试
+              </Button>
+            )}
+          </Space>
+          {create_run.isError && <ApiErrorNotice error={create_run.error} />}
+          {retry_request && (
+            <Typography.Text type="secondary">
+              上次请求的受理结果未知；重试会复用原幂等键和未修改的问题，不会自动创建新的诊断运行。
+            </Typography.Text>
+          )}
+        </Space>
+      )}
+    </Card>
+  )
 }
 
 function LoadMoreButton({
@@ -391,11 +521,12 @@ function SessionWorkspace({ session_id, run_id }: { session_id: string; run_id?:
         <Tag color={status_color(session_status)}>{session_status}</Tag>
       </Space>
       <Typography.Paragraph className="page-description">
-        已按 Session → Runs → Message → 选定 Run 的顺序从服务端恢复。时间均保留服务端 UTC 字符串；此页面不创建或编辑任何资源。
+        已按 Session → Runs → Message → 选定 Run 的顺序从服务端恢复。时间均保留服务端 UTC 字符串；可在 active 会话受理一条新的诊断运行。
       </Typography.Paragraph>
       {session_status === 'archived' && (
         <Alert className="archive-notice" description="会话已归档，仅可读取历史消息和诊断运行；重新激活或编辑待后续产品切片。" title="已归档会话" showIcon type="info" />
       )}
+      <RunSubmissionPanel session_id={session_id} session_status={session_status} />
       <div className="session-workspace-grid">
         <div className="session-workspace-column">
           <RunsPanel

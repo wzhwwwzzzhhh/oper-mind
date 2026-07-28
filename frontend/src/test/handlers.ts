@@ -4,6 +4,7 @@ const session_id = '11111111-1111-4111-8111-111111111111'
 const archived_session_id = '22222222-2222-4222-8222-222222222222'
 const run_id = '33333333-3333-4333-8333-333333333333'
 const trace_id = '55555555-5555-4555-8555-555555555555'
+const accepted_run_id = '99999999-9999-4999-8999-999999999999'
 
 const session = {
   id: session_id,
@@ -58,6 +59,19 @@ const run = {
   finished_at: '2026-07-27T01:00:33.000Z',
 }
 
+const accepted_run = {
+  id: accepted_run_id,
+  session_id,
+  trace_id,
+  input_message_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  status: 'queued',
+  result: null,
+  error: null,
+  created_at: '2026-07-27T01:05:00.000Z',
+  started_at: null,
+  finished_at: null,
+}
+
 function correlation(request: Request) {
   const request_id = request.headers.get('X-Request-Id') ?? 'missing-client-request-id'
   return {
@@ -108,6 +122,15 @@ export const api_v1_handlers = [
       page: cursor ? { next_cursor: null, has_more: false } : { next_cursor: 'message-page-2', has_more: true },
     })
   }),
+  http.post(/\/api\/v1\/sessions\/([^/]+)\/runs$/, async ({ request }) => {
+    const requested_session_id = new URL(request.url).pathname.split('/').at(-2)
+    const idempotency_key = request.headers.get('Idempotency-Key')
+    const payload = await request.json() as { query?: unknown }
+    if (requested_session_id !== session_id) return error_response(request, 'SESSION_NOT_FOUND', '会话不存在', 404)
+    if (!idempotency_key) return error_response(request, 'VALIDATION_ERROR', '缺少幂等键', 422)
+    if (payload.query !== '请检查 Nginx 5xx。') return error_response(request, 'VALIDATION_ERROR', '问题内容无效', 422)
+    return response(request, { run: accepted_run }, 202)
+  }),
   http.get(/\/api\/v1\/sessions\/([^/]+)\/runs$/, ({ request }) => {
     const url = new URL(request.url)
     const requested_session_id = url.pathname.split('/').at(-2)
@@ -120,6 +143,7 @@ export const api_v1_handlers = [
   }),
   http.get(/\/api\/v1\/runs\/([^/]+)$/, ({ request }) => {
     const requested_run_id = new URL(request.url).pathname.split('/').at(-1)
+    if (requested_run_id === accepted_run_id) return response(request, { run: accepted_run })
     if (requested_run_id !== run_id) return error_response(request, 'RUN_NOT_FOUND', '诊断运行不存在', 404)
     return response(request, { run })
   }),
@@ -135,4 +159,4 @@ export const api_v1_contract_scenarios = {
   network_interruption: http.get(/\/api\/v1\/sessions$/, () => HttpResponse.error()),
 }
 
-export const api_v1_contract_fixtures = { session_id, archived_session_id, run_id, trace_id }
+export const api_v1_contract_fixtures = { accepted_run_id, archived_session_id, run_id, session_id, trace_id }

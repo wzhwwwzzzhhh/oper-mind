@@ -11,6 +11,7 @@ export type SessionListResponse = components['schemas']['SessionListResponse']
 export type MessageListResponse = components['schemas']['MessageListResponse']
 export type DiagnosisRunListResponse = components['schemas']['DiagnosisRunListResponse']
 export type RunResponse = components['schemas']['RunResponse']
+export type CreateRunRequest = components['schemas']['CreateRunRequest']
 
 export type ListSessionsQuery = NonNullable<
   operations['list_sessions_api_v1_sessions_get']['parameters']['query']
@@ -45,6 +46,10 @@ export interface ApiResponse<TData> {
 
 export interface ApiRequestOptions {
   signal?: AbortSignal
+}
+
+export interface CreateRunOptions extends ApiRequestOptions {
+  idempotency_key: string
 }
 
 export interface ApiClientOptions {
@@ -105,6 +110,11 @@ export interface ApiV1Client {
     options?: ApiRequestOptions,
   ): Promise<ApiResponse<DiagnosisRunListResponse>>
   get_run(run_id: string, options?: ApiRequestOptions): Promise<ApiResponse<RunResponse>>
+  create_run(
+    session_id: string,
+    payload: CreateRunRequest,
+    options: CreateRunOptions,
+  ): Promise<ApiResponse<RunResponse>>
 }
 
 function create_request_id(): string {
@@ -205,23 +215,38 @@ async function parse_json_response(response: Response): Promise<unknown> {
   return response.json() as Promise<unknown>
 }
 
+interface JsonRequestOptions {
+  body?: unknown
+  idempotency_key?: string
+  method?: 'GET' | 'POST'
+}
+
 async function request_json<TData>(
   fetch_impl: typeof fetch,
   request_id_factory: () => string,
   base_url: string,
   path: string,
   options?: ApiRequestOptions,
+  request_options: JsonRequestOptions = {},
 ): Promise<ApiResponse<TData>> {
   const request_id = request_id_factory()
   let response: Response
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'X-Request-Id': request_id,
+  }
+  if (request_options.idempotency_key) {
+    headers['Idempotency-Key'] = request_options.idempotency_key
+  }
+  if (request_options.body !== undefined) {
+    headers['Content-Type'] = 'application/json'
+  }
 
   try {
     response = await fetch_impl(resolve_url(base_url, path), {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        'X-Request-Id': request_id,
-      },
+      method: request_options.method ?? 'GET',
+      headers,
+      body: request_options.body === undefined ? undefined : JSON.stringify(request_options.body),
       signal: options?.signal,
     })
   } catch (error) {
@@ -305,6 +330,19 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
         base_url,
         `/api/v1/runs/${encodeURIComponent(run_id)}`,
         request_options,
+      ),
+    create_run: (session_id, payload, request_options) =>
+      request_json<RunResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        `/api/v1/sessions/${encodeURIComponent(session_id)}/runs`,
+        request_options,
+        {
+          body: payload,
+          idempotency_key: request_options.idempotency_key,
+          method: 'POST',
+        },
       ),
   }
 }

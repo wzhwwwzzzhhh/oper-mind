@@ -1,10 +1,12 @@
-import { queryOptions } from '@tanstack/react-query'
+import { mutationOptions, queryOptions } from '@tanstack/react-query'
 
 import {
   API_V1_DEFAULT_PAGE_SIZE,
   api_v1_client,
   type ListSessionMessagesQuery,
   type ListSessionRunsQuery,
+  type CreateRunOptions,
+  type CreateRunRequest,
   type ListSessionsQuery,
 } from './client'
 
@@ -53,6 +55,24 @@ export function get_run_query(run_id: string) {
   return queryOptions({
     queryKey: api_v1_query_keys.run(run_id),
     queryFn: ({ signal }) => api_v1_client.get_run(run_id, { signal }),
+  })
+}
+
+
+export interface CreateRunMutationVariables {
+  idempotency_key: string
+  query: CreateRunRequest['query']
+  session_id: string
+}
+
+export function create_run_mutation() {
+  return mutationOptions({
+    mutationFn: ({ session_id, query, idempotency_key }: CreateRunMutationVariables) =>
+      api_v1_client.create_run(
+        session_id,
+        { query },
+        { idempotency_key } satisfies CreateRunOptions,
+      ),
   })
 }
 
