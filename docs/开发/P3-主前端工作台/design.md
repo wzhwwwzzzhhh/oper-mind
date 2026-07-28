@@ -1,6 +1,6 @@
 # P3 设计 — 主前端工作台
 
-> 日期：2026-07-28　|　状态：✅ P3.3b 已提交 `e7858ce`；P3.3c 待开始
+> 日期：2026-07-28　|　状态：✅ P3.3b 已提交 `e7858ce`；✅ P3.3c 已通过自动、代理与用户可视化验收，等待提交授权
 >
 > 工作分支：`feat/p3-workbench`　|　设计基线：`87c4f83 docs: 完成P3.2c2离线前置核对`
 >
@@ -129,7 +129,7 @@ P3.3 默认使用 MSW 和独立 Mock FastAPI；不得将真实 8000 后端或真
 
 - **P3.3a 单元/组件测试**：验证 POST body、`Idempotency-Key` 在同一逻辑重试中稳定、每次 HTTP 尝试 `X-Request-Id` 独立、`202` 以响应 Run 导航、`409/422/503` 安全反馈、归档禁用、刷新不自动 POST。
 - **P3.3b 单元/组件测试**：验证 Event cursor 分页、事件去重/排序、终态关闭、页面卸载关闭、SSE `onerror` 不写成 `failed`、无 `after_sequence` 的原生 EventSource URL、自动重连与 REST 重同步不并发双流。
-- **P3.3c Mock FastAPI 验收**：扩展独立 mock（仅进程内确定性状态）覆盖 `POST Run` 的首次受理/同 key 重放/同 key 不同 query `409`，以及有限持久化 SSE 帧、断线后 Last-Event-ID 恢复、终态关闭。保留前端 build、Vitest、mock API 测试与浏览器人工主流程。
+- **P3.3c Mock FastAPI 验收**：已扩展独立 mock（仅进程内确定性状态）覆盖 `POST Run` 的首次受理/同 key 重放/同 key 不同 query `409`、不同 key 创建不同 Run/trace、RunEvent REST cursor、有限持久化 SSE 帧、Last-Event-ID 恢复、双游标 `400` 和终态关闭；`test:mock-api`、前端 build/Vitest 与独立 5175→8100 代理 HTTP 主流程已通过。浏览器/UI 控制不可用，仍待用户完成可视化主流程。
 - 后端 P2 契约没有变更时不修改后端；如 OpenAPI/Mock 发现字段或事件缺口，先停在契约差异并另开后端 Design，禁止前端猜字段。
 
 人工验收依次覆盖：active Session 提交 → `202` 深链 → queued/running 事件摘要 → 刷新恢复 → 断线恢复 → succeeded/failed/cancelled 终态；网络未知结果使用同 key 重试；归档、空 Run、404、非 JSON 代理失败和无 report 配置均诚实展示。确认不存在旧 API、真实 DB、P4/P5/P6 假能力或 `report/` 混入。
@@ -148,4 +148,4 @@ P3 不修改 `/api/v1`、Application Service、Repository、ORM、Alembic、旧�
 
 ## 9. 结论
 
-P3.3a 已提交为 `dc122cc feat: 完成P3.3a Run受理与幂等重试`。P3.3b 已提交为 `e7858ce feat: 完成P3.3b持久化事件与SSE恢复`，包括 RunEvent cursor 读取、`(run_id, sequence)` 合并/去重、无 `after_sequence` 的原生 EventSource、断线 REST 重同步和终态重读；typecheck、22 项 Vitest 与 production build 已通过。真实数据库验收继续延后，C1–C8 不降低。**当前唯一下一步为 P3.3c：Mock FastAPI SSE 契约验收。**
+P3.3a 已提交为 `dc122cc feat: 完成P3.3a Run受理与幂等重试`。P3.3b 已提交为 `e7858ce feat: 完成P3.3b持久化事件与SSE恢复`。P3.3c 已完成确定性 Mock FastAPI 的 Run 幂等、RunEvent/SSE 实现和自动验收：`test:mock-api` 10 项、typecheck、22 项 Vitest、production build，以及独立 Vite 5175 → Mock 8100 的真实 HTTP 代理主流程和用户可视化验收均通过；临时实例均已关闭。真实数据库验收继续延后，C1–C8 不降低。**P3.3c 已通过独立 Review，当前等待用户提交授权；提交后进入 P3.4 Design：结构化结果、失败/空/归档收口与受控 Trace 入口。**

@@ -1,6 +1,6 @@
 # P3.3 Step 设计 — Run 受理、幂等与 SSE 恢复
 
-> 日期：2026-07-28　|　状态：✅ P3.3b 已提交 `e7858ce`；P3.3c 待开始
+> 日期：2026-07-28　|　状态：✅ P3.3b 已提交 `e7858ce`；✅ P3.3c 已完成验收与 Review，等待提交授权
 >
 > 工作分支：`feat/p3-workbench`　|　设计基线：`87c4f83 docs: 完成P3.2c2离线前置核对`
 >
@@ -100,7 +100,7 @@ npm run build
 1. 在 `frontend/scripts/` 的独立 Mock FastAPI 内以进程内确定性数据扩展 POST Run、同 key 重放/冲突、事件列表和有限 SSE 流；不接入真实 P2 persistence。
 2. 对 mock 脚本测试：首次 `202`、相同 key/query 的同 Run/trace、不同 query 的安全 `409`、SSE `id`/`run_event` 帧、Last-Event-ID 续传、终态自动关闭。
 3. 启动独立 mock 与独立 Vite 实例，人工验收 active 提交、刷新、断线恢复、终态与安全错误；结束后关闭临时进程，不改用户的 5174/8000 实例。
-4. 完成 P3.3 独立 Review、更新 HANDOFF，并等待提交授权。
+4. 完成 P3.3c 独立 Review、更新 HANDOFF，并在用户完成可视化主流程验收后等待提交授权。
 
 ### 不做
 
@@ -115,6 +115,16 @@ npm run build
 
 ## 7. 当前状态与唯一下一步
 
-P3.3b 已完成独立 Review 并提交为 `e7858ce feat: 完成P3.3b持久化事件与SSE恢复`。本 Step 只消费 P2 已提交 RunEvent/SSE 契约，未改后端、真实数据库或 8000。
+P3.3b 已完成独立 Review 并提交为 `e7858ce feat: 完成P3.3b持久化事件与SSE恢复`。P3.3c 已仅扩展 `frontend/scripts/mock_v1_api.py` 及其 pytest：Run 受理使用 UUID 幂等键的确定性进程内状态；同 key + 规范化 query 重放同一 Run/trace；不同 query 安全 `409 IDEMPOTENCY_KEY_REUSED`；不同 key 产生不同 Run/trace；RunEvent REST 按 cursor 分页；SSE 返回 `id: sequence`、`event: run_event`、Run 自身 trace，支持 Last-Event-ID / after_sequence、双游标冲突 `400` 和终态关闭。未改后端、真实数据库、8000 或 `report/`。
 
-**当前唯一下一步为 P3.3c：Mock FastAPI SSE 契约验收。**
+```text
+frontend: npm run test:mock-api → 10 passed（TestClient 的 httpx 弃用警告不阻断）
+frontend: npm run typecheck     → 通过
+frontend: npm run test          → 3 files / 22 passed
+frontend: npm run build         → 通过（仅既有 >500 kB chunk 非阻断提示）
+独立验收：8100 mock + 5175 Vite（VITE_API_PROXY_TARGET=http://127.0.0.1:8100）
+          根页面/代理、202 受理、同 key 重放、不同 key、Last-Event-ID 续传 2/3、
+          REST cursor 恢复 1/2/3、终态 succeeded、双游标 400 均通过；临时进程已关闭。
+```
+
+用户已按独立 8100 Mock + 5175 Vite 完成可视化主流程验收，确认“开始诊断 → 事件到 succeeded → 刷新深链恢复”通过。代理 HTTP 验收与可视化验收均不接触 8000/真实数据库。**P3.3c 已完成独立 Review，当前唯一下一步为等待用户提交授权；提交后进入 P3.4 Design。**
