@@ -1,33 +1,42 @@
 # P3 HANDOFF — 主前端工作台
 
-> 更新时间：2026-07-28　|　状态：✅ P3.3c 已提交 `ca899e0`；当前进入 P3.4 Design
+> 日期：2026-07-28　|　状态：✅ P3.4 Design 已完成并独立审查通过；等待 P3.4a 代码授权
 >
-> 分支：`feat/p3-workbench`　|　最近提交基线：`ca899e0 feat: 完成P3.3c Mock FastAPI SSE契约验收`
->
-> 恢复入口：`docs/开发/_A-Plan-总览.md`、本文件、`design.md`、`step3-run受理幂等与sse恢复.md`、`review.md`。
+> 工作分支：`feat/p3-workbench`　|　提交基线：`306724d docs: 校正P3.3c提交状态并进入P3.4`
 
 ## 已完成
 
-- P3 Design：`12bed37`；P3.1：`4862752`；P3.2 Design：`ec45ee2`；P3.2a：`75d6598`；P3.2b：`3170e6a`；P3.2c.1：`5491829`；P3.2c.2：`87c4f83`；P3.3 Design：`f038f09`；P3.3a：`dc122cc`；状态校正：`181e601`、`e7b34a5`；P3.3b：`e7858ce`；P3.3c：`ca899e0`。
-- P3.3c 的确定性 Mock FastAPI Run 幂等、RunEvent REST cursor、有限持久化 SSE、Last-Event-ID/after_sequence、双游标 `400`、终态关闭，以及自动、独立代理和用户可视化验收均已闭环并提交。
-- 用户已决定真实数据库只读验收延后到前后端大致开发完成后；C1–C8 保留为届时的必备清单，当前不连接真实 DB、数据源或用户启动的 8000 后端。
+- P3.1 工程与产品外壳：`4862752`；
+- P3.2 Design：`ec45ee2`，P3.2a/b/c.1 分别为 `75d6598`、`3170e6a`、`5491829`；真实读模型验收继续按用户决定延后；
+- P3.3a Run 受理/幂等：`dc122cc`，P3.3b 持久化 RunEvent/SSE：`e7858ce`，P3.3c Mock FastAPI SSE 契约与用户可视化验收：`ca899e0`；
+- P3.4 Design 已完成：`design.md` 第 10 节、`step4-结构化结果与终态收口.md` 与本轮独立 Review 定义 Result、终态、空/归档、Mock 与 Trace/report 边界；本轮没有代码、Mock 或真实资源改动。
 
-## P3.4 Design 输入与边界
+## 当前唯一下一步
 
-- 仅设计结构化 `DiagnosisResult` 的结果优先呈现、queued/running/succeeded/failed/cancelled 的诚实状态、空/归档/404 边界，以及未来 P6 才可用的受控 Trace 跳转入口；不实现业务代码。
-- 继续只消费 P2 已提交 `/api/v1` 的 Session、Message、Run、RunEvent、Result 和错误资源；不改后端、OpenAPI、Application Service、Repository、ORM、Alembic、旧 `/diagnose*` 或 `report/`。
-- 不连接真实数据库/数据源/8000；不创建 P4/P5/P6 资源、页面或假能力；真实接入仍先执行 C1–C8。
+**P3.4a：结构化结果读取模型与摘要面板实现。**需要用户明确代码授权；不要把 P3.4b/c、真实 API/数据库联调或任何 P4–P6 能力混入该 Step。
 
-## 当前状态与唯一下一步
+## P3.4a 固定边界
 
-**当前唯一下一步为 P3.4 Design：结构化结果、失败/空/归档收口与受控 Trace 入口。**本轮先恢复、盘点、设计、独立 Review 与文档收口；未经用户后续授权，不初始化新工程、不实现 P3.4 前端业务代码，也不自动提交。
+- 只以 `GET /api/v1/runs/{run_id}` 的 `DiagnosisRun.result` 为事实，校验 `result.run_id`、必填字段、枚举、置信度与 UTC `Z`；
+- 只实现只读摘要、severity/confidence、根因、证据及合法空数组的局部空状态；
+- 预计文件：`frontend/src/features/workbench/result-readers.ts`、`DiagnosisResultPanel.tsx`、其测试和必要样式；超过 4 个源码/测试文件先更新 HANDOFF；
+- 不接入 failed/cancelled/归档全量收口、Mock FastAPI、Trace URL、Markdown 渲染、审批/执行/报告能力；
+- P3.3c Mock 的成功 Result 缺 `created_at`，不能作为 P3.4a 端到端事实；P3.4a 使用完整静态夹具，P3.4c 再单独补齐 MSW/Mock。
 
-## 外部隔离改动
+## 必跑验证（P3.4a 实现时）
 
-禁止读取、修改、暂存、提交或 reset：
-
-```text
-docs/00-项目方案说明书.md
+```powershell
+Set-Location frontend
+npm run typecheck
+npm run test
+npm run build
 ```
 
-`backend/src/domain/__init__.py` 与 `backend/src/infrastructure/persistence/__init__.py` 可能显示为修改；恢复时必须 `git diff -- <file>` 核对。当前无内容 diff 的行尾/元数据状态不纳入任何提交，也不 reset。
+并覆盖完整 Result、空数组、run_id 错配、缺失字段、未知枚举与非 UTC `Z`。没有 P3.4c 授权前不运行/修改独立 Mock；没有真实接入确认前不访问 8000、真实数据库或数据源。
+
+## 严格隔离
+
+- 不读取、修改、暂存、提交或 reset `docs/00-项目方案说明书.md`；
+- `backend/src/domain/__init__.py`、`backend/src/infrastructure/persistence/__init__.py` 已核对无内容 diff；不得修改、暂存或 reset；
+- 不改 `report/`、后端 `/api/v1`、Application Service、Repository、ORM、Alembic、旧 `/diagnose*` 或运行时资产；
+- 禁止 `git add .`。提交时逐个指定本 Step 文件，并在提交前执行 `git diff --cached --check`。
