@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { App } from './App'
 import { api_v1_contract_fixtures } from '../test/handlers'
-import { TestEventSource } from '../test/event-source'
 import { server } from '../test/server'
 
 function open_path(path: string): void {
@@ -18,20 +17,19 @@ server.events.on('request:start', ({ request }) => {
   if (path.startsWith('/api/v1/')) request_paths.push(path)
 })
 
-function run_response_handler(run: Record<string, unknown>) {
-  return http.get(/\/api\/v1\/runs\/[^/]+$/, ({ request }) => {
-    const request_id = request.headers.get('X-Request-Id') ?? 'missing-client-request-id'
-    return HttpResponse.json(
-      { run, meta: { request_id, trace_id: api_v1_contract_fixtures.trace_id } },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Request-Id': request_id,
-          'X-Trace-Id': api_v1_contract_fixtures.trace_id,
-        },
+function response(request: Request, body: Record<string, unknown>, status = 200) {
+  const request_id = request.headers.get('X-Request-Id') ?? 'missing-client-request-id'
+  return HttpResponse.json(
+    { ...body, meta: { request_id, trace_id: api_v1_contract_fixtures.trace_id } },
+    {
+      status,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Request-Id': request_id,
+        'X-Trace-Id': api_v1_contract_fixtures.trace_id,
       },
-    )
-  })
+    },
+  )
 }
 
 function complete_result(run_id: string): Record<string, unknown> {
@@ -53,29 +51,63 @@ function complete_result(run_id: string): Record<string, unknown> {
   }
 }
 
-function run_resource({
+function conversation_resources({
+  run_status = 'succeeded',
+  result = complete_result(api_v1_contract_fixtures.run_id),
   error = null,
-  result = null,
-  session_id = api_v1_contract_fixtures.session_id,
-  status,
+  include_output = true,
 }: {
   error?: unknown
+  include_output?: boolean
   result?: unknown
-  session_id?: string
-  status: 'cancelled' | 'failed' | 'queued' | 'running' | 'succeeded'
-}): Record<string, unknown> {
-  return {
-    created_at: '2026-07-28T07:59:00.000Z',
-    error,
-    finished_at: status === 'queued' || status === 'running' ? null : '2026-07-28T08:00:00.000Z',
-    id: api_v1_contract_fixtures.run_id,
-    input_message_id: '66666666-6666-4666-8666-666666666666',
-    result,
+  run_status?: 'cancelled' | 'failed' | 'queued' | 'running' | 'succeeded'
+} = {}) {
+  const session_id = api_v1_contract_fixtures.session_id
+  const run_id = api_v1_contract_fixtures.run_id
+  const input_message_id = '66666666-6666-4666-8666-666666666666'
+  const run = {
+    id: run_id,
     session_id,
-    started_at: status === 'queued' ? null : '2026-07-28T07:59:01.000Z',
-    status,
     trace_id: api_v1_contract_fixtures.trace_id,
+    input_message_id,
+    status: run_status,
+    result: run_status === 'succeeded' ? result : null,
+    error: run_status === 'failed' ? error : null,
+    created_at: '2026-07-28T07:59:00.000Z',
+    started_at: run_status === 'queued' ? null : '2026-07-28T07:59:01.000Z',
+    finished_at: ['queued', 'running'].includes(run_status) ? null : '2026-07-28T08:00:00.000Z',
   }
+  const messages = [
+    {
+      id: input_message_id,
+      session_id,
+      run_id: null,
+      role: 'user',
+      content: '请检查 Nginx 5xx。',
+      created_at: '2026-07-28T07:59:00.000Z',
+    },
+    ...(include_output ? [{
+      id: '88888888-8888-4888-8888-888888888888',
+      session_id,
+      run_id,
+      role: 'assistant',
+      content: '初步判断是上游连接池已经耗尽。',
+      created_at: '2026-07-28T08:00:01.000Z',
+    }] : []),
+  ]
+  return { messages, run }
+}
+
+function use_conversation_handlers(resources: ReturnType<typeof conversation_resources>): void {
+  const session_id = api_v1_contract_fixtures.session_id
+  server.use(
+    http.get(new RegExp(`/api/v1/sessions/${session_id}/runs$`), ({ request }) =>
+      response(request, { items: [resources.run], page: { next_cursor: null, has_more: false } }),
+    ),
+    http.get(new RegExp(`/api/v1/sessions/${session_id}/messages$`), ({ request }) =>
+      response(request, { items: resources.messages, page: { next_cursor: null, has_more: false } }),
+    ),
+  )
 }
 
 describe('App', () => {
@@ -84,407 +116,123 @@ describe('App', () => {
     open_path('/workbench')
   })
 
-  it('从 v1 active Session 列表恢复工作台入口', async () => {
+  it('从 v1 active Session 列表恢复个人会话入口', async () => {
     render(<App />)
 
-    expect(screen.getByRole('heading', { name: '诊断工作台' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '我的会话' })).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: /Nginx 5xx 排查/ })).toBeInTheDocument()
-    expect(screen.getByText('环境与数据源：待 P4')).toBeInTheDocument()
+    expect(screen.getByText('发送与实时过程：后续 P3.6b')).toBeInTheDocument()
   })
 
-  it('按 Session、Runs、Message、Run 的顺序恢复 Run 深链', async () => {
-    open_path(
-      `/workbench/sessions/${api_v1_contract_fixtures.session_id}/runs/${api_v1_contract_fixtures.run_id}`,
-    )
-    render(<App />)
-
-    expect(await screen.findByRole('heading', { name: /Nginx 5xx 排查/ })).toBeInTheDocument()
-    expect(await screen.findByText('请检查 Nginx 5xx。')).toBeInTheDocument()
-    expect(await screen.findByText('结构化诊断结果')).toBeInTheDocument()
-    await waitFor(() =>
-      expect(request_paths).toEqual([
-        `/api/v1/sessions/${api_v1_contract_fixtures.session_id}`,
-        `/api/v1/sessions/${api_v1_contract_fixtures.session_id}/runs`,
-        `/api/v1/sessions/${api_v1_contract_fixtures.session_id}/messages`,
-        `/api/v1/runs/${api_v1_contract_fixtures.run_id}`,
-        `/api/v1/runs/${api_v1_contract_fixtures.run_id}/events`,
-      ]),
-    )
-    expect(
-      screen.getByText('Run 受理与实时事件待 P3.3，结构化结果视觉待 P3.4；完整 Agent Trace 仍只在研发界面可用。'),
-    ).toBeInTheDocument()
-  })
-
-  it('以服务端返回的 Run 深链受理诊断，并发送 UUID 幂等键', async () => {
-    const received_requests: Array<{ idempotency_key: string | null; query: unknown }> = []
-    server.use(
-      http.post(/\/api\/v1\/sessions\/[^/]+\/runs$/, async ({ request }) => {
-        received_requests.push({
-          idempotency_key: request.headers.get('Idempotency-Key'),
-          query: (await request.json() as { query?: unknown }).query,
-        })
-        return HttpResponse.json(
-          {
-            run: {
-              id: api_v1_contract_fixtures.accepted_run_id,
-              session_id: api_v1_contract_fixtures.session_id,
-              trace_id: api_v1_contract_fixtures.trace_id,
-              status: 'queued',
-              result: null,
-              error: null,
-            },
-            meta: { request_id: request.headers.get('X-Request-Id'), trace_id: api_v1_contract_fixtures.trace_id },
-          },
-          {
-            status: 202,
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Request-Id': request.headers.get('X-Request-Id') ?? '',
-              'X-Trace-Id': api_v1_contract_fixtures.trace_id,
-            },
-          },
-        )
-      }),
-    )
-    open_path(
-      `/workbench/sessions/${api_v1_contract_fixtures.session_id}/runs/${api_v1_contract_fixtures.run_id}`,
-    )
-    render(<App />)
-
-    const input = await screen.findByRole('textbox', { name: '诊断问题' })
-    fireEvent.change(input, { target: { value: '请检查 Nginx 5xx。' } })
-    fireEvent.click(screen.getByRole('button', { name: '开始诊断' }))
-
-    await waitFor(() => expect(received_requests).toHaveLength(1))
-    expect(received_requests[0]?.query).toBe('请检查 Nginx 5xx。')
-    expect(received_requests[0]?.idempotency_key).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
-    )
-    await waitFor(() =>
-      expect(window.location.pathname).toBe(
-        `/workbench/sessions/${api_v1_contract_fixtures.session_id}/runs/${api_v1_contract_fixtures.accepted_run_id}`,
-      ),
-    )
-  })
-
-  it('网络结果未知时重试复用同一幂等键和问题', async () => {
-    const received_requests: Array<{ idempotency_key: string | null; query: unknown; request_id: string | null }> = []
-    let request_count = 0
-    server.use(
-      http.post(/\/api\/v1\/sessions\/[^/]+\/runs$/, async ({ request }) => {
-        request_count += 1
-        received_requests.push({
-          idempotency_key: request.headers.get('Idempotency-Key'),
-          query: (await request.json() as { query?: unknown }).query,
-          request_id: request.headers.get('X-Request-Id'),
-        })
-        if (request_count === 1) return HttpResponse.error()
-        return HttpResponse.json(
-          {
-            run: {
-              id: api_v1_contract_fixtures.accepted_run_id,
-              session_id: api_v1_contract_fixtures.session_id,
-              trace_id: api_v1_contract_fixtures.trace_id,
-              status: 'queued',
-              result: null,
-              error: null,
-            },
-            meta: { request_id: request.headers.get('X-Request-Id'), trace_id: api_v1_contract_fixtures.trace_id },
-          },
-          {
-            status: 202,
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Request-Id': request.headers.get('X-Request-Id') ?? '',
-              'X-Trace-Id': api_v1_contract_fixtures.trace_id,
-            },
-          },
-        )
-      }),
-    )
-    open_path(
-      `/workbench/sessions/${api_v1_contract_fixtures.session_id}/runs/${api_v1_contract_fixtures.run_id}`,
-    )
-    render(<App />)
-
-    const input = await screen.findByRole('textbox', { name: '诊断问题' })
-    fireEvent.change(input, { target: { value: '请检查 Nginx 5xx。' } })
-    fireEvent.click(screen.getByRole('button', { name: '开始诊断' }))
-
-    expect(await screen.findByRole('button', { name: '按原请求重试' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '按原请求重试' }))
-
-    await waitFor(() => expect(received_requests).toHaveLength(2))
-    expect(received_requests.map((item) => item.query)).toEqual(['请检查 Nginx 5xx。', '请检查 Nginx 5xx。'])
-    expect(received_requests[0]?.idempotency_key).toMatch(/^[0-9a-f-]{36}$/i)
-    expect(received_requests[1]?.idempotency_key).toBe(received_requests[0]?.idempotency_key)
-    expect(received_requests[1]?.request_id).not.toBe(received_requests[0]?.request_id)
-  })
-
-  it('受理冲突时显示安全错误且不自动更换幂等键重发', async () => {
-    let request_count = 0
-    server.use(
-      http.post(/\/api\/v1\/sessions\/[^/]+\/runs$/, ({ request }) => {
-        request_count += 1
-        return HttpResponse.json(
-          {
-            error: { code: 'IDEMPOTENCY_KEY_REUSED', message: '幂等键已用于不同问题', details: null },
-            meta: { request_id: request.headers.get('X-Request-Id'), trace_id: api_v1_contract_fixtures.trace_id },
-          },
-          {
-            status: 409,
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Request-Id': request.headers.get('X-Request-Id') ?? '',
-              'X-Trace-Id': api_v1_contract_fixtures.trace_id,
-            },
-          },
-        )
-      }),
-    )
+  it('按 Session、Runs、Message 的顺序恢复只读 Conversation Turn', async () => {
+    use_conversation_handlers(conversation_resources())
     open_path(`/workbench/sessions/${api_v1_contract_fixtures.session_id}`)
     render(<App />)
 
-    const input = await screen.findByRole('textbox', { name: '诊断问题' })
-    fireEvent.change(input, { target: { value: '请检查 Nginx 5xx。' } })
-    fireEvent.click(screen.getByRole('button', { name: '开始诊断' }))
-
-    expect(await screen.findByText('IDEMPOTENCY_KEY_REUSED：幂等键已用于不同问题')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '按原请求重试' })).not.toBeInTheDocument()
-    await new Promise((resolve) => setTimeout(resolve, 20))
-    expect(request_count).toBe(1)
+    expect(await screen.findByRole('heading', { name: /Nginx 5xx 排查/ })).toBeInTheDocument()
+    expect(await screen.findByLabelText('用户问题')).toHaveTextContent('请检查 Nginx 5xx。')
+    expect(await screen.findByLabelText('助手答复')).toHaveTextContent('初步判断是上游连接池已经耗尽。')
+    expect(screen.getByText('调查已完成')).toBeInTheDocument()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    await waitFor(() => expect(request_paths).toEqual([
+      `/api/v1/sessions/${api_v1_contract_fixtures.session_id}`,
+      `/api/v1/sessions/${api_v1_contract_fixtures.session_id}/runs`,
+      `/api/v1/sessions/${api_v1_contract_fixtures.session_id}/messages`,
+    ]))
   })
 
-  it('归档会话禁用新的诊断受理', async () => {
-    open_path(`/workbench/sessions/${api_v1_contract_fixtures.archived_session_id}`)
-    render(<App />)
-
-    expect(await screen.findByText('会话已归档，仅可读取历史内容，不能受理新的诊断运行。')).toBeInTheDocument()
-    expect(screen.queryByRole('textbox', { name: '诊断问题' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '开始诊断' })).not.toBeInTheDocument()
-  })
-
-  it('对非终态 Run 用无 after_sequence 的 EventSource 去重事件，并在终态后重读持久化资源', async () => {
-    let terminal = false
-    server.use(
-      http.get(/\/api\/v1\/runs\/99999999-9999-4999-8999-999999999999$/, ({ request }) =>
-        HttpResponse.json(
-          {
-            run: {
-              id: api_v1_contract_fixtures.accepted_run_id,
-              session_id: api_v1_contract_fixtures.session_id,
-              trace_id: api_v1_contract_fixtures.trace_id,
-              status: terminal ? 'succeeded' : 'running',
-              result: terminal ? { id: 'result-id' } : null,
-              error: null,
-            },
-            meta: { request_id: request.headers.get('X-Request-Id'), trace_id: api_v1_contract_fixtures.trace_id },
-          },
-          {
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Request-Id': request.headers.get('X-Request-Id') ?? '',
-              'X-Trace-Id': api_v1_contract_fixtures.trace_id,
-            },
-          },
-        ),
-      ),
-      http.get(/\/api\/v1\/runs\/99999999-9999-4999-8999-999999999999\/events$/, ({ request }) =>
-        HttpResponse.json(
-          {
-            items: terminal
-              ? [{
-                  id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
-                  run_id: api_v1_contract_fixtures.accepted_run_id,
-                  sequence: 2,
-                  type: 'run_succeeded',
-                  occurred_at: '2026-07-27T01:05:02.000Z',
-                  data: { summary: '诊断已完成。' },
-                }]
-              : [{
-                  id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-                  run_id: api_v1_contract_fixtures.accepted_run_id,
-                  sequence: 1,
-                  type: 'run_started',
-                  occurred_at: '2026-07-27T01:05:01.000Z',
-                  data: { summary: '诊断正在执行。' },
-                }],
-            page: { next_cursor: null, has_more: false },
-            meta: { request_id: request.headers.get('X-Request-Id'), trace_id: api_v1_contract_fixtures.trace_id },
-          },
-          {
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Request-Id': request.headers.get('X-Request-Id') ?? '',
-              'X-Trace-Id': api_v1_contract_fixtures.trace_id,
-            },
-          },
-        ),
-      ),
-    )
-    open_path(`/workbench/sessions/${api_v1_contract_fixtures.session_id}/runs/${api_v1_contract_fixtures.accepted_run_id}`)
-    render(<App />)
-
-    expect(await screen.findByText('诊断正在执行。')).toBeInTheDocument()
-    await waitFor(() => expect(TestEventSource.instances).toHaveLength(1))
-    const source = TestEventSource.instances[0]
-    expect(source?.url).toBe(`/api/v1/runs/${api_v1_contract_fixtures.accepted_run_id}/stream`)
-    expect(source?.url).not.toContain('after_sequence')
-
-    source?.emit_open()
-    expect(await screen.findByText('正在接收已持久化的诊断事件。')).toBeInTheDocument()
-    source?.emit_error()
-    expect(await screen.findByText('事件连接中断，正在从持久化记录恢复。')).toBeInTheDocument()
-    await waitFor(() => expect(request_paths.filter((path) => path.endsWith('/events')).length).toBeGreaterThanOrEqual(2))
-    expect(TestEventSource.instances).toHaveLength(1)
-    expect(screen.queryByText('诊断运行返回安全错误')).not.toBeInTheDocument()
-    source?.emit_run_event({
-      event: {
-        id: 'duplicate-event',
-        run_id: api_v1_contract_fixtures.accepted_run_id,
-        sequence: 1,
-        type: 'run_started',
-        occurred_at: '2026-07-27T01:05:01.000Z',
-        data: { summary: '重复事件不应重复渲染。' },
-      },
-    })
-    expect(screen.getAllByText('#1')).toHaveLength(1)
-
-    terminal = true
-    source?.emit_run_event({
-      event: {
-        id: 'terminal-event',
-        run_id: api_v1_contract_fixtures.accepted_run_id,
-        sequence: 2,
-        type: 'run_succeeded',
-        occurred_at: '2026-07-27T01:05:02.000Z',
-        data: { summary: '诊断已完成。' },
-      },
-    })
-    expect(source?.closed).toBe(true)
-    expect(await screen.findByText('诊断已完成。')).toBeInTheDocument()
-    await waitFor(() => expect(request_paths.filter((path) => path.endsWith('/events')).length).toBeGreaterThanOrEqual(2))
-  })
-
-  it('Session 不存在时只显示安全读取错误', async () => {
-    open_path('/workbench/sessions/not-found')
-    render(<App />)
-
-    expect(await screen.findByRole('heading', { name: '无法恢复诊断会话' })).toBeInTheDocument()
-    await waitFor(() => expect(screen.getByText('SESSION_NOT_FOUND：会话不存在')).toBeInTheDocument())
-    expect(screen.queryByRole('button', { name: /创建/i })).not.toBeInTheDocument()
-  })
-
-  it('Runs 恢复失败时不把下游资源伪造成空状态', async () => {
-    server.use(
-      http.get(/\/api\/v1\/sessions\/[^/]+\/runs$/, ({ request }) =>
-        HttpResponse.json(
-          {
-            error: { code: 'INTERNAL_ERROR', message: '服务内部错误，请稍后重试', details: {} },
-            meta: { request_id: request.headers.get('X-Request-Id') },
-          },
-          { status: 500 },
-        ),
-      ),
-    )
-    open_path(
-      `/workbench/sessions/${api_v1_contract_fixtures.session_id}/runs/${api_v1_contract_fixtures.run_id}`,
-    )
-    render(<App />)
-
-    expect(await screen.findByText('INTERNAL_ERROR：服务内部错误，请稍后重试')).toBeInTheDocument()
-    expect(screen.getByText('等待诊断运行恢复完成后再读取会话消息。')).toBeInTheDocument()
-    expect(screen.getByText('等待会话消息恢复完成后再读取当前 Run。')).toBeInTheDocument()
-    expect(screen.queryByText('该会话还没有消息')).not.toBeInTheDocument()
-  })
-
-  it('成功 Run 仅在完整结构化 Result 通过 reader 后展示摘要面板', async () => {
-    server.use(run_response_handler(run_resource({ status: 'succeeded', result: complete_result(api_v1_contract_fixtures.run_id) })))
+  it('旧 Run 深链回到对应会话，不额外读取单个 Run 资源', async () => {
+    use_conversation_handlers(conversation_resources())
     open_path(`/workbench/sessions/${api_v1_contract_fixtures.session_id}/runs/${api_v1_contract_fixtures.run_id}`)
     render(<App />)
 
-    expect(await screen.findByText('结构化诊断结果')).toBeInTheDocument()
-    expect(screen.getByLabelText('诊断结果摘要')).toHaveTextContent('Nginx 上游连接池已耗尽。')
-    expect(screen.queryByText('RESULT_PROTOCOL_ERROR')).not.toBeInTheDocument()
+    expect(await screen.findByLabelText('用户问题')).toBeInTheDocument()
+    await waitFor(() => expect(request_paths).toEqual([
+      `/api/v1/sessions/${api_v1_contract_fixtures.session_id}`,
+      `/api/v1/sessions/${api_v1_contract_fixtures.session_id}/runs`,
+      `/api/v1/sessions/${api_v1_contract_fixtures.session_id}/messages`,
+    ]))
   })
 
-  it('MSW 协议错误 Result 显示协议错误，而不伪造结构化结论', async () => {
-    open_path(`/workbench/sessions/${api_v1_contract_fixtures.session_id}/runs/${api_v1_contract_fixtures.protocol_error_run_id}`)
+  it('将结构化 Result 收在助手答复的按需展开层，而不是默认 Run 面板', async () => {
+    use_conversation_handlers(conversation_resources())
+    open_path(`/workbench/sessions/${api_v1_contract_fixtures.session_id}`)
     render(<App />)
 
-    expect(await screen.findByText('RESULT_PROTOCOL_ERROR')).toBeInTheDocument()
+    expect(await screen.findByLabelText('助手答复')).toBeInTheDocument()
     expect(screen.queryByText('结构化诊断结果')).not.toBeInTheDocument()
-  })
-
-  it('MSW 完整空数组 Result 显示诚实局部空状态', async () => {
-    open_path(`/workbench/sessions/${api_v1_contract_fixtures.session_id}/runs/${api_v1_contract_fixtures.empty_result_run_id}`)
-    render(<App />)
-
+    fireEvent.click(screen.getByText('展开结论、证据与建议'))
     expect(await screen.findByText('结构化诊断结果')).toBeInTheDocument()
-    expect(screen.getByText('服务未返回结构化根因')).toBeInTheDocument()
-    expect(screen.getByText('服务未返回结构化证据')).toBeInTheDocument()
   })
 
-  it('failed Run 只显示服务端安全错误，不展示结果面板', async () => {
-    server.use(run_response_handler(run_resource({
-      error: { code: 'TOOL_TIMEOUT', message: '上游日志查询超时。' },
-      status: 'failed',
-    })))
-    open_path(`/workbench/sessions/${api_v1_contract_fixtures.session_id}/runs/${api_v1_contract_fixtures.run_id}`)
+  it('结构化 Result 协议异常时保留已保存答复，并明确标示异常', async () => {
+    use_conversation_handlers(conversation_resources({ result: { id: 'incomplete-result' } }))
+    open_path(`/workbench/sessions/${api_v1_contract_fixtures.session_id}`)
     render(<App />)
+
+    expect(await screen.findByLabelText('助手答复')).toHaveTextContent('初步判断是上游连接池已经耗尽。')
+    expect(screen.getByText('RESULT_PROTOCOL_ERROR')).toBeInTheDocument()
+    expect(screen.queryByText('展开结论、证据与建议')).not.toBeInTheDocument()
+  })
+
+  it('成功调查缺少持久化助手消息时只显示恢复提示，不伪造答复', async () => {
+    use_conversation_handlers(conversation_resources({ include_output: false }))
+    open_path(`/workbench/sessions/${api_v1_contract_fixtures.session_id}`)
+    render(<App />)
+
+    expect(await screen.findByText('ANSWER_RECOVERY_PENDING')).toBeInTheDocument()
+    expect(screen.queryByLabelText('助手答复')).not.toBeInTheDocument()
+  })
+
+  it('failed 与 cancelled 调查只显示真实状态，不伪造结构化答复', async () => {
+    use_conversation_handlers(conversation_resources({
+      error: { code: 'TOOL_TIMEOUT', message: '上游日志查询超时。' },
+      include_output: false,
+      run_status: 'failed',
+    }))
+    open_path(`/workbench/sessions/${api_v1_contract_fixtures.session_id}`)
+    const failed_view = render(<App />)
 
     expect(await screen.findByText('TOOL_TIMEOUT')).toBeInTheDocument()
-    expect(screen.getByText('上游日志查询超时。')).toBeInTheDocument()
-    expect(screen.queryByText('结构化诊断结果')).not.toBeInTheDocument()
-  })
+    expect(screen.queryByLabelText('助手答复')).not.toBeInTheDocument()
+    failed_view.unmount()
 
-  it('cancelled、queued 与 running Run 诚实显示终态或进度，不展示旧结果', async () => {
-    server.use(run_response_handler(run_resource({ status: 'cancelled' })))
-    open_path(`/workbench/sessions/${api_v1_contract_fixtures.session_id}/runs/${api_v1_contract_fixtures.run_id}`)
-    const cancelled_view = render(<App />)
-
-    expect(await screen.findByText('诊断运行已取消')).toBeInTheDocument()
-    expect(screen.queryByText('结构化诊断结果')).not.toBeInTheDocument()
-    cancelled_view.unmount()
-
-    server.use(run_response_handler(run_resource({ status: 'queued' })))
-    const queued_view = render(<App />)
-
-    expect(await screen.findByText('诊断正在排队')).toBeInTheDocument()
-    expect(screen.queryByText('结构化诊断结果')).not.toBeInTheDocument()
-    queued_view.unmount()
-
-    server.use(run_response_handler(run_resource({ status: 'running' })))
+    use_conversation_handlers(conversation_resources({ include_output: false, run_status: 'cancelled' }))
     render(<App />)
-
-    expect(await screen.findByText('诊断正在运行')).toBeInTheDocument()
-    expect(screen.queryByText('结构化诊断结果')).not.toBeInTheDocument()
+    expect(await screen.findAllByText('调查已取消')).toHaveLength(2)
+    expect(screen.queryByLabelText('助手答复')).not.toBeInTheDocument()
   })
 
-  it('归档 Session 可只读展示历史成功 Result，且仍不提供新的诊断提交', async () => {
-    const archived_run = run_resource({
-      result: complete_result(api_v1_contract_fixtures.run_id),
-      session_id: api_v1_contract_fixtures.archived_session_id,
-      status: 'succeeded',
-    })
+  it('归档会话仍只读展示历史 Turn，不提供发送能力', async () => {
+    const session_id = api_v1_contract_fixtures.archived_session_id
+    const resources = conversation_resources()
+    const archived_run = { ...resources.run, session_id }
+    const archived_messages = resources.messages.map((message) => ({ ...message, session_id }))
     server.use(
-      http.get(/\/api\/v1\/sessions\/22222222-2222-4222-8222-222222222222\/runs$/, ({ request }) => {
-        const request_id = request.headers.get('X-Request-Id') ?? 'missing-client-request-id'
-        return HttpResponse.json({ items: [archived_run], page: { next_cursor: null, has_more: false }, meta: { request_id, trace_id: api_v1_contract_fixtures.trace_id } })
-      }),
-      http.get(/\/api\/v1\/sessions\/22222222-2222-4222-8222-222222222222\/messages$/, ({ request }) => {
-        const request_id = request.headers.get('X-Request-Id') ?? 'missing-client-request-id'
-        return HttpResponse.json({ items: [], page: { next_cursor: null, has_more: false }, meta: { request_id, trace_id: api_v1_contract_fixtures.trace_id } })
-      }),
-      run_response_handler(archived_run),
+      http.get(new RegExp(`/api/v1/sessions/${session_id}$`), ({ request }) => response(request, {
+        session: {
+          id: session_id,
+          title: '已归档的历史会话',
+          status: 'archived',
+          environment_id: null,
+          incident_id: null,
+          created_at: '2026-07-28T07:00:00.000Z',
+          updated_at: '2026-07-28T08:00:00.000Z',
+          archived_at: '2026-07-28T08:01:00.000Z',
+        },
+      })),
+      http.get(new RegExp(`/api/v1/sessions/${session_id}/runs$`), ({ request }) =>
+        response(request, { items: [archived_run], page: { next_cursor: null, has_more: false } }),
+      ),
+      http.get(new RegExp(`/api/v1/sessions/${session_id}/messages$`), ({ request }) =>
+        response(request, { items: archived_messages, page: { next_cursor: null, has_more: false } }),
+      ),
     )
-    open_path(`/workbench/sessions/${api_v1_contract_fixtures.archived_session_id}/runs/${api_v1_contract_fixtures.run_id}`)
+    open_path(`/workbench/sessions/${session_id}`)
     render(<App />)
 
-    expect(await screen.findByText('会话已归档，仅可读取历史内容，不能受理新的诊断运行。')).toBeInTheDocument()
-    expect(await screen.findByText('结构化诊断结果')).toBeInTheDocument()
-    expect(screen.queryByRole('textbox', { name: '诊断问题' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '开始诊断' })).not.toBeInTheDocument()
+    expect(await screen.findByText('已归档会话')).toBeInTheDocument()
+    expect(await screen.findByLabelText('助手答复')).toBeInTheDocument()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
   })
-
 })

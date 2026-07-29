@@ -1,4 +1,4 @@
-import { MenuFoldOutlined, MenuUnfoldOutlined, MonitorOutlined } from '@ant-design/icons'
+import { MenuFoldOutlined, MenuUnfoldOutlined, MessageOutlined } from '@ant-design/icons'
 import { Layout, Menu, Typography } from 'antd'
 import type { ReactElement } from 'react'
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
@@ -29,18 +29,12 @@ function ProductShell(): ReactElement {
         </div>
         <Menu
           className="main-navigation"
-          defaultSelectedKeys={['workbench']}
-          items={[
-            {
-              key: 'workbench',
-              icon: <MonitorOutlined />,
-              label: '诊断工作台',
-            },
-          ]}
+          defaultSelectedKeys={['conversations']}
+          items={[{ key: 'conversations', icon: <MessageOutlined />, label: '我的会话' }]}
           mode="inline"
           theme="dark"
         />
-        <div className="navigation-note">{!isNavigationCollapsed && 'V1 主产品 · 结果优先'}</div>
+        <div className="navigation-note">{!isNavigationCollapsed && '个人 AI 运维助手 · 只读会话'}</div>
       </Sider>
       <Layout>
         <Header className="product-header">
@@ -53,28 +47,26 @@ function ProductShell(): ReactElement {
             {isNavigationCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
           </button>
           <div>
-            <Typography.Text strong>主前端工作台</Typography.Text>
-            <Typography.Text className="header-context">P3.2 只读恢复</Typography.Text>
+            <Typography.Text strong>个人会话</Typography.Text>
+            <Typography.Text className="header-context">P3.6a · 只读 Turn 投影</Typography.Text>
           </div>
         </Header>
         <Content className="product-content">
           <div className="workspace-grid">
             <Outlet />
             <aside className="context-rail" aria-labelledby="context-title">
-              <div className="rail-kicker">READ-ONLY BOUNDARY</div>
-              <Typography.Title id="context-title" level={4}>
-                当前边界
-              </Typography.Title>
+              <div className="rail-kicker">PRODUCT BOUNDARY</div>
+              <Typography.Title id="context-title" level={4}>当前边界</Typography.Title>
               <Typography.Paragraph>
-                工作台只从 <code>/api/v1</code> 恢复 Session、Message 和 Run；刷新后的资源事实由服务端决定。
+                页面以会话与消息为主线，按需展示已保存的调查摘要和结构化结论；不会把 Run、SSE 或 Trace 当作默认阅读对象。
               </Typography.Paragraph>
               <Typography.Paragraph type="secondary">
-                Run 受理与实时事件待 P3.3，结构化结果视觉待 P3.4；完整 Agent Trace 仍只在研发界面可用。
+                当前仅恢复已有 v1 数据。发送、实时过程、监控、告警、审批和处理仍在后续切片，完整 Trace 继续仅面向研发界面。
               </Typography.Paragraph>
               <div className="honest-status" aria-label="阶段能力状态">
-                <span className="context-status">环境与数据源：待 P4</span>
-                <span className="context-status">告警与审批：待 P5</span>
-                <span className="context-status">报告与导出：待 P6</span>
+                <span className="context-status">发送与实时过程：后续 P3.6b</span>
+                <span className="context-status">监控与数据源：待 P4</span>
+                <span className="context-status">告警与受控处理：待 P5</span>
               </div>
             </aside>
           </div>

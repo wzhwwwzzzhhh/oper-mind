@@ -227,3 +227,84 @@ button {
     min-height: auto;
   }
 }
+.conversation-card {
+  margin-top: 24px;
+  border-color: #dce7eb;
+}
+
+.conversation-timeline {
+  display: grid;
+  gap: 20px;
+}
+
+.conversation-turn {
+  display: grid;
+  gap: 12px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #e5eef1;
+}
+
+.conversation-turn:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.conversation-message,
+.investigation-summary {
+  padding: 16px;
+  border-radius: 12px;
+}
+
+.conversation-message-user {
+  background: #edf8fb;
+  border: 1px solid #cfe9ef;
+}
+
+.conversation-message-assistant {
+  background: #f8f6ff;
+  border: 1px solid #e1dbf6;
+}
+
+.investigation-summary {
+  display: grid;
+  gap: 12px;
+  background: #fbfcfc;
+  border: 1px solid #dce7eb;
+}
+
+.investigation-summary-empty {
+  border-style: dashed;
+}
+
+.conversation-message-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.conversation-message-content {
+  margin: 10px 0 0 !important;
+  color: #365260;
+  white-space: pre-wrap;
+}
+
+.investigation-details {
+  background: transparent;
+}
+
+.investigation-details .ant-collapse-item {
+  border-bottom: 0 !important;
+}
+
+.conversation-protocol-notice,
+.conversation-system-message {
+  margin-bottom: 16px;
+}
+
+.conversation-history-boundary {
+  margin: 12px 0 0 !important;
+}
+
+.load-more-button {
+  margin-top: 8px;
+}

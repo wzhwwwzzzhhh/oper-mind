@@ -1,0 +1,80 @@
+import { describe, expect, it } from 'vitest'
+
+import { project_conversation_turns } from './conversation-turns'
+
+const SESSION_ID = '11111111-1111-4111-8111-111111111111'
+const INPUT_ID = '22222222-2222-4222-8222-222222222222'
+const RUN_ID = '33333333-3333-4333-8333-333333333333'
+
+function user_message() {
+  return {
+    id: INPUT_ID,
+    session_id: SESSION_ID,
+    run_id: null,
+    role: 'user',
+    content: '请检查网关错误。',
+    created_at: '2026-07-29T01:00:00.000Z',
+  }
+}
+
+function run() {
+  return {
+    id: RUN_ID,
+    session_id: SESSION_ID,
+    trace_id: '44444444-4444-4444-8444-444444444444',
+    input_message_id: INPUT_ID,
+    status: 'succeeded',
+    result: { id: '55555555-5555-4555-8555-555555555555' },
+    error: null,
+  }
+}
+
+describe('project_conversation_turns', () => {
+  it('按用户消息、调查和成功助手消息投影一个只读 Turn', () => {
+    const projection = project_conversation_turns([
+      user_message(),
+      {
+        id: '66666666-6666-4666-8666-666666666666',
+        session_id: SESSION_ID,
+        run_id: RUN_ID,
+        role: 'assistant',
+        content: '已确认网关连接池异常。',
+        created_at: '2026-07-29T01:00:03.000Z',
+      },
+    ], [run()], SESSION_ID)
+
+    expect(projection.issues).toEqual([])
+    expect(projection.timeline).toHaveLength(1)
+    expect(projection.timeline[0]).toMatchObject({
+      kind: 'turn',
+      turn: {
+        input: { content: '请检查网关错误。' },
+        investigation: { id: RUN_ID, status: 'succeeded' },
+        output: { content: '已确认网关连接池异常。' },
+      },
+    })
+  })
+
+  it('关联不一致时只报告协议问题，不选择任意调查或助手消息', () => {
+    const projection = project_conversation_turns([
+      user_message(),
+      {
+        id: '77777777-7777-4777-8777-777777777777',
+        session_id: SESSION_ID,
+        run_id: RUN_ID,
+        role: 'assistant',
+        content: '不应被投影。',
+        created_at: '2026-07-29T01:00:03.000Z',
+      },
+    ], [
+      run(),
+      { ...run(), id: '88888888-8888-4888-8888-888888888888' },
+    ], SESSION_ID)
+
+    expect(projection.issues).toContain('RUN_INPUT_MESSAGE_DUPLICATED：一条用户消息关联了多个调查，当前只读视图不会自行选择。')
+    expect(projection.timeline[0]).toMatchObject({
+      kind: 'turn',
+      turn: { input: { id: INPUT_ID }, investigation: undefined },
+    })
+  })
+})

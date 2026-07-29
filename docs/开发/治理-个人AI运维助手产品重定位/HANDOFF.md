@@ -1,32 +1,30 @@
-# R1 / P3.5 产品重定位 HANDOFF
+# R1 / P3.6a 交接（已关闭）
 
-> 日期：2026-07-29　|　状态：P3.5 Design 已提交；P3.6a 尚无实现授权。
->
-> 关联提交：`6b0290b docs: 完成个人AI运维助手产品重定位与P3.5设计`　|　技术基线：`37317e7 feat: 完成P3.4c结构化结果Mock契约验收`
+> 关闭日期：2026-07-29　|　分支：`feat/p3-workbench`
+> 前序基线：`ef5deab docs: 收口文档层级与历史交接入口`
+> 状态：P3.6a「会话壳与只读 Turn 投影」已完成 Code/Test/Review，且已通过用户人工验收并提交。
 
 ## 已完成
 
-- 用户确认 OperMind V1 面向个人、轻量、日常使用；一个用户拥有多个长期、多轮会话；
-- 用户确认主动提问、真实监控发现和已接入告警未来都应进入同一会话主线；
-- 用户确认 Agent 默认显示概要，展开后查看细节；处理目标必须经明确授权、权限、审计与验证；
-- `治理-个人AI运维助手产品重定位/` 成为产品体验设计入口；旧 P0/P3 工作台布局、导航和旧下一步只作历史/技术证据，已发布 API/SSE 契约与测试事实继续继承；
-- P3.5a 定义个人会话、调查摘要、答复、错误/空/归档/SSE 的体验状态；
-- P3.5b 定义以 P2 调查型 Run 投影为 Conversation Turn、刷新恢复、幂等和 cursor/普通聊天的 API 差距；
-- P3.5c 拆分后续 P3.6a/P3.6b/P3.6c 的实现与验收边界；
-- A-Plan、B-Plan、开发规范、AGENTS/CLAUDE 已同步产品方向和当前下一步。
+- R1/P3.5 产品重定位与设计已提交：`6b0290b`；
+- P3.6a 仅在用户明确授权后开始，且仅修改 `frontend/` 与治理/计划文档；
+- 前端把既有 P2 GET Session、Runs、Messages 投影为 user Message → Investigation → persisted assistant Message；
+- 成功缺答复、失败/取消/未终态、Result/关联异常、空/归档/读取错误均保持诚实状态；
+- 保留正序 cursor 并提供继续加载 Runs/Message，不宣称完整长期历史；
+- 旧 Run 深链兼容为进入对应会话，不再读取单个 Run；
+- `npm run typecheck`、`npm run test`（5 files / 33 tests）、`npm run build` 与 `npm run test:mock-api`（11 passed）均通过；
+- 用户已使用独立 8100 Mock 与非 Windows TCP 排除端口完成 P3.6a 人工验收。
 
-## 当前恢复边界
+## 关闭后的恢复入口
 
-**P3.6a「会话壳与只读 Turn 投影」只能在用户单独明确授权后开始。** 恢复前先阅读 `_A-Plan-总览.md`、`docs/开发/README.md`、本目录 `design.md` / `step1-*` / `step2-*` / `step3-*` / `review.md`，再核对未提交 diff。没有实现授权时仅可做文档核对、设计审阅和既有事实校验。项目级当前唯一下一步始终以 `docs/开发/_A-Plan-总览.md` 为准。
+1. 先执行 `git status --short` 与查看最近提交；
+2. 阅读 `docs/开发/_A-Plan-总览.md`、`docs/开发/README.md`、本目录 `README.md`、`review.md` 与本文件；
+3. 当前唯一下一步是 **P3.6b「调查型发送、稳定幂等键与刷新/SSE 恢复」的 Design**，不是直接实现；必须先完成 Design → Review，并获得用户新的明确授权；
+4. 继续继承 P2 `/api/v1` 契约，不得把 P3.6a 的只读页面错误扩展为普通聊天、假监控、假告警或自动处理。
 
-## 严格边界
+## 持续约束
 
-- 不改 `frontend/`、`report/`、后端 `/api/v1`、Application Service、Repository、ORM、Alembic 或旧 `/diagnose*`；
-- 不接入真实 8000、数据库、数据源、认证、在线迁移或执行器；
-- 不创建假监控大盘、Alert、Incident、Approval、Action、自动修复或多用户协作数据；
-- P3.4c 页面可视化验收仍待以独立 8100 Mock 和非排除端口补做；不能改连 8000；
-- 隔离文件 `docs/00-项目方案说明书.md`、`backend/src/domain/__init__.py`、`backend/src/infrastructure/persistence/__init__.py` 不得修改、暂存、提交或 reset；禁止 `git add .`。
-
-## 提交状态与后续提交边界
-
-R1/P3.5 文档已提交为 `6b0290b`，不得再次把该批已提交文件当作待提交工作。若后续获准实施 P3.6a，先新建该 step 的 Design / HANDOFF，再仅暂存该 step 的代码、测试、日志和必要同步文档；仍禁止 `git add .`。
+- 不得触碰隔离文件：`docs/00-项目方案说明书.md`、`backend/src/domain/__init__.py`、`backend/src/infrastructure/persistence/__init__.py`、以及其他 agent 持有的治理 `design.md` 元数据状态；禁止 `git add .`；
+- 不改 `report/`、后端 `/api/v1`、Application Service、Repository、ORM、Alembic、旧 `/diagnose*`、Mock API 或运行时资产，除非未来独立 Step 明确授权；
+- 不接入真实 8000、真实 DB、数据源、认证、在线迁移或执行器；不伪造监控、告警、Action、Approval、Incident 或多人协作；
+- P3.6b 的发送只能是调查型受理，必须先设计稳定 Idempotency-Key、刷新对账、持久化 events 与 SSE `Last-Event-ID` 恢复；不得假装是普通聊天。

@@ -1,18 +1,17 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import {
   Alert,
   Button,
   Card,
+  Collapse,
   Empty,
-  Input,
   Skeleton,
   Space,
   Tag,
-  Timeline,
   Typography,
 } from 'antd'
 import type { ReactElement, ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import {
@@ -20,26 +19,25 @@ import {
   ApiClientError,
   api_v1_client,
   type ApiResponse,
-  type RunResponse,
   type SessionResponse,
 } from '../../api/v1/client'
+import { api_v1_query_keys, get_session_query } from '../../api/v1/queries'
 import {
-  api_v1_query_keys,
-  create_run_mutation,
-  get_run_query,
-  get_session_query,
-} from '../../api/v1/queries'
+  investigation_status_color,
+  investigation_status_text,
+  project_conversation_turns,
+  type ConversationInvestigation,
+  type ConversationMessage,
+  type ConversationTurn,
+} from './conversation-turns'
+import { DiagnosisResultPanel } from './DiagnosisResultPanel'
+import { read_diagnosis_result } from './result-readers'
 import {
   read_items,
   read_page,
   resource_optional_string,
   resource_string,
-  resource_value,
 } from './resource-readers'
-import { DiagnosisResultPanel } from './DiagnosisResultPanel'
-import { read_diagnosis_result } from './result-readers'
-import { merge_persisted_run_events, run_event_summary, type PersistedRunEvent } from './run-events'
-import { use_run_event_stream } from './use-run-event-stream'
 
 function safe_error(error: unknown): { title: string; detail: ReactNode } {
   if (error instanceof ApiClientError) {
@@ -56,7 +54,7 @@ function safe_error(error: unknown): { title: string; detail: ReactNode } {
     }
   }
 
-  return { title: '暂时无法读取服务数据。', detail: '请稍后刷新；工作台不会使用本地数据代替服务端事实。' }
+  return { title: '暂时无法读取服务数据。', detail: '请稍后刷新；页面不会使用本地数据代替服务端事实。' }
 }
 
 function status_color(status: string): string {
@@ -80,204 +78,21 @@ function ApiErrorNotice({ error }: { error: unknown }): ReactElement {
   return <Alert description={safe.detail} title={safe.title} showIcon type="error" />
 }
 
-function ResultProtocolNotice({ description }: { description: string }): ReactElement {
-  return <Alert description={description} title="RESULT_PROTOCOL_ERROR" showIcon type="warning" />
-}
-
-function read_safe_run_error(value: unknown): { code: string; message: string } | undefined {
-  const code = resource_optional_string(value, 'code')
-  const message = resource_optional_string(value, 'message')
-  return code === undefined || message === undefined ? undefined : { code, message }
-}
-
-function RunOutcomePanel({
-  error,
-  result,
-  run_id,
-  run_status,
-}: {
-  error: unknown
-  result: unknown
-  run_id: string
-  run_status: string
-}): ReactElement {
-  if (run_status === 'succeeded') {
-    if (error !== null) return <ResultProtocolNotice description="成功 Run 不应携带安全错误；工作台没有展示结构化结果。" />
-    if (result === null) return <ResultProtocolNotice description="成功 Run 缺少结构化结果；工作台没有使用本地数据补齐。" />
-
-    const read = read_diagnosis_result(result, run_id)
-    if (!read.result) {
-      const first_issue = read.issues[0]
-      return <ResultProtocolNotice description={first_issue ? `${first_issue.field}：${first_issue.message}` : '结构化结果不符合公开契约。'} />
-    }
-    return <DiagnosisResultPanel result={read.result} />
-  }
-
-  if (run_status === 'failed') {
-    if (result !== null) return <ResultProtocolNotice description="失败 Run 不应携带结构化结果；工作台没有展示该结果。" />
-    const safe = read_safe_run_error(error)
-    if (!safe) return <ResultProtocolNotice description="失败 Run 缺少可安全展示的错误资源。" />
-    return <Alert description={safe.message} title={safe.code} showIcon type="error" />
-  }
-
-  if (run_status === 'cancelled') {
-    if (result !== null || error !== null) return <ResultProtocolNotice description="已取消 Run 不应携带结果或错误；工作台没有推断取消原因。" />
-    return <Alert description="诊断运行已取消；可查看已持久化事件，但不会显示结构化结果。" title="诊断运行已取消" showIcon type="warning" />
-  }
-
-  if (run_status === 'queued' || run_status === 'running') {
-    if (result !== null || error !== null) return <ResultProtocolNotice description="非终态 Run 不应携带结果或错误；工作台正在等待服务端持久化终态。" />
-    return (
-      <Alert
-        description={run_status === 'queued' ? '诊断请求已受理，正在等待执行。' : '诊断正在运行，正在同步已持久化的过程事件。'}
-        title={run_status === 'queued' ? '诊断正在排队' : '诊断正在运行'}
-        showIcon
-        type="info"
-      />
-    )
-  }
-
-  return <ResultProtocolNotice description="服务端返回了未知 Run 状态；工作台没有推断结果。" />
-}
-
-interface RetryableRunRequest {
-  idempotency_key: string
-  query: string
-}
-
-function is_retryable_unknown_error(error: unknown): boolean {
-  return error instanceof ApiClientError && (
-    error.code === 'NETWORK_ERROR' || error.code === 'INVALID_API_RESPONSE'
-  )
-}
-
-function RunSubmissionPanel({
-  session_id,
-  session_status,
-}: {
-  session_id: string
-  session_status: string
-}): ReactElement {
-  const navigate = useNavigate()
-  const query_client = useQueryClient()
-  const create_run = useMutation(create_run_mutation())
-  const [query, set_query] = useState('')
-  const [retry_request, set_retry_request] = useState<RetryableRunRequest | undefined>()
-  const active_session = session_status === 'active'
-
-  function accept_run(response: ApiResponse<RunResponse>): void {
-    const accepted_run_id = resource_optional_string(response.data.run, 'id')
-    if (!accepted_run_id) return
-
-    void Promise.all([
-      query_client.invalidateQueries({ queryKey: ['api-v1', 'session-runs', session_id] }),
-      query_client.invalidateQueries({ queryKey: ['api-v1', 'session-messages', session_id] }),
-      query_client.invalidateQueries({ queryKey: api_v1_query_keys.run(accepted_run_id) }),
-    ])
-    navigate(
-      `/workbench/sessions/${encodeURIComponent(session_id)}/runs/${encodeURIComponent(accepted_run_id)}`,
-    )
-  }
-
-  function submit_run(request: RetryableRunRequest): void {
-    create_run.mutate(
-      { session_id, query: request.query, idempotency_key: request.idempotency_key },
-      {
-        onError: (error) => {
-          if (is_retryable_unknown_error(error)) {
-            set_retry_request(request)
-          }
-        },
-        onSuccess: (response) => {
-          set_retry_request(undefined)
-          accept_run(response)
-        },
-      },
-    )
-  }
-
-  function start_new_run(): void {
-    const normalized_query = query.trim()
-    if (!normalized_query || create_run.isPending || !active_session) return
-
-    set_retry_request(undefined)
-    create_run.reset()
-    submit_run({ idempotency_key: globalThis.crypto.randomUUID(), query: normalized_query })
-  }
-
-  function update_query(next_query: string): void {
-    set_query(next_query)
-    if (retry_request && next_query !== retry_request.query) {
-      set_retry_request(undefined)
-    }
-    if (create_run.isError) create_run.reset()
-  }
-
-  return (
-    <Card className="workbench-card" size="small" title="发起诊断">
-      {!active_session && (
-        <Alert
-          description="会话已归档，仅可读取历史内容，不能受理新的诊断运行。"
-          title="已归档会话"
-          showIcon
-          type="info"
-        />
-      )}
-      {active_session && (
-        <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
-          <Typography.Text type="secondary">
-            描述需要诊断的问题。提交后服务端以幂等键受理；页面刷新不会自动重新提交。
-          </Typography.Text>
-          <Input.TextArea
-            aria-label="诊断问题"
-            autoSize={{ minRows: 3, maxRows: 8 }}
-            disabled={create_run.isPending}
-            maxLength={4000}
-            onChange={(event) => update_query(event.target.value)}
-            placeholder="例如：请检查 Nginx 5xx 的根因和影响范围"
-            value={query}
-          />
-          <Space wrap>
-            <Button
-              disabled={!query.trim() || create_run.isPending}
-              loading={create_run.isPending}
-              onClick={start_new_run}
-              type="primary"
-            >
-              开始诊断
-            </Button>
-            {retry_request && !create_run.isPending && (
-              <Button onClick={() => submit_run(retry_request)} type="default">
-                按原请求重试
-              </Button>
-            )}
-          </Space>
-          {create_run.isError && <ApiErrorNotice error={create_run.error} />}
-          {retry_request && (
-            <Typography.Text type="secondary">
-              上次请求的受理结果未知；重试会复用原幂等键和未修改的问题，不会自动创建新的诊断运行。
-            </Typography.Text>
-          )}
-        </Space>
-      )}
-    </Card>
-  )
-}
-
 function LoadMoreButton({
   has_more,
   is_fetching,
+  label,
   on_click,
 }: {
   has_more: boolean
   is_fetching: boolean
+  label: string
   on_click: () => void
 }): ReactElement | null {
   if (!has_more) return null
-
   return (
-    <Button disabled={is_fetching} onClick={on_click} type="link">
-      {is_fetching ? '正在加载…' : '加载更多'}
+    <Button className="load-more-button" disabled={is_fetching} onClick={on_click} type="link">
+      {is_fetching ? '正在加载…' : label}
     </Button>
   )
 }
@@ -303,11 +118,14 @@ function SessionNavigator(): ReactElement {
   )
 
   return (
-    <Card className="session-navigator" size="small" title="诊断会话">
+    <Card className="session-navigator" size="small" title="你的会话">
+      <Typography.Paragraph type="secondary">
+        会话会保存问题、调查过程和后续答复。新建会话与普通聊天发送将在后续切片提供。
+      </Typography.Paragraph>
       {sessions_query.isPending && <LoadingBlock label="正在恢复会话列表" />}
       {sessions_query.isError && <ApiErrorNotice error={sessions_query.error} />}
       {sessions_query.isSuccess && sessions.length === 0 && (
-        <Empty description="暂时没有 active 会话" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        <Empty description="暂时没有活跃会话" image={Empty.PRESENTED_IMAGE_SIMPLE} />
       )}
       {sessions.length > 0 && (
         <div className="resource-list" role="list">
@@ -324,7 +142,7 @@ function SessionNavigator(): ReactElement {
                   type="button"
                 >
                   <span>{title}</span>
-                  <small>更新于 {updated_at}</small>
+                  <small>最近更新 {updated_at}</small>
                 </button>
               </div>
             )
@@ -334,296 +152,160 @@ function SessionNavigator(): ReactElement {
       <LoadMoreButton
         has_more={Boolean(sessions_query.hasNextPage)}
         is_fetching={sessions_query.isFetchingNextPage}
+        label="加载更多会话"
         on_click={() => void sessions_query.fetchNextPage()}
       />
     </Card>
   )
 }
 
-function RunsPanel({
-  runs,
-  selected_run_id,
-  pending,
-  error,
-  has_more,
-  is_fetching,
-  on_load_more,
-  session_id,
-}: {
-  runs: unknown[]
-  selected_run_id?: string
-  pending: boolean
-  error: unknown
-  has_more: boolean
-  is_fetching: boolean
-  on_load_more: () => void
-  session_id: string
-}): ReactElement {
-  const navigate = useNavigate()
-  return (
-    <Card className="workbench-card" size="small" title="诊断运行">
-      {pending && <LoadingBlock label="正在恢复诊断运行" />}
-      {error !== null && error !== undefined && <ApiErrorNotice error={error} />}
-      {!pending && !error && runs.length === 0 && <Empty description="该会话尚无诊断运行" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
-      {runs.length > 0 && (
-        <div className="resource-list" role="list">
-          {runs.map((run, index) => {
-            const run_id = resource_optional_string(run, 'id')
-            const status = resource_string(run, 'status', 'unknown')
-            return (
-              <div key={run_id ?? index} role="listitem">
-                <button
-                  aria-current={run_id === selected_run_id ? 'true' : undefined}
-                  className="run-navigation-item"
-                  disabled={!run_id}
-                  onClick={() =>
-                    run_id &&
-                    navigate(
-                      `/workbench/sessions/${encodeURIComponent(session_id)}/runs/${encodeURIComponent(run_id)}`,
-                    )
-                  }
-                  type="button"
-                >
-                  <span>{run_id ?? '未知 Run'}</span>
-                  <Tag color={status_color(status)}>{status}</Tag>
-                </button>
-              </div>
-            )
-          })}
-        </div>
-      )}
-      <LoadMoreButton has_more={has_more} is_fetching={is_fetching} on_click={on_load_more} />
-    </Card>
-  )
-}
+function AssistantReply({ investigation, output }: { investigation: ConversationInvestigation; output?: ConversationMessage }): ReactElement {
+  if (investigation.status === 'succeeded') {
+    const result_read = investigation.result === null
+      ? { issues: [{ field: 'result', message: '成功调查缺少结构化结果。' }] }
+      : read_diagnosis_result(investigation.result, investigation.id)
 
-function MessagesPanel({
-  messages,
-  enabled,
-  pending,
-  error,
-  has_more,
-  is_fetching,
-  on_load_more,
-}: {
-  messages: unknown[]
-  enabled: boolean
-  pending: boolean
-  error: unknown
-  has_more: boolean
-  is_fetching: boolean
-  on_load_more: () => void
-}): ReactElement {
-  return (
-    <Card className="workbench-card" size="small" title="会话消息">
-      {!enabled && <Typography.Text type="secondary">等待诊断运行恢复完成后再读取会话消息。</Typography.Text>}
-      {enabled && pending && <LoadingBlock label="正在恢复会话消息" />}
-      {enabled && error !== null && error !== undefined && <ApiErrorNotice error={error} />}
-      {enabled && !pending && !error && messages.length === 0 && <Empty description="该会话还没有消息" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
-      {enabled && messages.length > 0 && (
-        <Timeline
-          items={messages.map((message) => ({
-            content: (
-              <div>
-                <Space size="small">
-                  <Tag color={resource_string(message, 'role') === 'user' ? 'blue' : 'purple'}>
-                    {resource_string(message, 'role')}
-                  </Tag>
-                  <Typography.Text type="secondary">{resource_string(message, 'created_at')}</Typography.Text>
-                </Space>
-                <Typography.Paragraph className="message-content">
-                  {resource_string(message, 'content')}
-                </Typography.Paragraph>
-              </div>
-            ),
-          }))}
+    if (!output) {
+      return (
+        <Alert
+          description="服务端已标记调查成功，但尚未恢复关联的助手答复。页面不会根据 Result 伪造一条已保存消息。"
+          title="ANSWER_RECOVERY_PENDING"
+          showIcon
+          type="warning"
         />
-      )}
-      <LoadMoreButton has_more={has_more} is_fetching={is_fetching} on_click={on_load_more} />
-    </Card>
-  )
-}
-
-function RunEventsPanel({
-  events,
-  error,
-  has_more,
-  is_fetching,
-  on_load_more,
-  pending,
-  stream_state,
-}: {
-  events: PersistedRunEvent[]
-  error: unknown
-  has_more: boolean
-  is_fetching: boolean
-  on_load_more: () => void
-  pending: boolean
-  stream_state: 'connected' | 'connecting' | 'idle' | 'recovering'
-}): ReactElement {
-  const stream_message = {
-    connected: '正在接收已持久化的诊断事件。',
-    connecting: '正在连接持久化事件流。',
-    idle: '当前 Run 已终态，不保持事件连接。',
-    recovering: '事件连接中断，正在从持久化记录恢复。',
-  }[stream_state]
-  return (
-    <Card className="workbench-card" size="small" title="诊断过程摘要">
-      <Typography.Text type="secondary">{stream_message}</Typography.Text>
-      {pending && <LoadingBlock label="正在恢复诊断事件" />}
-      {error !== null && error !== undefined && <ApiErrorNotice error={error} />}
-      {!pending && !error && events.length === 0 && (
-        <Empty description="该 Run 暂无已提交的诊断事件" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-      )}
-      {events.length > 0 && (
-        <Timeline
-          items={events.map((event) => ({
-            content: (
-              <div>
-                <Space size="small" wrap>
-                  <Tag>{event.type}</Tag>
-                  <Typography.Text type="secondary">#{event.sequence}</Typography.Text>
-                  <Typography.Text type="secondary">{event.occurred_at}</Typography.Text>
-                </Space>
-                <Typography.Paragraph className="message-content">{run_event_summary(event)}</Typography.Paragraph>
-              </div>
-            ),
-          }))}
-        />
-      )}
-      <LoadMoreButton has_more={has_more} is_fetching={is_fetching} on_click={on_load_more} />
-    </Card>
-  )
-}
-
-function SelectedRun({
-  current_session_id,
-  run_id,
-  enabled,
-}: {
-  current_session_id: string
-  run_id?: string
-  enabled: boolean
-}): ReactElement {
-  const query_client = useQueryClient()
-  const run_query = useQuery({ ...get_run_query(run_id ?? ''), enabled: enabled && Boolean(run_id) })
-  const run = run_query.isSuccess ? (run_query.data as ApiResponse<RunResponse>).data.run : undefined
-  const run_session_id = resource_optional_string(run, 'session_id')
-  const run_status = resource_string(run, 'status', 'unknown')
-  const run_matches_session = run_session_id === current_session_id
-  const events_query = useInfiniteQuery({
-    queryKey: api_v1_query_keys.run_events(run_id ?? '', { limit: API_V1_DEFAULT_PAGE_SIZE }),
-    enabled: Boolean(run_id) && run_query.isSuccess && run_matches_session,
-    initialPageParam: undefined as string | undefined,
-    queryFn: ({ pageParam, signal }) =>
-      api_v1_client.list_run_events(
-        run_id ?? '',
-        { cursor: pageParam, limit: API_V1_DEFAULT_PAGE_SIZE },
-        { signal },
-      ),
-    getNextPageParam: (last_page) => {
-      const page = read_page(last_page.data)
-      return page.has_more ? page.next_cursor : undefined
-    },
-  })
-  const rest_events = useMemo(
-    () => events_query.data?.pages.flatMap((page) => read_items(page.data)) ?? [],
-    [events_query.data],
-  )
-  const [events, set_events] = useState<PersistedRunEvent[]>([])
-
-  useEffect(() => {
-    if (!run_id) {
-      set_events([])
-      return
+      )
     }
-    set_events((current_events) => merge_persisted_run_events(run_id, current_events, rest_events))
-  }, [rest_events, run_id])
 
-  const recover_persisted_events = useCallback(async (): Promise<void> => {
-    if (!run_id) return
-    await Promise.all([
-      query_client.refetchQueries({ queryKey: api_v1_query_keys.run(run_id) }),
-      query_client.refetchQueries({ queryKey: api_v1_query_keys.run_events(run_id, { limit: API_V1_DEFAULT_PAGE_SIZE }) }),
-    ])
-  }, [query_client, run_id])
-  const refresh_terminal_run = useCallback(async (): Promise<void> => {
-    if (!run_id) return
-    await Promise.all([
-      query_client.refetchQueries({ queryKey: api_v1_query_keys.run(run_id) }),
-      query_client.refetchQueries({ queryKey: api_v1_query_keys.run_events(run_id, { limit: API_V1_DEFAULT_PAGE_SIZE }) }),
-      query_client.refetchQueries({ queryKey: ['api-v1', 'session-runs', current_session_id] }),
-      query_client.refetchQueries({ queryKey: ['api-v1', 'session-messages', current_session_id] }),
-    ])
-  }, [current_session_id, query_client, run_id])
-  const stream_state = use_run_event_stream({
-    enabled: Boolean(run_id) && run_matches_session && (run_status === 'queued' || run_status === 'running'),
-    on_event: set_events,
-    on_recover: recover_persisted_events,
-    on_terminal: refresh_terminal_run,
-    run_id: run_id ?? '',
-  })
-
-  if (!run_id) {
+    const first_issue = result_read.issues[0]
     return (
-      <Card className="workbench-card" size="small" title="当前 Run">
-        <Empty description="选择一个 Run 后显示状态" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-      </Card>
+      <div className="conversation-message conversation-message-assistant" aria-label="助手答复">
+        <div className="conversation-message-meta">
+          <Tag color="purple">OperMind</Tag>
+          <Typography.Text type="secondary">{output.created_at}</Typography.Text>
+        </div>
+        <Typography.Paragraph className="conversation-message-content">{output.content}</Typography.Paragraph>
+        {result_read.result ? (
+          <Collapse
+            className="investigation-details"
+            items={[{
+              key: 'result',
+              label: '展开结论、证据与建议',
+              children: <DiagnosisResultPanel result={result_read.result} />,
+            }]}
+          />
+        ) : (
+          <Alert
+            description={first_issue ? `${first_issue.field}：${first_issue.message}` : '结构化结果不符合公开契约。'}
+            title="RESULT_PROTOCOL_ERROR"
+            showIcon
+            type="warning"
+          />
+        )}
+      </div>
     )
   }
-  if (!enabled) {
-    return (
-      <Card className="workbench-card" size="small" title="当前 Run">
-        <Typography.Text type="secondary">等待会话消息恢复完成后再读取当前 Run。</Typography.Text>
-      </Card>
-    )
-  }
-  if (run_query.isPending) return <LoadingBlock label="正在恢复当前 Run" />
-  if (run_query.isError) return <ApiErrorNotice error={run_query.error} />
 
-  if (!run_matches_session) {
+  if (investigation.status === 'failed') {
+    const error_record = investigation.error as Record<string, unknown> | null
+    const code = typeof error_record?.code === 'string' ? error_record.code : undefined
+    const message = typeof error_record?.message === 'string' ? error_record.message : undefined
     return (
       <Alert
-        description="该 Run 不属于当前 Session。为避免跨会话展示，工作台没有加载其内容。"
-        title="RUN_SESSION_MISMATCH"
+        description={code && message ? message : '服务端未返回可安全展示的调查错误。'}
+        title={code ?? '调查未完成'}
         showIcon
-        type="warning"
+        type="error"
       />
     )
   }
 
-  const trace_id = resource_string(run, 'trace_id')
-  const result = resource_value(run, 'result')
-  const error = resource_value(run, 'error')
+  if (investigation.status === 'cancelled') {
+    return <Alert description="可保留已保存的会话内容；当前不推断取消原因或继续执行。" title="调查已取消" showIcon type="warning" />
+  }
+
   return (
-    <>
-      <Card className="workbench-card" size="small" title="当前 Run">
-        <Space orientation="vertical" size="middle">
-          <Space wrap>
-            <Typography.Text strong>{resource_string(run, 'id')}</Typography.Text>
-            <Tag color={status_color(run_status)}>{run_status}</Tag>
-          </Space>
-          <Typography.Paragraph>
-            <strong>Trace：</strong>
-            {trace_id}
-          </Typography.Paragraph>
-          <RunOutcomePanel error={error} result={result} run_id={run_id} run_status={run_status} />
-        </Space>
-      </Card>
-      <RunEventsPanel
-        error={events_query.error}
-        events={events}
-        has_more={Boolean(events_query.hasNextPage)}
-        is_fetching={events_query.isFetchingNextPage}
-        on_load_more={() => void events_query.fetchNextPage()}
-        pending={events_query.isPending}
-        stream_state={stream_state}
-      />
-    </>
+    <Alert
+      description={investigation.status === 'queued'
+        ? '请求已保存，正在等待调查开始。'
+        : '正在核对已保存的诊断事实；实时过程展示将在后续切片渐进加入。'}
+      title={investigation.status === 'queued' ? '正在准备调查' : '正在调查'}
+      showIcon
+      type="info"
+    />
   )
 }
 
-function SessionWorkspace({ session_id, run_id }: { session_id: string; run_id?: string }): ReactElement {
+function InvestigationSummary({ investigation, output }: { investigation?: ConversationInvestigation; output?: ConversationMessage }): ReactElement {
+  if (!investigation) {
+    return (
+      <div className="investigation-summary investigation-summary-empty">
+        <Typography.Text type="secondary">这条消息尚未关联已保存的调查；页面不会创建或猜测调查记录。</Typography.Text>
+      </div>
+    )
+  }
+
+  return (
+    <div className="investigation-summary" aria-label="调查摘要">
+      <Space align="center" wrap>
+        <Typography.Text strong>调查摘要</Typography.Text>
+        <Tag color={investigation_status_color(investigation.status)}>{investigation_status_text(investigation.status)}</Tag>
+      </Space>
+      <AssistantReply investigation={investigation} output={output} />
+    </div>
+  )
+}
+
+function ConversationTurnCard({ turn }: { turn: ConversationTurn }): ReactElement {
+  return (
+    <article className="conversation-turn">
+      <div className="conversation-message conversation-message-user" aria-label="用户问题">
+        <div className="conversation-message-meta">
+          <Tag color="blue">你</Tag>
+          <Typography.Text type="secondary">{turn.input.created_at}</Typography.Text>
+        </div>
+        <Typography.Paragraph className="conversation-message-content">{turn.input.content}</Typography.Paragraph>
+      </div>
+      <InvestigationSummary investigation={turn.investigation} output={turn.output} />
+    </article>
+  )
+}
+
+function ConversationTimeline({ messages, runs, session_id }: { messages: unknown[]; runs: unknown[]; session_id: string }): ReactElement {
+  const { issues, timeline } = useMemo(
+    () => project_conversation_turns(messages, runs, session_id),
+    [messages, runs, session_id],
+  )
+
+  return (
+    <Card className="conversation-card" size="small" title="对话">
+      {issues.map((issue, index) => (
+        <Alert className="conversation-protocol-notice" description={issue} key={`${issue}-${index}`} showIcon title="会话关联异常" type="warning" />
+      ))}
+      {timeline.length === 0 && (
+        <Empty description="该会话还没有可恢复的对话内容" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+      )}
+      <div className="conversation-timeline">
+        {timeline.map((item) => {
+          if (item.kind === 'system') {
+            return (
+              <Alert
+                className="conversation-system-message"
+                description={item.message.content}
+                key={item.message.id}
+                title={`系统提醒 · ${item.message.created_at}`}
+                showIcon
+                type="info"
+              />
+            )
+          }
+          return <ConversationTurnCard key={item.turn.input.id} turn={item.turn} />
+        })}
+      </div>
+    </Card>
+  )
+}
+
+function SessionWorkspace({ session_id }: { session_id: string }): ReactElement {
   const navigate = useNavigate()
   const session_query = useQuery({ ...get_session_query(session_id), enabled: Boolean(session_id) })
   const runs_query = useInfiniteQuery({
@@ -661,21 +343,11 @@ function SessionWorkspace({ session_id, run_id }: { session_id: string; run_id?:
     [messages_query.data],
   )
 
-  useEffect(() => {
-    if (run_id || !messages_query.isSuccess) return
-    const first_run_id = resource_optional_string(recovered_runs[0], 'id')
-    if (first_run_id) {
-      navigate(`/workbench/sessions/${encodeURIComponent(session_id)}/runs/${encodeURIComponent(first_run_id)}`, {
-        replace: true,
-      })
-    }
-  }, [messages_query.isSuccess, navigate, recovered_runs, run_id, session_id])
-
-  if (session_query.isPending) return <LoadingBlock label="正在恢复诊断会话" />
+  if (session_query.isPending) return <LoadingBlock label="正在恢复会话" />
   if (session_query.isError) {
     return (
       <section className="workbench-page" aria-labelledby="workbench-title">
-        <Typography.Title id="workbench-title" level={2}>无法恢复诊断会话</Typography.Title>
+        <Typography.Title id="workbench-title" level={2}>无法恢复会话</Typography.Title>
         <ApiErrorNotice error={session_query.error} />
         <Button className="return-workbench" onClick={() => navigate('/workbench')} type="link">返回会话列表</Button>
       </section>
@@ -686,56 +358,55 @@ function SessionWorkspace({ session_id, run_id }: { session_id: string; run_id?:
   const session_status = resource_string(session, 'status', 'unknown')
   return (
     <section className="workbench-page" aria-labelledby="workbench-title">
-      <div className="page-eyebrow">SESSION RECOVERY</div>
+      <div className="page-eyebrow">PERSONAL CONVERSATION · READ ONLY</div>
       <Space align="center" className="workbench-title-row" wrap>
-        <Typography.Title id="workbench-title" level={2}>{resource_string(session, 'title', '诊断会话')}</Typography.Title>
+        <Typography.Title id="workbench-title" level={2}>{resource_string(session, 'title', '个人会话')}</Typography.Title>
         <Tag color={status_color(session_status)}>{session_status}</Tag>
       </Space>
       <Typography.Paragraph className="page-description">
-        已按 Session → Runs → Message → 选定 Run 的顺序从服务端恢复。时间均保留服务端 UTC 字符串；可在 active 会话受理一条新的诊断运行。
+        这里按对话阅读已保存的用户问题、调查和助手答复。页面只读取 P2 v1 资源；发送、实时过程和新建会话将在后续切片提供。
       </Typography.Paragraph>
       {session_status === 'archived' && (
-        <Alert className="archive-notice" description="会话已归档，仅可读取历史消息和诊断运行；重新激活或编辑待后续产品切片。" title="已归档会话" showIcon type="info" />
+        <Alert className="archive-notice" description="会话已归档，仅可阅读历史内容；重新激活和编辑尚未实现。" title="已归档会话" showIcon type="info" />
       )}
-      <RunSubmissionPanel session_id={session_id} session_status={session_status} />
-      <div className="session-workspace-grid">
-        <div className="session-workspace-column">
-          <RunsPanel
-            error={runs_query.error}
+      {runs_query.isPending && <LoadingBlock label="正在恢复关联调查" />}
+      {runs_query.isError && <ApiErrorNotice error={runs_query.error} />}
+      {runs_query.isSuccess && messages_query.isPending && <LoadingBlock label="正在恢复会话消息" />}
+      {runs_query.isSuccess && messages_query.isError && <ApiErrorNotice error={messages_query.error} />}
+      {runs_query.isSuccess && messages_query.isSuccess && (
+        <>
+          <ConversationTimeline messages={recovered_messages} runs={recovered_runs} session_id={session_id} />
+          <LoadMoreButton
             has_more={Boolean(runs_query.hasNextPage)}
             is_fetching={runs_query.isFetchingNextPage}
-            on_load_more={() => void runs_query.fetchNextPage()}
-            pending={runs_query.isPending}
-            runs={recovered_runs}
-            selected_run_id={run_id}
-            session_id={session_id}
+            label="加载更多关联调查"
+            on_click={() => void runs_query.fetchNextPage()}
           />
-          <MessagesPanel
-            enabled={runs_query.isSuccess}
-            error={messages_query.error}
+          <LoadMoreButton
             has_more={Boolean(messages_query.hasNextPage)}
             is_fetching={messages_query.isFetchingNextPage}
-            on_load_more={() => void messages_query.fetchNextPage()}
-            messages={recovered_messages}
-            pending={messages_query.isPending}
+            label="加载更多已保存消息"
+            on_click={() => void messages_query.fetchNextPage()}
           />
-        </div>
-        <SelectedRun current_session_id={session_id} enabled={messages_query.isSuccess} run_id={run_id} />
-      </div>
+          <Typography.Paragraph className="conversation-history-boundary" type="secondary">
+            当前按服务端正序 cursor 读取已保存消息和关联调查；尚未实现“最近优先、向前加载历史”的新契约。
+          </Typography.Paragraph>
+        </>
+      )}
     </section>
   )
 }
 
 export function WorkbenchPage(): ReactElement {
-  const { session_id, run_id } = useParams<{ session_id: string; run_id: string }>()
-  if (session_id) return <SessionWorkspace run_id={run_id} session_id={session_id} />
+  const { session_id } = useParams<{ session_id: string }>()
+  if (session_id) return <SessionWorkspace session_id={session_id} />
 
   return (
     <section className="workbench-page" aria-labelledby="workbench-title">
-      <div className="page-eyebrow">OPERATIONS DIAGNOSIS</div>
-      <Typography.Title id="workbench-title" level={2}>诊断工作台</Typography.Title>
+      <div className="page-eyebrow">PERSONAL AI OPERATIONS</div>
+      <Typography.Title id="workbench-title" level={2}>我的会话</Typography.Title>
       <Typography.Paragraph className="page-description">
-        从持久化 Session 恢复诊断上下文。选择会话后，工作台只读取 v1 API 的 Session、Run 与 Message。
+        从已保存的个人会话恢复调查型对话。当前只读，不会伪造监控、告警、处理或普通聊天能力。
       </Typography.Paragraph>
       <SessionNavigator />
     </section>
