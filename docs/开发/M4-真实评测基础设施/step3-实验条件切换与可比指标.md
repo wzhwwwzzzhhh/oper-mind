@@ -93,7 +93,7 @@ pipeline_complete 仅用于说明完整系统链路覆盖，不用于惩罚有�
 - `src/eval/runner.py`、`src/eval/metrics.py`、`src/eval/result_schema.py`：端到端计时、
   condition_complete、逐例与汇总结果。
 - `tests/`：实验条件、图 trace、CLI 参数、结果契约、延迟与汇总指标测试。
-- `docs/开发/M4-真实模型实验/review.md`：实现后追加真实 smoke、人工抽检与正式实验前置检查。
+- `docs/开发/M4-真实评测基础设施/review.md`：实现后追加真实 smoke、人工抽检与正式实验前置检查。
 
 不改变：
 

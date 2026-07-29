@@ -1,28 +1,21 @@
-# P3 HANDOFF — 主前端工作台
+# P3 HANDOFF — 技术基线已收口，当前体验设计已移交 R1
 
-> 日期：2026-07-29　|　状态：✅ P3.4c 可提交：代码、自动验证、P2 schema 交叉校验与独立 Mock HTTP 代理核验已完成；页面可视化验收因 Windows 排除端口阻断而后置。
+> 更新时间：2026-07-29　|　状态：**P3.1–P3.4c 技术基线已完成；R1/P3.5 设计已提交为 `6b0290b`；P3.6a 尚无实现授权。**
 >
-> 工作分支：`feat/p3-workbench`　|　提交基线：`94539b5 feat: 完成P3.4b结果接入与终态收口`
+> P3.4c 提交：`37317e7 feat: 完成P3.4c结构化结果Mock契约验收`
 
-## 已完成
+## 已完成的技术事实
 
-- P3.1 工程与产品外壳：`4862752`；P3.2 Design/实现与离线前置核对：`ec45ee2`、`75d6598`、`3170e6a`、`5491829`、`87c4f83`；真实读模型验收仍按用户决定延后。
-- P3.3a/b/c Run 受理、持久化 Event/SSE 与 Mock 验收：`dc122cc`、`e7858ce`、`ca899e0`。
-- P3.4 Design/a/b：`fb76b35`、`bc1b4aa`、`94539b5`。P3.4b 已将合法 Result 接入选定 Run，收口成功、failed/cancelled/非终态、协议错误和归档只读。
-- P3.4c 待提交：MSW 与独立 Mock 均补齐完整 P2 Result；新增合法空数组、故意缺 `created_at` 的协议错误、failed/cancelled、归档夹具与回归。`npm run test:mock-api` 11 passed、`npm run typecheck`、Vitest 4 files / 38 passed、`npm run build` 均通过；P2 Pydantic schema 交叉校验和 `5175 → 8100` HTTP 代理核验通过。
+- P3.1–P3.4c 已形成 React 工程、v1 客户端、会话恢复、Run 幂等、持久化 SSE、结构化 Result 及独立 Mock 合同的技术基线；相关详细证据保留在本目录 `design.md`、`step*.md`、`review.md` 与关联提交中。
+- P3.4c 的 Mock 11 passed、Vitest 38 passed、类型检查、构建、P2 schema 交叉校验和独立 Mock HTTP 代理核验均通过。
+- 2026-07-29 Windows TCP 排除范围 `5141–5240` 使 Vite `5174–5176` 无法监听；页面可视化验收后置，恢复后只能以独立 8100 Mock 和非排除端口补做，不得改连 8000 或真实资源。
 
-## 当前唯一下一步：产品定位研究与计划拷打
+## 当前恢复入口
 
-P3.4c 的独立 UI 验收不再作为本提交的阻塞门槛：2026-07-29 已通过 `netsh interface ipv4/ipv6 show excludedportrange protocol=tcp` 核对，Windows 将 TCP `5141–5240` 标记为排除范围，原定 Vite `5174`、`5175`、`5176` 均返回 `EACCES`。该情况不是端口占用（没有 listener），也不是后端/Mock 契约失败。
+本目录的 Run/Result 工作台布局、导航和旧“当前唯一下一步”均为历史/技术证据，不能直接驱动新的产品体验。当前恢复必须按以下顺序进行：
 
-- 已完成且可复现：Mock 11 passed、Vitest 38 passed、typecheck、build、P2 schema 交叉校验和独立 Mock HTTP 代理核验。
-- 未完成且不得伪记：浏览器页面可视化验收。环境恢复后应以独立 8100 Mock 加非排除临时端口补做，不得改连 8000。
-- 提交后先执行**产品定位研究与计划拷打**：研究“会话优先、监控为第二入口、Agent 过程按需展开”的合理性，产出问题清单与候选方向；本轮不修改前端 UI/路由、不创建 P3.5 实现，也不把任何候选方向定稿。
+1. `docs/开发/_A-Plan-总览.md`；
+2. `docs/开发/README.md`；
+3. `docs/开发/治理-个人AI运维助手产品重定位/README.md` 与 `HANDOFF.md`。
 
-
-## 严格隔离与提交边界
-
-- 不读取、修改、暂存、提交或 reset `docs/00-项目方案说明书.md`。
-- `backend/src/domain/__init__.py`、`backend/src/infrastructure/persistence/__init__.py` 已核对无内容 diff；不得修改、暂存或 reset。
-- 不改 `report/`、后端 `/api/v1`、Application Service、Repository、ORM、Alembic、旧 `/diagnose*`、真实数据库/数据源或运行时资产；禁止 `git add .`。
-- 用户可视化验收通过后，候选暂存文件仅为 12 项：4 个 P3.4c 前端/Mock 文件、`design.md`、`step4-结构化结果与终态收口.md`、`review.md`、`HANDOFF.md`、`_A-Plan-总览.md`、`_B-V1产品化开发计划.md`、`AGENTS.md`、`CLAUDE.md`。提交前逐项 `git add` 并执行 `git diff --cached --check`。
+**只有用户单独明确授权后，才可按 R1/P3.5 设计开始 P3.6a「会话壳与只读 Turn 投影」。**

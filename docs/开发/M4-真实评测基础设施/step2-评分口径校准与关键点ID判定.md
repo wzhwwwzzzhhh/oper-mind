@@ -77,7 +77,7 @@ Prompt 在每个 golden 关键点前展示固定编号，并要求只返回如�
   - 修改 `_llm_judge()` 的 prompt 与 JSON 解析。
 - `tests/test_judge.py`
   - 真实 Judge 路径改为断言 ID 输出映射；补充非法、重复、缺失、越界分数与空 golden 等边界。
-- `docs/开发/M4-真实模型实验/review.md`
+- `docs/开发/M4-真实评测基础设施/review.md`
   - 实现后记录真实 smoke 与人工抽检结论。
 
 不修改：

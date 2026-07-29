@@ -1,8 +1,8 @@
 # R1 / P3.5 产品重定位 HANDOFF
 
-> 日期：2026-07-29　|　状态：产品重定位与 P3.5 Design 已完成，等待用户审阅；无实现授权。
+> 日期：2026-07-29　|　状态：P3.5 Design 已提交；P3.6a 尚无实现授权。
 >
-> 基线提交：`37317e7 feat: 完成P3.4c结构化结果Mock契约验收`
+> 关联提交：`6b0290b docs: 完成个人AI运维助手产品重定位与P3.5设计`　|　技术基线：`37317e7 feat: 完成P3.4c结构化结果Mock契约验收`
 
 ## 已完成
 
@@ -15,9 +15,9 @@
 - P3.5c 拆分后续 P3.6a/P3.6b/P3.6c 的实现与验收边界；
 - A-Plan、B-Plan、开发规范、AGENTS/CLAUDE 已同步产品方向和当前下一步。
 
-## 当前唯一下一步
+## 当前恢复边界
 
-**用户审阅 `design.md`、`step1-个人会话主体验设计.md`、`step2-会话契约与恢复设计.md`、`step3-后续最小切片与验收设计.md` 与 `review.md`。若认可，先授权提交本次文档；提交后仍需单独授权才可开始 P3.6a「会话壳与只读 Turn 投影」实现。**
+**P3.6a「会话壳与只读 Turn 投影」只能在用户单独明确授权后开始。** 恢复前先阅读 `_A-Plan-总览.md`、`docs/开发/README.md`、本目录 `design.md` / `step1-*` / `step2-*` / `step3-*` / `review.md`，再核对未提交 diff。没有实现授权时仅可做文档核对、设计审阅和既有事实校验。项目级当前唯一下一步始终以 `docs/开发/_A-Plan-总览.md` 为准。
 
 ## 严格边界
 
@@ -27,30 +27,6 @@
 - P3.4c 页面可视化验收仍待以独立 8100 Mock 和非排除端口补做；不能改连 8000；
 - 隔离文件 `docs/00-项目方案说明书.md`、`backend/src/domain/__init__.py`、`backend/src/infrastructure/persistence/__init__.py` 不得修改、暂存、提交或 reset；禁止 `git add .`。
 
-## 如用户授权提交
+## 提交状态与后续提交边界
 
-候选暂存文件：
-
-```text
-AGENTS.md
-CLAUDE.md
-docs/开发规范.md
-docs/开发/_A-Plan-总览.md
-docs/开发/_B-V1产品化开发计划.md
-docs/开发/治理-产品定位复核/research.md
-docs/开发/治理-产品定位复核/review.md
-docs/开发/治理-产品定位复核/HANDOFF.md
-docs/开发/治理-个人AI运维助手产品重定位/README.md
-docs/开发/治理-个人AI运维助手产品重定位/design.md
-docs/开发/治理-个人AI运维助手产品重定位/step1-个人会话主体验设计.md
-docs/开发/治理-个人AI运维助手产品重定位/step2-会话契约与恢复设计.md
-docs/开发/治理-个人AI运维助手产品重定位/step3-后续最小切片与验收设计.md
-docs/开发/治理-个人AI运维助手产品重定位/review.md
-docs/开发/治理-个人AI运维助手产品重定位/HANDOFF.md
-```
-
-提交前逐项 `git add`、`git diff --cached --check`、核对 `AGENTS.md` 与 `CLAUDE.md` 的哈希一致。建议提交信息：
-
-```text
-docs: 完成个人AI运维助手产品重定位与P3.5设计
-```
+R1/P3.5 文档已提交为 `6b0290b`，不得再次把该批已提交文件当作待提交工作。若后续获准实施 P3.6a，先新建该 step 的 Design / HANDOFF，再仅暂存该 step 的代码、测试、日志和必要同步文档；仍禁止 `git add .`。
