@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Alert,
   Button,
@@ -11,7 +11,7 @@ import {
   Typography,
 } from 'antd'
 import type { ReactElement, ReactNode } from 'react'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import {
@@ -19,9 +19,11 @@ import {
   ApiClientError,
   api_v1_client,
   type ApiResponse,
+  type DiagnosisRunListResponse,
+  type MessageListResponse,
   type SessionResponse,
 } from '../../api/v1/client'
-import { api_v1_query_keys, get_session_query } from '../../api/v1/queries'
+import { api_v1_query_keys, create_run_mutation, get_session_query } from '../../api/v1/queries'
 import {
   investigation_status_color,
   investigation_status_text,
@@ -33,8 +35,17 @@ import {
 import { DiagnosisResultPanel } from './DiagnosisResultPanel'
 import { read_diagnosis_result } from './result-readers'
 import {
+  clear_session_run_send_intent,
+  create_session_run_send_intent,
+  load_session_run_send_intent,
+  mark_session_run_send_intent_accepted,
+  save_session_run_send_intent,
+  type SessionRunSendIntent,
+} from './send-intent'
+import {
   read_items,
   read_page,
+  read_record,
   resource_optional_string,
   resource_string,
 } from './resource-readers'
@@ -52,6 +63,10 @@ function safe_error(error: unknown): { title: string; detail: ReactNode } {
         </Space>
       ),
     }
+  }
+
+  if (error instanceof Error) {
+    return { title: error.message, detail: '页面没有用本地数据替代服务端事实；请重新恢复或按提示处理。' }
   }
 
   return { title: '暂时无法读取服务数据。', detail: '请稍后刷新；页面不会使用本地数据代替服务端事实。' }
@@ -76,6 +91,43 @@ function LoadingBlock({ label }: { label: string }): ReactElement {
 function ApiErrorNotice({ error }: { error: unknown }): ReactElement {
   const safe = safe_error(error)
   return <Alert description={safe.detail} title={safe.title} showIcon type="error" />
+}
+
+function is_idempotency_key_conflict(error: unknown): boolean {
+  return error instanceof ApiClientError && error.code === 'IDEMPOTENCY_KEY_REUSED'
+}
+
+function is_validation_error(error: unknown): boolean {
+  return error instanceof ApiClientError && error.code === 'VALIDATION_ERROR'
+}
+
+function session_storage(): Storage | undefined {
+  try {
+    return window.sessionStorage
+  } catch {
+    return undefined
+  }
+}
+
+async function fetch_all_pages<TData>(
+  fetch_page: (cursor: string | undefined) => Promise<ApiResponse<TData>>,
+): Promise<{ pageParams: (string | undefined)[]; pages: ApiResponse<TData>[] }> {
+  const page_params: (string | undefined)[] = []
+  const pages: ApiResponse<TData>[] = []
+  const seen_cursors = new Set<string>()
+  let cursor: string | undefined
+
+  do {
+    const page = await fetch_page(cursor)
+    page_params.push(cursor)
+    pages.push(page)
+    const page_info = read_page(page.data)
+    if (!page_info.has_more || !page_info.next_cursor || seen_cursors.has(page_info.next_cursor)) break
+    seen_cursors.add(page_info.next_cursor)
+    cursor = page_info.next_cursor
+  } while (true)
+
+  return { pageParams: page_params, pages }
 }
 
 function LoadMoreButton({
@@ -120,7 +172,7 @@ function SessionNavigator(): ReactElement {
   return (
     <Card className="session-navigator" size="small" title="你的会话">
       <Typography.Paragraph type="secondary">
-        会话会保存问题、调查过程和后续答复。新建会话与普通聊天发送将在后续切片提供。
+        会话会保存问题、调查过程和后续答复。进入 active 会话可发起调查；新建会话与普通聊天仍在后续切片。
       </Typography.Paragraph>
       {sessions_query.isPending && <LoadingBlock label="正在恢复会话列表" />}
       {sessions_query.isError && <ApiErrorNotice error={sessions_query.error} />}
@@ -307,9 +359,19 @@ function ConversationTimeline({ messages, runs, session_id }: { messages: unknow
 
 function SessionWorkspace({ session_id }: { session_id: string }): ReactElement {
   const navigate = useNavigate()
+  const query_client = useQueryClient()
+  const storage = session_storage()
+  const [query, set_query] = useState('')
+  const [send_intent, set_send_intent] = useState<SessionRunSendIntent | undefined>(() =>
+    storage ? load_session_run_send_intent(storage, session_id) : undefined,
+  )
+  const [recovery_error, set_recovery_error] = useState<unknown>()
+  const automatic_recovery_attempts = useRef(new Set<string>())
   const session_query = useQuery({ ...get_session_query(session_id), enabled: Boolean(session_id) })
+  const runs_query_key = api_v1_query_keys.session_runs(session_id, { limit: API_V1_DEFAULT_PAGE_SIZE })
+  const messages_query_key = api_v1_query_keys.session_messages(session_id, { limit: API_V1_DEFAULT_PAGE_SIZE })
   const runs_query = useInfiniteQuery({
-    queryKey: api_v1_query_keys.session_runs(session_id, { limit: API_V1_DEFAULT_PAGE_SIZE }),
+    queryKey: runs_query_key,
     enabled: session_query.isSuccess,
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam, signal }) =>
@@ -320,7 +382,7 @@ function SessionWorkspace({ session_id }: { session_id: string }): ReactElement 
     },
   })
   const messages_query = useInfiniteQuery({
-    queryKey: api_v1_query_keys.session_messages(session_id, { limit: API_V1_DEFAULT_PAGE_SIZE }),
+    queryKey: messages_query_key,
     enabled: runs_query.isSuccess,
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam, signal }) =>
@@ -343,6 +405,120 @@ function SessionWorkspace({ session_id }: { session_id: string }): ReactElement 
     [messages_query.data],
   )
 
+  useEffect(() => {
+    const restored = storage ? load_session_run_send_intent(storage, session_id) : undefined
+    set_send_intent(restored)
+    set_query(restored?.query ?? '')
+    set_recovery_error(undefined)
+  }, [session_id, storage])
+
+  const reconcile_accepted_intent = async (intent: SessionRunSendIntent): Promise<void> => {
+    if (!intent.accepted_run_id || !intent.input_message_id) return
+    set_recovery_error(undefined)
+    const all_runs = await fetch_all_pages<DiagnosisRunListResponse>((cursor) =>
+      api_v1_client.list_session_runs(session_id, { cursor, limit: API_V1_DEFAULT_PAGE_SIZE }),
+    )
+    const all_messages = await fetch_all_pages<MessageListResponse>((cursor) =>
+      api_v1_client.list_session_messages(session_id, { cursor, limit: API_V1_DEFAULT_PAGE_SIZE }),
+    )
+    query_client.setQueryData(runs_query_key, all_runs)
+    query_client.setQueryData(messages_query_key, all_messages)
+
+    const accepted_run_found = all_runs.pages
+      .flatMap((page) => read_items(page.data))
+      .some((run) => resource_optional_string(run, 'id') === intent.accepted_run_id
+        && resource_optional_string(run, 'session_id') === session_id
+        && resource_optional_string(run, 'input_message_id') === intent.input_message_id)
+    const input_message_found = all_messages.pages
+      .flatMap((page) => read_items(page.data))
+      .some((message) => resource_optional_string(message, 'id') === intent.input_message_id
+        && resource_optional_string(message, 'session_id') === session_id
+        && resource_string(message, 'role') === 'user')
+
+    if (!accepted_run_found || !input_message_found) {
+      throw new Error('ACCEPTED_TURN_NOT_FOUND：调查已受理，但尚未恢复对应的已保存问题或调查记录。')
+    }
+
+    if (storage) clear_session_run_send_intent(storage, session_id)
+    set_send_intent(undefined)
+    set_query('')
+  }
+
+  const create_run = useMutation({
+    ...create_run_mutation(),
+    onSuccess: async (response, variables) => {
+      const accepted_run = read_record(response.data.run)
+      const accepted_run_id = resource_optional_string(accepted_run, 'id')
+      const accepted_session_id = resource_optional_string(accepted_run, 'session_id')
+      const input_message_id = resource_optional_string(accepted_run, 'input_message_id')
+      const current_intent = storage ? load_session_run_send_intent(storage, session_id) : undefined
+      if (!current_intent || current_intent.idempotency_key !== variables.idempotency_key) {
+        set_recovery_error(new Error('SEND_INTENT_MISSING：无法确认当前受理响应对应的发送意图。'))
+        return
+      }
+      if (accepted_session_id !== session_id || !accepted_run_id || !input_message_id) {
+        set_recovery_error(new Error('ACCEPT_RESPONSE_PROTOCOL_ERROR：服务端受理响应未返回当前会话的合法 Run。'))
+        return
+      }
+
+      const accepted_intent = mark_session_run_send_intent_accepted(current_intent, accepted_run_id, input_message_id)
+      if (storage) save_session_run_send_intent(storage, accepted_intent)
+      set_send_intent(accepted_intent)
+    },
+    onError: (error) => {
+      if (is_validation_error(error)) {
+        if (storage) clear_session_run_send_intent(storage, session_id)
+        set_send_intent(undefined)
+      }
+      if (error instanceof ApiClientError && error.code === 'SESSION_ARCHIVED') {
+        void query_client.invalidateQueries({ queryKey: api_v1_query_keys.session(session_id) })
+      }
+      set_recovery_error(error)
+    },
+  })
+
+  useEffect(() => {
+    if (!session_query.isSuccess || !send_intent?.accepted_run_id || !send_intent.input_message_id || create_run.isPending) return
+    const attempt_key = `${session_id}:${send_intent.accepted_run_id}`
+    if (automatic_recovery_attempts.current.has(attempt_key)) return
+    automatic_recovery_attempts.current.add(attempt_key)
+    void reconcile_accepted_intent(send_intent).catch(set_recovery_error)
+  }, [create_run.isPending, send_intent, session_id, session_query.isSuccess])
+
+  const discard_send_intent = (): void => {
+    if (storage) clear_session_run_send_intent(storage, session_id)
+    set_send_intent(undefined)
+    set_recovery_error(undefined)
+  }
+
+  const submit_investigation = (): void => {
+    if (create_run.isPending || !storage) return
+    const normalized_query = query.trim()
+    if (!normalized_query) {
+      set_recovery_error(new Error('调查问题不能为空。'))
+      return
+    }
+
+    const current_intent = send_intent ?? create_session_run_send_intent(session_id, normalized_query)
+    if (current_intent.query !== normalized_query) {
+      set_recovery_error(new Error('当前发送意图仍在恢复中；请先完成重试或明确刷新后再修改问题。'))
+      return
+    }
+    save_session_run_send_intent(storage, current_intent)
+    set_send_intent(current_intent)
+    set_recovery_error(undefined)
+    create_run.mutate({
+      idempotency_key: current_intent.idempotency_key,
+      query: current_intent.query,
+      session_id,
+    })
+  }
+
+  const retry_recovery = (): void => {
+    if (!send_intent?.accepted_run_id || !send_intent.input_message_id || create_run.isPending) return
+    void reconcile_accepted_intent(send_intent).catch(set_recovery_error)
+  }
+
   if (session_query.isPending) return <LoadingBlock label="正在恢复会话" />
   if (session_query.isError) {
     return (
@@ -356,18 +532,73 @@ function SessionWorkspace({ session_id }: { session_id: string }): ReactElement 
 
   const session = (session_query.data as ApiResponse<SessionResponse>).data.session
   const session_status = resource_string(session, 'status', 'unknown')
+  const can_send = session_status === 'active'
+  const has_idempotency_key_conflict = is_idempotency_key_conflict(recovery_error)
   return (
     <section className="workbench-page" aria-labelledby="workbench-title">
-      <div className="page-eyebrow">PERSONAL CONVERSATION · READ ONLY</div>
+      <div className="page-eyebrow">PERSONAL CONVERSATION · INVESTIGATION</div>
       <Space align="center" className="workbench-title-row" wrap>
         <Typography.Title id="workbench-title" level={2}>{resource_string(session, 'title', '个人会话')}</Typography.Title>
         <Tag color={status_color(session_status)}>{session_status}</Tag>
       </Space>
       <Typography.Paragraph className="page-description">
-        这里按对话阅读已保存的用户问题、调查和助手答复。页面只读取 P2 v1 资源；发送、实时过程和新建会话将在后续切片提供。
+        这里按对话阅读已保存的问题、调查和助手答复。每次提交都会创建一次运维调查，不提供普通聊天或自动处理。
       </Typography.Paragraph>
       {session_status === 'archived' && (
         <Alert className="archive-notice" description="会话已归档，仅可阅读历史内容；重新激活和编辑尚未实现。" title="已归档会话" showIcon type="info" />
+      )}
+      {can_send && (
+        <Card className="investigation-composer" size="small" title="发起调查">
+          <Typography.Paragraph type="secondary">
+            每次提问都会创建一次运维调查。问题会先由服务端持久化；页面不会把本地输入伪造成已保存消息。
+          </Typography.Paragraph>
+          <textarea
+            aria-label="调查问题"
+            className="investigation-input"
+            disabled={create_run.isPending || Boolean(send_intent) || has_idempotency_key_conflict}
+            onChange={(event) => {
+              set_query(event.target.value)
+              if (is_validation_error(recovery_error)) set_recovery_error(undefined)
+            }}
+            placeholder="例如：请检查支付网关近期的 5xx。"
+            value={query}
+          />
+          <Space className="investigation-composer-actions" wrap>
+            <Button
+              disabled={create_run.isPending || Boolean(send_intent?.accepted_run_id) || has_idempotency_key_conflict}
+              loading={create_run.isPending}
+              onClick={submit_investigation}
+              type="primary"
+            >
+              {send_intent?.phase === 'acceptance_unknown' ? '用相同请求重试' : '开始调查'}
+            </Button>
+            {send_intent?.accepted_run_id && (
+              <Button onClick={retry_recovery} type="default">重新恢复已保存内容</Button>
+            )}
+            {has_idempotency_key_conflict && (
+              <Button onClick={discard_send_intent} type="default">丢弃当前发送意图</Button>
+            )}
+          </Space>
+          {send_intent?.phase === 'acceptance_unknown' && (
+            <Alert
+              className="investigation-send-notice"
+              description="本次请求的受理结果尚未确认。请使用同一问题和同一幂等键重试，或刷新页面恢复；不要修改问题后盲目再次发送。"
+              title="等待确认调查是否已受理"
+              showIcon
+              type="warning"
+            />
+          )}
+          {send_intent?.phase === 'accepted' && (
+            <Alert
+              className="investigation-send-notice"
+              description="调查已受理，正在按已保存的 Run 与 Message 对账。完成前不会显示本地伪造的问题。"
+              title="正在恢复已保存的调查"
+              showIcon
+              type="info"
+            />
+          )}
+          {recovery_error !== undefined && <ApiErrorNotice error={recovery_error} />}
+        </Card>
       )}
       {runs_query.isPending && <LoadingBlock label="正在恢复关联调查" />}
       {runs_query.isError && <ApiErrorNotice error={runs_query.error} />}

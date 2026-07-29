@@ -34,7 +34,7 @@ function ProductShell(): ReactElement {
           mode="inline"
           theme="dark"
         />
-        <div className="navigation-note">{!isNavigationCollapsed && '个人 AI 运维助手 · 只读会话'}</div>
+        <div className="navigation-note">{!isNavigationCollapsed && '个人 AI 运维助手 · 调查会话'}</div>
       </Sider>
       <Layout>
         <Header className="product-header">
@@ -48,7 +48,7 @@ function ProductShell(): ReactElement {
           </button>
           <div>
             <Typography.Text strong>个人会话</Typography.Text>
-            <Typography.Text className="header-context">P3.6a · 只读 Turn 投影</Typography.Text>
+            <Typography.Text className="header-context">P3.6b.1 · 调查型发送与对账</Typography.Text>
           </div>
         </Header>
         <Content className="product-content">
@@ -61,11 +61,11 @@ function ProductShell(): ReactElement {
                 页面以会话与消息为主线，按需展示已保存的调查摘要和结构化结论；不会把 Run、SSE 或 Trace 当作默认阅读对象。
               </Typography.Paragraph>
               <Typography.Paragraph type="secondary">
-                当前仅恢复已有 v1 数据。发送、实时过程、监控、告警、审批和处理仍在后续切片，完整 Trace 继续仅面向研发界面。
+                当前可提交调查型问题并恢复已持久化事实；实时过程、监控、告警、审批和处理仍在后续切片，完整 Trace 继续仅面向研发界面。
               </Typography.Paragraph>
               <div className="honest-status" aria-label="阶段能力状态">
-                <span className="context-status">发送与实时过程：后续 P3.6b</span>
-                <span className="context-status">监控与数据源：待 P4</span>
+                <span className="context-status">调查型发送与对账：P3.6b.1</span>
+                <span className="context-status">实时过程与断线恢复：后续 P3.6b.2</span>
                 <span className="context-status">告警与受控处理：待 P5</span>
               </div>
             </aside>

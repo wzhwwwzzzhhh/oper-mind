@@ -1,30 +1,58 @@
-# R1 / P3.6a 交接（已关闭）
+# R1 / P3.6b.1 交接（已关闭）
 
-> 关闭日期：2026-07-29　|　分支：`feat/p3-workbench`
-> 前序基线：`ef5deab docs: 收口文档层级与历史交接入口`
-> 状态：P3.6a「会话壳与只读 Turn 投影」已完成 Code/Test/Review，且已通过用户人工验收并提交。
+> 更新日期：2026-07-29　|　分支：`feat/p3-workbench`
+> 实现基线：`eb664dd feat: 完成P3.6a会话壳与只读Turn投影`
+> 当前状态：P3.6b.1「发送意图与 202 对账」已完成 Code/Test/Review 与用户边界验收，**由本提交收口**。
 
 ## 已完成
 
-- R1/P3.5 产品重定位与设计已提交：`6b0290b`；
-- P3.6a 仅在用户明确授权后开始，且仅修改 `frontend/` 与治理/计划文档；
-- 前端把既有 P2 GET Session、Runs、Messages 投影为 user Message → Investigation → persisted assistant Message；
-- 成功缺答复、失败/取消/未终态、Result/关联异常、空/归档/读取错误均保持诚实状态；
-- 保留正序 cursor 并提供继续加载 Runs/Message，不宣称完整长期历史；
-- 旧 Run 深链兼容为进入对应会话，不再读取单个 Run；
-- `npm run typecheck`、`npm run test`（5 files / 33 tests）、`npm run build` 与 `npm run test:mock-api`（11 passed）均通过；
-- 用户已使用独立 8100 Mock 与非 Windows TCP 排除端口完成 P3.6a 人工验收。
+- P3.6b Design 已完成，P3.6b.1 获用户授权后仅实现了 active Session 的调查输入、sessionStorage 稳定意图、POST Run、202 后 Run / Message authoritative 对账；
+- 没有 optimistic Message；成功 Turn 必须经 `run.input_message_id` 与持久化 user Message 对账形成；
+- 网络未知重试使用同一 key / query；409 幂等冲突必须由用户明确丢弃意图；422 可编辑后新建意图；归档会话不发送；
+- 对账先完整读取 Runs 再读取 Messages，防止并行读取的不一致快照；
+- 已通过 typecheck、40 个 Vitest、build、11 个 Mock pytest；未修改 Mock / 后端 / report。
 
-## 关闭后的恢复入口
+## 恢复与边界
 
-1. 先执行 `git status --short` 与查看最近提交；
-2. 阅读 `docs/开发/_A-Plan-总览.md`、`docs/开发/README.md`、本目录 `README.md`、`review.md` 与本文件；
-3. 当前唯一下一步是 **P3.6b「调查型发送、稳定幂等键与刷新/SSE 恢复」的 Design**，不是直接实现；必须先完成 Design → Review，并获得用户新的明确授权；
-4. 继续继承 P2 `/api/v1` 契约，不得把 P3.6a 的只读页面错误扩展为普通聊天、假监控、假告警或自动处理。
+1. 先读 `_A-Plan-总览.md`、`docs/开发/README.md`、本目录 `step5-*`、`step6-*`、`review.md`，再核对 `git status --short` 和未提交 diff；
+2. P3.6b.1 当前候选中包括此前未提交的 P3.6b Design / 计划文档；不要遗漏新 `step5-*`，也不要将隔离文件或治理 `design.md` 元数据状态混入；
+3. 当前不能进入 SSE、events、Last-Event-ID、多 Run 注册表、Fetch stream、Mock API 行为扩展、后端或真实资源；这些分别属于 P3.6b.2 / P3.6b.3；
+4. 不得触碰 `docs/00-项目方案说明书.md`、`backend/src/domain/__init__.py`、`backend/src/infrastructure/persistence/__init__.py`、治理 `design.md`；禁止 `git add .`。
 
-## 持续约束
+## 用户验收
 
-- 不得触碰隔离文件：`docs/00-项目方案说明书.md`、`backend/src/domain/__init__.py`、`backend/src/infrastructure/persistence/__init__.py`、以及其他 agent 持有的治理 `design.md` 元数据状态；禁止 `git add .`；
-- 不改 `report/`、后端 `/api/v1`、Application Service、Repository、ORM、Alembic、旧 `/diagnose*`、Mock API 或运行时资产，除非未来独立 Step 明确授权；
-- 不接入真实 8000、真实 DB、数据源、认证、在线迁移或执行器；不伪造监控、告警、Action、Approval、Incident 或多人协作；
-- P3.6b 的发送只能是调查型受理，必须先设计稳定 Idempotency-Key、刷新对账、持久化 events 与 SSE `Last-Event-ID` 恢复；不得假装是普通聊天。
+使用独立 8100 Mock + 非 `5141–5240` 的 Vite 端口，只确认：
+
+- active 会话出现调查输入，archived 会话没有；
+- 页面明确说明是调查而非普通聊天；
+- 输入为空不发送；
+- 独立 Mock 成功受理后如果没有动态 user Message，页面显示“正在恢复已保存的调查”或安全恢复错误，**不能假装已成功显示用户 Turn**；
+- 不能看到 SSE、Trace、监控、告警、Action 或处理功能。
+
+不要把当前 Mock 的动态 Message 缺口当作后端失败，也不能通过改连真实 8000 绕过。
+
+## 本提交精确文件清单
+
+```text
+AGENTS.md
+CLAUDE.md
+docs/README.md
+docs/开发/README.md
+docs/开发/_A-Plan-总览.md
+docs/开发/_B-V1产品化开发计划.md
+docs/开发/治理-个人AI运维助手产品重定位/README.md
+docs/开发/治理-个人AI运维助手产品重定位/step5-P3.6b调查型发送幂等与SSE恢复设计.md
+docs/开发/治理-个人AI运维助手产品重定位/step6-P3.6b1发送意图与202对账.md
+docs/开发/治理-个人AI运维助手产品重定位/review.md
+docs/开发/治理-个人AI运维助手产品重定位/HANDOFF.md
+frontend/src/app/App.tsx
+frontend/src/app/App.test.tsx
+frontend/src/features/workbench/WorkbenchPage.tsx
+frontend/src/features/workbench/send-intent.ts
+frontend/src/features/workbench/send-intent.test.ts
+frontend/src/styles/global.css
+```
+
+## 唯一下一步
+
+**本提交已收口 P3.6b.1。** 后续需要用户确认是否先进行 P3.6b.3 Mock 合同，还是先进行 P3.6b.2 Fetch SSE 的独立技术验证与实现；不得自动跨入其中任一步。

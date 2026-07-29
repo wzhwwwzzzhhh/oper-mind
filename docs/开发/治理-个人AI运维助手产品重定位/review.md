@@ -1,40 +1,41 @@
-# R1 / P3.5–P3.6a 个人会话主体验 — 独立审查
+# R1 / P3.5–P3.6b.1 个人会话主体验 — 独立审查
 
-> 审查日期：2026-07-29　|　结论：✅ P3.6a 实现审查与用户人工验收均通过，准予提交。
+> 审查日期：2026-07-29　|　结论：✅ P3.6b.1 Code/Test/Review 与用户边界验收均通过，由本提交收口。
+>
+> P3.6a 已提交为 `eb664dd feat: 完成P3.6a会话壳与只读Turn投影`，并已通过用户人工验收。
 
 ## 审查范围
 
-- P3.5 的个人长期会话主线是否被 P3.6a 正确落实；
-- P2 Session、Message、Run、Result 契约是否仅以既有 GET 方式准确消费；
-- 刷新、cursor、空/归档/读取错误、关联错误和 Result 错误是否诚实；
-- P3.6a 与 P3.6b/P4/P5/P6、`report/`、真实资源的边界是否保持；
-- 测试、构建、文档、计划、AGENTS/CLAUDE 和隔离文件是否一致。
+- active Session 的调查型发送是否准确消费 P2 `POST /sessions/{id}/runs`；
+- 稳定 `Idempotency-Key`、网络未知、202、409/422/归档错误是否不伪造事实；
+- `input_message_id`、Runs / Messages cursor 对账是否防止 optimistic Turn；
+- P3.6b.1 是否没有提前引入 SSE、多 Run 流恢复、Mock API、后端、真实资源或 P4/P5/P6 能力；
+- 测试、构建、计划、交接与镜像规则是否一致。
 
 ## 独立核对结果
 
 | 审查项 | 结论 |
 |---|---|
-| 用户主线 | 通过：默认视觉顺序是 user Message → 调查摘要 → 已保存 assistant Message，而非 Run 列表/选中 Run 工作台。 |
-| P2 GET 契约 | 通过：只读取 `GET Session`、`GET Session Runs`、`GET Session Messages`；组件测试核验读取顺序。 |
-| POST / SSE | 通过：P3.6a 没有发送控件、`POST`、`Idempotency-Key`、EventSource、`Last-Event-ID` 或事件面板；这些保留给 P3.6b。 |
-| 关联真实性 | 通过：以 `input_message_id` 和 assistant `run_id` 做关联；重复、缺失、跨 Session/字段问题显示协议异常，不自行选择。 |
-| 成功与 Result | 通过：只有已持久化 assistant Message 才显示答复；成功缺答复显示 `ANSWER_RECOVERY_PENDING`；Result 非法仍保留真实答复并标记 `RESULT_PROTOCOL_ERROR`。 |
-| 失败/取消/未终态 | 通过：只显示真实调查状态，不伪造答复或实时进度。 |
-| cursor / 长期历史 | 通过：保留 P2 正序 cursor，并提供 Runs/Message 的继续加载；明确未实现最近优先、向前加载的新 API 语义。 |
-| 空、归档与读取错误 | 通过：空会话、归档只读、API 错误与安全 request/trace 诊断均有明确状态。 |
-| 旧深链 | 通过：旧 Run 深链仍可进入对应 Session，但不额外读取单 Run，不把 Run 恢复成主对象。 |
-| P4/P5/P6 与 `report/` | 通过：没有监控、数据源、告警、Action、Approval、Incident、多人协作或假数据；`report/` 无改动且仍是研发边界。 |
-| 真实资源与后端 | 通过：未改 `/api/v1`、Application Service、Repository、ORM、Alembic、旧 `/diagnose*`，未连接真实 8000/DB/数据源。 |
-| 自动验证 | 通过：`npm run typecheck`、`npm run test`（5 files / 33 tests）、`npm run build` 均通过。 |
-| 隔离与文档 | 通过：未读取/修改/暂存隔离文件；仅当前 P3.6a 前端与治理文档在提交候选范围。 |
+| 调查型而非普通聊天 | 通过：仅 active Session 出现“发起调查”；文案明确每次提交会创建一次运维调查，未新增 Message API。 |
+| POST / 202 | 通过：复用 generated P2 client / mutation；测试核验 POST query 与 UUID `Idempotency-Key`，只接受当前 Session 的合法 Run / input_message_id。 |
+| 稳定意图 | 通过：意图在 POST 前写入 tab 限定 sessionStorage；网络错误后同 key 重试；不写入 token、Trace、events、Result、服务端异常或 URL。 |
+| 409 冲突 | 通过：`IDEMPOTENCY_KEY_REUSED` 禁止编辑/发送，不自动换 key；必须显式丢弃意图。 |
+| 422 / archived | 通过：validation 清除本地 intent 以便编辑重试；`SESSION_ARCHIVED` 触发 Session 重读，archived 本身无输入。 |
+| 202 后事实 | 通过：不插入 optimistic Message；顺序完整读取 Runs、再读取正序 Messages，严格检查 run/session/input IDs 后才写回缓存与投影。 |
+| 对账失败 | 通过：保留 accepted intent 和恢复按钮；显示安全错误，不把本地 query 画成已保存 Turn。 |
+| cursor / 一致性 | 通过：受理对账不使用并行 Runs / Messages 请求，避免 accepted Run 已出现而 Message 尚未被同一快照读取的竞争。长期历史限制仍由 P2 正序 cursor 决定。 |
+| SSE / 多 Run | 通过：实现扫描未包含 EventSource、`Last-Event-ID`、`/events`、`/stream` 或旧 hook；P3.6b.2 保持未开始。 |
+| Mock / 后端 / report | 通过：未修改 Mock API、MSW 默认夹具、`backend/`、`report/`、真实 DB 或数据源。 |
+| 自动验证 | 通过：`npm run typecheck`、`npm run test`（6 files / 40 tests）、`npm run build`、`npm run test:mock-api`（11 passed）通过。 |
 
-## 发现与风险
+## 已知风险与验收门槛
 
-1. 用户已使用独立 8100 Mock 和未处于 Windows TCP 排除范围 `5141–5240` 的 Vite 端口完成浏览器人工验收；未以真实 8000 替代验收后端。
-2. 构建输出单个 JS chunk 为 `843.21 kB`（gzip `270.26 kB`），Vite 发出超过 500 kB 的非阻塞警告；性能拆包不应夹带到 P3.6a，应另开切片。
-3. 现有 P3.4c Mock 主要覆盖 Run/Result/SSE 技术状态；P3.6a 没有修改其夹具，以免把 UI 改造和 Mock 语义改造混入同一提交。人工验收应关注真实关联异常提示不被误称为完整产品历史。
-4. P3.6a 仍不是普通聊天：P2 没有普通 message send 契约，P3.6b 也只能发送调查型问题，且必须使用稳定幂等键与刷新/SSE 恢复。
+1. 当前独立 8100 Mock 不会把动态 accepted user Message 加进 `GET Session Messages`。因此其成功 POST 后会正确落入 “accepted but message not recovered” 提示，不能被用来宣称 P3.6b.1 成功对账已经浏览器验收。P3.6b.3 将单独补 Mock 合同。
+2. 当前实现只允许每 Session 一个本地在途/未知/已受理意图；并行调查、多草稿和普通聊天仍是非目标。
+3. sessionStorage 的 query 只用于当前 tab 的同 key 重试；后续若产品允许敏感命令或跨设备恢复，必须先做安全 / outbox 设计。
+4. build 的 JS chunk `851.50 kB`（gzip `272.86 kB`）仍超过 Vite 500 kB 告警阈值；非阻塞，暂不在本切片处理。
+5. P3.6b.2 的 Fetch SSE 可行性、浏览器 / 代理 Header 行为、Last-Event-ID 与多 Run cleanup 尚未验证，不能因 P3.6b.1 已通过就提前宣称断线恢复完成。
 
 ## 结论
 
-P3.6a 代码、文档审查与用户可视化验收均通过，现按逐文件暂存规则提交。提交后的唯一下一步是 P3.6b 的 Design，不得直接实现发送、SSE、监控、告警或处理。
+P3.6b.1 实现审查与 active / archived / 网络未知 / 409 用户边界验收均通过，由本提交收口。提交后的下一步不是自动实现：需由用户确认 P3.6b.2（Fetch SSE 多 Run 恢复）和 P3.6b.3（Mock 合同）究竟先后及授权边界。

@@ -308,3 +308,35 @@ button {
 .load-more-button {
   margin-top: 8px;
 }
+
+.investigation-composer {
+  margin-top: 20px;
+  border-color: #cfe9ef;
+}
+
+.investigation-input {
+  display: block;
+  width: 100%;
+  min-height: 92px;
+  padding: 12px;
+  color: #244452;
+  font: inherit;
+  line-height: 1.55;
+  resize: vertical;
+  background: #fbfeff;
+  border: 1px solid #b8d9e2;
+  border-radius: 10px;
+}
+
+.investigation-input:focus {
+  outline: 2px solid #8dc9dc;
+  outline-offset: 1px;
+}
+
+.investigation-composer-actions {
+  margin-top: 12px;
+}
+
+.investigation-send-notice {
+  margin-top: 12px;
+}

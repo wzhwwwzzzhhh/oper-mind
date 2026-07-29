@@ -113,6 +113,7 @@ function use_conversation_handlers(resources: ReturnType<typeof conversation_res
 describe('App', () => {
   beforeEach(() => {
     request_paths = []
+    window.sessionStorage.clear()
     open_path('/workbench')
   })
 
@@ -121,7 +122,7 @@ describe('App', () => {
 
     expect(screen.getByRole('heading', { name: '我的会话' })).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: /Nginx 5xx 排查/ })).toBeInTheDocument()
-    expect(screen.getByText('发送与实时过程：后续 P3.6b')).toBeInTheDocument()
+    expect(screen.getByText('调查型发送与对账：P3.6b.1')).toBeInTheDocument()
   })
 
   it('按 Session、Runs、Message 的顺序恢复只读 Conversation Turn', async () => {
@@ -133,12 +134,183 @@ describe('App', () => {
     expect(await screen.findByLabelText('用户问题')).toHaveTextContent('请检查 Nginx 5xx。')
     expect(await screen.findByLabelText('助手答复')).toHaveTextContent('初步判断是上游连接池已经耗尽。')
     expect(screen.getByText('调查已完成')).toBeInTheDocument()
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: '调查问题' })).toBeInTheDocument()
     await waitFor(() => expect(request_paths).toEqual([
       `/api/v1/sessions/${api_v1_contract_fixtures.session_id}`,
       `/api/v1/sessions/${api_v1_contract_fixtures.session_id}/runs`,
       `/api/v1/sessions/${api_v1_contract_fixtures.session_id}/messages`,
     ]))
+  })
+
+  it('active 会话只在 202 后通过已保存 Run 与 Message 显示新调查', async () => {
+    const session_id = api_v1_contract_fixtures.session_id
+    const run_id = '99999999-9999-4999-8999-999999999991'
+    const input_message_id = '99999999-9999-4999-8999-999999999992'
+    const submitted_query = '请检查支付网关近期的 5xx。'
+    let accepted = false
+    let captured_key: string | null = null
+
+    server.use(
+      http.get(new RegExp(`/api/v1/sessions/${session_id}/runs$`), ({ request }) => response(request, {
+        items: accepted ? [{
+          id: run_id,
+          session_id,
+          trace_id: api_v1_contract_fixtures.trace_id,
+          input_message_id,
+          status: 'queued',
+          result: null,
+          error: null,
+          created_at: '2026-07-29T02:00:00.000Z',
+          started_at: null,
+          finished_at: null,
+        }] : [],
+        page: { next_cursor: null, has_more: false },
+      })),
+      http.get(new RegExp(`/api/v1/sessions/${session_id}/messages$`), ({ request }) => response(request, {
+        items: accepted ? [{
+          id: input_message_id,
+          session_id,
+          run_id: null,
+          role: 'user',
+          content: submitted_query,
+          created_at: '2026-07-29T02:00:00.000Z',
+        }] : [],
+        page: { next_cursor: null, has_more: false },
+      })),
+      http.post(new RegExp(`/api/v1/sessions/${session_id}/runs$`), async ({ request }) => {
+        captured_key = request.headers.get('Idempotency-Key')
+        expect(await request.json()).toEqual({ query: submitted_query })
+        accepted = true
+        return response(request, {
+          run: {
+            id: run_id,
+            session_id,
+            trace_id: api_v1_contract_fixtures.trace_id,
+            input_message_id,
+            status: 'queued',
+            result: null,
+            error: null,
+            created_at: '2026-07-29T02:00:00.000Z',
+            started_at: null,
+            finished_at: null,
+          },
+        }, 202)
+      }),
+    )
+    open_path(`/workbench/sessions/${session_id}`)
+    render(<App />)
+
+    const input = await screen.findByRole('textbox', { name: '调查问题' })
+    fireEvent.change(input, { target: { value: submitted_query } })
+    fireEvent.click(screen.getByRole('button', { name: '开始调查' }))
+
+    expect(await screen.findByLabelText('用户问题')).toHaveTextContent(submitted_query)
+    expect(screen.getAllByText('正在准备调查')).toHaveLength(2)
+    expect(captured_key).toMatch(/^[0-9a-f-]{36}$/i)
+    expect(request_paths.filter((path) => path === `/api/v1/sessions/${session_id}/runs`).length).toBeGreaterThanOrEqual(2)
+    expect(request_paths.filter((path) => path === `/api/v1/sessions/${session_id}/messages`).length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('幂等键冲突时不自动换 key，必须明确丢弃当前发送意图', async () => {
+    const session_id = api_v1_contract_fixtures.session_id
+    let post_attempts = 0
+    server.use(
+      http.get(new RegExp(`/api/v1/sessions/${session_id}/runs$`), ({ request }) =>
+        response(request, { items: [], page: { next_cursor: null, has_more: false } }),
+      ),
+      http.get(new RegExp(`/api/v1/sessions/${session_id}/messages$`), ({ request }) =>
+        response(request, { items: [], page: { next_cursor: null, has_more: false } }),
+      ),
+      http.post(new RegExp(`/api/v1/sessions/${session_id}/runs$`), ({ request }) => {
+        post_attempts += 1
+        return response(request, {
+          error: { code: 'IDEMPOTENCY_KEY_REUSED', message: '幂等键已用于不同问题。', details: null },
+        }, 409)
+      }),
+    )
+    open_path(`/workbench/sessions/${session_id}`)
+    render(<App />)
+
+    const input = await screen.findByRole('textbox', { name: '调查问题' })
+    fireEvent.change(input, { target: { value: '请检查首次问题。' } })
+    fireEvent.click(screen.getByRole('button', { name: '开始调查' }))
+
+    expect(await screen.findByText('IDEMPOTENCY_KEY_REUSED：幂等键已用于不同问题。')).toBeInTheDocument()
+    expect(input).toBeDisabled()
+    expect(post_attempts).toBe(1)
+    fireEvent.click(screen.getByRole('button', { name: '丢弃当前发送意图' }))
+    expect(input).not.toBeDisabled()
+  })
+
+  it('网络未知时使用相同幂等键重试，而不创建第二个本地意图', async () => {
+    const session_id = api_v1_contract_fixtures.session_id
+    const run_id = '99999999-9999-4999-8999-999999999993'
+    const input_message_id = '99999999-9999-4999-8999-999999999994'
+    const submitted_query = '请检查网关连接。'
+    const idempotency_keys: string[] = []
+    let post_attempts = 0
+    let accepted = false
+
+    server.use(
+      http.get(new RegExp(`/api/v1/sessions/${session_id}/runs$`), ({ request }) => response(request, {
+        items: accepted ? [{
+          id: run_id,
+          session_id,
+          trace_id: api_v1_contract_fixtures.trace_id,
+          input_message_id,
+          status: 'queued',
+          result: null,
+          error: null,
+          created_at: '2026-07-29T02:00:00.000Z',
+          started_at: null,
+          finished_at: null,
+        }] : [],
+        page: { next_cursor: null, has_more: false },
+      })),
+      http.get(new RegExp(`/api/v1/sessions/${session_id}/messages$`), ({ request }) => response(request, {
+        items: accepted ? [{
+          id: input_message_id,
+          session_id,
+          run_id: null,
+          role: 'user',
+          content: submitted_query,
+          created_at: '2026-07-29T02:00:00.000Z',
+        }] : [],
+        page: { next_cursor: null, has_more: false },
+      })),
+      http.post(new RegExp(`/api/v1/sessions/${session_id}/runs$`), ({ request }) => {
+        idempotency_keys.push(request.headers.get('Idempotency-Key') ?? '')
+        post_attempts += 1
+        if (post_attempts === 1) return HttpResponse.error()
+        accepted = true
+        return response(request, {
+          run: {
+            id: run_id,
+            session_id,
+            trace_id: api_v1_contract_fixtures.trace_id,
+            input_message_id,
+            status: 'queued',
+            result: null,
+            error: null,
+            created_at: '2026-07-29T02:00:00.000Z',
+            started_at: null,
+            finished_at: null,
+          },
+        }, 202)
+      }),
+    )
+    open_path(`/workbench/sessions/${session_id}`)
+    render(<App />)
+
+    const input = await screen.findByRole('textbox', { name: '调查问题' })
+    fireEvent.change(input, { target: { value: submitted_query } })
+    fireEvent.click(screen.getByRole('button', { name: '开始调查' }))
+    expect(await screen.findByText('NETWORK_ERROR：无法连接到服务。')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '用相同请求重试' }))
+
+    expect(await screen.findByLabelText('用户问题')).toHaveTextContent(submitted_query)
+    expect(idempotency_keys).toHaveLength(2)
+    expect(idempotency_keys[0]).toBe(idempotency_keys[1])
   })
 
   it('旧 Run 深链回到对应会话，不额外读取单个 Run 资源', async () => {
