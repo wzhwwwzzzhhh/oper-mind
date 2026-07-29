@@ -8,6 +8,12 @@ from fastapi.testclient import TestClient
 
 from mock_v1_api import (
     REQUEST_LOG,
+    ARCHIVED_RUN_ID,
+    ARCHIVED_SESSION_ID,
+    CANCELLED_RUN_ID,
+    EMPTY_RESULT_RUN_ID,
+    FAILED_RUN_ID,
+    PROTOCOL_ERROR_RUN_ID,
     RUN_ID,
     SESSION_ID,
     app,
@@ -98,6 +104,57 @@ def test_run深链读取保持P2_json_envelope与顺序记录() -> None:
         f"/api/v1/runs/{RUN_ID}",
         f"/api/v1/runs/{RUN_ID}/events",
     ]
+
+
+def test_静态成功Result覆盖完整P2结构化字段与归档历史() -> None:
+    """默认与归档 Run 都必须提供可供 P3.4 直接读取的完整 Result。"""
+    reset_mock_state()
+    with TestClient(app) as client:
+        current = client.get(f"/api/v1/runs/{RUN_ID}", headers=_headers())
+        archived_runs = client.get(f"/api/v1/sessions/{ARCHIVED_SESSION_ID}/runs", headers=_headers())
+        archived = client.get(f"/api/v1/runs/{ARCHIVED_RUN_ID}", headers=_headers())
+        empty_result = client.get(f"/api/v1/runs/{EMPTY_RESULT_RUN_ID}", headers=_headers())
+        protocol_error = client.get(f"/api/v1/runs/{PROTOCOL_ERROR_RUN_ID}", headers=_headers())
+
+    result = current.json()["run"]["result"]
+    assert result["run_id"] == RUN_ID
+    assert result["created_at"].endswith("Z")
+    assert result["root_causes"][0]["evidence_ids"] == [result["evidence"][0]["id"]]
+    assert result["evidence"][0]["attributes"] == {
+        "active_connections": 120,
+        "saturation": 0.98,
+        "healthy": False,
+        "note": None,
+    }
+    assert result["recommendations"][0]["requires_approval"] is True
+    assert result["risks"][0]["mitigation"] == "分批调整并回滚异常实例。"
+    assert result["agent_summary"][0]["duration_ms"] == 120
+    assert result["report_markdown"].startswith("# Mock 结果补充")
+    assert archived_runs.json()["items"][0]["id"] == ARCHIVED_RUN_ID
+    assert archived.json()["run"]["result"]["run_id"] == ARCHIVED_RUN_ID
+    empty_payload = empty_result.json()["run"]["result"]
+    assert empty_payload["created_at"].endswith("Z")
+    assert empty_payload["root_causes"] == []
+    assert empty_payload["evidence"] == []
+    assert empty_payload["impact"] is None
+    assert empty_payload["recommendations"] == []
+    assert empty_payload["risks"] == []
+    assert empty_payload["agent_summary"] == []
+    assert empty_payload["report_markdown"] is None
+    assert "created_at" not in protocol_error.json()["run"]["result"]
+    with TestClient(app) as client:
+        failed = client.get(f"/api/v1/runs/{FAILED_RUN_ID}", headers=_headers())
+        cancelled = client.get(f"/api/v1/runs/{CANCELLED_RUN_ID}", headers=_headers())
+        failed_events = client.get(f"/api/v1/runs/{FAILED_RUN_ID}/events", headers=_headers())
+        cancelled_events = client.get(f"/api/v1/runs/{CANCELLED_RUN_ID}/events", headers=_headers())
+    assert failed.json()["run"]["status"] == "failed"
+    assert failed.json()["run"]["result"] is None
+    assert failed.json()["run"]["error"] == {"code": "TOOL_TIMEOUT", "message": "上游日志查询超时。"}
+    assert cancelled.json()["run"]["status"] == "cancelled"
+    assert cancelled.json()["run"]["result"] is None
+    assert cancelled.json()["run"]["error"] is None
+    assert failed_events.json()["items"] == []
+    assert cancelled_events.json()["items"] == []
 
 
 def test_post_run首次受理与同key重放保持同Run和trace() -> None:
@@ -192,6 +249,11 @@ def test_run_event分页与有限SSE帧终态关闭() -> None:
     assert recovered_event_page_2.json()["page"] == {"next_cursor": None, "has_more": False}
     assert terminal_run.json()["run"]["status"] == "succeeded"
     assert terminal_run.json()["run"]["finished_at"] == "2026-07-28T06:00:02.000Z"
+    terminal_result = terminal_run.json()["run"]["result"]
+    assert terminal_result["run_id"] == accepted_run_id
+    assert terminal_result["created_at"] == "2026-07-28T06:00:02.000Z"
+    assert terminal_result["root_causes"][0]["evidence_ids"] == [terminal_result["evidence"][0]["id"]]
+    assert terminal_result["recommendations"][0]["requires_approval"] is True
 
 
 def test_last_event_id只续传未处理事件并在终态关闭() -> None:

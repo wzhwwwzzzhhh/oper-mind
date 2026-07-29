@@ -100,7 +100,7 @@ describe('App', () => {
 
     expect(await screen.findByRole('heading', { name: /Nginx 5xx 排查/ })).toBeInTheDocument()
     expect(await screen.findByText('请检查 Nginx 5xx。')).toBeInTheDocument()
-    expect(await screen.findByText('RESULT_PROTOCOL_ERROR')).toBeInTheDocument()
+    expect(await screen.findByText('结构化诊断结果')).toBeInTheDocument()
     await waitFor(() =>
       expect(request_paths).toEqual([
         `/api/v1/sessions/${api_v1_contract_fixtures.session_id}`,
@@ -408,12 +408,21 @@ describe('App', () => {
     expect(screen.queryByText('RESULT_PROTOCOL_ERROR')).not.toBeInTheDocument()
   })
 
-  it('成功 Run 的不完整 Result 显示协议错误，而不伪造结构化结论', async () => {
-    open_path(`/workbench/sessions/${api_v1_contract_fixtures.session_id}/runs/${api_v1_contract_fixtures.run_id}`)
+  it('MSW 协议错误 Result 显示协议错误，而不伪造结构化结论', async () => {
+    open_path(`/workbench/sessions/${api_v1_contract_fixtures.session_id}/runs/${api_v1_contract_fixtures.protocol_error_run_id}`)
     render(<App />)
 
     expect(await screen.findByText('RESULT_PROTOCOL_ERROR')).toBeInTheDocument()
     expect(screen.queryByText('结构化诊断结果')).not.toBeInTheDocument()
+  })
+
+  it('MSW 完整空数组 Result 显示诚实局部空状态', async () => {
+    open_path(`/workbench/sessions/${api_v1_contract_fixtures.session_id}/runs/${api_v1_contract_fixtures.empty_result_run_id}`)
+    render(<App />)
+
+    expect(await screen.findByText('结构化诊断结果')).toBeInTheDocument()
+    expect(screen.getByText('服务未返回结构化根因')).toBeInTheDocument()
+    expect(screen.getByText('服务未返回结构化证据')).toBeInTheDocument()
   })
 
   it('failed Run 只显示服务端安全错误，不展示结果面板', async () => {

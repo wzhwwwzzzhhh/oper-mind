@@ -80,3 +80,32 @@ P3.4 不生成任何 Trace URL、按钮或 iframe。未来 P6 想开放入口前
 Review 必须逐项核对：P2 `DiagnosisResult`/终态不变量；成功/失败/取消与 API 错误区分；空数组和归档只读；刷新/SSE 不把事件当 Result；Mock 完整性；`report/`、P4/P5/P6、真实资源和旧 API 均未混入；文档、计划和 AGENTS/CLAUDE 的唯一下一步一致。
 
 **P3.4b 已完成并通过独立 Review。当前唯一下一步为 P3.4c：补齐完整结构化 Result 的 MSW/独立 Mock FastAPI 契约，并完成独立代理与人工验收；需用户明确代码授权后才可开始。**
+
+## 7. P3.4c — 完整 Result Mock 合同与独立验收（代码完成，待用户可视化确认）
+
+### 实际交付
+
+- 更新 `frontend/scripts/mock_v1_api.py`：完整成功、归档成功和合法空数组 Run 统一由完整 `DiagnosisResult` 夹具构造；`created_at`、UTC `Z`、关联 UUID、结构化证据/建议/风险/Agent 摘要全部齐全。另提供缺 `created_at` 的协议错误夹具，严格只用于前端拒绝测试；增加 failed/cancelled 的终态资源和对应空事件列表。
+- 更新 `frontend/scripts/test_mock_v1_api.py`：覆盖完整静态/归档/空 Result、协议错误夹具、失败/取消终态、安全错误、幂等与 SSE 恢复。`RUN`、`ARCHIVED_RUN`、`EMPTY_RESULT_RUN`、`FAILED_RUN`、`CANCELLED_RUN` 已额外经后端 `DiagnosisRunResource` 校验。
+- 更新 `frontend/src/test/handlers.ts`：MSW 使用完整 P2 字段和 UUID 格式的嵌套资源 ID；加入合法空数组与故意不完整 Result、failed/cancelled Run 及空 Event 夹具。
+- 更新 `frontend/src/app/App.test.tsx`：深链回归覆盖 MSW 完整成功、合法空数组的局部空状态和故意不完整 Result 的 `RESULT_PROTOCOL_ERROR`。
+
+### 已完成验证
+
+```powershell
+Set-Location frontend
+npm run test:mock-api   # 11 passed（仅上游 Starlette 弃用警告）
+npm run typecheck       # 通过
+npm run test            # Vitest 4 files / 38 passed
+npm run build           # 通过；保留既有 >500 kB 非阻断提示
+```
+
+并已通过独立的 `localhost:5175 → localhost:8100` 代理 HTTP 核验，确认请求回显关联 ID、返回完整成功 Result，且 Mock 请求日志记录了代理请求；未访问 8000、真实数据库或数据源。
+
+### 待用户验收与提交门槛
+
+受当前执行环境无可控制浏览器会话限制，尚未替代用户进行页面可视化确认。用户须按 `design.md` 第 11.3 节重启独立 8100 Mock/5175 Vite 后核验成功、空数组、协议错误、failed/cancelled、归档和刷新深链，确认无 Trace 入口。用户明确通过后，才更新 Review 为通过并按精确清单提交；本 Step 不扩展到 P3.5 或真实资源。
+
+### 2026-07-29 验收环境记录
+
+P3.4c 的自动、schema 与独立 Mock HTTP 代理核验已完成。原定的用户页面验收在 2026-07-29 被 Windows TCP 排除范围阻断：`netsh` 显示 IPv4/IPv6 TCP `5141–5240` 被排除，故 Vite 在 5174、5175、5176 上均返回 `EACCES`，且没有监听进程。此事实不被写成 UI 验收通过，也不通过改连 8000 规避；P3.4c 作为独立 Mock 合同切片可提交，页面验收后置。提交后先进行外部产品研究与现有计划审查，再决定是否以及如何启动后续会话优先产品体验 Design。

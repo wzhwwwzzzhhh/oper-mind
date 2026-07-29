@@ -218,3 +218,36 @@ P3.4a 已在限定 3 个前端文件内完成：`result-readers.ts` 对完整 Re
 P3.4b 已在 `WorkbenchPage.tsx` 将 P3.4a 面板接入选定 Run：成功 Run 只有完整 Result reader 通过后才显示；失败只显示安全 `Run.error`；取消、排队、运行与未知/矛盾载荷均显示诚实状态或 `RESULT_PROTOCOL_ERROR`；归档 Session 可只读显示历史成功 Result，提交区继续禁用。现有深链中 P3.3c 简化 Mock Result 缺 `created_at`，现在正确显示协议错误而不是旧的“待展示”占位。新增/更新 App 路由回归覆盖成功、协议异常、failed、cancelled、queued、running 和归档历史；`npm run typecheck`、`npm run test`（37 passed）和 `npm run build` 均通过。
 
 **当前唯一下一步为 P3.4c：补齐完整结构化 Result 的 MSW/独立 Mock FastAPI 契约，并完成独立 8100→5175 代理与人工验收（需用户后续代码授权）。**
+
+## 11. P3.4c 完整 Result Mock 合同与验收记录（待用户可视化确认）
+
+> 日期：2026-07-28　|　代码基线：`94539b5 feat: 完成P3.4b结果接入与终态收口`
+
+### 11.1 合同夹具边界
+
+P3.4c 只把已有 P2 `DiagnosisResultResource` 合同完整地落入两类确定性夹具：浏览器单元/路由回归使用的 MSW 与独立 `frontend/scripts/mock_v1_api.py`。成功、归档成功和完整空数组 Result 都必须能通过后端 `DiagnosisRunResource` 校验；字段包括 UUID 标识、`created_at` UTC `Z`、根因、证据、影响、建议、风险、Agent 摘要和 `report_markdown` 补充字段。`report_markdown` 只用于合同覆盖，P3 不渲染它。
+
+另保留一个**故意缺少** `created_at` 的 succeeded Run，仅用于验证前端显示 `RESULT_PROTOCOL_ERROR`；它不是合法 P2 Resource，也不得被 Pydantic 成功校验或作为成功结果展示。failed 仅携带安全 `error`；cancelled 不携带 `result` 或 `error`；空数组 Result 是合法成功资源，不得被误判为协议错误或伪造成诊断结论。
+
+### 11.2 已完成自动与代理核验
+
+- `npm run test:mock-api`：11 passed（FastAPI `TestClient`），覆盖完整/空/归档 Result、故意不完整 Result、failed/cancelled、幂等受理、REST cursor、SSE/`Last-Event-ID` 与安全错误；仅保留上游 Starlette `httpx` 弃用警告。
+- `npm run typecheck`：通过；`npm run test`：Vitest 4 files / 38 passed；`npm run build`：通过。构建主 chunk 约 892.65 kB，仍为既有非阻断 Vite 大 chunk 提示，不在本 Step 混入拆包。
+- 以 P2 后端 `DiagnosisRunResource` 对独立 Mock 的 `RUN`、`ARCHIVED_RUN`、`EMPTY_RESULT_RUN`、`FAILED_RUN`、`CANCELLED_RUN` 逐一校验通过；协议错误夹具被明确验证为缺少 `created_at`。
+- 已对已运行的独立 `localhost:5175 → localhost:8100` 代理执行 HTTP 核验：`/api/v1/sessions` 与完整成功 `/api/v1/runs/{RUN_ID}` 返回 `200`、回显 `X-Request-Id`/`X-Trace-Id`，请求日志确认命中 Mock，而非 8000。该核验不访问真实数据库、真实数据源或 8000 后端。
+
+### 11.3 尚待用户可视化验收
+
+本执行环境没有可控制的浏览器会话，因此不把 HTTP 代理核验误记为用户可视化验收。用户验收前必须先重启独立 Mock 和 Vite，使进程加载当前工作区代码，并显式设置 `VITE_API_PROXY_TARGET=http://127.0.0.1:8100`、Vite 端口 `5175`。验收路径及预期为：
+
+1. active 成功：`/workbench/sessions/11111111-1111-4111-8111-111111111111/runs/33333333-3333-4333-8333-333333333333` 显示结构化结果，无 Trace URL/按钮；刷新后仍能恢复。
+2. 合法空数组：Run `77777777-7777-4777-8777-777777777771` 显示结果卡内的诚实局部空状态，而非协议错误。
+3. 协议错误：Run `88888888-8888-4888-8888-888888888885` 显示 `RESULT_PROTOCOL_ERROR`，不展示结构化结果。
+4. failed/cancelled：Run `55555555-5555-4555-8555-555555555554` 只显示安全错误；Run `66666666-6666-4666-8666-666666666665` 只显示取消状态；两者均无旧 Result。
+5. 归档历史：`/workbench/sessions/22222222-2222-4222-8222-222222222222/runs/44444444-4444-4444-8444-444444444443` 可只读展示历史 Result，且没有新的诊断提交入口。
+
+在用户明确“可视化验收通过”前，P3.4c 不进入提交；也不得因此接入真实 8000、数据库、Trace、`report/` 或 P4–P6 能力。
+
+### 2026-07-29 验收环境记录
+
+P3.4c 的自动、schema 与独立 Mock HTTP 代理核验已完成。原定的用户页面验收在 2026-07-29 被 Windows TCP 排除范围阻断：`netsh` 显示 IPv4/IPv6 TCP `5141–5240` 被排除，故 Vite 在 5174、5175、5176 上均返回 `EACCES`，且没有监听进程。此事实不被写成 UI 验收通过，也不通过改连 8000 规避；P3.4c 作为独立 Mock 合同切片可提交，页面验收后置。提交后先进行外部产品研究与现有计划审查，再决定是否以及如何启动后续会话优先产品体验 Design。

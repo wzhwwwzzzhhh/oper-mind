@@ -51,7 +51,7 @@ M7 原计划中的“联调与视觉收口”不再作为独立产品里程碑�
 | **P0** | **V1 产品化基线** | 已完成 | 产品边界、架构、API v1 契约与主前端原型已收口 |
 | **P1** | **应用后端与持久化地基** | 已完成 | 环境、路径、持久化 Settings、Engine/Session factory 与 Alembic 骨架已收口；提交后进入 P2 首个资源纵向切片 |
 | **P2** | **会话诊断闭环** | **已完成** | `54f02e5` 已提交刷新恢复读模型、成功/失败恢复、终态 SSE、OpenAPI 与旧接口兼容回归 |
-| **P3** | **主前端工作台** | **🟡 P3.4c 待授权** | P3.4b 已接入 Result 并完成终态/归档收口、37 项前端回归、构建与独立审查；下一步补齐 Mock Result 契约并做独立验收，真实数据库只读验收继续延后 |
+| **P3** | **🟡 产品定位与前端方向复核** | P3.4c 完整 Result Mock 合同已提交；自动、P2 schema 与独立代理核验通过，页面可视化验收受 Windows 端口排除阻断而后置。当前先研究会话优先、监控入口与 Agent 过程渐进披露的产品方向，真实数据库只读验收继续延后 |
 | P4 | 环境、数据源与知识 | 待开始 | Environment、DataSource、连接器、Runbook 与记忆治理 |
 | P5 | 告警、事件与审批闭环 | 待开始 | Alert、Incident、ActionProposal、Approval 与审计 |
 | P6 | 报告与产品收口 | 待开始 | 报告、导出、搜索、通知、偏好及 `report/` 高级分析入口 |
@@ -61,7 +61,7 @@ M7 原计划中的“联调与视觉收口”不再作为独立产品里程碑�
 
 ## 4. 当前唯一下一步
 
-**P3.4b 已完成：Result 面板已接入选定 Run；完整成功 Result、failed/cancelled/queued/running、协议异常与归档历史均按 P2 终态不变量收口，`npm run typecheck`、Vitest 4 files / 37 passed、`npm run build` 和独立 Review 均通过。当前唯一下一步为 P3.4c：补齐完整结构化 Result 的 MSW/独立 Mock FastAPI 契约，并完成独立代理与人工验收（需用户后续代码授权）。**
+**P3.4c 已完成并准备提交：MSW 与独立 Mock FastAPI 已补齐完整 P2 `DiagnosisResult`、合法空数组、协议错误、failed/cancelled 与归档夹具；`npm run test:mock-api` 11 passed、`npm run typecheck`、Vitest 4 files / 38 passed、`npm run build`、P2 schema 交叉校验及独立 Mock HTTP 代理核验均通过。原定 Vite 5174–5176 在 2026-07-29 被 Windows TCP 排除范围 `5141–5240` 拒绝监听，故未把页面可视化验收伪记为通过；该验收后置为环境恢复后的 UI 检查。当前唯一下一步是进行产品定位研究与现有计划拷打，先验证“会话优先、监控为第二入口、Agent 过程按需展开”的方向，不开始 UI 转向实现、不接入真实 8000/数据库/Trace。**
 
 P2 从 `6aa3302 feat: 建立P1应用持久化地基` 开始，历史分支为 `feat/p2-session-diagnosis`；P2.1 至 P2.5 分别提交为 `8f27717`、`11634b4`、`5cf2c6b`、`ae2f978`、`440f03d`、`54f02e5`。P3 Design、P3.1、P3.2 Design、P3.2a、P3.2b 与 P3.2c.1 分别提交为 `12bed37 docs: 完成P3主前端工作台设计`、`4862752 feat: 初始化P3主前端工程与产品外壳`、`ec45ee2 docs: 完成P3.2接口与恢复读模型设计`、`75d6598 feat: 完成P3.2a v1 API客户端与MSW契约`、`3170e6a feat: 完成P3.2b会话工作台只读恢复`、`5491829 feat: 完成P3.2c1 mock FastAPI联调验收`、`87c4f83 docs: 完成P3.2c2离线前置核对`。
 
