@@ -1,7 +1,7 @@
 import { Card, Descriptions, Empty, List, Space, Tag, Typography } from 'antd'
 import type { ReactElement } from 'react'
 
-import type { DiagnosisEvidence, DiagnosisResultProjection, DiagnosisRootCause } from './result-readers'
+import type { DiagnosisAgentSummary, DiagnosisEvidence, DiagnosisResultProjection, DiagnosisRisk, DiagnosisRootCause } from './result-readers'
 
 const SEVERITY_COLORS: Record<DiagnosisResultProjection['severity'], string> = {
   critical: 'magenta',
@@ -40,6 +40,40 @@ function RootCauseItem({ root_cause, evidence_by_id }: { root_cause: DiagnosisRo
   )
 }
 
+function agent_status_color(status: DiagnosisAgentSummary['status']): string {
+  if (status === 'completed') return 'green'
+  if (status === 'failed') return 'red'
+  return 'default'
+}
+
+function AgentSummaryItem({ item }: { item: DiagnosisAgentSummary }): ReactElement {
+  return (
+    <List.Item>
+      <Space direction="vertical" size={4}>
+        <Space size="small" wrap>
+          <Typography.Text strong>{item.agent}</Typography.Text>
+          <Tag color={agent_status_color(item.status)}>{item.status}</Tag>
+          {item.duration_ms !== null && <Tag>{item.duration_ms} ms</Tag>}
+        </Space>
+        <Typography.Text>{item.summary}</Typography.Text>
+      </Space>
+    </List.Item>
+  )
+}
+
+function RiskItem({ risk }: { risk: DiagnosisRisk }): ReactElement {
+  return (
+    <List.Item>
+      <Space direction="vertical" size={4}>
+        <Space size="small" wrap>
+          <Tag color={SEVERITY_COLORS[risk.level]}>风险 {risk.level}</Tag>
+          <Typography.Text>{risk.summary}</Typography.Text>
+        </Space>
+        {risk.mitigation && <Typography.Text type="secondary">缓解：{risk.mitigation}</Typography.Text>}
+      </Space>
+    </List.Item>
+  )
+}
 function attribute_text(attributes: DiagnosisEvidence['attributes']): string {
   return Object.entries(attributes).map(([key, value]) => `${key}: ${value === null ? 'null' : String(value)}`).join('；')
 }
@@ -93,6 +127,20 @@ export function DiagnosisResultPanel({ result }: { result: DiagnosisResultProjec
           {result.evidence.length === 0
             ? <Empty description="服务未返回结构化证据" image={Empty.PRESENTED_IMAGE_SIMPLE} />
             : <List dataSource={result.evidence} renderItem={(evidence) => <EvidenceItem evidence={evidence} key={evidence.id} />} />}
+        </section>
+
+        <section aria-labelledby="agent-summary-heading">
+          <Typography.Title id="agent-summary-heading" level={5}>调查角色摘要</Typography.Title>
+          {result.agent_summary.length === 0
+            ? <Empty description="服务未返回角色调查摘要" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            : <List dataSource={result.agent_summary} renderItem={(item) => <AgentSummaryItem item={item} key={`${item.agent}-${item.status}`} />} />}
+        </section>
+
+        <section aria-labelledby="risks-heading">
+          <Typography.Title id="risks-heading" level={5}>调查范围与风险</Typography.Title>
+          {result.risks.length === 0
+            ? <Empty description="服务未返回风险说明" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            : <List dataSource={result.risks} renderItem={(risk) => <RiskItem key={risk.id} risk={risk} />} />}
         </section>
 
         <Descriptions column={1} size="small" title="结果关联">

@@ -117,12 +117,12 @@ describe('App', () => {
     open_path('/workbench')
   })
 
-  it('从 v1 active Session 列表恢复个人会话入口', async () => {
+  it('从 v1 active Session 列表恢复 DevOps Copilot 会话入口', async () => {
     render(<App />)
 
     expect(screen.getByRole('heading', { name: '我的会话' })).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: /Nginx 5xx 排查/ })).toBeInTheDocument()
-    expect(screen.getByText('调查型发送与对账：P3.6b.1')).toBeInTheDocument()
+    expect(screen.getByText('会话与只读调查：P4.1')).toBeInTheDocument()
   })
 
   it('按 Session、Runs、Message 的顺序恢复只读 Conversation Turn', async () => {

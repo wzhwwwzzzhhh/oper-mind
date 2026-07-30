@@ -441,8 +441,24 @@ def _safe_failure() -> tuple[str, str]:
 
 
 def _safe_event_data(event: DiagnosisExecutionEvent) -> dict[str, object]:
-    """仅持久化受控节点标识，不信任执行器提供的任意 data。"""
-    return {"node": event.node}
+    """只持久化最小过程摘要白名单，拒绝执行器提供的任意原始读取。"""
+    data: dict[str, object] = {"node": event.node}
+    summary = event.data.get("summary")
+    if isinstance(summary, str) and 0 < len(summary) <= 280:
+        data["summary"] = summary
+    role = event.data.get("role")
+    if role in {"db", "log", "server"}:
+        data["role"] = role
+    status = event.data.get("status")
+    if status in {"running", "completed", "failed", "skipped"}:
+        data["status"] = status
+    duration_ms = event.data.get("duration_ms")
+    if isinstance(duration_ms, int) and not isinstance(duration_ms, bool) and 0 <= duration_ms <= 60_000:
+        data["duration_ms"] = duration_ms
+    mode = event.data.get("mode")
+    if mode in {"mock", "target"}:
+        data["mode"] = mode
+    return data
 
 
 def _utc_now() -> datetime:

@@ -1,4 +1,4 @@
-"""P2 会话诊断闭环的应用命令与执行端口。"""
+"""P2/P4 会话诊断闭环的应用命令与执行端口。"""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
 
 from src.domain.diagnosis import RunEventType, SessionStatus
+from src.domain.evidence import EvidenceInvestigationResult
 from src.domain.records import DiagnosisResultData, DiagnosisRunData
 
 
@@ -104,6 +105,7 @@ class DiagnosisExecutionResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     strategy: str | None = None
+    evidence_investigation: EvidenceInvestigationResult | None = None
 
 
 class DiagnosisExecutionError(Exception):

@@ -340,3 +340,23 @@ button {
 .investigation-send-notice {
   margin-top: 12px;
 }
+.investigation-process {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background: #f6fafb;
+  border: 1px solid #dce7eb;
+  border-radius: 10px;
+}
+
+.investigation-process-events {
+  display: grid;
+  gap: 6px;
+}
+
+.investigation-process-event {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}

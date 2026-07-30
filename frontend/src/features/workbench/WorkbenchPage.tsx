@@ -11,7 +11,7 @@ import {
   Typography,
 } from 'antd'
 import type { ReactElement, ReactNode } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import {
@@ -23,7 +23,7 @@ import {
   type MessageListResponse,
   type SessionResponse,
 } from '../../api/v1/client'
-import { api_v1_query_keys, create_run_mutation, get_session_query } from '../../api/v1/queries'
+import { api_v1_query_keys, create_run_mutation, get_session_query, list_run_events_query } from '../../api/v1/queries'
 import {
   investigation_status_color,
   investigation_status_text,
@@ -33,6 +33,8 @@ import {
   type ConversationTurn,
 } from './conversation-turns'
 import { DiagnosisResultPanel } from './DiagnosisResultPanel'
+import { merge_persisted_run_events, run_event_summary, type PersistedRunEvent } from './run-events'
+import { use_run_event_stream } from './use-run-event-stream'
 import { read_diagnosis_result } from './result-readers'
 import {
   clear_session_run_send_intent,
@@ -211,7 +213,80 @@ function SessionNavigator(): ReactElement {
   )
 }
 
-function AssistantReply({ investigation, output }: { investigation: ConversationInvestigation; output?: ConversationMessage }): ReactElement {
+function role_label(role: unknown): string | undefined {
+  if (role === 'db') return '数据库'
+  if (role === 'log') return '日志'
+  if (role === 'server') return '服务'
+  return undefined
+}
+
+function event_duration_text(event: PersistedRunEvent): string | undefined {
+  const duration_ms = event.data.duration_ms
+  if (typeof duration_ms !== 'number' || !Number.isSafeInteger(duration_ms) || duration_ms < 0) return undefined
+  return `${duration_ms} ms`
+}
+
+function InvestigationProcess({ investigation, session_id }: { investigation: ConversationInvestigation; session_id: string }): ReactElement {
+  const query_client = useQueryClient()
+  const [events, set_events] = useState<PersistedRunEvent[]>([])
+  const events_query = useQuery({
+    ...list_run_events_query(investigation.id, { limit: 100 }),
+    enabled: Boolean(investigation.id),
+    refetchInterval: investigation.status === 'queued' || investigation.status === 'running' ? 1500 : false,
+  })
+
+  useEffect(() => {
+    if (!events_query.isSuccess) return
+    set_events((current_events) => merge_persisted_run_events(investigation.id, current_events, read_items(events_query.data.data)))
+  }, [events_query.data, events_query.isSuccess, investigation.id])
+
+  const recover = useCallback(async (): Promise<void> => {
+    const response = await api_v1_client.list_run_events(investigation.id, { limit: 100 })
+    set_events((current_events) => merge_persisted_run_events(investigation.id, current_events, read_items(response.data)))
+  }, [investigation.id])
+  const on_terminal = useCallback(async (): Promise<void> => {
+    await Promise.all([
+      query_client.invalidateQueries({ queryKey: api_v1_query_keys.session_runs(session_id, { limit: API_V1_DEFAULT_PAGE_SIZE }) }),
+      query_client.invalidateQueries({ queryKey: api_v1_query_keys.session_messages(session_id, { limit: API_V1_DEFAULT_PAGE_SIZE }) }),
+    ])
+  }, [query_client, session_id])
+  const stream_state = use_run_event_stream({
+    enabled: investigation.status === 'queued' || investigation.status === 'running',
+    on_event: set_events,
+    on_recover: recover,
+    on_terminal,
+    run_id: investigation.id,
+  })
+
+  const visible_events = events.filter((event) => event.type === 'agent_start' || event.type === 'agent_done' || event.type === 'route_decided')
+  return (
+    <div className="investigation-process" aria-label="调查过程">
+      <Space align="center" size="small" wrap>
+        <Typography.Text strong>只读调查过程</Typography.Text>
+        <Tag color={stream_state === 'connected' ? 'blue' : 'default'}>{stream_state === 'connected' ? '实时更新' : '已保存事件'}</Tag>
+      </Space>
+      {visible_events.length === 0 ? (
+        <Typography.Text type="secondary">正在等待服务端写入可展示的调查过程。</Typography.Text>
+      ) : (
+        <div className="investigation-process-events">
+          {visible_events.map((event) => {
+            const role = role_label(event.data.role)
+            const duration = event_duration_text(event)
+            return (
+              <div className="investigation-process-event" key={event.id}>
+                {role && <Tag color={event.type === 'agent_done' ? 'green' : 'blue'}>{role}</Tag>}
+                <Typography.Text>{run_event_summary(event)}</Typography.Text>
+                {duration && <Typography.Text type="secondary">{duration}</Typography.Text>}
+              </div>
+            )
+          })}
+        </div>
+      )}
+      {events_query.isError && <Typography.Text type="secondary">过程事件暂不可读取；不会以本地内容替代服务端事实。</Typography.Text>}
+    </div>
+  )
+}
+function AssistantReply({ investigation, output, session_id }: { investigation: ConversationInvestigation; output?: ConversationMessage; session_id: string }): ReactElement {
   if (investigation.status === 'succeeded') {
     const result_read = investigation.result === null
       ? { issues: [{ field: 'result', message: '成功调查缺少结构化结果。' }] }
@@ -276,18 +351,19 @@ function AssistantReply({ investigation, output }: { investigation: Conversation
   }
 
   return (
-    <Alert
-      description={investigation.status === 'queued'
-        ? '请求已保存，正在等待调查开始。'
-        : '正在核对已保存的诊断事实；实时过程展示将在后续切片渐进加入。'}
-      title={investigation.status === 'queued' ? '正在准备调查' : '正在调查'}
-      showIcon
-      type="info"
-    />
+    <Space direction="vertical" size="small" style={{ width: '100%' }}>
+      <Alert
+        description={investigation.status === 'queued' ? '请求已保存，正在等待调查开始。' : '正在并行收集数据库、日志和服务的只读证据。'}
+        title={investigation.status === 'queued' ? '正在准备调查' : '正在调查'}
+        showIcon
+        type="info"
+      />
+      <InvestigationProcess investigation={investigation} session_id={session_id} />
+    </Space>
   )
 }
 
-function InvestigationSummary({ investigation, output }: { investigation?: ConversationInvestigation; output?: ConversationMessage }): ReactElement {
+function InvestigationSummary({ investigation, output, session_id }: { investigation?: ConversationInvestigation; output?: ConversationMessage; session_id: string }): ReactElement {
   if (!investigation) {
     return (
       <div className="investigation-summary investigation-summary-empty">
@@ -302,12 +378,12 @@ function InvestigationSummary({ investigation, output }: { investigation?: Conve
         <Typography.Text strong>调查摘要</Typography.Text>
         <Tag color={investigation_status_color(investigation.status)}>{investigation_status_text(investigation.status)}</Tag>
       </Space>
-      <AssistantReply investigation={investigation} output={output} />
+      <AssistantReply investigation={investigation} output={output} session_id={session_id} />
     </div>
   )
 }
 
-function ConversationTurnCard({ turn }: { turn: ConversationTurn }): ReactElement {
+function ConversationTurnCard({ turn, session_id }: { turn: ConversationTurn; session_id: string }): ReactElement {
   return (
     <article className="conversation-turn">
       <div className="conversation-message conversation-message-user" aria-label="用户问题">
@@ -317,7 +393,7 @@ function ConversationTurnCard({ turn }: { turn: ConversationTurn }): ReactElemen
         </div>
         <Typography.Paragraph className="conversation-message-content">{turn.input.content}</Typography.Paragraph>
       </div>
-      <InvestigationSummary investigation={turn.investigation} output={turn.output} />
+      <InvestigationSummary investigation={turn.investigation} output={turn.output} session_id={session_id} />
     </article>
   )
 }
@@ -350,7 +426,7 @@ function ConversationTimeline({ messages, runs, session_id }: { messages: unknow
               />
             )
           }
-          return <ConversationTurnCard key={item.turn.input.id} turn={item.turn} />
+          return <ConversationTurnCard key={item.turn.input.id} session_id={session_id} turn={item.turn} />
         })}
       </div>
     </Card>
@@ -560,7 +636,7 @@ function SessionWorkspace({ session_id }: { session_id: string }): ReactElement 
               set_query(event.target.value)
               if (is_validation_error(recovery_error)) set_recovery_error(undefined)
             }}
-            placeholder="例如：请检查支付网关近期的 5xx。"
+            placeholder="例如：订单服务变慢，帮我排查慢查询。"
             value={query}
           />
           <Space className="investigation-composer-actions" wrap>
@@ -634,10 +710,10 @@ export function WorkbenchPage(): ReactElement {
 
   return (
     <section className="workbench-page" aria-labelledby="workbench-title">
-      <div className="page-eyebrow">PERSONAL AI OPERATIONS</div>
+      <div className="page-eyebrow">OPERATIONS COPILOT</div>
       <Typography.Title id="workbench-title" level={2}>我的会话</Typography.Title>
       <Typography.Paragraph className="page-description">
-        从已保存的个人会话恢复调查型对话。当前只读，不会伪造监控、告警、处理或普通聊天能力。
+        从已保存会话恢复受控运维调查。当前产品先支持订单慢查询的只读排查，不伪造监控、修复或普通聊天能力。
       </Typography.Paragraph>
       <SessionNavigator />
     </section>

@@ -34,7 +34,7 @@ function ProductShell(): ReactElement {
           mode="inline"
           theme="dark"
         />
-        <div className="navigation-note">{!isNavigationCollapsed && '个人 AI 运维助手 · 调查会话'}</div>
+        <div className="navigation-note">{!isNavigationCollapsed && 'DevOps Copilot · 受控调查'}</div>
       </Sider>
       <Layout>
         <Header className="product-header">
@@ -47,8 +47,8 @@ function ProductShell(): ReactElement {
             {isNavigationCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
           </button>
           <div>
-            <Typography.Text strong>个人会话</Typography.Text>
-            <Typography.Text className="header-context">P3.6b.1 · 调查型发送与对账</Typography.Text>
+            <Typography.Text strong>DevOps Copilot</Typography.Text>
+            <Typography.Text className="header-context">P4.1 · 订单慢查询只读调查</Typography.Text>
           </div>
         </Header>
         <Content className="product-content">
@@ -58,15 +58,15 @@ function ProductShell(): ReactElement {
               <div className="rail-kicker">PRODUCT BOUNDARY</div>
               <Typography.Title id="context-title" level={4}>当前边界</Typography.Title>
               <Typography.Paragraph>
-                页面以会话与消息为主线，按需展示已保存的调查摘要和结构化结论；不会把 Run、SSE 或 Trace 当作默认阅读对象。
+                页面以会话与消息为主线；调查过程只展示角色、状态、耗时和安全摘要，证据与结论按需展开。
               </Typography.Paragraph>
               <Typography.Paragraph type="secondary">
-                当前可提交调查型问题并恢复已持久化事实；实时过程、监控、告警、审批和处理仍在后续切片，完整 Trace 继续仅面向研发界面。
+                当前只支持订单慢查询的只读调查；不执行修复、不展示模型思维链，也不把 Trace 当作产品主界面。
               </Typography.Paragraph>
               <div className="honest-status" aria-label="阶段能力状态">
-                <span className="context-status">调查型发送与对账：P3.6b.1</span>
-                <span className="context-status">实时过程与断线恢复：后续 P3.6b.2</span>
-                <span className="context-status">告警与受控处理：待 P5</span>
+                <span className="context-status">会话与只读调查：P4.1</span>
+                <span className="context-status">DB / 日志 / 服务证据：P4.1</span>
+                <span className="context-status">审批、修复与验证：待 P4.2</span>
               </div>
             </aside>
           </div>
