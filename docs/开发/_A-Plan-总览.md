@@ -30,7 +30,7 @@ OperMind 是面向研发与运维人员的**会话式多 Agent DevOps Copilot**�
 |---|---|---|
 | **P4.0 / Work 1** | ✅ 完成 | 隔离 PostgreSQL 订单慢查询靶场、受控脚本与真实 smoke。 |
 | **P4.1** | ✅ 完成 | 会话触发的 DB/Log/Server 只读调查、结构化证据结果、简要过程与可展开详情；mock/API/UI 回归与 target smoke 已通过。 |
-| **P4.2** | 待设计 | 固定修复提案、人工审批、白名单执行和 Verify。 |
+| **P4.2** | 🟡 设计/Review 通过，待实施授权 | 固定修复提案、人工审批、白名单执行和 Verify；尚未改动运行时代码。 |
 | **P4.3** | 待设计 | 一个已注册靶场服务的服务中心/监控页与调查入口。 |
 | **P5.0** | 待设计 | Markdown 知识目录、受控全文检索（grep 等价实现）和引用展示。 |
 | **P5.1** | 待设计 | 模型 Provider 设置、第二类 Connector 的安全设计与实现。 |
@@ -38,15 +38,14 @@ OperMind 是面向研发与运维人员的**会话式多 Agent DevOps Copilot**�
 
 ## 4. 当前唯一下一步
 
-**P4.1 已完成；停止实现，等待 P4.2 审批/执行/Verify 的独立 Design → Review → 用户授权。**
+**P4.2 的独立 Design 与 Review 已完成；当前停止实现，等待用户明确确认“按 `p4.2-固定修复审批执行验证-design.md` 实施 P4.2”。**
 
-P4.1 已完成订单慢查询的“会话问题 → 只读证据 → 结构化结论 → 可展开详情”实现，并于 2026-07-30 通过 target 真实 smoke。当前不得提前实现：
+P4.2 的范围、状态机、迁移/API 影响、安全边界与真实 smoke 验收已记录于 `P4-DevOps-Copilot-MVP/p4.2-固定修复审批执行验证-design.md` 和对应 Review。当前尚未改动 P4.2 的运行时代码、API、迁移或靶场状态；在获得上述实施确认前，仍不得提前实现：
 
 - 修复执行、审批动作或任何 DDL/DML；
 - 第二种故障、Redis/MySQL/Kubernetes 或真实生产资源；
 - 向量库、RAG、知识图谱、文件上传、任意磁盘 grep 或用户 API Key 存储；
-- 新公开 API、迁移或模型配置页（如确有需要，先单独 Design → Review）。
-
+- 超出已审查 P4.2 契约的公开 API、迁移或模型配置页。
 ## 5. P4 靶场硬边界
 
 - 唯一可操作目标是用户授权的本地隧道 `127.0.0.1:5433` 上专用数据库 `opermind_demo`，仅限 schema `opermind_demo` 的 `orders` 表和 `idx_orders_user_created` 索引。

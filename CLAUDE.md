@@ -7,7 +7,7 @@ OperMind 是面向研发与运维人员的**会话式多 Agent DevOps Copilot**�
 - 总进度和唯一下一步：`docs/开发/_A-Plan-总览.md`。
 - 当前产品蓝图：`docs/开发/治理-DevOps-Copilot-MVP重定位/product-blueprint.md`。
 - 秋招 MVP 只做一个问题：订单服务缺失 `orders(user_id, created_at)` 索引导致慢查询。先完成“会话提问 → 只读证据 → 根因 → 审批/执行/Verify → 服务页留痕”的骨架，再增加问题、服务或知识库复杂度。
-- P4.0 Work 1 与 P4.1 均已在用户授权靶场真实 smoke 通过。P4.1 只完成会话触发的只读慢查询调查与最小证据展示；P4.2 的审批、执行和 Verify 必须重新 Design → Review → 用户授权后才能实现。
+- P4.0 Work 1 与 P4.1 均已在用户授权靶场真实 smoke 通过。P4.2 的审批、执行和 Verify 已完成独立 Design/Review，但尚未获得“按 `p4.2-固定修复审批执行验证-design.md` 实施 P4.2”的明确确认；此前不得实现代码、迁移、API 或任何 DDL/DML。
 - 已删除旧教程、旧阶段计划和过时产品路线，避免它们成为错误上下文。需要继承的历史代码/测试事实只读 `docs/开发/历史技术基线.md`、当前代码和测试；Git 历史只供追溯。
 
 ## 目录与职责
