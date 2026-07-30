@@ -1,14 +1,15 @@
 # DevOps Copilot MVP 重定位 HANDOFF
 
-> 更新日期：2026-07-30　|　状态：**已关闭：Work 1 真实验收、Review 与提交已完成**
+> 更新：2026-07-30　|　状态：**产品蓝图、文档清理、Work 1 与 P4.1 Design/Review 已完成；等待实施授权**
 
 ## 已完成
 
-- P4 产品定位、范围与封存边界已写入当前治理文档；
-- Work 1 已使用用户授权的 `127.0.0.1:5433/opermind_demo` 真实运行；
-- 真实闭环与清理完成，未触碰 `gongkar`；
-- Work 1 的唯一下一动作是最终审查并提交，详见 `../P4-DevOps-Copilot-MVP/`；当前仅等待新的 P4.1 Design 授权。
+- 重新收敛为会话式、单问题端到端 DevOps Copilot：慢查询是第一个完整用户路径，不是独立 Agent 实验；
+- P4.0 Work 1 已在授权 PostgreSQL 靶场真实运行、清理并提交，未触碰 `gongkar`；
+- 产品蓝图明确了会话工作台、审计式过程展示、Connector、服务页、Markdown 知识检索、Provider 和 MCP 的分期边界；
+- 旧教程、阶段计划、旧产品路线、旧对外材料与治理快照已从工作树删除；仍需继承的技术事实压缩到 `../历史技术基线.md`；
+- P4.1 Design/Review 已重新对齐为“会话触发的订单慢查询只读调查”。
 
 ## 恢复入口
 
-提交后请以 `../_A-Plan-总览.md` 为准。P4.1 尚无授权，不得以本 Handoff 作为继续实现 Agent/API/前端的依据。
+先读 `../_A-Plan-总览.md`、`product-blueprint.md`、`../P4-DevOps-Copilot-MVP/p4.1-只读证据调查-design.md` 与 Review。用户尚未明确授权实施 P4.1；在授权前不能修改运行时代码、API、前端、迁移或真实连接。

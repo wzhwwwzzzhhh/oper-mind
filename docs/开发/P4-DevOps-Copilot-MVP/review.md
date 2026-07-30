@@ -1,6 +1,6 @@
 # Work 1 Review — 订单慢 SQL 受控靶场
 
-> 审查日期：2026-07-30　|　结论：**✅ 通过，可提交；禁止进入 Work 2。**
+> 审查日期：2026-07-30　|　结论：**✅ 已通过并提交；P4.1 仍等待用户实施授权。**
 
 ## 代码与隔离边界
 
@@ -14,7 +14,7 @@
 
 ## 验收质量
 
-- [x] 纯脚本测试 8 passed；
+- [x] `backend/tests/scripts` 最终 11 passed；
 - [x] 控制脚本、smoke 和订单服务 Python 编译通过；
 - [x] 真实 smoke 验证正常、故障、修复、恢复和最终清理；
 - [x] 故障判定使用索引、执行计划、P50 性能门和日志的交叉证据；P95 保留审计；
@@ -24,11 +24,11 @@
 
 `backend/scripts/smoke_demo_orders.py --samples 10` 于 2026-07-30 通过：baseline P95 `60.539 ms` / Index Scan；删索引后 P95 `84.127 ms` / Seq Scan / 10 条慢日志；恢复后 P95 `61.451 ms` / Index Scan / 0 条慢日志。最终确认专用 schema 被清理。
 
-## 提交边界
+## 提交与后续边界
 
-允许提交 Work 1 靶场、脚本、测试、P4/定位/规则文档。以下既有改动不属于 Work 1，**不得暂存**：
+Work 1 已由提交 `9560c15 feat: 建立订单慢SQL受控靶场` 收口。以下既有改动不属于 Work 1，**不得暂存**：
 
 - `backend/src/domain/__init__.py`
 - `backend/src/infrastructure/persistence/__init__.py`
 
-提交后停止，等待用户对 P4.1 Design 的新授权。
+P4.1 的产品蓝图、Design 与 Review 已完成。只有在用户明确确认蓝图并授权实施后，才能开始会话触发的只读慢查询调查；审批、执行、Verify 和知识库不属于 P4.1。
