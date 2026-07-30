@@ -1,10 +1,10 @@
-# OperMind — 全栈 Agent 运维诊断产品
+# OperMind — 多 Agent DevOps Copilot
 
-OperMind 是面向个人用户日常轻量使用的独立 AI 运维助手。它以长期、多轮个人会话为主线，未来可由主动提问、真实监控发现或已接入告警进入；Agent 调查、SSE 与 Trace 是可逐层展开的可信执行能力，真实处理必须经明确授权、权限、审计和验证。
+OperMind 是面向研发与运维人员的多 Agent DevOps Copilot。它在**受控、可复现、与应用元数据隔离**的运维靶场中协调数据库、日志和服务器 Agent，完成故障调查、证据化判断、修复提案、人工审批、白名单执行与验证闭环。多 Agent、SSE、Trace 与评测是产品能力和技术验证，不是脱离产品的独立目标。
 
 ## 技术栈
 
-Python 3.10+、LangGraph、OpenAI SDK、FastAPI、React + TypeScript
+Python 3.10+、LangGraph、OpenAI SDK、FastAPI、React + TypeScript、PostgreSQL（P4 受控靶场经本地隧道接入）
 
 ## 真实目录与职责
 
@@ -12,64 +12,67 @@ Python 3.10+、LangGraph、OpenAI SDK、FastAPI、React + TypeScript
 oper-mind/
 ├── backend/                 # FastAPI、Agent Core、应用服务、持久化、测试和脚本
 │   ├── src/
-│   │   ├── api/             # 当前 HTTP/SSE 契约、事件与路由边界
-│   │   ├── application/     # P2 产品用例、短事务、幂等与执行/结果端口
-│   │   ├── domain/          # P2 状态、值对象与 Repository ports
-│   │   ├── infrastructure/  # ORM、Repository 与 Coordinator 诊断适配
+│   │   ├── api/             # HTTP/SSE 契约、事件与路由边界
+│   │   ├── application/     # 用例、短事务、幂等、审批/执行/验证编排
+│   │   ├── domain/          # 状态、值对象与 Repository ports
+│   │   ├── infrastructure/  # ORM、Repository 与诊断/靶场适配器
 │   │   ├── agents/          # Server / DB / Log / Report Agent
 │   │   ├── core/            # 编排、LLM、Debate、Reflection、Approval
-│   │   ├── tools/           # 诊断工具
+│   │   ├── tools/           # 只读诊断工具与受控执行工具
 │   │   ├── memory/          # Agent 记忆
 │   │   ├── app.py           # FastAPI 入口
 │   │   └── main.py          # CLI 入口
 │   ├── tests/
 │   └── requirements.txt
-├── frontend/                # V1 主产品前端；当前工程已建立，R1 后以个人会话为体验主线
-├── report/                  # 阶段一 M7 的研发/实验/Trace 可观察性 React 前端
+├── frontend/                # 主产品：调查、证据、提案、审批、执行与验证
+├── report/                  # 研发/Trace/评测控制台，不是主产品前端
+├── demo/                    # 与产品元数据隔离的受控演示靶场
 ├── config/                  # 配置模板
 ├── data/                    # 本地数据与确定性 mock
 ├── docs/                    # 规划、架构、产品与开发日志
-├── experiments/             # 评测与实验产物
-├── backend/scripts/         # 后端 smoke、评测与文档脚本
+├── experiments/             # 毕设评测与实验产物
+├── backend/scripts/         # smoke、评测与文档脚本
 ├── AGENTS.md
 └── CLAUDE.md
 ```
 
 ## 计划与真相源
 
-- **总进度唯一真相源**：`docs/开发/_A-Plan-总览.md`。阶段一 M0–M7 已完成并冻结为历史基线；阶段二 P0–P7 是当前主线。
-- **阶段二详细计划**：`docs/开发/_B-V1产品化开发计划.md`。它展开 P0–P7 的产品范围与顺序，但不替代总览中的进度状态。
-- `docs/开发路线图与规划.md`、`docs/初始开发/` 与 M 阶段日志均为历史材料，保留但不作为当前执行入口。
-- **当前产品体验设计入口**：`docs/开发/治理-个人AI运维助手产品重定位/`。旧 P0/P3 工作台的布局、导航和“唯一下一步”仅是历史/技术证据，不能直接驱动新体验；已发布 `/api/v1` 契约与 P2/P3 测试事实仍须继承。R1/P3.5 Design 已于 2026-07-29 提交为 `6b0290b`；P3.6a「会话壳与只读 Turn 投影」已于 2026-07-29 提交为 `eb664dd` 并通过用户人工验收；P3.6b Design 与 P3.6b.1「发送意图与 202 对账」已完成 Code/Test/Review 与用户边界验收，并由本提交收口。当前产品实现的唯一下一步以 A-Plan 为准：**由用户确认先授权 P3.6b.3 Mock 合同，还是 P3.6b.2 Fetch SSE 多 Run 恢复的独立技术验证与实现；不得自动开始任一。** P3.6b.1 只实现调查型 POST Run、tab 限定稳定幂等意图和 `input_message_id` 的持久化事实对账；没有 SSE、events、Last-Event-ID、多 Run 恢复、Mock/后端变更，也不是普通聊天。当前独立 Mock 尚未动态返回 accepted user Message，不能将其成功受理后的“恢复中”状态误称为浏览器成功对账；P3.6b.3 将单独补 Mock 合同。不得连接真实 8000、数据库、数据源、认证或在线 Alembic，不得伪造监控、告警、处理或多人协作能力。文档恢复与分层入口见 `docs/README.md`、`docs/开发/README.md`。P3.4c 已于 2026-07-29 提交为 `37317e7`；Mock 11 passed、Vitest 40 passed、类型检查、构建、P2 schema 与独立代理核验通过。Windows TCP 排除范围 `5141–5240` 使 Vite 5174–5176 无法监听；后续页面验收只能用独立 8100 Mock 与非排除端口，不能以 8000/真实资源替代；真实数据库只读验收仍按用户决策延后。
+- **总进度与唯一下一步**：`docs/开发/_A-Plan-总览.md`。
+- **阶段范围与 MVP 路线**：`docs/开发/_B-V1产品化开发计划.md`；它不维护第二个“当前唯一下一步”。
+- **当前产品定位与 P4.0 入口**：`docs/开发/治理-DevOps-Copilot-MVP重定位/`。用户于 **2026-07-30** 授权 Work 1 使用其本地隧道中的隔离数据库 `opermind_demo`；真实 smoke 已通过，且最终清理已删除 `opermind_demo` schema。未经新的 Design → Review → 用户授权，不得进入 Work 2 的 Agent、API、前端或真实数据源实现。
+- P4 Work 1 的唯一可操作目标：`127.0.0.1:5433` → `opermind_demo` → `opermind_demo.orders`。它通过用户提供的本地隧道到达其服务器；**绝不连接、读取、写入或清理 `gongkar`**，也不访问任意其他数据库、schema、表或端口。
+- `治理-个人AI运维助手产品重定位/`、P3.5/P3.6 的长期会话、发送幂等和 SSE 恢复设计，以及 `P3-主前端工作台/` 均已**封存为历史技术成果**；可按未来工作包选择性复用，但不得再作为当前需求或下一步。
+- M0–M7、`report/`、评测和 `docs/初始开发/` 是研发/毕设/历史材料，不是当前产品执行入口；不得删除 `report/`。
+- 已发布 `/api/v1` 契约、P2 持久化模型与 P3 测试事实必须继承；历史体验文案不等于当前产品需求。
 
 ## 常用命令
 
 ```powershell
-.\.venv\Scripts\Activate.ps1                    # 激活根目录虚拟环境（PowerShell）
-$env:PYTHONPATH = "$PWD\backend;$PWD"           # 迁移期同时解析 backend/src 与根 data/config
-$env:OPERMIND_API_KEY = "mock"                   # 迁移期显式配置 mock，绕过尚未收口的配置路径
+.\.venv\Scripts\Activate.ps1
+$env:PYTHONPATH = "$PWD\backend;$PWD"
+$env:OPERMIND_API_KEY = "mock"
 $env:OPERMIND_BASE_URL = "http://mock"
 $env:OPERMIND_MODEL = "mock"
-python -m src.main                               # 运行后端 CLI
-python -m uvicorn src.app:app --reload           # 启动 FastAPI，默认 http://127.0.0.1:8000
+python -m src.main
+python -m uvicorn --app-dir backend src.app:app --reload
+
+Set-Location frontend
+npm run dev
 
 Set-Location report
-npm run dev                                     # 启动研发/实验/Trace 可观察性前端
+npm run dev
 ```
 
-`frontend/` 是 V1 主产品前端。P0.4 原型经用户确认并完成 React 工程初始化前，不假定其具有 `npm run dev` 启动命令；不得把 `report/` 当作主产品前端，也不得删除它。`backend/src/project_paths.py` 是根 `config/`、`data/` 与 `experiments/` 的唯一资源路径来源；配置依次读取根 `config.local.yaml`、根 `config.example.yaml`，再由 `OPERMIND_*` 环境变量覆盖。应用元数据数据库 URL 的优先级为 `OPERMIND_APP_DATABASE_URL`、本地 `persistence.database_url`、根 `data/opermind.sqlite3`；仅用显式 Alembic 迁移，运行时 SQLite 文件不得提交。脚本和测试不得依赖当前工作目录或把 `backend/` 当资源根；迁移期遗留 `PYTHONPATH` 即使存在也不得改变资源路径解析。
+`backend/src/project_paths.py` 是根 `config/`、`data/`、`experiments/` 的唯一资源路径来源。配置依次读取根 `config.local.yaml`、根 `config.example.yaml`，再由 `OPERMIND_*` 环境变量覆盖。应用元数据数据库 URL 的优先级为 `OPERMIND_APP_DATABASE_URL`、本地 `persistence.database_url`、根 `data/opermind.sqlite3`；schema 只经显式 Alembic 迁移，运行时 SQLite 文件不得提交。脚本和测试不得依赖当前工作目录或把 `backend/` 当资源根。
 
 ## 开发规则
 
-> `AGENTS.md` 与 `CLAUDE.md` 是**同一份精简硬约束的镜像**；两者内容必须逐字一致。
-> 完整规则的唯一真相源是 `docs/开发规范.md`；总进度的唯一真相源是 `docs/开发/_A-Plan-总览.md`。
+> `AGENTS.md` 与 `CLAUDE.md` 是同一份精简硬约束的镜像，内容必须逐字一致。完整规则以 `docs/开发规范.md` 为准。
 
-- **代码规范**：注释用中文；类名大驼峰，函数/变量小写下划线，常量全大写；公开函数必须带类型标注；跨层结构化数据用 Pydantic / TypedDict，不裸传 dict；禁止裸 `except` 和新增生产 `print`。
-- **架构边界**：Tool 继承 `backend/src/core/tool_registry.py` 的 `Tool` 并实现 `execute`；Agent 继承 `BaseAgent` 并复用 ReAct `run()`；当前 HTTP API、SSE 事件和公开契约位于 `backend/src/api/`，`backend/src/app.py` 只负责入口与装配。阶段二产品 API 统一向 `/api/v1` 演进，业务用例、持久化与权限不得直接塞入 Agent 节点；Graph 状态走显式 `DiagnosisState`。
-- **Mock、真实数据与安全**：`api_key="mock"` 是一等公民；每个外部依赖必须有确定性 mock fallback。应用元数据数据库与诊断数据源必须隔离，`/api/v1` 不得在持久化不可用时静默降级为内存；应用 schema 只经显式 Alembic 迁移，启动不得 `create_all()` 或自动升级。接入真实数据库、数据源或前后端联调前，必须共同确认连接目标、最小权限、可用数据、接口契约、回退路径和验收场景；密钥只读环境变量，真实 DB 仅只读账号和参数化查询，诊断工具禁 DDL/DML，高危操作必须经过审批门。
-- **测试与复现**：测试默认 mock；direct / chain / parallel 均需冒烟覆盖。修改 graph / debate / reflection / approval 必跑 `backend/scripts/smoke_pipeline.py`。评测必须关闭长期记忆读写，实验固定种子并以 config hash 落盘。产品切片至少保留启动检查、Migration、核心 API smoke、SSE 联调、前端构建和主流程人工验收。
-- **重要改动工作流**：架构、接口契约、安全、里程碑产出和非平凡 bug 均按 **Design → Step → Code → Test → Review → Commit** 执行。每个 step 收尾即做 Review；架构、删文件、非平凡改动须独立 code review 通过后才能提交；测试、审查、Git 不可后置。
-- **开发日志**：重要里程碑日志放 `docs/开发/M<N>-<名称>/` 或 `docs/开发/P<N>-<名称>/`，包含 `design.md`、一个或多个 `stepN-*.md`、`review.md`。跨阶段规则/流程治理日志放 `docs/开发/治理-<名称>/`。日志是带日期与 commit 的快照，记录关键片段和 `文件路径:行号` 锚点，不贴整文件。`docs/初始开发/` 是历史归档，不再新增日志。
-- **上下文交接与恢复**：一个 step 必须在可控范围内完成 **Design → Code → Test → Review → Commit**；预计跨上下文、实现超过 3–5 个文件、出现 P1/P2 审查问题或上下文接近上限时，先在对应 `docs/开发/M<N>-<名称>/HANDOFF.md` 或 `docs/开发/P<N>-<名称>/HANDOFF.md` 写清状态、基线提交、已完成项、未完成/阻塞项、唯一下一步、必跑验证和提交边界。恢复固定执行 `git status --short`、查看最近提交、阅读 A-Plan 与当前 `HANDOFF.md` / `design.md`、核对未提交 diff；记录与 diff 不一致时先核对，禁止猜测或提交。step 提交后必须回填最终状态或移除临时 HANDOFF。
-- **文档同步**：目录、节点流、Agent/Tool 关系、API/SSE 契约、真实数据源接入或工作流变更时，必须同步更新 `AGENTS.md`、`CLAUDE.md`、`docs/开发规范.md`；影响阶段状态时同时更新 `_A-Plan-总览.md`，影响阶段二范围时同步 `_B-V1产品化开发计划.md`。
-- **Git**：阶段一历史分支沿用 `feat/mN-*`；阶段二里程碑使用 `feat/pN-*`。commit 使用 `<类型>: <中文描述>`；不直推 `main`；不提交 `.env`、`*.local.yaml`、凭证或含 `sk-` 的文件；暂存必须指定文件，禁止无检查的 `git add .`。
+- **代码与边界**：中文注释；公开函数带类型标注；跨层结构化数据使用 Pydantic / TypedDict；禁止裸 `except` 和新增生产 `print`。Tool 继承 `Tool` 并实现 `execute`；Agent 继承 `BaseAgent` 并复用 ReAct `run()`；Graph 状态使用显式 `DiagnosisState`。HTTP/SSE 契约位于 `backend/src/api/`，`app.py` 只做入口与装配。
+- **安全与真实数据**：每个外部依赖必须有确定性 mock fallback。诊断适配器默认只读、参数化、限时；应用元数据与诊断数据源隔离。仅独立的受控执行器可在**用户授权的隔离靶场**经人工审批执行严格白名单动作；禁止模型任意 SQL、Shell、DDL/DML，禁止连接真实生产资源。真实连接必须先确认目标、最小权限、数据边界、契约、回退和验收。
+- **P4 目标硬边界**：连接参数只能来自环境变量；代码必须 fail-closed 地校验 `127.0.0.1:5433/opermind_demo`，所有 DDL 仅限 `opermind_demo` schema 中预定义的 `orders` 表和 `idx_orders_user_created` 索引。不得记录凭证，不得使用或探测 `gongkar`。
+- **工作包节奏**：以可验收的纵向工作包为单位（通常包含 1–3 个紧密相关切片），而不是每个微步骤都 Design/Review/Commit。工作包先确定目标、边界和验收，再连续实现与增量测试；完成时集中 Test → Review → Commit。架构、公开契约、迁移、真实数据源、审批/执行安全和破坏性改动必须在实现前设计并独立审查。
+- **测试与文档**：测试默认 mock；改 graph / debate / reflection / approval 必跑 `backend/scripts/smoke_pipeline.py`。P4 靶场工作包还须有启动、故障注入、修复、验证 smoke；默认清理数据与进程。重要工作包记录设计、关键取舍、测试和 Review；小改动只需测试与 commit message。跨上下文或工作包未收口时写 `HANDOFF.md`，提交后关闭或更新。
+- **Git**：阶段二功能分支沿用 `feat/pN-*`；commit 使用 `<类型>: <中文描述>`；不直推 `main`；不提交 `.env`、`*.local.yaml`、凭证或含 `sk-` 的文件；暂存必须指定文件，禁止无检查的 `git add .`。

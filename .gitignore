@@ -41,3 +41,6 @@ report/*.log
 
 # 旧目录残留
 newproject/
+# Work 1 PostgreSQL 受控靶场运行时产物
+/demo/orders-slow-query/.env
+/demo/orders-slow-query/runtime/
