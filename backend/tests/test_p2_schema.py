@@ -30,6 +30,12 @@ BUSINESS_TABLES = {
     "run_events",
     "diagnosis_results",
     "run_idempotency_keys",
+    "action_proposals",
+    "action_approvals",
+    "action_executions",
+    "action_verifications",
+    "action_events",
+    "action_idempotency_keys",
 }
 EXPECTED_TABLES = BUSINESS_TABLES | {"alembic_version"}
 
@@ -125,8 +131,8 @@ def _create_session_and_run(engine: Engine) -> tuple[str, str]:
     return session_id, run_id
 
 
-def test_p2_schema_metadata_只声明六张业务表且不含循环外键() -> None:
-    """ORM metadata 只包含 P2.2a 业务表，messages.run_id 保持应用层引用。"""
+def test_p2_schema_metadata_声明P2与P4业务表且不含循环外键() -> None:
+    """ORM metadata 包含 P2 与 P4.2 业务表，messages.run_id 保持应用层引用。"""
     assert set(Base.metadata.tables) == BUSINESS_TABLES
 
     message_table = Base.metadata.tables["messages"]
@@ -139,7 +145,7 @@ def test_p2_schema_metadata_只声明六张业务表且不含循环外键() -> N
 
 
 def test_p2_schema_alembic_fresh_db_约束降级与再次升级(tmp_path: Path) -> None:
-    """首个业务 migration 在临时库创建六张表，且可完整降级和再次升级。"""
+    """P2/P4.2 migration 在临时库创建完整 schema，且可完整降级和再次升级。"""
     database_path = tmp_path / "p2-schema.sqlite3"
     outside_repository = tmp_path / "outside-repository"
     outside_repository.mkdir()
@@ -187,6 +193,24 @@ def test_p2_schema_alembic_fresh_db_约束降级与再次升级(tmp_path: Path) 
         assert {item["name"] for item in inspector.get_indexes("messages")} == {
             "ix_messages_run_id",
             "ix_messages_session_created_at_id",
+        }
+        assert {tuple(item["column_names"]) for item in inspector.get_unique_constraints("action_proposals")} == {
+            ("source_run_id",)
+        }
+        assert {tuple(item["column_names"]) for item in inspector.get_unique_constraints("action_approvals")} == {
+            ("proposal_id",)
+        }
+        assert {tuple(item["column_names"]) for item in inspector.get_unique_constraints("action_executions")} == {
+            ("proposal_id",)
+        }
+        assert {tuple(item["column_names"]) for item in inspector.get_unique_constraints("action_verifications")} == {
+            ("execution_id",)
+        }
+        assert {tuple(item["column_names"]) for item in inspector.get_unique_constraints("action_events")} == {
+            ("proposal_id", "sequence")
+        }
+        assert {tuple(item["column_names"]) for item in inspector.get_unique_constraints("action_idempotency_keys")} == {
+            ("proposal_id", "endpoint", "idempotency_key")
         }
     finally:
         engine.dispose()
@@ -363,6 +387,8 @@ def test_p2_schema_postgresql_orm与迁移ddl可离线编译(tmp_path: Path) -> 
     assert "CREATE TABLE sessions" in result.stdout
     assert "CREATE TABLE diagnosis_runs" in result.stdout
     assert "CREATE TABLE run_idempotency_keys" in result.stdout
+    assert "CREATE TABLE action_proposals" in result.stdout
+    assert "CREATE TABLE action_idempotency_keys" in result.stdout
     assert "UUID" in result.stdout
     assert "CONSTRAINT diagnosis_run_input_message_unique UNIQUE (input_message_id)" in result.stdout
 

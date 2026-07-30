@@ -10,6 +10,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ValidationError
 
+from src.domain.actions import ActionEventCursor
 from src.domain.records import DiagnosisRunCursor, MessageCursor, RunEventCursor, SessionCursor
 
 
@@ -52,6 +53,7 @@ def _normalize_cursor_datetime(cursor: CursorT) -> CursorT:
 
 
 __all__ = [
+    "ActionEventCursor",
     "DiagnosisRunCursor",
     "InvalidCursorError",
     "MessageCursor",

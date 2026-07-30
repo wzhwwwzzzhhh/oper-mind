@@ -55,3 +55,24 @@ class RunInputMessageInvalidError(ApplicationError):
 
     code = "RUN_INPUT_MESSAGE_INVALID"
     message = "诊断运行的输入消息无效。"
+
+
+class ActionProposalNotFoundError(ApplicationError):
+    """指定固定修复提案不存在。"""
+
+    code = "ACTION_PROPOSAL_NOT_FOUND"
+    message = "固定修复提案不存在。"
+
+
+class ActionProposalInvalidStateError(ApplicationError):
+    """Proposal 当前状态不允许该操作。"""
+
+    code = "ACTION_PROPOSAL_INVALID_STATE"
+    message = "固定修复提案当前状态不允许该操作；请重新调查后生成新提案。"
+
+
+class ActionProposalExpiredError(ApplicationError):
+    """已批准 Proposal 在执行声明时失效。"""
+
+    code = "ACTION_PROPOSAL_EXPIRED"
+    message = "固定修复批准已过期，请重新调查后生成新提案。"

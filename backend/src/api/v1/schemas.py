@@ -320,3 +320,146 @@ class RunEventEnvelope(ApiV1Model):
 
     event: RunEventResource
     meta: ResponseMeta
+
+
+class ActionApprovalResource(ApiV1Model):
+    """固定 Proposal 的本地审批记录。"""
+
+    id: UUID
+    proposal_id: UUID
+    decision: Literal["approve", "reject"]
+    actor: Literal["local_operator"]
+    comment: str | None = None
+    action_digest: str = Field(min_length=64, max_length=64)
+    created_at: datetime
+
+
+class ActionExecutionResource(ApiV1Model):
+    """受控执行器的当前安全状态。"""
+
+    id: UUID
+    proposal_id: UUID
+    mode: Literal["mock", "target"]
+    status: Literal["queued", "running", "succeeded", "blocked", "failed"]
+    precondition_summary: str | None = None
+    action_summary: str | None = None
+    failure_code: str | None = None
+    failure_message: str | None = None
+    created_at: datetime
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+
+
+class ActionVerificationResource(ApiV1Model):
+    """独立 Verify 的脱敏标量事实。"""
+
+    id: UUID
+    execution_id: UUID
+    status: Literal["verified", "failed"]
+    mode: Literal["mock", "target"]
+    summary: str
+    facts: dict[str, JsonValue]
+    created_at: datetime
+
+
+class ActionProposalResource(ApiV1Model):
+    """来源 Run 的不可编辑固定修复提案。"""
+
+    id: UUID
+    source_run_id: UUID
+    action_id: Literal["postgres.orders.rebuild_missing_user_created_index.v1"]
+    action_digest: str = Field(min_length=64, max_length=64)
+    status: Literal[
+        "pending_approval", "approved", "rejected", "expired", "executing", "verifying",
+        "verified", "blocked", "failed",
+    ]
+    mode: Literal["mock", "target"]
+    title: str
+    description: str
+    target: dict[str, str]
+    root_cause_id: UUID
+    evidence_ids: list[UUID]
+    risk_summary: str
+    verification_plan: list[str]
+    created_at: datetime
+    updated_at: datetime
+    approved_at: datetime | None = None
+    expires_at: datetime | None = None
+    execution_started_at: datetime | None = None
+    completed_at: datetime | None = None
+    failure_code: str | None = None
+    failure_message: str | None = None
+    approval: ActionApprovalResource | None = None
+    execution: ActionExecutionResource | None = None
+    verification: ActionVerificationResource | None = None
+
+
+class ActionEventResource(ApiV1Model):
+    """可轮询读取的 action 审计事件。"""
+
+    id: UUID
+    proposal_id: UUID
+    sequence: int = Field(ge=1)
+    type: Literal[
+        "proposal_created", "approval_recorded", "execution_requested", "execution_started",
+        "precondition_checked", "execution_completed", "verification_started",
+        "verification_completed", "action_blocked", "action_failed",
+    ]
+    occurred_at: datetime
+    data: dict[str, JsonValue]
+
+
+class ActionApprovalRequest(ApiV1Model):
+    """批准或拒绝不可编辑 Proposal 的请求。"""
+
+    decision: Literal["approve", "reject"]
+    comment: str | None = Field(default=None, max_length=500)
+
+    @field_validator("comment")
+    @classmethod
+    def normalize_comment(cls, value: str | None) -> str | None:
+        """清理可选的拒绝原因。"""
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+    @model_validator(mode="after")
+    def validate_approval_body(self) -> "ActionApprovalRequest":
+        """批准不接受备注，避免把审批输入扩展成动作参数。"""
+        if self.decision == "approve" and self.comment is not None:
+            raise ValueError("批准请求不接受备注")
+        return self
+
+
+class ActionExecutionRequest(ApiV1Model):
+    """第二次确认执行固定 Proposal 的空请求体。"""
+
+
+class RunActionProposalResponse(ApiV1Model):
+    """按来源 Run 查询的可选 Proposal。"""
+
+    proposal: ActionProposalResource | None = None
+    meta: ResponseMeta
+
+
+class ActionProposalResponse(ApiV1Model):
+    """单个 Proposal 安全快照。"""
+
+    proposal: ActionProposalResource
+    meta: ResponseMeta
+
+
+class ActionEventListResponse(ApiV1Model):
+    """Action 审计事件分页响应。"""
+
+    items: list[ActionEventResource]
+    page: CursorPage
+    meta: ResponseMeta
+
+
+class ActionExecutionResponse(ApiV1Model):
+    """异步执行声明响应。"""
+
+    execution: ActionExecutionResource
+    meta: ResponseMeta

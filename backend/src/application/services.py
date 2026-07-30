@@ -13,6 +13,7 @@ from uuid import UUID, uuid4
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from src.application.action_services import ActionApplicationService
 from src.application.contracts import (
     CreateRunCommand,
     CreateSessionCommand,
@@ -31,6 +32,7 @@ from src.application.errors import (
     SessionArchivedError,
     SessionNotFoundError,
 )
+from src.domain.actions import ActionMode
 from src.domain.diagnosis import MessageRole, RunEventType, RunStatus, SessionStatus
 from src.domain.records import (
     DiagnosisRunData,
@@ -131,10 +133,14 @@ class RunApplicationService:
         session_factory: SessionFactory,
         executor: DiagnosisExecutor,
         result_assembler: ResultAssembler,
+        action_service: ActionApplicationService | None = None,
+        action_mode: ActionMode | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._executor = executor
         self._result_assembler = result_assembler
+        self._action_service = action_service
+        self._action_mode = action_mode
 
     def accept_run(self, command: CreateRunCommand) -> AcceptedRun:
         """原子受理 Run，并处理同键重放与冲突。"""
@@ -373,6 +379,8 @@ class RunApplicationService:
             )
             if updated is None:
                 raise RunAlreadyTerminalError()
+            if self._action_service is not None and self._action_mode in {"mock", "target"}:
+                self._action_service.maybe_create_proposal_in_transaction(session, updated, result, self._action_mode)
             self._append_event_in_transaction(
                 session,
                 run_id,

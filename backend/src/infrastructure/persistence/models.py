@@ -201,3 +201,161 @@ class RunIdempotencyKeyRecord(Base):
     )
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+
+class ActionProposalRecord(Base):
+    """P4.2 来源 Run 的不可编辑固定修复提案。"""
+
+    __tablename__ = "action_proposals"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending_approval', 'approved', 'rejected', 'expired', 'executing', 'verifying', 'verified', 'blocked', 'failed')",
+            name="action_proposal_status_valid",
+        ),
+        CheckConstraint("mode IN ('mock', 'target')", name="action_proposal_mode_valid"),
+        CheckConstraint("next_event_sequence >= 1", name="action_proposal_next_sequence_positive"),
+        UniqueConstraint("source_run_id", name="action_proposal_source_run_unique"),
+        Index("ix_action_proposals_status_created_at", "status", "created_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    source_run_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("diagnosis_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    action_id: Mapped[str] = mapped_column(String(160), nullable=False)
+    action_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False)
+    mode: Mapped[str] = mapped_column(String(12), nullable=False)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    target: Mapped[dict[str, str]] = mapped_column(JSON, nullable=False)
+    root_cause_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    evidence_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    risk_summary: Mapped[str] = mapped_column(Text, nullable=False)
+    verification_plan: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    next_event_sequence: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    execution_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    failure_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    failure_message: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+
+class ActionApprovalRecord(Base):
+    """一次且仅一次的本地审批快照。"""
+
+    __tablename__ = "action_approvals"
+    __table_args__ = (
+        CheckConstraint("decision IN ('approve', 'reject')", name="action_approval_decision_valid"),
+        CheckConstraint("actor = 'local_operator'", name="action_approval_local_actor"),
+        UniqueConstraint("proposal_id", name="action_approval_proposal_unique"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    proposal_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("action_proposals.id", ondelete="RESTRICT"), nullable=False
+    )
+    decision: Mapped[str] = mapped_column(String(12), nullable=False)
+    actor: Mapped[str] = mapped_column(String(80), nullable=False)
+    comment: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    action_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+
+class ActionExecutionRecord(Base):
+    """白名单执行声明与最终安全摘要。"""
+
+    __tablename__ = "action_executions"
+    __table_args__ = (
+        CheckConstraint("mode IN ('mock', 'target')", name="action_execution_mode_valid"),
+        CheckConstraint("status IN ('queued', 'running', 'succeeded', 'blocked', 'failed')", name="action_execution_status_valid"),
+        UniqueConstraint("proposal_id", name="action_execution_proposal_unique"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    proposal_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("action_proposals.id", ondelete="RESTRICT"), nullable=False
+    )
+    mode: Mapped[str] = mapped_column(String(12), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    precondition_summary: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    action_summary: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    failure_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    failure_message: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ActionVerificationRecord(Base):
+    """独立 Verify 的脱敏标量事实。"""
+
+    __tablename__ = "action_verifications"
+    __table_args__ = (
+        CheckConstraint("status IN ('verified', 'failed')", name="action_verification_status_valid"),
+        CheckConstraint("mode IN ('mock', 'target')", name="action_verification_mode_valid"),
+        UniqueConstraint("execution_id", name="action_verification_execution_unique"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    execution_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("action_executions.id", ondelete="RESTRICT"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    mode: Mapped[str] = mapped_column(String(12), nullable=False)
+    summary: Mapped[str] = mapped_column(String(500), nullable=False)
+    facts: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+
+class ActionEventRecord(Base):
+    """用于轮询读取的 action 审计事件。"""
+
+    __tablename__ = "action_events"
+    __table_args__ = (
+        CheckConstraint("sequence >= 1", name="action_event_sequence_positive"),
+        CheckConstraint(
+            "type IN ('proposal_created', 'approval_recorded', 'execution_requested', 'execution_started', "
+            "'precondition_checked', 'execution_completed', 'verification_started', 'verification_completed', "
+            "'action_blocked', 'action_failed')",
+            name="action_event_type_valid",
+        ),
+        UniqueConstraint("proposal_id", "sequence", name="action_event_sequence_unique"),
+        Index("ix_action_events_proposal_sequence", "proposal_id", "sequence"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    proposal_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("action_proposals.id", ondelete="RESTRICT"), nullable=False
+    )
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    type: Mapped[str] = mapped_column(String(40), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+    data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+
+
+class ActionIdempotencyKeyRecord(Base):
+    """审批和执行请求的幂等键。"""
+
+    __tablename__ = "action_idempotency_keys"
+    __table_args__ = (
+        CheckConstraint("resource_type IN ('approval', 'execution')", name="action_idempotency_resource_type_valid"),
+        CheckConstraint("expires_at > created_at", name="action_idempotency_expiry_after_created"),
+        UniqueConstraint("proposal_id", "endpoint", "idempotency_key", name="action_idempotency_scope_unique"),
+        Index("ix_action_idempotency_expires_at", "expires_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    proposal_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("action_proposals.id", ondelete="RESTRICT"), nullable=False
+    )
+    endpoint: Mapped[str] = mapped_column(String(120), nullable=False)
+    idempotency_key: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    resource_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    resource_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)

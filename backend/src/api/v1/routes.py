@@ -9,6 +9,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Header, Query, Request,
 from fastapi.responses import StreamingResponse
 
 from src.api.v1.cursors import (
+    ActionEventCursor,
     DiagnosisRunCursor,
     InvalidCursorError,
     MessageCursor,
@@ -20,12 +21,20 @@ from src.api.v1.cursors import (
 from src.api.v1.dependencies import V1Services, get_v1_services
 from src.api.v1.errors import ApiV1Error
 from src.api.v1.resources import (
+    action_event_resource,
+    action_execution_resource,
+    action_proposal_resource,
     message_resource,
     run_event_resource,
     run_resource,
     session_resource,
 )
 from src.api.v1.schemas import (
+    ActionApprovalRequest,
+    ActionEventListResponse,
+    ActionExecutionRequest,
+    ActionExecutionResponse,
+    ActionProposalResponse,
     CreateRunRequest,
     CreateSessionRequest,
     CursorPage,
@@ -35,14 +44,16 @@ from src.api.v1.schemas import (
     ResponseMeta,
     RunEventEnvelope,
     RunEventListResponse,
+    RunActionProposalResponse,
     RunResponse,
     SessionListResponse,
     SessionResponse,
     UpdateSessionRequest,
 )
 from src.api.v1.sse import parse_event_sequence, replay_run_events
+from src.application.action_services import DecideActionProposalCommand, RequestActionExecutionCommand
 from src.application.contracts import CreateRunCommand, CreateSessionCommand, UpdateSessionCommand
-from src.application.errors import ApplicationError, RunNotFoundError, SessionNotFoundError
+from src.application.errors import ActionProposalInvalidStateError, ApplicationError, RunNotFoundError, SessionNotFoundError
 from src.domain.diagnosis import SessionStatus
 from src.domain.records import DiagnosisRunData, SessionData
 from src.infrastructure.persistence.repositories import (
@@ -54,7 +65,7 @@ from src.infrastructure.persistence.repositories import (
 )
 
 
-CursorT = TypeVar("CursorT", SessionCursor, MessageCursor, DiagnosisRunCursor, RunEventCursor)
+CursorT = TypeVar("CursorT", SessionCursor, MessageCursor, DiagnosisRunCursor, RunEventCursor, ActionEventCursor)
 
 router = APIRouter(prefix="/api/v1", tags=["v1"])
 DEFAULT_PAGE_SIZE = 20
@@ -66,6 +77,9 @@ APPLICATION_ERROR_STATUS = {
     "RUN_ALREADY_TERMINAL": 409,
     "IDEMPOTENCY_KEY_REUSED": 409,
     "RUN_INPUT_MESSAGE_INVALID": 409,
+    "ACTION_PROPOSAL_NOT_FOUND": 404,
+    "ACTION_PROPOSAL_INVALID_STATE": 409,
+    "ACTION_PROPOSAL_EXPIRED": 409,
 }
 
 
@@ -107,6 +121,13 @@ def parse_page_cursor(value: str | None, cursor_type: type[CursorT]) -> CursorT 
         return decode_cursor(value, cursor_type)
     except InvalidCursorError as error:
         raise ApiV1Error(400, "INVALID_CURSOR", "分页游标无效") from error
+
+
+def _action_service(services: V1Services):
+    """读取已装配的 P4.2 action 服务；旧 P2 测试装配不暴露动作能力。"""
+    if services.action_service is None:
+        raise ActionProposalInvalidStateError("固定修复能力当前不可用。")
+    return services.action_service
 
 
 def _load_session(services: V1Services, session_id: UUID) -> SessionData:
@@ -355,6 +376,132 @@ def get_run(
     meta = response_meta(request, resource.trace_id)
     apply_headers(response, meta)
     return RunResponse(run=resource, meta=meta)
+
+
+@router.get("/runs/{run_id}/action-proposal", response_model=RunActionProposalResponse)
+def get_run_action_proposal(
+    run_id: UUID,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> RunActionProposalResponse:
+    """按成功 Run 读取可选的不可编辑固定修复提案。"""
+    try:
+        run = _load_run(services, run_id)
+        detail = _action_service(services).get_by_run(run_id)
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request, run.trace_id)
+    apply_headers(response, meta)
+    return RunActionProposalResponse(
+        proposal=action_proposal_resource(detail) if detail is not None else None,
+        meta=meta,
+    )
+
+
+@router.get("/action-proposals/{proposal_id}", response_model=ActionProposalResponse)
+def get_action_proposal(
+    proposal_id: UUID,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> ActionProposalResponse:
+    """读取 Proposal 及审批、执行和 Verify 的当前安全快照。"""
+    try:
+        detail = _action_service(services).get_detail(proposal_id)
+        run = _load_run(services, detail.proposal.source_run_id)
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request, run.trace_id)
+    apply_headers(response, meta)
+    return ActionProposalResponse(proposal=action_proposal_resource(detail), meta=meta)
+
+
+@router.get("/action-proposals/{proposal_id}/events", response_model=ActionEventListResponse)
+def list_action_events(
+    proposal_id: UUID,
+    request: Request,
+    response: Response,
+    cursor: str | None = None,
+    limit: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
+    services: V1Services = Depends(get_v1_services),
+) -> ActionEventListResponse:
+    """按 sequence 分页读取已提交 action 审计事件，不建立第二套 SSE。"""
+    decoded_cursor = parse_page_cursor(cursor, ActionEventCursor)
+    try:
+        detail = _action_service(services).get_detail(proposal_id)
+        page = _action_service(services).list_events(proposal_id, decoded_cursor, limit)
+        run = _load_run(services, detail.proposal.source_run_id)
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request, run.trace_id)
+    apply_headers(response, meta)
+    return ActionEventListResponse(
+        items=[action_event_resource(item) for item in page.items],
+        page=CursorPage(next_cursor=encode_cursor(page.next_cursor) if page.next_cursor else None, has_more=page.has_more),
+        meta=meta,
+    )
+
+
+@router.post("/action-proposals/{proposal_id}/approval", response_model=ActionProposalResponse)
+def decide_action_proposal(
+    proposal_id: UUID,
+    payload: ActionApprovalRequest,
+    request: Request,
+    response: Response,
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key")],
+    services: V1Services = Depends(get_v1_services),
+) -> ActionProposalResponse:
+    """由固定 local_operator 明确批准或拒绝不可编辑 Proposal。"""
+    try:
+        detail = _action_service(services).decide(
+            DecideActionProposalCommand(
+                proposal_id=proposal_id,
+                decision=payload.decision,
+                comment=payload.comment,
+                idempotency_key=parse_idempotency_key(idempotency_key),
+            )
+        )
+        run = _load_run(services, detail.proposal.source_run_id)
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request, run.trace_id)
+    apply_headers(response, meta)
+    return ActionProposalResponse(proposal=action_proposal_resource(detail), meta=meta)
+
+
+@router.post(
+    "/action-proposals/{proposal_id}/executions",
+    response_model=ActionExecutionResponse,
+    status_code=202,
+)
+def request_action_execution(
+    proposal_id: UUID,
+    payload: ActionExecutionRequest,
+    request: Request,
+    response: Response,
+    background_tasks: BackgroundTasks,
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key")],
+    services: V1Services = Depends(get_v1_services),
+) -> ActionExecutionResponse:
+    """第二次确认后异步启动唯一白名单修复，不接受任何动作参数。"""
+    del payload
+    try:
+        accepted = _action_service(services).request_execution(
+            RequestActionExecutionCommand(
+                proposal_id=proposal_id,
+                idempotency_key=parse_idempotency_key(idempotency_key),
+            )
+        )
+        detail = _action_service(services).get_detail(proposal_id)
+        run = _load_run(services, detail.proposal.source_run_id)
+    except ApplicationError as error:
+        raise_application_error(error)
+    if not accepted.replayed:
+        background_tasks.add_task(_action_service(services).execute, proposal_id)
+    meta = response_meta(request, run.trace_id)
+    apply_headers(response, meta)
+    return ActionExecutionResponse(execution=action_execution_resource(accepted.execution), meta=meta)
 
 
 @router.get("/runs/{run_id}/events", response_model=RunEventListResponse)

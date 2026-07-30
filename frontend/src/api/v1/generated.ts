@@ -240,6 +240,106 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/runs/{run_id}/action-proposal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Run Action Proposal
+         * @description 按成功 Run 读取可选的不可编辑固定修复提案。
+         */
+        get: operations["get_run_action_proposal_api_v1_runs__run_id__action_proposal_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/action-proposals/{proposal_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Action Proposal
+         * @description 读取 Proposal 及审批、执行和 Verify 的当前安全快照。
+         */
+        get: operations["get_action_proposal_api_v1_action_proposals__proposal_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/action-proposals/{proposal_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Action Events
+         * @description 按 sequence 分页读取已提交 action 审计事件，不建立第二套 SSE。
+         */
+        get: operations["list_action_events_api_v1_action_proposals__proposal_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/action-proposals/{proposal_id}/approval": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decide Action Proposal
+         * @description 由固定 local_operator 明确批准或拒绝不可编辑 Proposal。
+         */
+        post: operations["decide_action_proposal_api_v1_action_proposals__proposal_id__approval_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/action-proposals/{proposal_id}/executions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Action Execution
+         * @description 第二次确认后异步启动唯一白名单修复，不接受任何动作参数。
+         */
+        post: operations["request_action_execution_api_v1_action_proposals__proposal_id__executions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs/{run_id}/events": {
         parameters: {
             query?: never;
@@ -284,6 +384,187 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * ActionApprovalRequest
+         * @description 批准或拒绝不可编辑 Proposal 的请求。
+         */
+        ActionApprovalRequest: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "approve" | "reject";
+            /** Comment */
+            comment?: string | null;
+        };
+        /**
+         * ActionApprovalResource
+         * @description 固定 Proposal 的本地审批记录。
+         */
+        ActionApprovalResource: {
+            /** Id */
+            id: unknown;
+            /** Proposal Id */
+            proposal_id: unknown;
+            /** Decision */
+            decision: unknown;
+            /** Actor */
+            actor: unknown;
+            /** Comment */
+            comment?: unknown;
+            /** Action Digest */
+            action_digest: unknown;
+            /** Created At */
+            created_at: unknown;
+        };
+        /**
+         * ActionEventListResponse
+         * @description Action 审计事件分页响应。
+         */
+        ActionEventListResponse: {
+            /** Items */
+            items: unknown;
+            page: unknown;
+            meta: unknown;
+        };
+        /**
+         * ActionEventResource
+         * @description 可轮询读取的 action 审计事件。
+         */
+        ActionEventResource: {
+            /** Id */
+            id: unknown;
+            /** Proposal Id */
+            proposal_id: unknown;
+            /** Sequence */
+            sequence: unknown;
+            /** Type */
+            type: unknown;
+            /** Occurred At */
+            occurred_at: unknown;
+            /** Data */
+            data: unknown;
+        };
+        /**
+         * ActionExecutionRequest
+         * @description 第二次确认执行固定 Proposal 的空请求体。
+         */
+        ActionExecutionRequest: Record<string, never>;
+        /**
+         * ActionExecutionResource
+         * @description 受控执行器的当前安全状态。
+         */
+        ActionExecutionResource: {
+            /** Id */
+            id: unknown;
+            /** Proposal Id */
+            proposal_id: unknown;
+            /** Mode */
+            mode: unknown;
+            /** Status */
+            status: unknown;
+            /** Precondition Summary */
+            precondition_summary?: unknown;
+            /** Action Summary */
+            action_summary?: unknown;
+            /** Failure Code */
+            failure_code?: unknown;
+            /** Failure Message */
+            failure_message?: unknown;
+            /** Created At */
+            created_at: unknown;
+            /** Started At */
+            started_at?: unknown;
+            /** Finished At */
+            finished_at?: unknown;
+        };
+        /**
+         * ActionExecutionResponse
+         * @description 异步执行声明响应。
+         */
+        ActionExecutionResponse: {
+            execution: unknown;
+            meta: unknown;
+        };
+        /**
+         * ActionProposalResource
+         * @description 来源 Run 的不可编辑固定修复提案。
+         */
+        ActionProposalResource: {
+            /** Id */
+            id: unknown;
+            /** Source Run Id */
+            source_run_id: unknown;
+            /** Action Id */
+            action_id: unknown;
+            /** Action Digest */
+            action_digest: unknown;
+            /** Status */
+            status: unknown;
+            /** Mode */
+            mode: unknown;
+            /** Title */
+            title: unknown;
+            /** Description */
+            description: unknown;
+            /** Target */
+            target: unknown;
+            /** Root Cause Id */
+            root_cause_id: unknown;
+            /** Evidence Ids */
+            evidence_ids: unknown;
+            /** Risk Summary */
+            risk_summary: unknown;
+            /** Verification Plan */
+            verification_plan: unknown;
+            /** Created At */
+            created_at: unknown;
+            /** Updated At */
+            updated_at: unknown;
+            /** Approved At */
+            approved_at?: unknown;
+            /** Expires At */
+            expires_at?: unknown;
+            /** Execution Started At */
+            execution_started_at?: unknown;
+            /** Completed At */
+            completed_at?: unknown;
+            /** Failure Code */
+            failure_code?: unknown;
+            /** Failure Message */
+            failure_message?: unknown;
+            approval?: unknown;
+            execution?: unknown;
+            verification?: unknown;
+        };
+        /**
+         * ActionProposalResponse
+         * @description 单个 Proposal 安全快照。
+         */
+        ActionProposalResponse: {
+            proposal: unknown;
+            meta: unknown;
+        };
+        /**
+         * ActionVerificationResource
+         * @description 独立 Verify 的脱敏标量事实。
+         */
+        ActionVerificationResource: {
+            /** Id */
+            id: unknown;
+            /** Execution Id */
+            execution_id: unknown;
+            /** Status */
+            status: unknown;
+            /** Mode */
+            mode: unknown;
+            /** Summary */
+            summary: unknown;
+            /** Facts */
+            facts: unknown;
+            /** Created At */
+            created_at: unknown;
+        };
         /**
          * AgentSummaryResource
          * @description Agent 运行摘要。
@@ -624,6 +905,14 @@ export interface components {
             endpoints: {
                 [key: string]: string;
             };
+        };
+        /**
+         * RunActionProposalResponse
+         * @description 按来源 Run 查询的可选 Proposal。
+         */
+        RunActionProposalResponse: {
+            proposal?: unknown;
+            meta: unknown;
         };
         /**
          * RunErrorResource
@@ -1206,6 +1495,176 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_run_action_proposal_api_v1_runs__run_id__action_proposal_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunActionProposalResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_action_proposal_api_v1_action_proposals__proposal_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                proposal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionProposalResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_action_events_api_v1_action_proposals__proposal_id__events_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                proposal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionEventListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    decide_action_proposal_api_v1_action_proposals__proposal_id__approval_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                proposal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActionApprovalRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionProposalResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    request_action_execution_api_v1_action_proposals__proposal_id__executions_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                proposal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActionExecutionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionExecutionResponse"];
                 };
             };
             /** @description Validation Error */

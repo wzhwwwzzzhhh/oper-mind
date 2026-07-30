@@ -30,7 +30,7 @@ OperMind 是面向研发与运维人员的**会话式多 Agent DevOps Copilot**�
 |---|---|---|
 | **P4.0 / Work 1** | ✅ 完成 | 隔离 PostgreSQL 订单慢查询靶场、受控脚本与真实 smoke。 |
 | **P4.1** | ✅ 完成 | 会话触发的 DB/Log/Server 只读调查、结构化证据结果、简要过程与可展开详情；mock/API/UI 回归与 target smoke 已通过。 |
-| **P4.2** | 🟡 设计/Review 通过，待实施授权 | 固定修复提案、人工审批、白名单执行和 Verify；尚未改动运行时代码。 |
+| **P4.2** | ✅ 完成 | 固定修复提案、local_operator 人工审批、白名单执行、独立 Verify、轮询审计与 target smoke 已通过。 |
 | **P4.3** | 待设计 | 一个已注册靶场服务的服务中心/监控页与调查入口。 |
 | **P5.0** | 待设计 | Markdown 知识目录、受控全文检索（grep 等价实现）和引用展示。 |
 | **P5.1** | 待设计 | 模型 Provider 设置、第二类 Connector 的安全设计与实现。 |
@@ -38,14 +38,12 @@ OperMind 是面向研发与运维人员的**会话式多 Agent DevOps Copilot**�
 
 ## 4. 当前唯一下一步
 
-**P4.2 的独立 Design 与 Review 已完成；当前停止实现，等待用户明确确认“按 `p4.2-固定修复审批执行验证-design.md` 实施 P4.2”。**
+**P4.2 已于 2026-07-30 完成并通过完整验证；下一步是为 P4.3（已注册靶场服务的服务中心/监控页与调查入口）先做独立 Design。**
 
-P4.2 的范围、状态机、迁移/API 影响、安全边界与真实 smoke 验收已记录于 `P4-DevOps-Copilot-MVP/p4.2-固定修复审批执行验证-design.md` 和对应 Review。当前尚未改动 P4.2 的运行时代码、API、迁移或靶场状态；在获得上述实施确认前，仍不得提前实现：
+P4.2 已交付固定 `postgres.orders.rebuild_missing_user_created_index.v1`：只有 P4.1 的 `high / 0.95` 三源确认事实才能生成不可编辑 Proposal；本地操作者以 `local_operator` 批准或拒绝；批准后第二次确认才异步进入白名单执行器；Verify 重新确认索引、固定计划、恰好 3 次固定探测与匹配日志。执行结果与脱敏审计事件在 Workbench 展示，P4.2 没有通用 SQL、Shell、重试、自动回滚或第二套 SSE。
 
-- 修复执行、审批动作或任何 DDL/DML；
-- 第二种故障、Redis/MySQL/Kubernetes 或真实生产资源；
-- 向量库、RAG、知识图谱、文件上传、任意磁盘 grep 或用户 API Key 存储；
-- 超出已审查 P4.2 契约的公开 API、迁移或模型配置页。
+下一工作包仅限 **P4.3 Design**，不得在设计前实现服务中心、第二种故障、Redis/MySQL/Kubernetes、RAG/知识库、文件上传、用户 API Key 存储或任何新真实连接。P4.2 的实施事实见 `P4-DevOps-Copilot-MVP/p4.2-implementation.md`；任何 P4.3 代码、迁移、公开契约或真实数据源必须再次完成 Design → Review → 用户授权。
+
 ## 5. P4 靶场硬边界
 
 - 唯一可操作目标是用户授权的本地隧道 `127.0.0.1:5433` 上专用数据库 `opermind_demo`，仅限 schema `opermind_demo` 的 `orders` 表和 `idx_orders_user_created` 索引。
@@ -67,6 +65,8 @@ P4.2 的范围、状态机、迁移/API 影响、安全边界与真实 smoke 验
 上述数据只证明该隔离隧道靶场可复现，不是生产 SLA。
 
 P4.1 于 2026-07-30 在同一隔离靶场完成 `start → inject → API/SSE 调查 → repair → clean`：三类证据、缺失索引根因、可重放终态事件均通过；回收后靶场 schema 与运行时文件已清理。
+
+P4.2 于 2026-07-30 在同一隔离靶场完成 `start → inject → P4.1 调查 → Proposal → approve → execute → Verify → clean`：受控执行器仅创建固定索引；Verify 确认目标索引、固定计划、3 次固定探测与匹配日志均正常；`clean` 已完成。
 
 ## 7. 执行原则
 

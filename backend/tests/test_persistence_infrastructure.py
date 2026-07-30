@@ -140,7 +140,7 @@ def test_persistence_runtime_拒绝非目标数据库方言() -> None:
 
 
 def test_alembic_upgrade_head_仅创建迁移版本元数据(tmp_path: Path) -> None:
-    """P2 首个业务 migration 的 fresh-db 迁移创建预期业务表。"""
+    """P2/P4.2 migration 的 fresh-db 迁移创建预期业务表。"""
     database_path = tmp_path / "fresh.sqlite3"
     env = os.environ.copy()
     env.update(
@@ -180,6 +180,12 @@ def test_alembic_upgrade_head_仅创建迁移版本元数据(tmp_path: Path) -> 
             "run_events",
             "diagnosis_results",
             "run_idempotency_keys",
+            "action_proposals",
+            "action_approvals",
+            "action_executions",
+            "action_verifications",
+            "action_events",
+            "action_idempotency_keys",
         }
     finally:
         engine.dispose()

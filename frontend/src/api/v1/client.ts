@@ -14,6 +14,12 @@ export type RunResponse = components['schemas']['RunResponse']
 export type RunEventResource = components['schemas']['RunEventResource']
 export type RunEventListResponse = components['schemas']['RunEventListResponse']
 export type CreateRunRequest = components['schemas']['CreateRunRequest']
+export type ActionApprovalRequest = components['schemas']['ActionApprovalRequest']
+export type ActionExecutionRequest = components['schemas']['ActionExecutionRequest']
+export type RunActionProposalResponse = components['schemas']['RunActionProposalResponse']
+export type ActionProposalResponse = components['schemas']['ActionProposalResponse']
+export type ActionEventListResponse = components['schemas']['ActionEventListResponse']
+export type ActionExecutionResponse = components['schemas']['ActionExecutionResponse']
 
 export type ListSessionsQuery = NonNullable<
   operations['list_sessions_api_v1_sessions_get']['parameters']['query']
@@ -26,6 +32,9 @@ export type ListSessionRunsQuery = NonNullable<
 >
 export type ListRunEventsQuery = NonNullable<
   operations['list_run_events_api_v1_runs__run_id__events_get']['parameters']['query']
+>
+export type ListActionEventsQuery = NonNullable<
+  operations['list_action_events_api_v1_action_proposals__proposal_id__events_get']['parameters']['query']
 >
 
 export interface ApiRequestDiagnostics {
@@ -54,6 +63,10 @@ export interface ApiRequestOptions {
 }
 
 export interface CreateRunOptions extends ApiRequestOptions {
+  idempotency_key: string
+}
+
+export interface ActionMutationOptions extends ApiRequestOptions {
   idempotency_key: string
 }
 
@@ -125,6 +138,29 @@ export interface ApiV1Client {
     payload: CreateRunRequest,
     options: CreateRunOptions,
   ): Promise<ApiResponse<RunResponse>>
+  get_run_action_proposal(
+    run_id: string,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<RunActionProposalResponse>>
+  get_action_proposal(
+    proposal_id: string,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<ActionProposalResponse>>
+  list_action_events(
+    proposal_id: string,
+    query?: ListActionEventsQuery,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<ActionEventListResponse>>
+  decide_action_proposal(
+    proposal_id: string,
+    payload: ActionApprovalRequest,
+    options: ActionMutationOptions,
+  ): Promise<ApiResponse<ActionProposalResponse>>
+  request_action_execution(
+    proposal_id: string,
+    payload: ActionExecutionRequest,
+    options: ActionMutationOptions,
+  ): Promise<ApiResponse<ActionExecutionResponse>>
 }
 
 function create_request_id(): string {
@@ -355,6 +391,56 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
         request_id_factory,
         base_url,
         `/api/v1/sessions/${encodeURIComponent(session_id)}/runs`,
+        request_options,
+        {
+          body: payload,
+          idempotency_key: request_options.idempotency_key,
+          method: 'POST',
+        },
+      ),
+    get_run_action_proposal: (run_id, request_options) =>
+      request_json<RunActionProposalResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        `/api/v1/runs/${encodeURIComponent(run_id)}/action-proposal`,
+        request_options,
+      ),
+    get_action_proposal: (proposal_id, request_options) =>
+      request_json<ActionProposalResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        `/api/v1/action-proposals/${encodeURIComponent(proposal_id)}`,
+        request_options,
+      ),
+    list_action_events: (proposal_id, query = {}, request_options) =>
+      request_json<ActionEventListResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        append_query(`/api/v1/action-proposals/${encodeURIComponent(proposal_id)}/events`, query),
+        request_options,
+      ),
+    decide_action_proposal: (proposal_id, payload, request_options) =>
+      request_json<ActionProposalResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        `/api/v1/action-proposals/${encodeURIComponent(proposal_id)}/approval`,
+        request_options,
+        {
+          body: payload,
+          idempotency_key: request_options.idempotency_key,
+          method: 'POST',
+        },
+      ),
+    request_action_execution: (proposal_id, payload, request_options) =>
+      request_json<ActionExecutionResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        `/api/v1/action-proposals/${encodeURIComponent(proposal_id)}/executions`,
         request_options,
         {
           body: payload,

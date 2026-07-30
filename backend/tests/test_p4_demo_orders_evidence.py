@@ -264,8 +264,9 @@ def test_mock_executor事件不泄露原始读取且可通过公开结果schema(
         result=result,
     )
     resource = result_resource(assembled)
-    assert resource.recommendations == []
-    assert resource.requires_approval is False
+    assert len(resource.recommendations) == 1
+    assert resource.recommendations[0].requires_approval is True
+    assert resource.requires_approval is True
     assert resource.agent_summary[0].agent == "db"
 
 
@@ -312,8 +313,9 @@ def test_api_mock模式产出证据结果和可重放事件(monkeypatch: pytest.
         assert run["result"]["confidence"] == 0.95
         assert len(run["result"]["root_causes"]) == 1
         assert {item["source_type"] for item in run["result"]["evidence"]} == {"database", "log", "metric"}
-        assert run["result"]["recommendations"] == []
-        assert run["result"]["requires_approval"] is False
+        assert len(run["result"]["recommendations"]) == 1
+        assert run["result"]["recommendations"][0]["requires_approval"] is True
+        assert run["result"]["requires_approval"] is True
 
         events_response = client.get(f"/api/v1/runs/{run_id}/events")
         event_items = events_response.json()["items"]

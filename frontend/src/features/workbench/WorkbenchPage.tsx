@@ -32,6 +32,7 @@ import {
   type ConversationMessage,
   type ConversationTurn,
 } from './conversation-turns'
+import { ActionProposalPanel } from './ActionProposalPanel'
 import { DiagnosisResultPanel } from './DiagnosisResultPanel'
 import { merge_persisted_run_events, run_event_summary, type PersistedRunEvent } from './run-events'
 import { use_run_event_stream } from './use-run-event-stream'
@@ -317,7 +318,7 @@ function AssistantReply({ investigation, output, session_id }: { investigation: 
             items={[{
               key: 'result',
               label: '展开结论、证据与建议',
-              children: <DiagnosisResultPanel result={result_read.result} />,
+              children: <Space direction="vertical" size="middle" style={{ width: '100%' }}><DiagnosisResultPanel result={result_read.result} /><ActionProposalPanel run_id={investigation.id} /></Space>,
             }]}
           />
         ) : (

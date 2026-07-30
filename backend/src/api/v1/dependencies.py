@@ -4,13 +4,21 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from typing import cast
 
 from fastapi import Request
 
+from src.application.action_services import ActionApplicationService
+from src.domain.actions import ActionMode
 from src.application.contracts import DiagnosisExecutor, ResultAssembler
 from src.application.services import RunApplicationService, SessionApplicationService
 from src.config import load_persistence_settings
 from src.infrastructure.diagnosis.coordinator_executor import CoordinatorDiagnosisExecutor
+from src.infrastructure.diagnosis.demo_orders.action_executor import (
+    MockOrdersIndexRepairExecutor,
+    OrdersIndexRepairExecutor,
+    PostgresOrdersIndexRepairExecutor,
+)
 from src.infrastructure.diagnosis.demo_orders.executor import (
     DemoOrdersInvestigationExecutor,
     RoutedDemoOrdersExecutor,
@@ -34,10 +42,11 @@ class V1Services:
     session_factory: SessionFactory
     session_service: SessionApplicationService
     run_service: RunApplicationService
+    action_service: ActionApplicationService | None = None
 
 
 def build_v1_services(coordinator: object) -> V1Services:
-    """装配默认持久化 Runtime 与受控 P4.1/legacy 诊断适配。"""
+    """装配默认持久化 Runtime 与受控 P4.1/P4.2/legacy 诊断适配。"""
     persistence_settings = load_persistence_settings()
     runtime = create_persistence_runtime(persistence_settings.database_url)
     return build_v1_services_for_runtime(
@@ -55,16 +64,24 @@ def build_v1_services_for_runtime(
     app_database_url: str | None = None,
 ) -> V1Services:
     """用给定 Runtime 构造服务，供临时库测试安全替换。"""
-    executor, result_assembler = _build_diagnosis_components(
+    executor, result_assembler, action_executor, action_mode = _build_diagnosis_components(
         coordinator,
         demo_orders_settings=demo_orders_settings,
         app_database_url=app_database_url,
     )
     session_factory = runtime.session_factory
+    action_service = ActionApplicationService(session_factory, action_executor)
     return V1Services(
         session_factory=session_factory,
         session_service=SessionApplicationService(session_factory),
-        run_service=RunApplicationService(session_factory, executor, result_assembler),
+        run_service=RunApplicationService(
+            session_factory,
+            executor,
+            result_assembler,
+            action_service=action_service,
+            action_mode=action_mode,
+        ),
+        action_service=action_service,
     )
 
 
@@ -73,8 +90,8 @@ def _build_diagnosis_components(
     *,
     demo_orders_settings: DemoOrdersEvidenceSettings | None,
     app_database_url: str | None,
-) -> tuple[DiagnosisExecutor, ResultAssembler]:
-    """按 mode 选择 P4.1；配置异常只使明确订单场景安全失败。"""
+) -> tuple[DiagnosisExecutor, ResultAssembler, OrdersIndexRepairExecutor | None, ActionMode | None]:
+    """按 mode 选择 P4.1 与唯一 P4.2 action；失败配置不会创建执行器。"""
     fallback_executor = CoordinatorDiagnosisExecutor(coordinator)
     if demo_orders_settings is not None:
         settings = demo_orders_settings
@@ -83,16 +100,19 @@ def _build_diagnosis_components(
             settings = load_demo_orders_evidence_settings(app_database_url=app_database_url)
         except DemoOrdersConfigurationError:
             if _configured_demo_orders_mode() is EvidenceMode.DISABLED:
-                return fallback_executor, ConservativeResultAssembler()
-            return (
-                RoutedDemoOrdersExecutor(UnavailableDemoOrdersExecutor()),
-                P4CompatibleResultAssembler(),
-            )
+                return fallback_executor, ConservativeResultAssembler(), None, None
+            return RoutedDemoOrdersExecutor(UnavailableDemoOrdersExecutor()), P4CompatibleResultAssembler(), None, None
     if settings.mode is EvidenceMode.DISABLED:
-        return fallback_executor, ConservativeResultAssembler()
+        return fallback_executor, ConservativeResultAssembler(), None, None
+    if settings.mode is EvidenceMode.MOCK:
+        action_executor: OrdersIndexRepairExecutor = MockOrdersIndexRepairExecutor()
+    else:
+        action_executor = PostgresOrdersIndexRepairExecutor(settings)
     return (
         RoutedDemoOrdersExecutor(DemoOrdersInvestigationExecutor.from_settings(settings)),
         P4CompatibleResultAssembler(),
+        action_executor,
+        cast(ActionMode, settings.mode.value),
     )
 
 
