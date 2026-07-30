@@ -41,4 +41,4 @@ Work 1 已完成真实 `start → inject → verify → repair → verify → cl
 - 不读取、写入、列举、探测或清理 `gongkar`；
 - 凭证、原始 SQL、日志、响应 body、路径和未脱敏异常不进入文档、事件、结果或前端；
 - 调查不调用会改变负载窗口的 `diagnostic-probe`；
-- P4.2 之前不存在产品写入动作。
+- **历史 P4.0 边界说明**：P4.2 实施前不存在产品写入动作；当前唯一写入动作已在 P4.2 以独立审批、白名单与 Verify 约束交付，具体事实以 `../P4-DevOps-Copilot-MVP/p4.2-implementation.md` 为准。

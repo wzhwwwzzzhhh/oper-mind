@@ -31,18 +31,18 @@ OperMind 是面向研发与运维人员的**会话式多 Agent DevOps Copilot**�
 | **P4.0 / Work 1** | ✅ 完成 | 隔离 PostgreSQL 订单慢查询靶场、受控脚本与真实 smoke。 |
 | **P4.1** | ✅ 完成 | 会话触发的 DB/Log/Server 只读调查、结构化证据结果、简要过程与可展开详情；mock/API/UI 回归与 target smoke 已通过。 |
 | **P4.2** | ✅ 完成 | 固定修复提案、local_operator 人工审批、白名单执行、独立 Verify、轮询审计与 target smoke 已通过。 |
-| **P4.3** | 待设计 | 一个已注册靶场服务的服务中心/监控页与调查入口。 |
+| **P4.3** | ✅ Design/Review 完成，待授权实现 | 一个已注册靶场服务的服务中心/有限监控快照/调查入口；尚未授权实现。 |
 | **P5.0** | 待设计 | Markdown 知识目录、受控全文检索（grep 等价实现）和引用展示。 |
 | **P5.1** | 待设计 | 模型 Provider 设置、第二类 Connector 的安全设计与实现。 |
 | **P6+** | 待开始 | 第二故障、MySQL/Redis、评测、毕业设计材料、安全与部署增强。 |
 
 ## 4. 当前唯一下一步
 
-**P4.2 已于 2026-07-30 完成并通过完整验证；下一步是为 P4.3（已注册靶场服务的服务中心/监控页与调查入口）先做独立 Design。**
+**P4.3 Design/Review 已于 2026-07-30 完成；当前唯一下一步是等待用户明确授权实施 P4.3（已注册靶场服务的服务中心、有限监控快照与调查入口）。**
 
 P4.2 已交付固定 `postgres.orders.rebuild_missing_user_created_index.v1`：只有 P4.1 的 `high / 0.95` 三源确认事实才能生成不可编辑 Proposal；本地操作者以 `local_operator` 批准或拒绝；批准后第二次确认才异步进入白名单执行器；Verify 重新确认索引、固定计划、恰好 3 次固定探测与匹配日志。执行结果与脱敏审计事件在 Workbench 展示，P4.2 没有通用 SQL、Shell、重试、自动回滚或第二套 SSE。
 
-下一工作包仅限 **P4.3 Design**，不得在设计前实现服务中心、第二种故障、Redis/MySQL/Kubernetes、RAG/知识库、文件上传、用户 API Key 存储或任何新真实连接。P4.2 的实施事实见 `P4-DevOps-Copilot-MVP/p4.2-implementation.md`；任何 P4.3 代码、迁移、公开契约或真实数据源必须再次完成 Design → Review → 用户授权。
+P4.3 Design/Review 见 `P4-DevOps-Copilot-MVP/p4.3-服务中心监控调查入口-design.md` 与 `p4.3-服务中心监控调查入口-review.md`。在用户明确授权前，不得实现服务中心、监控页、调查入口、迁移、公开契约或新的真实读取。仍不得扩展第二种故障、Redis/MySQL/Kubernetes、RAG/知识库、文件上传、用户 API Key 存储或任何新真实连接。
 
 ## 5. P4 靶场硬边界
 
