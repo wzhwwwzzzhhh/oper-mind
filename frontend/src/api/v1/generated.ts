@@ -124,6 +124,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/services": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Services
+         * @description 读取代码内注册服务及其当前有限快照。
+         */
+        get: operations["list_services_api_v1_services_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/services/{service_id}/activities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Service Activities
+         * @description 读取服务绑定会话的 Run 与修复闭环安全摘要。
+         */
+        get: operations["list_service_activities_api_v1_services__service_id__activities_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/services/{service_id}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Service Session
+         * @description 创建服务上下文会话；不创建调查、外部读取或任何修复动作。
+         */
+        post: operations["create_service_session_api_v1_services__service_id__sessions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/services/{service_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Service
+         * @description 读取一个静态服务的身份、能力边界和当前有限快照。
+         */
+        get: operations["get_service_api_v1_services__service_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions": {
         parameters: {
             query?: never;
@@ -961,6 +1041,136 @@ export interface components {
             meta: unknown;
         };
         /**
+         * ServiceActivityListResponse
+         * @description 服务活动 cursor 分页响应。
+         */
+        ServiceActivityListResponse: {
+            /** Items */
+            items: unknown;
+            page: unknown;
+            meta: unknown;
+        };
+        /**
+         * ServiceActivityResource
+         * @description 服务绑定会话中 Run 与修复闭环的最小历史摘要。
+         */
+        ServiceActivityResource: {
+            /** Session Id */
+            session_id: unknown;
+            /** Session Title */
+            session_title: unknown;
+            /** Run Id */
+            run_id: unknown;
+            /** Run Status */
+            run_status: unknown;
+            /** Created At */
+            created_at: unknown;
+            /** Finished At */
+            finished_at?: unknown;
+            /** Summary */
+            summary?: unknown;
+            /** Severity */
+            severity?: unknown;
+            /** Confidence */
+            confidence?: unknown;
+            /** Proposal Status */
+            proposal_status?: unknown;
+            /** Verification Status */
+            verification_status?: unknown;
+        };
+        /**
+         * ServiceDatabaseResource
+         * @description 固定数据库读取收敛后的安全状态。
+         */
+        ServiceDatabaseResource: {
+            /** Source Status */
+            source_status: unknown;
+            /** Signal */
+            signal: unknown;
+        };
+        /**
+         * ServiceInvestigationResource
+         * @description 静态服务暴露的固定调查入口。
+         */
+        ServiceInvestigationResource: {
+            /** Id */
+            id: unknown;
+            /** Title */
+            title: unknown;
+            /** Description */
+            description: unknown;
+            /** Default Query */
+            default_query: unknown;
+        };
+        /**
+         * ServiceListResponse
+         * @description 静态服务中心列表响应。
+         */
+        ServiceListResponse: {
+            /** Items */
+            items: unknown;
+            meta: unknown;
+        };
+        /**
+         * ServiceResource
+         * @description 静态注册服务与其当前安全快照。
+         */
+        ServiceResource: {
+            /** Id */
+            id: unknown;
+            /** Title */
+            title: unknown;
+            /** Kind */
+            kind: unknown;
+            /** Supported Investigations */
+            supported_investigations: unknown;
+            /** Action Boundary */
+            action_boundary: unknown;
+            snapshot: unknown;
+        };
+        /**
+         * ServiceResponse
+         * @description 单个静态服务详情响应。
+         */
+        ServiceResponse: {
+            service: unknown;
+            meta: unknown;
+        };
+        /**
+         * ServiceServerMetricsResource
+         * @description 服务详情可展示的有限指标标量。
+         */
+        ServiceServerMetricsResource: {
+            /** Source Status */
+            source_status: unknown;
+            /** Window Size */
+            window_size?: unknown;
+            /** P50 Ms */
+            p50_ms?: unknown;
+            /** P95 Ms */
+            p95_ms?: unknown;
+            /** Slow Query Count */
+            slow_query_count?: unknown;
+            /** Timeout Count */
+            timeout_count?: unknown;
+        };
+        /**
+         * ServiceSnapshotResource
+         * @description 一次请求读取的当前有限快照。
+         */
+        ServiceSnapshotResource: {
+            /** Observed At */
+            observed_at: unknown;
+            /** Mode */
+            mode: unknown;
+            /** Availability */
+            availability: unknown;
+            /** Performance Signal */
+            performance_signal: unknown;
+            server_metrics: unknown;
+            database: unknown;
+        };
+        /**
          * SessionListResponse
          * @description 会话列表响应。
          */
@@ -985,6 +1195,8 @@ export interface components {
             environment_id?: unknown;
             /** Incident Id */
             incident_id?: unknown;
+            /** Service Id */
+            service_id?: unknown;
             /** Created At */
             created_at: unknown;
             /** Updated At */
@@ -1207,6 +1419,122 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MemoryResponse"];
+                };
+            };
+        };
+    };
+    list_services_api_v1_services_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceListResponse"];
+                };
+            };
+        };
+    };
+    list_service_activities_api_v1_services__service_id__activities_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                service_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceActivityListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_service_session_api_v1_services__service_id__sessions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                service_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_service_api_v1_services__service_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                service_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

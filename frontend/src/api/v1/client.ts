@@ -20,6 +20,11 @@ export type RunActionProposalResponse = components['schemas']['RunActionProposal
 export type ActionProposalResponse = components['schemas']['ActionProposalResponse']
 export type ActionEventListResponse = components['schemas']['ActionEventListResponse']
 export type ActionExecutionResponse = components['schemas']['ActionExecutionResponse']
+export type ServiceResource = components['schemas']['ServiceResource']
+export type ServiceResponse = components['schemas']['ServiceResponse']
+export type ServiceListResponse = components['schemas']['ServiceListResponse']
+export type ServiceActivityResource = components['schemas']['ServiceActivityResource']
+export type ServiceActivityListResponse = components['schemas']['ServiceActivityListResponse']
 
 export type ListSessionsQuery = NonNullable<
   operations['list_sessions_api_v1_sessions_get']['parameters']['query']
@@ -35,6 +40,9 @@ export type ListRunEventsQuery = NonNullable<
 >
 export type ListActionEventsQuery = NonNullable<
   operations['list_action_events_api_v1_action_proposals__proposal_id__events_get']['parameters']['query']
+>
+export type ListServiceActivitiesQuery = NonNullable<
+  operations['list_service_activities_api_v1_services__service_id__activities_get']['parameters']['query']
 >
 
 export interface ApiRequestDiagnostics {
@@ -109,6 +117,17 @@ export class ApiClientError extends Error {
 }
 
 export interface ApiV1Client {
+  list_services(options?: ApiRequestOptions): Promise<ApiResponse<ServiceListResponse>>
+  get_service(service_id: string, options?: ApiRequestOptions): Promise<ApiResponse<ServiceResponse>>
+  list_service_activities(
+    service_id: string,
+    query?: ListServiceActivitiesQuery,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<ServiceActivityListResponse>>
+  create_service_session(
+    service_id: string,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<SessionResponse>>
   list_sessions(
     query?: ListSessionsQuery,
     options?: ApiRequestOptions,
@@ -337,6 +356,39 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
   const base_url = options.base_url ?? ''
 
   return {
+    list_services: (request_options) =>
+      request_json<ServiceListResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        '/api/v1/services',
+        request_options,
+      ),
+    get_service: (service_id, request_options) =>
+      request_json<ServiceResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        `/api/v1/services/${encodeURIComponent(service_id)}`,
+        request_options,
+      ),
+    list_service_activities: (service_id, query = {}, request_options) =>
+      request_json<ServiceActivityListResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        append_query(`/api/v1/services/${encodeURIComponent(service_id)}/activities`, query),
+        request_options,
+      ),
+    create_service_session: (service_id, request_options) =>
+      request_json<SessionResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        `/api/v1/services/${encodeURIComponent(service_id)}/sessions`,
+        request_options,
+        { method: 'POST' },
+      ),
     list_sessions: (query = {}, request_options) =>
       request_json<SessionListResponse>(
         fetch_impl ?? globalThis.fetch,

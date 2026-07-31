@@ -1,8 +1,9 @@
-import { MenuFoldOutlined, MenuUnfoldOutlined, MessageOutlined } from '@ant-design/icons'
+import { CloudServerOutlined, MenuFoldOutlined, MenuUnfoldOutlined, MessageOutlined } from '@ant-design/icons'
 import { Layout, Menu, Typography } from 'antd'
 import type { ReactElement } from 'react'
-import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 
+import { ServiceCenterPage } from '../features/services/ServiceCenterPage'
 import { WorkbenchPage } from '../features/workbench/WorkbenchPage'
 import { useUiStore } from '../stores/use-ui-store'
 import { AppProviders } from './providers'
@@ -12,6 +13,9 @@ const { Header, Sider, Content } = Layout
 function ProductShell(): ReactElement {
   const isNavigationCollapsed = useUiStore((state) => state.is_navigation_collapsed)
   const toggleNavigation = useUiStore((state) => state.toggle_navigation)
+  const location = useLocation()
+  const navigate = useNavigate()
+  const selected_key = location.pathname.startsWith('/services') ? 'services' : 'conversations'
 
   return (
     <Layout className="product-shell">
@@ -29,8 +33,12 @@ function ProductShell(): ReactElement {
         </div>
         <Menu
           className="main-navigation"
-          defaultSelectedKeys={['conversations']}
-          items={[{ key: 'conversations', icon: <MessageOutlined />, label: '我的会话' }]}
+          onClick={({ key }) => navigate(key === 'services' ? '/services' : '/workbench')}
+          selectedKeys={[selected_key]}
+          items={[
+            { key: 'services', icon: <CloudServerOutlined />, label: '服务中心' },
+            { key: 'conversations', icon: <MessageOutlined />, label: '我的会话' },
+          ]}
           mode="inline"
           theme="dark"
         />
@@ -48,7 +56,7 @@ function ProductShell(): ReactElement {
           </button>
           <div>
             <Typography.Text strong>DevOps Copilot</Typography.Text>
-            <Typography.Text className="header-context">P4.1 · 订单慢查询只读调查</Typography.Text>
+            <Typography.Text className="header-context">P4.3 · 服务中心与受控调查入口</Typography.Text>
           </div>
         </Header>
         <Content className="product-content">
@@ -58,15 +66,15 @@ function ProductShell(): ReactElement {
               <div className="rail-kicker">PRODUCT BOUNDARY</div>
               <Typography.Title id="context-title" level={4}>当前边界</Typography.Title>
               <Typography.Paragraph>
-                页面以会话与消息为主线；调查过程只展示角色、状态、耗时和安全摘要，证据与结论按需展开。
+                先在服务中心确认静态服务和当前有限快照，再进入会话完成证据化调查；过程只展示安全摘要。
               </Typography.Paragraph>
               <Typography.Paragraph type="secondary">
-                当前只支持订单慢查询的只读调查；不执行修复、不展示模型思维链，也不把 Trace 当作产品主界面。
+                当前只支持订单慢查询受控靶场。固定修复必须经过提案、人工审批、白名单执行与 Verify；不展示模型思维链。
               </Typography.Paragraph>
               <div className="honest-status" aria-label="阶段能力状态">
-                <span className="context-status">会话与只读调查：P4.1</span>
+                <span className="context-status">服务中心与有限快照：P4.3</span>
                 <span className="context-status">DB / 日志 / 服务证据：P4.1</span>
-                <span className="context-status">审批、修复与验证：待 P4.2</span>
+                <span className="context-status">审批、固定执行与验证：P4.2</span>
               </div>
             </aside>
           </div>
@@ -81,13 +89,19 @@ export function App(): ReactElement {
     <AppProviders>
       <BrowserRouter>
         <Routes>
-          <Route element={<Navigate replace to="/workbench" />} path="/" />
-          <Route element={<ProductShell />} path="/workbench">
-            <Route element={<WorkbenchPage />} index />
-            <Route element={<WorkbenchPage />} path="sessions/:session_id" />
-            <Route element={<WorkbenchPage />} path="sessions/:session_id/runs/:run_id" />
+          <Route element={<Navigate replace to="/services" />} path="/" />
+          <Route element={<ProductShell />}>
+            <Route path="/services">
+              <Route element={<ServiceCenterPage />} index />
+              <Route element={<ServiceCenterPage />} path=":service_id" />
+            </Route>
+            <Route path="/workbench">
+              <Route element={<WorkbenchPage />} index />
+              <Route element={<WorkbenchPage />} path="sessions/:session_id" />
+              <Route element={<WorkbenchPage />} path="sessions/:session_id/runs/:run_id" />
+            </Route>
           </Route>
-          <Route element={<Navigate replace to="/workbench" />} path="*" />
+          <Route element={<Navigate replace to="/services" />} path="*" />
         </Routes>
       </BrowserRouter>
     </AppProviders>

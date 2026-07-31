@@ -195,4 +195,36 @@ describe('v1 API 客户端', () => {
       'request_id_header_meta_mismatch',
     ])
   })
+
+  it('读取服务快照、活动并以无 body POST 创建服务上下文会话', async () => {
+    const requests: Request[] = []
+    const client = create_api_v1_client({
+      fetch_impl: async (input, init) => {
+        const request = new Request(input, init)
+        requests.push(request)
+        const path = new URL(request.url).pathname
+        const body = path.endsWith('/sessions')
+          ? { session: api_v1_contract_fixtures.service_session, meta: { request_id: 'service-request-id' } }
+          : path.endsWith('/activities')
+            ? { items: [api_v1_contract_fixtures.service_activity], page: { next_cursor: null, has_more: false }, meta: { request_id: 'service-request-id' } }
+            : { service: api_v1_contract_fixtures.order_service, meta: { request_id: 'service-request-id' } }
+        return HttpResponse.json(body, {
+          status: path.endsWith('/sessions') ? 201 : 200,
+          headers: { 'Content-Type': 'application/json', 'X-Request-Id': 'service-request-id' },
+        })
+      },
+      request_id_factory: () => 'service-request-id',
+    })
+
+    const service = await client.get_service('order-service')
+    const activities = await client.list_service_activities('order-service', { limit: 20 })
+    const created = await client.create_service_session('order-service')
+
+    expect((service.data.service as { id?: unknown }).id).toBe('order-service')
+    expect(activities.data.items).toHaveLength(1)
+    expect((created.data.session as { service_id?: unknown }).service_id).toBe('order-service')
+    expect(requests.map((request) => request.method)).toEqual(['GET', 'GET', 'POST'])
+    expect(requests[2]?.headers.get('Content-Type')).toBeNull()
+  })
+
 })

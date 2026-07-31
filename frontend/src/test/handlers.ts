@@ -9,6 +9,62 @@ const failed_run_id = '55555555-5555-4555-8555-555555555554'
 const cancelled_run_id = '66666666-6666-4666-8666-666666666665'
 const empty_result_run_id = '77777777-7777-4777-8777-777777777771'
 const protocol_error_run_id = '88888888-8888-4888-8888-888888888885'
+const service_session_id = '44444444-4444-4444-8444-444444444444'
+const service_run_id = '44444444-4444-4444-8444-444444444445'
+
+const order_service = {
+  id: 'order-service',
+  title: '订单服务靶场',
+  kind: 'postgres_orders_demo',
+  supported_investigations: [{
+    id: 'orders_slow_query.v1',
+    title: '调查订单慢查询',
+    description: '针对订单服务的固定慢查询场景收集受控 DB、日志和服务证据。',
+    default_query: '订单服务变慢，帮我排查慢查询。',
+  }],
+  action_boundary: '仅当调查确认固定根因后，才可提出需人工审批和二次确认的固定修复。',
+  snapshot: {
+    observed_at: '2026-07-31T03:00:00.000Z',
+    mode: 'mock',
+    availability: 'healthy',
+    performance_signal: 'slow_query_detected',
+    server_metrics: {
+      source_status: 'available',
+      window_size: 12,
+      p50_ms: 82,
+      p95_ms: 210,
+      slow_query_count: 10,
+      timeout_count: 0,
+    },
+    database: { source_status: 'available', signal: 'missing_index_seq_scan_detected' },
+  },
+}
+
+const service_session = {
+  id: service_session_id,
+  title: '订单服务慢查询调查',
+  status: 'active',
+  environment_id: null,
+  incident_id: null,
+  service_id: 'order-service',
+  created_at: '2026-07-31T03:01:00.000Z',
+  updated_at: '2026-07-31T03:01:00.000Z',
+  archived_at: null,
+}
+
+const service_activity = {
+  session_id: service_session_id,
+  session_title: '订单服务慢查询调查',
+  run_id: service_run_id,
+  run_status: 'succeeded',
+  created_at: '2026-07-31T03:02:00.000Z',
+  finished_at: '2026-07-31T03:02:10.000Z',
+  summary: '已确认固定慢查询根因。',
+  severity: 'high',
+  confidence: 0.95,
+  proposal_status: 'verified',
+  verification_status: 'verified',
+}
 
 const session = {
   id: session_id,
@@ -212,6 +268,14 @@ function error_response(request: Request, code: string, message: string, status:
 }
 
 export const api_v1_handlers = [
+  http.get('/api/v1/services', ({ request }) => response(request, { items: [order_service] })),
+  http.get('/api/v1/services/order-service', ({ request }) => response(request, { service: order_service })),
+  http.get('/api/v1/services/order-service/activities', ({ request }) =>
+    response(request, { items: [service_activity], page: { next_cursor: null, has_more: false } }),
+  ),
+  http.post('/api/v1/services/order-service/sessions', ({ request }) =>
+    response(request, { session: service_session }, 201),
+  ),
   http.get(/\/api\/v1\/sessions$/, ({ request }) => {
     const cursor = new URL(request.url).searchParams.get('cursor')
     if (cursor === 'empty-page') {
@@ -225,12 +289,16 @@ export const api_v1_handlers = [
   http.get(/\/api\/v1\/sessions\/([^/]+)$/, ({ request }) => {
     const requested_session_id = new URL(request.url).pathname.split('/').at(-1)
     if (requested_session_id === archived_session_id) return response(request, { session: archived_session })
+    if (requested_session_id === service_session_id) return response(request, { session: service_session })
     if (requested_session_id !== session_id) return error_response(request, 'SESSION_NOT_FOUND', '会话不存在', 404)
     return response(request, { session })
   }),
   http.get(/\/api\/v1\/sessions\/([^/]+)\/messages$/, ({ request }) => {
     const url = new URL(request.url)
     const requested_session_id = url.pathname.split('/').at(-2)
+    if (requested_session_id === service_session_id) {
+      return response(request, { items: [], page: { next_cursor: null, has_more: false } })
+    }
     if (requested_session_id !== session_id) return error_response(request, 'SESSION_NOT_FOUND', '会话不存在', 404)
     const cursor = url.searchParams.get('cursor')
     return response(request, {
@@ -252,6 +320,9 @@ export const api_v1_handlers = [
   http.get(/\/api\/v1\/sessions\/([^/]+)\/runs$/, ({ request }) => {
     const url = new URL(request.url)
     const requested_session_id = url.pathname.split('/').at(-2)
+    if (requested_session_id === service_session_id) {
+      return response(request, { items: [], page: { next_cursor: null, has_more: false } })
+    }
     if (requested_session_id !== session_id) return error_response(request, 'SESSION_NOT_FOUND', '会话不存在', 404)
     const cursor = url.searchParams.get('cursor')
     return response(request, {
@@ -294,4 +365,4 @@ export const api_v1_contract_scenarios = {
   network_interruption: http.get(/\/api\/v1\/sessions$/, () => HttpResponse.error()),
 }
 
-export const api_v1_contract_fixtures = { accepted_run_id, archived_session_id, cancelled_run_id, empty_result_run_id, failed_run_id, protocol_error_run_id, run_events, run_id, session_id, trace_id }
+export const api_v1_contract_fixtures = { accepted_run_id, archived_session_id, cancelled_run_id, empty_result_run_id, failed_run_id, order_service, protocol_error_run_id, run_events, run_id, service_activity, service_run_id, service_session, service_session_id, session_id, trace_id }

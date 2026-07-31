@@ -27,7 +27,12 @@ class SessionRecord(Base):
             "status IN ('active', 'archived')",
             name="session_status_valid",
         ),
+        CheckConstraint(
+            "service_id IS NULL OR service_id = 'order-service'",
+            name="session_service_id_valid",
+        ),
         Index("ix_sessions_updated_at_id", "updated_at", "id"),
+        Index("ix_sessions_service_updated_at_id", "service_id", "updated_at", "id"),
     )
 
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
@@ -35,6 +40,7 @@ class SessionRecord(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default=SessionStatus.ACTIVE.value)
     environment_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     incident_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    service_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

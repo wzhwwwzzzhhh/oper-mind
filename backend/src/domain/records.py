@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationInfo, field_validator
 
 from src.domain.diagnosis import DiagnosisSeverity, MessageRole, RunEventType, RunStatus, SessionStatus
+from src.domain.services import ORDER_SERVICE_ID
 
 
 RecordT = TypeVar("RecordT", bound=BaseModel)
@@ -50,9 +51,18 @@ class SessionData(TimestampedRecord):
     status: SessionStatus = SessionStatus.ACTIVE
     environment_id: UUID | None = None
     incident_id: UUID | None = None
+    service_id: str | None = Field(default=None, max_length=64)
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
     archived_at: datetime | None = None
+
+    @field_validator("service_id")
+    @classmethod
+    def validate_service_id(cls, value: str | None) -> str | None:
+        """服务关联只能来自经过审查的静态注册表。"""
+        if value is not None and value != ORDER_SERVICE_ID:
+            raise ValueError("service_id 不在允许的静态服务范围内。")
+        return value
 
 
 class MessageData(TimestampedRecord):

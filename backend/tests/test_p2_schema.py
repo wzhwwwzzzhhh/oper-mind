@@ -194,6 +194,16 @@ def test_p2_schema_alembic_fresh_db_约束降级与再次升级(tmp_path: Path) 
             "ix_messages_run_id",
             "ix_messages_session_created_at_id",
         }
+        session_columns = {item["name"]: item for item in inspector.get_columns("sessions")}
+        assert session_columns["service_id"]["nullable"] is True
+        assert {item["name"] for item in inspector.get_check_constraints("sessions")} == {
+            "ck_sessions_session_service_id_valid",
+            "ck_sessions_session_status_valid",
+        }
+        assert {item["name"] for item in inspector.get_indexes("sessions")} == {
+            "ix_sessions_service_updated_at_id",
+            "ix_sessions_updated_at_id",
+        }
         assert {tuple(item["column_names"]) for item in inspector.get_unique_constraints("action_proposals")} == {
             ("source_run_id",)
         }
@@ -412,6 +422,13 @@ def test_p2_schema_sqlite_受控状态与其余唯一约束生效(tmp_path: Path
             ).scalar_one()
 
         invalid_statements = [
+            (
+                "UPDATE sessions SET service_id = :service_id WHERE id = :session_id",
+                {
+                    "service_id": "not-registered",
+                    "session_id": session_id,
+                },
+            ),
             (
                 "INSERT INTO messages (id, session_id, role, content, created_at) "
                 "VALUES (:id, :session_id, :role, :content, :created_at)",

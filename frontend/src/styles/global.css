@@ -360,3 +360,62 @@ button {
   gap: 8px;
   flex-wrap: wrap;
 }
+
+
+.service-list {
+  margin-top: 24px;
+}
+
+.service-card,
+.service-detail-card {
+  width: 100%;
+  border-color: #dce7eb;
+}
+
+.service-detail-card {
+  margin-top: 20px;
+}
+
+.service-snapshot-summary {
+  display: grid;
+  gap: 12px;
+}
+
+.service-observed-at {
+  margin: 0 !important;
+}
+
+.service-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+  color: #58707e;
+}
+
+.service-metric-grid span {
+  padding: 8px;
+  border: 1px solid #e2edf0;
+  border-radius: 8px;
+  background: #f8fbfc;
+}
+
+.service-metric-grid strong {
+  color: #1d3b4c;
+}
+
+.service-capability + .service-capability {
+  margin-top: 12px;
+}
+
+.service-capability .ant-typography {
+  margin-bottom: 6px;
+}
+
+.service-mutation-error {
+  margin-top: 12px;
+}
+
+.service-activity-list .ant-list-item {
+  align-items: flex-start;
+  gap: 12px;
+}

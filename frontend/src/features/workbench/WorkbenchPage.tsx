@@ -12,7 +12,7 @@ import {
 } from 'antd'
 import type { ReactElement, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import {
   API_V1_DEFAULT_PAGE_SIZE,
@@ -434,11 +434,11 @@ function ConversationTimeline({ messages, runs, session_id }: { messages: unknow
   )
 }
 
-function SessionWorkspace({ session_id }: { session_id: string }): ReactElement {
+function SessionWorkspace({ session_id, prefilled_query }: { session_id: string; prefilled_query: string }): ReactElement {
   const navigate = useNavigate()
   const query_client = useQueryClient()
   const storage = session_storage()
-  const [query, set_query] = useState('')
+  const [query, set_query] = useState(prefilled_query)
   const [send_intent, set_send_intent] = useState<SessionRunSendIntent | undefined>(() =>
     storage ? load_session_run_send_intent(storage, session_id) : undefined,
   )
@@ -485,9 +485,9 @@ function SessionWorkspace({ session_id }: { session_id: string }): ReactElement 
   useEffect(() => {
     const restored = storage ? load_session_run_send_intent(storage, session_id) : undefined
     set_send_intent(restored)
-    set_query(restored?.query ?? '')
+    set_query(restored?.query ?? prefilled_query)
     set_recovery_error(undefined)
-  }, [session_id, storage])
+  }, [prefilled_query, session_id, storage])
 
   const reconcile_accepted_intent = async (intent: SessionRunSendIntent): Promise<void> => {
     if (!intent.accepted_run_id || !intent.input_message_id) return
@@ -609,6 +609,7 @@ function SessionWorkspace({ session_id }: { session_id: string }): ReactElement 
 
   const session = (session_query.data as ApiResponse<SessionResponse>).data.session
   const session_status = resource_string(session, 'status', 'unknown')
+  const is_order_service_session = resource_optional_string(session, 'service_id') === 'order-service'
   const can_send = session_status === 'active'
   const has_idempotency_key_conflict = is_idempotency_key_conflict(recovery_error)
   return (
@@ -617,6 +618,7 @@ function SessionWorkspace({ session_id }: { session_id: string }): ReactElement 
       <Space align="center" className="workbench-title-row" wrap>
         <Typography.Title id="workbench-title" level={2}>{resource_string(session, 'title', '个人会话')}</Typography.Title>
         <Tag color={status_color(session_status)}>{session_status}</Tag>
+        {is_order_service_session && <Tag color="cyan">订单服务靶场</Tag>}
       </Space>
       <Typography.Paragraph className="page-description">
         这里按对话阅读已保存的问题、调查和助手答复。每次提交都会创建一次运维调查，不提供普通聊天或自动处理。
@@ -629,6 +631,15 @@ function SessionWorkspace({ session_id }: { session_id: string }): ReactElement 
           <Typography.Paragraph type="secondary">
             每次提问都会创建一次运维调查。问题会先由服务端持久化；页面不会把本地输入伪造成已保存消息。
           </Typography.Paragraph>
+          {is_order_service_session && (
+            <Alert
+              className="investigation-send-notice"
+              description="此会话来自订单服务靶场，预填问题尚未提交。你可以修改问题；只有点击“开始调查”后才会创建 Message 和 Run。"
+              title="尚未开始调查"
+              showIcon
+              type="info"
+            />
+          )}
           <textarea
             aria-label="调查问题"
             className="investigation-input"
@@ -707,7 +718,11 @@ function SessionWorkspace({ session_id }: { session_id: string }): ReactElement 
 
 export function WorkbenchPage(): ReactElement {
   const { session_id } = useParams<{ session_id: string }>()
-  if (session_id) return <SessionWorkspace session_id={session_id} />
+  const [search_params] = useSearchParams()
+  const prefilled_query = search_params.get('intent') === 'orders_slow_query.v1'
+    ? '订单服务变慢，帮我排查慢查询。'
+    : ''
+  if (session_id) return <SessionWorkspace prefilled_query={prefilled_query} session_id={session_id} />
 
   return (
     <section className="workbench-page" aria-labelledby="workbench-title">

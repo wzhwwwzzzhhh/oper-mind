@@ -10,8 +10,10 @@ from fastapi import Request
 
 from src.application.action_services import ActionApplicationService
 from src.domain.actions import ActionMode
+from src.domain.services import ServiceMode, ServiceRegistry
 from src.application.contracts import DiagnosisExecutor, ResultAssembler
 from src.application.services import RunApplicationService, SessionApplicationService
+from src.application.service_center import ServiceCenterApplicationService
 from src.config import load_persistence_settings
 from src.infrastructure.diagnosis.coordinator_executor import CoordinatorDiagnosisExecutor
 from src.infrastructure.diagnosis.demo_orders.action_executor import (
@@ -25,6 +27,7 @@ from src.infrastructure.diagnosis.demo_orders.executor import (
     UnavailableDemoOrdersExecutor,
 )
 from src.infrastructure.diagnosis.demo_orders.result_assembler import P4CompatibleResultAssembler
+from src.infrastructure.diagnosis.demo_orders.service_connector import PostgresOrdersSlowQueryConnector
 from src.infrastructure.diagnosis.demo_orders.settings import (
     DemoOrdersConfigurationError,
     DemoOrdersEvidenceSettings,
@@ -43,6 +46,7 @@ class V1Services:
     session_service: SessionApplicationService
     run_service: RunApplicationService
     action_service: ActionApplicationService | None = None
+    service_center: ServiceCenterApplicationService | None = None
 
 
 def build_v1_services(coordinator: object) -> V1Services:
@@ -82,6 +86,7 @@ def build_v1_services_for_runtime(
             action_mode=action_mode,
         ),
         action_service=action_service,
+        service_center=_build_service_center(session_factory, demo_orders_settings, app_database_url),
     )
 
 
@@ -130,3 +135,23 @@ def get_v1_services(request: Request) -> V1Services:
     if not isinstance(services, V1Services):
         raise RuntimeError("v1 API 依赖尚未装配")
     return services
+
+
+def _build_service_center(
+    session_factory: SessionFactory,
+    explicit_settings: DemoOrdersEvidenceSettings | None,
+    app_database_url: str | None,
+) -> ServiceCenterApplicationService:
+    """无论 P4.1 诊断装配是否可用，均注册唯一受控服务及诚实快照模式。"""
+    settings = explicit_settings
+    if settings is None:
+        try:
+            settings = load_demo_orders_evidence_settings(app_database_url=app_database_url)
+        except DemoOrdersConfigurationError:
+            mode = _configured_demo_orders_mode()
+            connector_mode = ServiceMode.DISABLED if mode is EvidenceMode.DISABLED else ServiceMode.TARGET
+            connector = PostgresOrdersSlowQueryConnector(connector_mode)
+            return ServiceCenterApplicationService(session_factory, ServiceRegistry((connector,)))
+
+    connector = PostgresOrdersSlowQueryConnector(ServiceMode(settings.mode.value), settings)
+    return ServiceCenterApplicationService(session_factory, ServiceRegistry((connector,)))

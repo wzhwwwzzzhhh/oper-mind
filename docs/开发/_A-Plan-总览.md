@@ -31,18 +31,20 @@ OperMind 是面向研发与运维人员的**会话式多 Agent DevOps Copilot**�
 | **P4.0 / Work 1** | ✅ 完成 | 隔离 PostgreSQL 订单慢查询靶场、受控脚本与真实 smoke。 |
 | **P4.1** | ✅ 完成 | 会话触发的 DB/Log/Server 只读调查、结构化证据结果、简要过程与可展开详情；mock/API/UI 回归与 target smoke 已通过。 |
 | **P4.2** | ✅ 完成 | 固定修复提案、local_operator 人工审批、白名单执行、独立 Verify、轮询审计与 target smoke 已通过。 |
-| **P4.3** | ✅ Design/Review 完成，待授权实现 | 一个已注册靶场服务的服务中心/有限监控快照/调查入口；尚未授权实现。 |
+| **P4.3** | ⏳ 代码/Review/回归完成，target smoke 待补 | 已注册订单服务中心、有限当前快照、服务上下文会话、调查入口与安全活动留痕；真实靶场凭据只可来自当前进程环境。 |
 | **P5.0** | 待设计 | Markdown 知识目录、受控全文检索（grep 等价实现）和引用展示。 |
 | **P5.1** | 待设计 | 模型 Provider 设置、第二类 Connector 的安全设计与实现。 |
 | **P6+** | 待开始 | 第二故障、MySQL/Redis、评测、毕业设计材料、安全与部署增强。 |
 
 ## 4. 当前唯一下一步
 
-**P4.3 Design/Review 已于 2026-07-30 完成；当前唯一下一步是等待用户明确授权实施 P4.3（已注册靶场服务的服务中心、有限监控快照与调查入口）。**
+**当前唯一下一步：在当前进程已经提供授权靶场凭据的前提下，补跑 `backend/scripts/smoke_p4_service_center.py` 的 P4.3 target smoke，并确认其 `finally clean` 完成。**
+
+P4.3 已完成代码、迁移、API、前端、OpenAPI 同步、集中回归和实现审查：服务中心只注册 `order-service`，服务入口只创建 `service_id=order-service` 的会话，用户仍须点击“开始调查”；快照只读 P4.1 已批准的 health、metrics、固定 DB 索引/计划事实；活动页只展示绑定会话的 Run/Proposal/Verify 安全摘要。后端 `158 passed`，前端 `44 passed`、typecheck/build 通过。此前 target smoke 在配置校验阶段因当前进程未提供靶场凭据而 fail-closed，未连接靶场、未创建 schema、未访问 `gongkar`；不得以 mock 替代真实验收，也不得把凭据写入文件或 Git。
 
 P4.2 已交付固定 `postgres.orders.rebuild_missing_user_created_index.v1`：只有 P4.1 的 `high / 0.95` 三源确认事实才能生成不可编辑 Proposal；本地操作者以 `local_operator` 批准或拒绝；批准后第二次确认才异步进入白名单执行器；Verify 重新确认索引、固定计划、恰好 3 次固定探测与匹配日志。执行结果与脱敏审计事件在 Workbench 展示，P4.2 没有通用 SQL、Shell、重试、自动回滚或第二套 SSE。
 
-P4.3 Design/Review 见 `P4-DevOps-Copilot-MVP/p4.3-服务中心监控调查入口-design.md` 与 `p4.3-服务中心监控调查入口-review.md`。在用户明确授权前，不得实现服务中心、监控页、调查入口、迁移、公开契约或新的真实读取。仍不得扩展第二种故障、Redis/MySQL/Kubernetes、RAG/知识库、文件上传、用户 API Key 存储或任何新真实连接。
+P4.3 target smoke 通过后，才进入 P5.0 的独立 Design → Review → 用户授权：允许目录内 Markdown 的程序全文检索和引用展示。仍不得扩展第二种故障、Redis/MySQL/Kubernetes、用户可写服务配置或凭据、RAG/向量库、文件上传、用户 API Key 存储或任何新真实连接。
 
 ## 5. P4 靶场硬边界
 

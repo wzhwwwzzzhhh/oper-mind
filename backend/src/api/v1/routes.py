@@ -27,6 +27,8 @@ from src.api.v1.resources import (
     message_resource,
     run_event_resource,
     run_resource,
+    service_activity_resource,
+    service_resource,
     session_resource,
 )
 from src.api.v1.schemas import (
@@ -46,6 +48,9 @@ from src.api.v1.schemas import (
     RunEventListResponse,
     RunActionProposalResponse,
     RunResponse,
+    ServiceActivityListResponse,
+    ServiceListResponse,
+    ServiceResponse,
     SessionListResponse,
     SessionResponse,
     UpdateSessionRequest,
@@ -53,7 +58,14 @@ from src.api.v1.schemas import (
 from src.api.v1.sse import parse_event_sequence, replay_run_events
 from src.application.action_services import DecideActionProposalCommand, RequestActionExecutionCommand
 from src.application.contracts import CreateRunCommand, CreateSessionCommand, UpdateSessionCommand
-from src.application.errors import ActionProposalInvalidStateError, ApplicationError, RunNotFoundError, SessionNotFoundError
+from src.application.service_center import CreateServiceSessionCommand, ServiceCenterApplicationService
+from src.application.errors import (
+    ActionProposalInvalidStateError,
+    ApplicationError,
+    RunNotFoundError,
+    ServiceCenterUnavailableError,
+    SessionNotFoundError,
+)
 from src.domain.diagnosis import SessionStatus
 from src.domain.records import DiagnosisRunData, SessionData
 from src.infrastructure.persistence.repositories import (
@@ -80,6 +92,8 @@ APPLICATION_ERROR_STATUS = {
     "ACTION_PROPOSAL_NOT_FOUND": 404,
     "ACTION_PROPOSAL_INVALID_STATE": 409,
     "ACTION_PROPOSAL_EXPIRED": 409,
+    "SERVICE_NOT_FOUND": 404,
+    "SERVICE_CENTER_UNAVAILABLE": 503,
 }
 
 
@@ -123,6 +137,13 @@ def parse_page_cursor(value: str | None, cursor_type: type[CursorT]) -> CursorT 
         raise ApiV1Error(400, "INVALID_CURSOR", "分页游标无效") from error
 
 
+def _service_center(services: V1Services) -> ServiceCenterApplicationService:
+    """读取已装配的 P4.3 服务中心；旧 P2 测试装配安全拒绝。"""
+    if services.service_center is None:
+        raise ServiceCenterUnavailableError()
+    return services.service_center
+
+
 def _action_service(services: V1Services):
     """读取已装配的 P4.2 action 服务；旧 P2 测试装配不暴露动作能力。"""
     if services.action_service is None:
@@ -162,6 +183,85 @@ def _run_response(services: V1Services, run_id: UUID) -> DiagnosisRunResource:
         return run_resource(run, result)
     finally:
         session.close()
+
+
+@router.get("/services", response_model=ServiceListResponse)
+def list_services(
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> ServiceListResponse:
+    """读取代码内注册服务及其当前有限快照。"""
+    try:
+        items = _service_center(services).list_services()
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return ServiceListResponse(items=[service_resource(item) for item in items], meta=meta)
+
+
+@router.get("/services/{service_id}/activities", response_model=ServiceActivityListResponse)
+def list_service_activities(
+    service_id: str,
+    request: Request,
+    response: Response,
+    cursor: str | None = None,
+    limit: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
+    services: V1Services = Depends(get_v1_services),
+) -> ServiceActivityListResponse:
+    """读取服务绑定会话的 Run 与修复闭环安全摘要。"""
+    decoded_cursor = parse_page_cursor(cursor, DiagnosisRunCursor)
+    try:
+        page = _service_center(services).list_activities(service_id, decoded_cursor, limit)
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return ServiceActivityListResponse(
+        items=[service_activity_resource(item) for item in page.items],
+        page=CursorPage(
+            next_cursor=encode_cursor(page.next_cursor) if page.next_cursor else None,
+            has_more=page.has_more,
+        ),
+        meta=meta,
+    )
+
+
+@router.post("/services/{service_id}/sessions", response_model=SessionResponse, status_code=201)
+def create_service_session(
+    service_id: str,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> SessionResponse:
+    """创建服务上下文会话；不创建调查、外部读取或任何修复动作。"""
+    try:
+        created = _service_center(services).create_service_session(
+            CreateServiceSessionCommand(service_id=service_id)
+        )
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return SessionResponse(session=session_resource(created), meta=meta)
+
+
+@router.get("/services/{service_id}", response_model=ServiceResponse)
+def get_service(
+    service_id: str,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> ServiceResponse:
+    """读取一个静态服务的身份、能力边界和当前有限快照。"""
+    try:
+        value = _service_center(services).get_service(service_id)
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return ServiceResponse(service=service_resource(value), meta=meta)
 
 
 @router.post("/sessions", response_model=SessionResponse, status_code=201)

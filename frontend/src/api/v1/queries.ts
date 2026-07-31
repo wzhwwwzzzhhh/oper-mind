@@ -9,9 +9,14 @@ import {
   type CreateRunOptions,
   type CreateRunRequest,
   type ListSessionsQuery,
+  type ListServiceActivitiesQuery,
 } from './client'
 
 export const api_v1_query_keys = {
+  services: () => ['api-v1', 'services'] as const,
+  service: (service_id: string) => ['api-v1', 'service', service_id] as const,
+  service_activities: (service_id: string, query: ListServiceActivitiesQuery) =>
+    ['api-v1', 'service-activities', service_id, query] as const,
   sessions: (query: ListSessionsQuery) => ['api-v1', 'sessions', query] as const,
   session: (session_id: string) => ['api-v1', 'session', session_id] as const,
   session_messages: (session_id: string, query: ListSessionMessagesQuery) =>
@@ -21,6 +26,31 @@ export const api_v1_query_keys = {
   run: (run_id: string) => ['api-v1', 'run', run_id] as const,
   run_events: (run_id: string, query: ListRunEventsQuery) => ['api-v1', 'run-events', run_id, query] as const,
 }
+
+export function list_services_query() {
+  return queryOptions({
+    queryKey: api_v1_query_keys.services(),
+    queryFn: ({ signal }) => api_v1_client.list_services({ signal }),
+  })
+}
+
+export function get_service_query(service_id: string) {
+  return queryOptions({
+    queryKey: api_v1_query_keys.service(service_id),
+    queryFn: ({ signal }) => api_v1_client.get_service(service_id, { signal }),
+  })
+}
+
+export function list_service_activities_query(
+  service_id: string,
+  query: ListServiceActivitiesQuery = {},
+) {
+  return queryOptions({
+    queryKey: api_v1_query_keys.service_activities(service_id, query),
+    queryFn: ({ signal }) => api_v1_client.list_service_activities(service_id, query, { signal }),
+  })
+}
+
 
 export function list_sessions_query(query: ListSessionsQuery = {}) {
   return queryOptions({

@@ -68,9 +68,97 @@ class SessionResource(ApiV1Model):
     status: Literal["active", "archived"]
     environment_id: UUID | None = None
     incident_id: UUID | None = None
+    service_id: Literal["order-service"] | None = None
     created_at: datetime
     updated_at: datetime
     archived_at: datetime | None = None
+
+
+class ServiceInvestigationResource(ApiV1Model):
+    """静态服务暴露的固定调查入口。"""
+
+    id: Literal["orders_slow_query.v1"]
+    title: str
+    description: str
+    default_query: str
+
+
+class ServiceServerMetricsResource(ApiV1Model):
+    """服务详情可展示的有限指标标量。"""
+
+    source_status: Literal["available", "unavailable", "not_configured"]
+    window_size: int | None = Field(default=None, ge=0)
+    p50_ms: float | None = Field(default=None, ge=0.0)
+    p95_ms: float | None = Field(default=None, ge=0.0)
+    slow_query_count: int | None = Field(default=None, ge=0)
+    timeout_count: int | None = Field(default=None, ge=0)
+
+
+class ServiceDatabaseResource(ApiV1Model):
+    """固定数据库读取收敛后的安全状态。"""
+
+    source_status: Literal["available", "unavailable", "not_configured"]
+    signal: Literal[
+        "missing_index_seq_scan_detected",
+        "index_and_plan_confirmed",
+        "insufficient_data",
+        "unavailable",
+        "not_configured",
+    ]
+
+
+class ServiceSnapshotResource(ApiV1Model):
+    """一次请求读取的当前有限快照。"""
+
+    observed_at: datetime
+    mode: Literal["disabled", "mock", "target"]
+    availability: Literal["healthy", "unhealthy", "unavailable", "not_configured"]
+    performance_signal: Literal[
+        "slow_query_detected",
+        "no_slow_query_detected",
+        "insufficient_data",
+        "unavailable",
+        "not_configured",
+    ]
+    server_metrics: ServiceServerMetricsResource
+    database: ServiceDatabaseResource
+
+
+class ServiceResource(ApiV1Model):
+    """静态注册服务与其当前安全快照。"""
+
+    id: Literal["order-service"]
+    title: str
+    kind: Literal["postgres_orders_demo"]
+    supported_investigations: list[ServiceInvestigationResource]
+    action_boundary: str
+    snapshot: ServiceSnapshotResource
+
+
+class ServiceActivityResource(ApiV1Model):
+    """服务绑定会话中 Run 与修复闭环的最小历史摘要。"""
+
+    session_id: UUID
+    session_title: str
+    run_id: UUID
+    run_status: Literal["queued", "running", "succeeded", "failed", "cancelled"]
+    created_at: datetime
+    finished_at: datetime | None = None
+    summary: str | None = None
+    severity: Literal["info", "low", "medium", "high", "critical"] | None = None
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    proposal_status: Literal[
+        "pending_approval",
+        "approved",
+        "rejected",
+        "expired",
+        "executing",
+        "verifying",
+        "verified",
+        "blocked",
+        "failed",
+    ] | None = None
+    verification_status: Literal["verified", "failed"] | None = None
 
 
 class CreateSessionRequest(ApiV1Model):
@@ -267,6 +355,28 @@ class RunEventResource(ApiV1Model):
     ]
     occurred_at: datetime
     data: dict[str, JsonValue]
+
+
+class ServiceListResponse(ApiV1Model):
+    """静态服务中心列表响应。"""
+
+    items: list[ServiceResource]
+    meta: ResponseMeta
+
+
+class ServiceResponse(ApiV1Model):
+    """单个静态服务详情响应。"""
+
+    service: ServiceResource
+    meta: ResponseMeta
+
+
+class ServiceActivityListResponse(ApiV1Model):
+    """服务活动 cursor 分页响应。"""
+
+    items: list[ServiceActivityResource]
+    page: CursorPage
+    meta: ResponseMeta
 
 
 class SessionResponse(ApiV1Model):

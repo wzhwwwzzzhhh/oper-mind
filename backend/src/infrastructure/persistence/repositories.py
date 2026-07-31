@@ -79,6 +79,7 @@ class SqlAlchemySessionRepository:
                 status=session.status.value,
                 environment_id=session.environment_id,
                 incident_id=session.incident_id,
+                service_id=session.service_id,
                 created_at=session.created_at,
                 updated_at=session.updated_at,
                 archived_at=session.archived_at,
@@ -99,6 +100,7 @@ class SqlAlchemySessionRepository:
         record.status = session.status.value
         record.environment_id = session.environment_id
         record.incident_id = session.incident_id
+        record.service_id = session.service_id
         record.updated_at = session.updated_at
         record.archived_at = session.archived_at
         return True
@@ -418,6 +420,7 @@ def _session_data(record: SessionRecord) -> SessionData:
         status=SessionStatus(record.status),
         environment_id=record.environment_id,
         incident_id=record.incident_id,
+        service_id=record.service_id,
         created_at=_as_utc(record.created_at),
         updated_at=_as_utc(record.updated_at),
         archived_at=_as_utc(record.archived_at),

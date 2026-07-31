@@ -13,6 +13,12 @@ from src.api.v1.schemas import (
     MessageResource,
     RunErrorResource,
     RunEventResource,
+    ServiceActivityResource,
+    ServiceDatabaseResource,
+    ServiceInvestigationResource,
+    ServiceResource,
+    ServiceServerMetricsResource,
+    ServiceSnapshotResource,
     SessionResource,
 )
 from src.domain.actions import (
@@ -24,6 +30,7 @@ from src.domain.actions import (
 )
 from src.domain.diagnosis import RunStatus
 from src.domain.records import DiagnosisResultData, DiagnosisRunData, MessageData, RunEventData, SessionData
+from src.domain.services import ServiceActivityData, ServiceViewData
 
 
 def session_resource(value: SessionData) -> SessionResource:
@@ -34,6 +41,7 @@ def session_resource(value: SessionData) -> SessionResource:
         status=value.status.value,
         environment_id=value.environment_id,
         incident_id=value.incident_id,
+        service_id=value.service_id,
         created_at=value.created_at,
         updated_at=value.updated_at,
         archived_at=value.archived_at,
@@ -160,4 +168,60 @@ def action_event_resource(value: ActionEventData) -> ActionEventResource:
     return ActionEventResource(
         id=value.id, proposal_id=value.proposal_id, sequence=value.sequence, type=value.type.value,
         occurred_at=value.occurred_at, data=value.data,
+    )
+
+
+def service_resource(value: ServiceViewData) -> ServiceResource:
+    """将静态服务定义和有限快照映射为公开资源。"""
+    definition = value.definition
+    snapshot = value.snapshot
+    return ServiceResource(
+        id=definition.id,
+        title=definition.title,
+        kind=definition.kind,
+        supported_investigations=[
+            ServiceInvestigationResource(
+                id=item.id,
+                title=item.title,
+                description=item.description,
+                default_query=item.default_query,
+            )
+            for item in definition.supported_investigations
+        ],
+        action_boundary=definition.action_boundary,
+        snapshot=ServiceSnapshotResource(
+            observed_at=snapshot.observed_at,
+            mode=snapshot.mode.value,
+            availability=snapshot.availability.value,
+            performance_signal=snapshot.performance_signal.value,
+            server_metrics=ServiceServerMetricsResource(
+                source_status=snapshot.server_metrics.source_status.value,
+                window_size=snapshot.server_metrics.window_size,
+                p50_ms=snapshot.server_metrics.p50_ms,
+                p95_ms=snapshot.server_metrics.p95_ms,
+                slow_query_count=snapshot.server_metrics.slow_query_count,
+                timeout_count=snapshot.server_metrics.timeout_count,
+            ),
+            database=ServiceDatabaseResource(
+                source_status=snapshot.database.source_status.value,
+                signal=snapshot.database.signal.value,
+            ),
+        ),
+    )
+
+
+def service_activity_resource(value: ServiceActivityData) -> ServiceActivityResource:
+    """将服务只读活动模型收敛为安全公开资源。"""
+    return ServiceActivityResource(
+        session_id=value.session_id,
+        session_title=value.session_title,
+        run_id=value.run_id,
+        run_status=value.run_status,
+        created_at=value.created_at,
+        finished_at=value.finished_at,
+        summary=value.summary,
+        severity=value.severity,
+        confidence=value.confidence,
+        proposal_status=value.proposal_status,
+        verification_status=value.verification_status,
     )

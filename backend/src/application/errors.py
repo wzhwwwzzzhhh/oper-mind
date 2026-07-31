@@ -76,3 +76,17 @@ class ActionProposalExpiredError(ApplicationError):
 
     code = "ACTION_PROPOSAL_EXPIRED"
     message = "固定修复批准已过期，请重新调查后生成新提案。"
+
+
+class ServiceNotFoundError(ApplicationError):
+    """请求的静态服务未注册。"""
+
+    code = "SERVICE_NOT_FOUND"
+    message = "已注册服务不存在。"
+
+
+class ServiceCenterUnavailableError(ApplicationError):
+    """服务中心依赖尚未装配时安全拒绝。"""
+
+    code = "SERVICE_CENTER_UNAVAILABLE"
+    message = "服务中心当前不可用，请稍后重试。"
