@@ -6,7 +6,7 @@ import yaml
 
 from src import config
 from src.memory.long_term import LongTermMemory
-from src.project_paths import BACKEND_ROOT, CONFIG_DIR, DATA_DIR, EXPERIMENTS_DIR, PROJECT_ROOT
+from src.project_paths import BACKEND_ROOT, CONFIG_DIR, DATA_DIR, PROJECT_ROOT
 
 
 def test_project_paths_固定指向仓库根资源() -> None:
@@ -14,9 +14,7 @@ def test_project_paths_固定指向仓库根资源() -> None:
     assert BACKEND_ROOT == PROJECT_ROOT / "backend"
     assert CONFIG_DIR == PROJECT_ROOT / "config"
     assert DATA_DIR == PROJECT_ROOT / "data"
-    assert EXPERIMENTS_DIR == PROJECT_ROOT / "experiments"
     assert (CONFIG_DIR / "config.example.yaml").is_file()
-    assert (DATA_DIR / "test_cases.json").is_file()
 
 
 def test_load_config_从根配置目录读取并优先本地配置(monkeypatch, tmp_path) -> None:

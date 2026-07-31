@@ -21,6 +21,5 @@ bootstrap_import_paths()
 from src.project_paths import (  # noqa: E402
     BACKEND_ROOT,
     DATA_DIR,
-    EXPERIMENTS_DIR,
     PROJECT_ROOT,
 )

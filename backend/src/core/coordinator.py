@@ -5,7 +5,6 @@ from datetime import datetime, timezone
 import logging
 from typing import Any, Literal, TypedDict, cast
 
-from src.core.experiment import ExperimentCondition, get_experiment_condition
 from src.core.graph import build_diagnosis_graph
 from src.core.llm import LLMClient
 
@@ -70,14 +69,12 @@ class CoordinatorAgent:
         debate: object | None = None,
         reflection: object | None = None,
         report: object | None = None,
-        experiment_condition: ExperimentCondition | None = None,
     ) -> None:
         self.llm = llm
         self.agents: dict[str, object] = {}
         self.debate = debate
         self.reflection = reflection
         self.report = report
-        self.experiment_condition = experiment_condition or get_experiment_condition("full")
         self._graph: Any = None
         self.thinking_log: list[str] = []
         self.trace: list[TraceRecord] = []
@@ -102,11 +99,6 @@ class CoordinatorAgent:
             self.report = report
         self._graph = None
 
-    def set_experiment_condition(self, condition: ExperimentCondition) -> None:
-        """更新实验条件，并使编排图按新条件重新编译。"""
-        self.experiment_condition = condition
-        self._graph = None
-
     def _ensure_graph(self) -> Any:
         """在首次调用或依赖变更后编译诊断图。"""
         if self._graph is None:
@@ -116,7 +108,6 @@ class CoordinatorAgent:
                 debate=self.debate,
                 reflection=self.reflection,
                 report=self.report,
-                experiment_condition=self.experiment_condition,
             )
         return self._graph
 

@@ -14,7 +14,6 @@ from src.api.events import (
 from src.api.schemas import TraceEvent
 from src.core.coordinator import CoordinatorAgent
 from src.core.debate import DebateArena
-from src.core.experiment import get_experiment_condition
 from src.core.llm import LLMClient
 from src.core.reflection import ReflectionEngine
 from src.agents.report_agent import ReportAgent
@@ -43,7 +42,6 @@ def _build_mock_coordinator() -> CoordinatorAgent:
         debate=DebateArena(llm=llm),
         reflection=ReflectionEngine(llm=llm),
         report=ReportAgent(),
-        experiment_condition=get_experiment_condition("full"),
     )
     for name in ("db", "server", "log"):
         coordinator.register_agent(name, _StubAgent(name))

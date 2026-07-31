@@ -10,7 +10,6 @@ BACKEND_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = BACKEND_ROOT.parent
 CONFIG_DIR = PROJECT_ROOT / "config"
 DATA_DIR = PROJECT_ROOT / "data"
-EXPERIMENTS_DIR = PROJECT_ROOT / "experiments"
 
 
 def ensure_project_import_paths() -> None:

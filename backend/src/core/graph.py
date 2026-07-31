@@ -14,7 +14,6 @@ from typing import Literal
 from typing_extensions import TypedDict
 from langgraph.graph import StateGraph, START, END
 
-from src.core.experiment import ExperimentCondition, get_experiment_condition
 from src.core.llm import LLMClient
 
 
@@ -102,7 +101,6 @@ def build_diagnosis_graph(
     debate,
     reflection,
     report,
-    experiment_condition: ExperimentCondition | None = None,
 ):
     """构建并编译诊断编排图。
 
@@ -116,8 +114,6 @@ def build_diagnosis_graph(
     Returns:
         编译后的 LangGraph app,通过 .invoke(state) 运行。
     """
-
-    condition = experiment_condition or get_experiment_condition("full")
 
     # ---- 节点:LLM 路由决策(带关键词兜底) ----
     def route_node(state: DiagnosisState) -> DiagnosisState:
@@ -151,22 +147,8 @@ def build_diagnosis_graph(
         else:
             trace = trace + [{"node": "route", "detail": f"LLM 路由 → {strategy}"}]
 
-        # target 始终表示主要领域，供 single_agent 基线使用。
+        # target 始终表示主要领域，direct 模式据此选择领域 Agent。
         target = target or _keyword_target(query) or "db"
-
-        original_strategy = strategy
-        if condition.routing_mode == "single_agent":
-            strategy = "direct"
-        elif condition.routing_mode == "force_chain":
-            strategy = "chain"
-        elif condition.routing_mode == "force_parallel":
-            strategy = "parallel"
-
-        if strategy != original_strategy:
-            trace = trace + [{
-                "node": "route",
-                "detail": f"实验组 {condition.arm} 覆盖路由 {original_strategy} → {strategy}",
-            }]
 
         return {"strategy": strategy, "target": target, "trace": trace}
 
@@ -325,7 +307,7 @@ def build_diagnosis_graph(
         return state.get("strategy", "direct")  # type: ignore[return-value]
 
     def _after_conflict(state: DiagnosisState) -> Literal["debate", "report"]:
-        return "debate" if condition.enable_debate and state.get("has_conflict") else "report"
+        return "debate" if state.get("has_conflict") else "report"
 
     def _after_reflection(state: DiagnosisState) -> Literal["report", "__end__"]:
         return "report" if state.get("review_feedback") else END  # type: ignore[return-value]
@@ -355,14 +337,11 @@ def build_diagnosis_graph(
         "report": "report",
     })
     g.add_edge("debate", "report")
-    if condition.enable_reflection:
-        g.add_edge("report", "reflection")
-        g.add_conditional_edges("reflection", _after_reflection, {
-            "report": "report",
-            END: END,
-        })
-    else:
-        g.add_edge("report", END)
+    g.add_edge("report", "reflection")
+    g.add_conditional_edges("reflection", _after_reflection, {
+        "report": "report",
+        END: END,
+    })
 
     return g.compile()
 
