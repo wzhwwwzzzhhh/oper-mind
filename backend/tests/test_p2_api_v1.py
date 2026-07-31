@@ -283,9 +283,9 @@ def test_v1安全错误请求ID与旧接口契约隔离(v1_client: TestClient) -
     assert missing.status_code == 404
     assert missing.json()["error"]["code"] == "RUN_NOT_FOUND"
 
+    # 旧 /diagnose CoT 接口已移除：该路径返回 404，且不套用 v1 meta 包络。
     legacy = v1_client.get("/diagnose/stream")
-    assert legacy.status_code == 422
-    assert legacy.json()["code"] == "VALIDATION_ERROR"
+    assert legacy.status_code == 404
     assert "meta" not in legacy.json()
 
 

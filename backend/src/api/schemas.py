@@ -1,59 +1,17 @@
-"""HTTP API 的请求、响应与错误契约。"""
+"""非 v1 基础 HTTP 接口（`/`、`/health`）的响应与错误契约。
+
+诊断相关 DTO 已随旧 `/diagnose` 接口移除；正式产品契约见 `src/api/v1/schemas.py`。
+"""
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-
-
-TraceEventType = Literal[
-    "route_decided",
-    "agent_start",
-    "agent_done",
-    "conflict_checked",
-    "debate_round",
-    "report",
-    "reflection",
-]
+from pydantic import BaseModel, ConfigDict
 
 
 class ApiModel(BaseModel):
     """API 数据模型基类，拒绝未约定字段。"""
 
     model_config = ConfigDict(extra="forbid")
-
-
-class DiagnoseRequest(ApiModel):
-    """同步诊断请求。"""
-
-    query: str = Field(..., min_length=1, max_length=4000, description="待诊断的运维问题")
-    show_thinking: bool = Field(False, description="是否返回诊断链路")
-
-    @field_validator("query")
-    @classmethod
-    def validate_query(cls, value: str) -> str:
-        """去除首尾空白，并拒绝空问题。"""
-        normalized = value.strip()
-        if not normalized:
-            raise ValueError("query 不能为空")
-        return normalized
-
-
-class TraceEvent(ApiModel):
-    """诊断编排中的单条可视化事件。"""
-
-    type: TraceEventType
-    node: str = Field(..., min_length=1)
-    detail: str = Field(..., min_length=1)
-    timestamp: str = Field(..., min_length=1, description="UTC ISO 8601 时间戳")
-
-
-class DiagnoseResponse(ApiModel):
-    """同步诊断响应。"""
-
-    result: str
-    thinking: list[str] | None = None
-    trace: list[TraceEvent] | None = None
-    strategy: str = ""
 
 
 class ErrorDetail(ApiModel):
@@ -87,25 +45,3 @@ class RootResponse(ApiModel):
     version: str
     description: str
     endpoints: dict[str, str]
-
-
-class MemoryResponse(ApiModel):
-    """保留的记忆接口响应。"""
-
-    status: str | None = None
-    message: str
-
-
-class StreamQuery(ApiModel):
-    """SSE 诊断请求的查询参数。"""
-
-    query: str = Field(..., min_length=1, max_length=4000)
-
-    @field_validator("query")
-    @classmethod
-    def validate_query(cls, value: str) -> str:
-        """复用同步接口的空白校验语义。"""
-        normalized = value.strip()
-        if not normalized:
-            raise ValueError("query 不能为空")
-        return normalized

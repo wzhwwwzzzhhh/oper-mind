@@ -1,31 +1,18 @@
-"""FastAPI 入口 — 多智能体运维诊断 API。"""
+"""FastAPI 入口 — 会话式多 Agent 运维诊断 API。
 
-from collections.abc import Iterator
+正式产品主线是 `/api/v1`（会话 / Run / SSE / 审批）。旧的 `/diagnose`
+（曾按参数回吐模型思考链）与 `/memory/*` 桩接口已移除：诊断只经由 v1 的
+Run 主脊执行，Trace 只展示安全摘要，不暴露 CoT。
+"""
+
 import logging
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, Response, StreamingResponse
-from pydantic import ValidationError
+from fastapi.responses import JSONResponse
 
-from src.api.events import (
-    DiagnosisCompleteEvent,
-    DiagnosisErrorEvent,
-    DiagnosisProgressEvent,
-    serialize_sse,
-)
-from src.api.schemas import (
-    DiagnoseRequest,
-    DiagnoseResponse,
-    ErrorDetail,
-    ErrorResponse,
-    HealthResponse,
-    MemoryResponse,
-    RootResponse,
-    StreamQuery,
-    TraceEvent,
-)
+from src.api.schemas import ErrorDetail, ErrorResponse, HealthResponse, RootResponse
 from src.api.v1.dependencies import build_v1_services
 from src.api.v1.errors import ApiV1Error
 from src.api.v1.routes import router as v1_router
@@ -37,18 +24,15 @@ from src.core.bootstrap import build_coordinator, build_llm
 LOGGER = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="OperMind — 多智能体运维诊断系统",
-    description="输入运维问题，AI Agent 自动诊断并给出优化建议",
+    title="OperMind — 会话式多 Agent 运维诊断系统",
+    description="在会话中提出运维问题，多 Agent 协作调查并给出安全结论",
     version="1.1.0",
 )
 
-# 系统装配保持单例；测试可替换该变量与 v1_services 以隔离外部依赖。
 # 共享 LLM 客户端（多 Run 间无可变状态，可安全复用）。
 _shared_llm = build_llm()
 # v1 正式路径：每 Run 现造一套内核，隔离并发 Agent 状态。
 app.state.v1_services = build_v1_services(lambda: build_coordinator(_shared_llm))
-# 旧 /diagnose 直调入口暂留单例（P1-3 迁移后删除）。
-coordinator = build_coordinator(_shared_llm)
 
 
 @app.middleware("http")
@@ -81,7 +65,7 @@ async def v1_request_id_middleware(request: Request, call_next):
 
 @app.exception_handler(ApiV1Error)
 async def api_v1_error_handler(request: Request, exc: ApiV1Error) -> JSONResponse:
-    """将 v1 协议异常转换为 P0.3 安全错误包络。"""
+    """将 v1 协议异常转换为安全错误包络。"""
     meta = _v1_response_meta(request)
     envelope = ErrorEnvelope(error=V1ApiError(code=exc.code, message=exc.message), meta=meta)
     headers = {"X-Request-Id": str(meta.request_id)}
@@ -122,7 +106,7 @@ async def request_validation_error_handler(
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
-    """保留阶段一业务 HTTP 异常输出；v1 使用安全包络。"""
+    """v1 使用安全包络，其余路径输出通用错误体。"""
     message = exc.detail if isinstance(exc.detail, str) else "请求处理失败"
     if request.url.path.startswith("/api/v1"):
         meta = _v1_response_meta(request)
@@ -183,50 +167,9 @@ def _validation_details(errors: list[dict[str, object]]) -> list[ErrorDetail]:
     ]
 
 
-def _extract_strategy(trace: list[TraceEvent]) -> str:
-    """从编排 trace 中提取最终生效的路由策略。"""
-    for event in trace:
-        if event.node != "route":
-            continue
-        for strategy in ("direct", "chain", "parallel"):
-            if strategy in event.detail:
-                return strategy
-    return ""
-
-
 def _service_mode() -> str:
     """返回安全的运行模式标识，不泄露 API Key。"""
-    llm = getattr(coordinator, "llm", None)
-    client = getattr(llm, "client", None)
-    return "mock" if getattr(client, "api_key", None) == "mock" else "real"
-
-
-def _diagnosis_sse_stream(query: str) -> Iterator[str]:
-    """将 Coordinator 的流式编排结果转换为 SSE 帧，并保障异常有标准结束事件。"""
-    try:
-        for item in coordinator.route_stream(query):
-            kind = item["kind"]
-            if kind == "trace":
-                payload = DiagnosisProgressEvent.model_validate(item["event"])
-                yield serialize_sse("progress", payload)
-            elif kind == "complete":
-                trace = [TraceEvent.model_validate(event) for event in item["trace"]]
-                payload = DiagnosisCompleteEvent(
-                    result=item["result"],
-                    strategy=item["strategy"],
-                    trace=trace,
-                )
-                yield serialize_sse("complete", payload)
-            elif kind == "error":
-                payload = DiagnosisErrorEvent(code=item["code"], message=item["message"])
-                yield serialize_sse("error", payload)
-    except (KeyError, TypeError, ValidationError):
-        LOGGER.exception("SSE 事件序列化失败")
-        payload = DiagnosisErrorEvent(
-            code="STREAM_SERIALIZATION_FAILED",
-            message="诊断流事件处理失败，请稍后重试",
-        )
-        yield serialize_sse("error", payload)
+    return "mock" if getattr(_shared_llm, "client", None) and getattr(_shared_llm.client, "api_key", None) == "mock" else "real"
 
 
 @app.get("/", response_model=RootResponse)
@@ -235,13 +178,10 @@ def root() -> RootResponse:
     return RootResponse(
         name="OperMind",
         version="1.1.0",
-        description="多智能体运维诊断协作系统",
+        description="会话式多 Agent 运维诊断协作系统",
         endpoints={
-            "POST /diagnose": "同步诊断问题",
-            "GET /diagnose/stream": "SSE 流式诊断",
             "GET /health": "健康检查",
-            "GET /memory/stats": "记忆统计",
-            "POST /memory/clear": "清空记忆",
+            "/api/v1": "正式产品 API（会话 / Run / SSE / 审批）",
         },
     )
 
@@ -249,70 +189,11 @@ def root() -> RootResponse:
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     """返回可用于前端状态栏的非敏感服务状态。"""
-    llm = getattr(coordinator, "llm", None)
     return HealthResponse(
         status="ok",
         mode=_service_mode(),
-        model=getattr(llm, "model", "unknown"),
+        model=getattr(_shared_llm, "model", "unknown"),
     )
-
-
-@app.post(
-    "/diagnose",
-    response_model=DiagnoseResponse,
-    responses={422: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
-)
-def diagnose(request: DiagnoseRequest) -> DiagnoseResponse:
-    """执行同步诊断；默认仅返回最终报告以控制响应体大小。"""
-    result = coordinator.route(request.query)
-    trace = [TraceEvent.model_validate(event) for event in coordinator.get_trace()]
-    thinking = coordinator.get_thinking() if request.show_thinking else None
-    return DiagnoseResponse(
-        result=result,
-        thinking=thinking,
-        trace=trace if request.show_thinking else None,
-        strategy=_extract_strategy(trace),
-    )
-
-
-@app.get(
-    "/diagnose/stream",
-    response_model=None,
-    responses={422: {"model": ErrorResponse}},
-)
-def diagnose_stream(query: str) -> Response:
-    """以 SSE 增量推送路由、Agent 与质量保障节点事件。"""
-    try:
-        validated = StreamQuery(query=query)
-    except ValidationError as exc:
-        response = ErrorResponse(
-            code="VALIDATION_ERROR",
-            message="请求参数不合法",
-            details=_validation_details(exc.errors()),
-        )
-        return JSONResponse(status_code=422, content=response.model_dump(mode="json"))
-
-    return StreamingResponse(
-        _diagnosis_sse_stream(validated.query),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
-
-
-@app.get("/memory/stats", response_model=MemoryResponse)
-def memory_stats() -> MemoryResponse:
-    """保留旧接口，避免在前端切换期间破坏已有调用。"""
-    return MemoryResponse(message="记忆系统统计接口待完善")
-
-
-@app.post("/memory/clear", response_model=MemoryResponse)
-def clear_memory() -> MemoryResponse:
-    """保留旧接口，避免把未实现的清理动作伪装为成功。"""
-    raise HTTPException(status_code=501, detail="记忆清理接口尚未实现")
 
 
 app.include_router(v1_router)

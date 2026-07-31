@@ -305,8 +305,9 @@ def test_p2_refresh恢复成功Run消息结果事件与终态SSE(recovery_api: _
         paths = openapi.json()["paths"]
         assert "get" in paths["/api/v1/sessions/{session_id}/runs"]
         assert "post" in paths["/api/v1/sessions/{session_id}/runs"]
-        assert "post" in paths["/diagnose"]
-        assert "get" in paths["/diagnose/stream"]
+        # 旧 /diagnose CoT 接口已移除，不应再出现在公开契约中。
+        assert "/diagnose" not in paths
+        assert "/diagnose/stream" not in paths
         schema = paths["/api/v1/sessions/{session_id}/runs"]["get"]["responses"]["200"]["content"][
             "application/json"
         ]["schema"]
