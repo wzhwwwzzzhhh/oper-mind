@@ -773,7 +773,7 @@ export function WorkbenchPage(): ReactElement {
       <div className="page-eyebrow">OPERATIONS COPILOT</div>
       <Typography.Title id="workbench-title" level={2}>我的会话</Typography.Title>
       <Typography.Paragraph className="page-description">
-        从已保存会话恢复受控运维调查。当前产品先支持订单慢查询的只读排查，不伪造监控、修复或普通聊天能力。
+        在会话中提出运维问题，由多 Agent 协作调查并给出结论与安全 Trace。受控工具与真实服务接入仍在逐步接入，未启用的能力会如实标注。
       </Typography.Paragraph>
       <SessionNavigator />
     </section>

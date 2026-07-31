@@ -56,7 +56,7 @@ function ProductShell(): ReactElement {
           </button>
           <div>
             <Typography.Text strong>DevOps Copilot</Typography.Text>
-            <Typography.Text className="header-context">P4.3 · 服务中心与受控调查入口</Typography.Text>
+            <Typography.Text className="header-context">会话式多 Agent 运维诊断</Typography.Text>
           </div>
         </Header>
         <Content className="product-content">
@@ -66,15 +66,15 @@ function ProductShell(): ReactElement {
               <div className="rail-kicker">PRODUCT BOUNDARY</div>
               <Typography.Title id="context-title" level={4}>当前边界</Typography.Title>
               <Typography.Paragraph>
-                先在服务中心确认静态服务和当前有限快照，再进入会话完成证据化调查；过程只展示安全摘要。
+                在会话中提出运维问题，由多 Agent 协作调查并给出结论与安全 Trace；过程只展示安全摘要，不展示模型思维链。
               </Typography.Paragraph>
               <Typography.Paragraph type="secondary">
-                当前只支持订单慢查询受控靶场。固定修复必须经过提案、人工审批、白名单执行与 Verify；不展示模型思维链。
+                受控工具、真实服务接入与监控仍在逐步接入；未接入的能力会如实标注。高风险动作必须经过提案、人工审批、白名单执行与验证。
               </Typography.Paragraph>
-              <div className="honest-status" aria-label="阶段能力状态">
-                <span className="context-status">服务中心与有限快照：P4.3</span>
-                <span className="context-status">DB / 日志 / 服务证据：P4.1</span>
-                <span className="context-status">审批、固定执行与验证：P4.2</span>
+              <div className="honest-status" aria-label="能力状态">
+                <span className="context-status">会话与多 Agent 内核：已接通</span>
+                <span className="context-status">受控工具与真实证据：接入中</span>
+                <span className="context-status">服务接入 / 监控 / 动作闭环：未启用</span>
               </div>
             </aside>
           </div>

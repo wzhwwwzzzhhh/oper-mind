@@ -122,7 +122,7 @@ describe('App', () => {
 
     expect(screen.getByRole('heading', { name: '我的会话' })).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: /Nginx 5xx 排查/ })).toBeInTheDocument()
-    expect(screen.getByText('服务中心与有限快照：P4.3')).toBeInTheDocument()
+    expect(screen.getByText('会话与多 Agent 内核：已接通')).toBeInTheDocument()
   })
 
   it('新建会话按钮 POST /sessions 并进入新会话', async () => {
