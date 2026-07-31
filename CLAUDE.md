@@ -1,42 +1,36 @@
-# OperMind — 多 Agent DevOps Copilot
+# OperMind — 会话式多 Agent DevOps Copilot
 
-OperMind 是面向研发与运维人员的**会话式多 Agent DevOps Copilot**。它在受控、可复现、与应用元数据隔离的靶场中协调 DB、Log、Server 调查角色，完成证据化判断；危险修复必须经过提案、人工审批、白名单执行和验证闭环。多 Agent、SSE、Trace、记忆和评测都是产品能力或技术资产，不是脱离产品的独立目标。
+OperMind 是面向研发与运维人员的正式 Web 产品：用户在类似 DeepSeek 的会话系统中提问、追问和下达受控指令；系统结合已接入服务、监控事实、受控 Tool 和多 Agent 协作完成调查、提案、人工审批、白名单执行与验证。
 
-## 当前产品与唯一主线
+## 当前产品事实源
 
-- 总进度和唯一下一步：`docs/开发/_A-Plan-总览.md`。
-- 当前产品蓝图：`docs/开发/治理-DevOps-Copilot-MVP重定位/product-blueprint.md`。
-- 秋招 MVP 只做一个问题：订单服务缺失 `orders(user_id, created_at)` 索引导致慢查询。先完成“会话提问 → 只读证据 → 根因 → 审批/执行/Verify → 服务页留痕”的骨架，再增加问题、服务或知识库复杂度。
-- P4.0 Work 1、P4.1、P4.2 与 P4.3 均已在用户授权靶场真实 smoke 通过。P4.3 已交付服务中心、有限快照、服务上下文会话和安全活动留痕；其真实 smoke 在 2026-07-31 通过并执行 finally clean。凭据仍只允许来自当前进程环境，缺凭据必须 fail-closed，不能改用 mock 冒充。
-- 已删除旧教程、旧阶段计划和过时产品路线，避免它们成为错误上下文。需要继承的历史代码/测试事实只读 `docs/开发/历史技术基线.md`、当前代码和测试；Git 历史只供追溯。
+- 产品定义：`docs/产品定义.md`
+- 当前路线图：`docs/路线图.md`
+- 开发规则：`docs/开发规范.md`
+- 这三份文档是唯一当前文档来源。旧工作包、靶场、验收、Review、Handoff 和历史路线已从工作区删除，不得从 Git 历史恢复为当前需求或规则。
+- 现有代码是技术资产，不自动决定正式产品边界。当前已有 PostgreSQL 慢查询闭环只是第一个技术切片，不是产品只能支持的服务或故障范围。
 
-## 目录与职责
+## 产品方向
 
-```text
-backend/       FastAPI、应用服务、领域、持久化、Agent/Tool、测试和脚本
-frontend/      主产品：会话、调查、证据、提案、审批、执行、验证、服务页
-report/        研发、Trace 与评测控制台；保留，不是主产品前端
-demo/          受控演示靶场
-knowledge/     后续 P5.0 的受控 Markdown 知识目录（尚未实现前不得伪装可用）
-config/ data/ experiments/  配置、确定性 mock、研发/毕业设计资产
-```
+- 会话工作台是主入口；服务中心负责服务接入、服务状态、监控和调查入口。
+- 产品目标支持 PostgreSQL、MySQL、Redis 等服务，但新增服务类型、连接方式、监控、凭据、权限和动作都必须先完成独立 Design → Review → 用户确认。
+- 多 Agent、Trace、记忆、MCP、RAG 和评测都是服务产品能力的技术手段，不是脱离产品的独立目标。
+- Trace UI 只展示简要审计事实、状态和结构化证据摘要；禁止展示 CoT、Prompt、原始敏感数据、异常详情或凭据。
 
-## P4 靶场硬边界
+## 安全硬规则
 
-- 唯一可操作目标：用户授权本地隧道 `127.0.0.1:5433` → `opermind_demo` → `opermind_demo.orders`，仅允许预定义索引 `idx_orders_user_created` 的受控动作。
-- 绝不连接、读取、写入、列举或清理 `gongkar` 或任何其他数据库、schema、表、端口。
-- 连接参数只来自当前进程环境；代码 fail-closed 校验目标。凭证不能写入仓库、文档、日志、事件、结果、截图或 Git。
-- 应用元数据与诊断靶场隔离；`clean` 只能删除专用 schema 与项目运行时文件，不能删除数据库。
+- 模型不得直接拥有任意 SQL、Shell、DDL、DML 或网络访问能力；只允许显式注册、受控、参数校验、限时和脱敏的 Tool / Connector。
+- 前端不得直连任何用户服务。外部服务访问只能由后端 Connector / Tool 在授权服务边界内执行。
+- 凭据只能来自当前进程环境或经过 Design 批准的安全密钥引用；不得进入仓库、文档、日志、Trace、事件、结果、截图或 Git。
+- 默认调查只读。高风险动作必须经过服务器提案、人工审批、严格白名单执行和独立 Verify；禁止自动批准、通用执行器和聊天文本直接执行。
+- 未经用户明确授权，不连接、探测、读取、写入或清理任何真实外部资源。
 
-## 开发规则
+## 工程规则
 
-> `AGENTS.md` 与 `CLAUDE.md` 必须逐字一致。完整规则：`docs/开发/开发规范.md`。
+> `AGENTS.md` 与 `CLAUDE.md` 必须逐字一致。
 
-- 中文注释/文档/日志；公开函数有类型标注；跨层结构化数据用 Pydantic/TypedDict；禁止裸 `except` 和新增生产 `print`。
-- LLM Agent 继承 `BaseAgent` 并复用 ReAct `run()`；Tool 继承 `Tool` 并实现 `execute`；确定性只读 Collector 必须经显式 Application port/Executor 注入并返回 Pydantic 事实，不能伪装为可自由调用的 Agent。Graph 使用显式 `DiagnosisState`。
-- 每个外部依赖有确定性 mock fallback。诊断适配器默认只读、参数化、限时、脱敏；禁止模型任意 SQL/Shell/DDL/DML，禁止真实生产资源。
-- 只有独立受控执行器才能在用户授权隔离靶场、人工审批、严格 action 白名单同时满足时执行预定义动作；不得扩展 P4.2 之外的写入动作。
-- 过程 UI 只展示审计摘要、状态和结构化证据，不展示 CoT、Prompt、原始敏感数据、异常详情或凭证；未实现能力必须显式未启用。
-- 知识库首版只能是允许目录内的 Markdown + 程序全文检索；模型不能调用任意 grep/Shell，文件上传、向量库、RAG、知识图谱、用户 API Key 都需独立工作包设计。
-- 一个工作包可包含 1–3 个紧密切片，完成时集中 Test → Review → Commit。架构、公开契约、迁移、真实数据源、审批/执行安全、破坏性改动必须先 Design → Review → 用户授权。
-- 不直推 `main`；commit 使用 `<类型>: <中文描述>`；只暂存指定文件，禁止无检查的 `git add .`；不得提交 `.env`、`*.local.yaml`、凭证或含 `sk-` 的文件。
+- 中文注释、文档和用户可见日志；公开函数有类型标注；跨层数据用 Pydantic/TypedDict；禁止裸 `except` 和新增生产 `print`。
+- LLM Agent 继承 `BaseAgent` 并遵守约定运行接口；Tool 继承 `Tool` 并实现受控 `execute`；确定性 Connector/Collector 必须通过显式 Application port/Executor 注入并返回结构化事实。
+- 架构、公开 API、迁移、Connector、真实连接、凭据、监控、权限、审批/执行安全和破坏性改动必须先 Design → Review → 用户确认。
+- 一个工作包可包含 1–3 个紧密切片，完成时集中 Test → Review → Commit。
+- 不直推 `main`；commit 使用 `<类型>: <中文描述>`；只暂存指定文件，禁止无检查的 `git add .`；不得提交 `.env`、`*.local.yaml`、凭据或含 `sk-` 的文件。
