@@ -5,6 +5,7 @@ import {
   Card,
   Collapse,
   Empty,
+  Input,
   Skeleton,
   Space,
   Tag,
@@ -23,7 +24,13 @@ import {
   type MessageListResponse,
   type SessionResponse,
 } from '../../api/v1/client'
-import { api_v1_query_keys, create_run_mutation, get_session_query, list_run_events_query } from '../../api/v1/queries'
+import {
+  api_v1_query_keys,
+  create_run_mutation,
+  create_session_mutation,
+  get_session_query,
+  list_run_events_query,
+} from '../../api/v1/queries'
 import {
   investigation_status_color,
   investigation_status_text,
@@ -154,6 +161,24 @@ function LoadMoreButton({
 
 function SessionNavigator(): ReactElement {
   const navigate = useNavigate()
+  const query_client = useQueryClient()
+  const [new_title, set_new_title] = useState('')
+  const create_session = useMutation({
+    ...create_session_mutation(),
+    onSuccess: async (response) => {
+      const created = read_record(response.data.session)
+      const created_id = resource_optional_string(created, 'id')
+      if (!created_id) return
+      await query_client.invalidateQueries({ queryKey: ['api-v1', 'sessions'] })
+      set_new_title('')
+      navigate(`/workbench/sessions/${encodeURIComponent(created_id)}`)
+    },
+  })
+  const submit_new_session = (): void => {
+    const title = new_title.trim()
+    if (!title || create_session.isPending) return
+    create_session.mutate({ title })
+  }
   const sessions_query = useInfiniteQuery({
     queryKey: api_v1_query_keys.sessions({ limit: API_V1_DEFAULT_PAGE_SIZE, status: 'active' }),
     initialPageParam: undefined as string | undefined,
@@ -175,8 +200,27 @@ function SessionNavigator(): ReactElement {
   return (
     <Card className="session-navigator" size="small" title="你的会话">
       <Typography.Paragraph type="secondary">
-        会话会保存问题、调查过程和后续答复。进入 active 会话可发起调查；新建会话与普通聊天仍在后续切片。
+        会话会保存问题、调查过程和后续答复。新建一个会话即可进入并发起调查。
       </Typography.Paragraph>
+      <Space.Compact className="new-session-form" style={{ width: '100%' }}>
+        <Input
+          aria-label="新会话标题"
+          maxLength={200}
+          onChange={(event) => set_new_title(event.target.value)}
+          onPressEnter={submit_new_session}
+          placeholder="给新会话起个名字，例如：订单服务排查"
+          value={new_title}
+        />
+        <Button
+          disabled={!new_title.trim()}
+          loading={create_session.isPending}
+          onClick={submit_new_session}
+          type="primary"
+        >
+          新建会话
+        </Button>
+      </Space.Compact>
+      {create_session.isError && <ApiErrorNotice error={create_session.error} />}
       {sessions_query.isPending && <LoadingBlock label="正在恢复会话列表" />}
       {sessions_query.isError && <ApiErrorNotice error={sessions_query.error} />}
       {sessions_query.isSuccess && sessions.length === 0 && (

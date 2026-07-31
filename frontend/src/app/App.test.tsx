@@ -125,6 +125,38 @@ describe('App', () => {
     expect(screen.getByText('服务中心与有限快照：P4.3')).toBeInTheDocument()
   })
 
+  it('新建会话按钮 POST /sessions 并进入新会话', async () => {
+    const session_id = api_v1_contract_fixtures.session_id
+    let create_body: unknown
+    server.use(
+      http.post(/\/api\/v1\/sessions$/, async ({ request }) => {
+        create_body = await request.json()
+        return response(request, {
+          session: {
+            id: session_id,
+            title: '订单服务排查',
+            status: 'active',
+            service_id: null,
+            created_at: '2026-07-28T09:00:00.000Z',
+            updated_at: '2026-07-28T09:00:00.000Z',
+            archived_at: null,
+          },
+        }, 201)
+      }),
+    )
+    use_conversation_handlers(conversation_resources({ include_output: false, run_status: 'queued' }))
+    render(<App />)
+
+    const input = await screen.findByLabelText('新会话标题')
+    fireEvent.change(input, { target: { value: '订单服务排查' } })
+    fireEvent.click(screen.getByRole('button', { name: '新建会话' }))
+
+    await waitFor(() => expect(create_body).toEqual({ title: '订单服务排查' }))
+    await waitFor(() =>
+      expect(request_paths).toContain(`/api/v1/sessions/${session_id}`),
+    )
+  })
+
   it('按 Session、Runs、Message 的顺序恢复只读 Conversation Turn', async () => {
     use_conversation_handlers(conversation_resources())
     open_path(`/workbench/sessions/${api_v1_contract_fixtures.session_id}`)

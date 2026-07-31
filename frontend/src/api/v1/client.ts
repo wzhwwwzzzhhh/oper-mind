@@ -7,6 +7,7 @@ export type MessageResource = components['schemas']['MessageResource']
 export type DiagnosisRunResource = components['schemas']['DiagnosisRunResource']
 export type DiagnosisResultResource = components['schemas']['DiagnosisResultResource']
 export type SessionResponse = components['schemas']['SessionResponse']
+export type CreateSessionRequest = components['schemas']['CreateSessionRequest']
 export type SessionListResponse = components['schemas']['SessionListResponse']
 export type MessageListResponse = components['schemas']['MessageListResponse']
 export type DiagnosisRunListResponse = components['schemas']['DiagnosisRunListResponse']
@@ -126,6 +127,10 @@ export interface ApiV1Client {
   ): Promise<ApiResponse<ServiceActivityListResponse>>
   create_service_session(
     service_id: string,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<SessionResponse>>
+  create_session(
+    payload: CreateSessionRequest,
     options?: ApiRequestOptions,
   ): Promise<ApiResponse<SessionResponse>>
   list_sessions(
@@ -388,6 +393,15 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
         `/api/v1/services/${encodeURIComponent(service_id)}/sessions`,
         request_options,
         { method: 'POST' },
+      ),
+    create_session: (payload, request_options) =>
+      request_json<SessionResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        '/api/v1/sessions',
+        request_options,
+        { body: payload, method: 'POST' },
       ),
     list_sessions: (query = {}, request_options) =>
       request_json<SessionListResponse>(

@@ -8,6 +8,7 @@ import {
   type ListRunEventsQuery,
   type CreateRunOptions,
   type CreateRunRequest,
+  type CreateSessionRequest,
   type ListSessionsQuery,
   type ListServiceActivitiesQuery,
 } from './client'
@@ -113,6 +114,17 @@ export function create_run_mutation() {
         { query },
         { idempotency_key } satisfies CreateRunOptions,
       ),
+  })
+}
+
+export interface CreateSessionMutationVariables {
+  title: CreateSessionRequest['title']
+}
+
+export function create_session_mutation() {
+  return mutationOptions({
+    mutationFn: ({ title }: CreateSessionMutationVariables) =>
+      api_v1_client.create_session({ title }),
   })
 }
 
