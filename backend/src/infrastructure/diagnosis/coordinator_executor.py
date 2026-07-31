@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import datetime, timezone
 from typing import Any
 
@@ -17,14 +17,19 @@ from src.domain.diagnosis import RunEventType
 
 
 class CoordinatorDiagnosisExecutor(DiagnosisExecutor):
-    """将阶段一 Coordinator 流转为不包含原始 detail 的应用执行端口。"""
+    """将多 Agent 内核流转为不包含原始 detail 的应用执行端口。
 
-    def __init__(self, coordinator: CoordinatorAgent) -> None:
-        self._coordinator = coordinator
+    每次 stream 通过工厂现造一套内核，使并发 Run 之间的 Agent 状态互相隔离；
+    不复用单例，避免 short_term/thinking 等实例级可变状态跨 Run 相互踩踏。
+    """
+
+    def __init__(self, coordinator_factory: Callable[[], CoordinatorAgent]) -> None:
+        self._coordinator_factory = coordinator_factory
 
     def stream(self, query: str) -> Iterator[DiagnosisExecutionEvent | DiagnosisExecutionResult]:
-        """转发受控事件，并将阶段一错误转换为安全应用错误。"""
-        for item in self._coordinator.route_stream(query):
+        """转发受控事件，并将执行错误转换为安全应用错误。"""
+        coordinator = self._coordinator_factory()
+        for item in coordinator.route_stream(query):
             kind = item["kind"]
             if kind == "trace":
                 event = item["event"]

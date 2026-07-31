@@ -26,7 +26,7 @@ class FakeCoordinator:
 def test_coordinator适配清空trace_detail但透传报告正文() -> None:
     """Adapter 清空 trace 原始 detail/CoT，但把最终报告作为用户答复透传。"""
     executor = CoordinatorDiagnosisExecutor(
-        FakeCoordinator(
+        lambda: FakeCoordinator(
             [
                 {
                     "kind": "trace",
@@ -60,10 +60,29 @@ def test_coordinator适配清空trace_detail但透传报告正文() -> None:
     assert items[1].report == "# 诊断报告\n初步判断为连接池耗尽。"
 
 
+def test_coordinator适配每次stream都现造独立内核() -> None:
+    """并发隔离：每次 stream 都通过工厂新造内核，不复用同一实例。"""
+    created: list[FakeCoordinator] = []
+
+    def factory() -> FakeCoordinator:
+        coordinator = FakeCoordinator(
+            [{"kind": "complete", "result": "报告", "strategy": "direct", "trace": []}]
+        )
+        created.append(coordinator)
+        return coordinator
+
+    executor = CoordinatorDiagnosisExecutor(factory)
+    list(executor.stream("检查安全适配"))
+    list(executor.stream("检查安全适配"))
+
+    assert len(created) == 2
+    assert created[0] is not created[1]
+
+
 def test_coordinator适配将阶段一错误映射为安全执行错误() -> None:
     """阶段一 error item 只能作为安全执行错误向 Application Service 抛出。"""
     executor = CoordinatorDiagnosisExecutor(
-        FakeCoordinator(
+        lambda: FakeCoordinator(
             [{"kind": "error", "code": "DIAGNOSIS_FAILED", "message": "诊断执行失败，请稍后重试"}]
         )
     )

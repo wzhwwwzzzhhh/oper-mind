@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from fastapi import Request
@@ -32,18 +33,24 @@ class V1Services:
     service_center: ServiceCenterApplicationService | None = None
 
 
-def build_v1_services(coordinator: object) -> V1Services:
-    """装配默认持久化 Runtime 与多 Agent 内核诊断执行。"""
+def build_v1_services(coordinator_factory: Callable[[], object]) -> V1Services:
+    """装配默认持久化 Runtime 与多 Agent 内核诊断执行。
+
+    coordinator_factory 每 Run 现造一套内核，隔离并发 Run 的 Agent 状态。
+    """
     persistence_settings = load_persistence_settings()
     runtime = create_persistence_runtime(persistence_settings.database_url)
-    return build_v1_services_for_runtime(runtime, coordinator)
+    return build_v1_services_for_runtime(runtime, coordinator_factory)
 
 
-def build_v1_services_for_runtime(runtime: PersistenceRuntime, coordinator: object) -> V1Services:
+def build_v1_services_for_runtime(
+    runtime: PersistenceRuntime,
+    coordinator_factory: Callable[[], object],
+) -> V1Services:
     """用给定 Runtime 构造服务，供临时库测试安全替换。
 
-    诊断执行固定使用多 Agent 内核；结果采用保守组装器，不从 Markdown 或
-    Trace 反推事实。审批执行器与服务注册表当前为空骨架。
+    诊断执行固定使用多 Agent 内核（每 Run 现造）；结果用 KernelReportResultAssembler，
+    报告作答复、结构化字段保守留空。审批执行器与服务注册表当前为空骨架。
     """
     session_factory = runtime.session_factory
     action_service = ActionApplicationService(session_factory, executor=None)
@@ -52,7 +59,7 @@ def build_v1_services_for_runtime(runtime: PersistenceRuntime, coordinator: obje
         session_service=SessionApplicationService(session_factory),
         run_service=RunApplicationService(
             session_factory,
-            CoordinatorDiagnosisExecutor(coordinator),
+            CoordinatorDiagnosisExecutor(coordinator_factory),
             KernelReportResultAssembler(),
             action_service=action_service,
             action_mode=None,

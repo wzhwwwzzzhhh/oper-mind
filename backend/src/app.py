@@ -31,7 +31,7 @@ from src.api.v1.errors import ApiV1Error
 from src.api.v1.routes import router as v1_router
 from src.api.v1.schemas import ApiError as V1ApiError
 from src.api.v1.schemas import ErrorEnvelope, FieldIssue, ResponseMeta
-from src.core.bootstrap import build_system
+from src.core.bootstrap import build_coordinator, build_llm
 
 
 LOGGER = logging.getLogger(__name__)
@@ -43,8 +43,12 @@ app = FastAPI(
 )
 
 # 系统装配保持单例；测试可替换该变量与 v1_services 以隔离外部依赖。
-coordinator = build_system()
-app.state.v1_services = build_v1_services(coordinator)
+# 共享 LLM 客户端（多 Run 间无可变状态，可安全复用）。
+_shared_llm = build_llm()
+# v1 正式路径：每 Run 现造一套内核，隔离并发 Agent 状态。
+app.state.v1_services = build_v1_services(lambda: build_coordinator(_shared_llm))
+# 旧 /diagnose 直调入口暂留单例（P1-3 迁移后删除）。
+coordinator = build_coordinator(_shared_llm)
 
 
 @app.middleware("http")
