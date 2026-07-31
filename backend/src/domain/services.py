@@ -173,8 +173,8 @@ class ServiceRegistry:
     def __init__(self, connectors: tuple[ServiceConnector, ...]) -> None:
         definitions = tuple(connector.definition() for connector in connectors)
         ids = [definition.id for definition in definitions]
-        if not connectors or len(set(ids)) != len(ids):
-            raise ValueError("服务注册表必须包含唯一静态服务。")
+        if len(set(ids)) != len(ids):
+            raise ValueError("服务注册表中的静态服务标识必须唯一。")
         self._connectors = {connector.definition().id: connector for connector in connectors}
 
     def list_connectors(self) -> tuple[ServiceConnector, ...]:

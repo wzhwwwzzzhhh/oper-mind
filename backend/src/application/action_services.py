@@ -19,6 +19,12 @@ from src.application.errors import (
     ActionProposalNotFoundError,
     IdempotencyKeyReusedError,
 )
+from src.application.action_execution import (
+    ActionPreconditionBlockedError,
+    ActionVerificationFailedError,
+    ControlledActionError,
+    ControlledActionExecutor,
+)
 from src.domain.actions import (
     ActionEventCursor,
     ACTION_APPROVAL_ENDPOINT,
@@ -37,16 +43,9 @@ from src.domain.actions import (
     ActionProposalStatus,
     ActionVerificationData,
     ActionVerificationStatus,
-    build_orders_index_repair_proposal,
 )
 from src.domain.diagnosis import RunStatus
 from src.domain.records import DiagnosisResultData, DiagnosisRunData, RepositoryPage
-from src.infrastructure.diagnosis.demo_orders.action_executor import (
-    ActionPreconditionBlockedError,
-    ActionVerificationFailedError,
-    ControlledActionError,
-    OrdersIndexRepairExecutor,
-)
 from src.infrastructure.persistence.action_repositories import (
     SqlAlchemyActionApprovalRepository,
     SqlAlchemyActionEventRepository,
@@ -104,7 +103,7 @@ class AcceptedActionExecution(BaseModel):
 class ActionApplicationService:
     """P4.2 固定动作的审批、异步执行、Verify 和读取用例。"""
 
-    def __init__(self, session_factory: SessionFactory, executor: OrdersIndexRepairExecutor | None) -> None:
+    def __init__(self, session_factory: SessionFactory, executor: ControlledActionExecutor | None) -> None:
         self._session_factory = session_factory
         self._executor = executor
 
@@ -115,29 +114,13 @@ class ActionApplicationService:
         result: DiagnosisResultData,
         mode: Literal["mock", "target"] | None,
     ) -> ActionProposalData | None:
-        """与成功 Result 同事务生成 Proposal，避免建议与执行权漂移。"""
-        if mode is None or run.status is not RunStatus.SUCCEEDED or result.run_id != run.id:
-            return None
-        proposal = build_orders_index_repair_proposal(result, mode)
-        if proposal is None:
-            return None
-        repository = SqlAlchemyActionProposalRepository(session)
-        if repository.get_by_source_run_id(result.run_id) is not None:
-            return None
-        repository.add(proposal)
-        session.flush()
-        self._append_event_in_transaction(
-            session,
-            proposal.id,
-            ActionEventType.PROPOSAL_CREATED,
-            {
-                "action_id": proposal.action_id,
-                "status": proposal.status.value,
-                "mode": proposal.mode,
-                "summary": "已根据已确认的订单慢查询证据生成固定修复提案。",
-            },
-        )
-        return proposal
+        """与成功 Result 同事务生成 Proposal，避免建议与执行权漂移。
+
+        当前尚无已注册的具体动作模板，因此始终不生成提案；审批闭环骨架
+        保留待用。后续按服务类型和动作模板完成 Design/Review/用户确认后，
+        在此依据结构化 Result 生成对应的受控提案。
+        """
+        return None
 
     def get_by_run(self, run_id: UUID) -> ActionProposalDetail | None:
         """按来源 Run 读取提案快照；无提案并非错误。"""
@@ -735,7 +718,7 @@ def _safe_action_event_data(data: dict[str, object]) -> dict[str, object]:
     """持久化 action 事件时只保留状态、模式、固定动作和简短摘要。"""
     safe: dict[str, object] = {}
     action_id = data.get("action_id")
-    if action_id == "postgres.orders.rebuild_missing_user_created_index.v1":
+    if isinstance(action_id, str) and 0 < len(action_id) <= 120:
         safe["action_id"] = action_id
     status = data.get("status")
     allowed_statuses = {
