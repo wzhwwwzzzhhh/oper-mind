@@ -36,7 +36,10 @@ class CoordinatorDiagnosisExecutor(DiagnosisExecutor):
                         occurred_at=_parse_timestamp(event.get("timestamp")),
                     )
             elif kind == "complete":
-                yield DiagnosisExecutionResult(strategy=_safe_strategy(item.get("strategy")))
+                yield DiagnosisExecutionResult(
+                    strategy=_safe_strategy(item.get("strategy")),
+                    report=_safe_report(item.get("result")),
+                )
             else:
                 raise DiagnosisExecutionError(code=item["code"], message=item["message"])
 
@@ -59,6 +62,20 @@ def _safe_strategy(value: object) -> str | None:
     """限制策略字符串，避免把非结构化执行内容带入持久化。"""
     strategy = str(value).strip()
     return strategy[:80] if strategy else None
+
+
+def _safe_report(value: object) -> str | None:
+    """收敛大脑最终报告为有界的用户可读答复。
+
+    报告是 Report Agent 面向用户的最终结论文本，可安全展示；这里只做类型
+    与长度收敛，不改变内容，也不把它当作结构化事实来源。
+    """
+    if not isinstance(value, str):
+        return None
+    report = value.strip()
+    if not report:
+        return None
+    return report[:8000]
 
 
 def _parse_timestamp(value: object) -> datetime:

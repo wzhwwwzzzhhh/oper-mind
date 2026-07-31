@@ -17,7 +17,7 @@ from src.application.service_center import ServiceCenterApplicationService
 from src.config import load_persistence_settings
 from src.domain.services import ServiceRegistry
 from src.infrastructure.diagnosis.coordinator_executor import CoordinatorDiagnosisExecutor
-from src.infrastructure.diagnosis.result_assembler import ConservativeResultAssembler
+from src.infrastructure.diagnosis.result_assembler import KernelReportResultAssembler
 from src.infrastructure.persistence.database import PersistenceRuntime, SessionFactory, create_persistence_runtime
 
 
@@ -53,7 +53,7 @@ def build_v1_services_for_runtime(runtime: PersistenceRuntime, coordinator: obje
         run_service=RunApplicationService(
             session_factory,
             CoordinatorDiagnosisExecutor(coordinator),
-            ConservativeResultAssembler(),
+            KernelReportResultAssembler(),
             action_service=action_service,
             action_mode=None,
         ),

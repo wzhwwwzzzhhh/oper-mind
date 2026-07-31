@@ -23,8 +23,8 @@ class FakeCoordinator:
         yield from self._items
 
 
-def test_coordinator适配不转存trace_detail或报告正文() -> None:
-    """Adapter 只能输出受控 type/node/time 与有限 strategy。"""
+def test_coordinator适配清空trace_detail但透传报告正文() -> None:
+    """Adapter 清空 trace 原始 detail/CoT，但把最终报告作为用户答复透传。"""
     executor = CoordinatorDiagnosisExecutor(
         FakeCoordinator(
             [
@@ -39,7 +39,7 @@ def test_coordinator适配不转存trace_detail或报告正文() -> None:
                 },
                 {
                     "kind": "complete",
-                    "result": "# 原始 Markdown 报告，不应进入执行结果",
+                    "result": "# 诊断报告\n初步判断为连接池耗尽。",
                     "strategy": "direct",
                     "trace": [],
                 },
@@ -49,12 +49,15 @@ def test_coordinator适配不转存trace_detail或报告正文() -> None:
 
     items = list(executor.stream("检查安全适配"))
 
+    # trace 事件仍只保留受控 type/node/time，原始 detail 不外流
     assert isinstance(items[0], DiagnosisExecutionEvent)
     assert items[0].type == RunEventType.AGENT_DONE
     assert items[0].node == "db"
     assert items[0].data == {}
+    # 最终报告是面向用户的答复，可安全透传作为 summary 来源
     assert isinstance(items[1], DiagnosisExecutionResult)
     assert items[1].strategy == "direct"
+    assert items[1].report == "# 诊断报告\n初步判断为连接池耗尽。"
 
 
 def test_coordinator适配将阶段一错误映射为安全执行错误() -> None:

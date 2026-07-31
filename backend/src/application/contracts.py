@@ -106,6 +106,9 @@ class DiagnosisExecutionResult(BaseModel):
 
     strategy: str | None = None
     evidence_investigation: EvidenceInvestigationResult | None = None
+    # 大脑生成的用户可读报告正文（=助手回答）。它是面向用户的最终答复，
+    # 可安全展示；但不得据此反推 severity/证据等结构化事实。
+    report: str | None = None
 
 
 class DiagnosisExecutionError(Exception):

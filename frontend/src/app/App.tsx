@@ -89,7 +89,7 @@ export function App(): ReactElement {
     <AppProviders>
       <BrowserRouter>
         <Routes>
-          <Route element={<Navigate replace to="/services" />} path="/" />
+          <Route element={<Navigate replace to="/workbench" />} path="/" />
           <Route element={<ProductShell />}>
             <Route path="/services">
               <Route element={<ServiceCenterPage />} index />
@@ -101,7 +101,7 @@ export function App(): ReactElement {
               <Route element={<WorkbenchPage />} path="sessions/:session_id/runs/:run_id" />
             </Route>
           </Route>
-          <Route element={<Navigate replace to="/services" />} path="*" />
+          <Route element={<Navigate replace to="/workbench" />} path="*" />
         </Routes>
       </BrowserRouter>
     </AppProviders>
