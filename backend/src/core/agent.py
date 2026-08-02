@@ -70,7 +70,6 @@ class BaseAgent:
                         result = gw_result.output
                         self._tool_invocations.append(gw_result.record)
                         short_result = result[:100] + "..." if len(result) > 100 else result
-                        print(f"← {short_result}")
                         self.thinking_log.append(f"{step_log} → {short_result}")
 
                         self.short_term.add_message(
