@@ -122,7 +122,7 @@ class RunEventRecord(Base):
         CheckConstraint(
             "type IN ('run_queued', 'run_started', 'route_decided', 'agent_start', "
             "'agent_done', 'conflict_checked', 'debate_round', 'report', 'reflection', "
-            "'run_succeeded', 'run_failed', 'run_cancelled')",
+            "'run_succeeded', 'run_failed', 'run_cancelled', 'tool_invoked')",
             name="run_event_type_valid",
         ),
         UniqueConstraint("run_id", "sequence", name="run_event_sequence_unique"),
