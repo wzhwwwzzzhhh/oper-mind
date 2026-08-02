@@ -458,7 +458,7 @@ def _safe_event_data(event: DiagnosisExecutionEvent) -> dict[str, object]:
     if role in {"db", "log", "server"}:
         data["role"] = role
     status = event.data.get("status")
-    if status in {"running", "completed", "failed", "skipped"}:
+    if status in {"running", "completed", "failed", "skipped", "ok", "rejected", "timeout", "error"}:
         data["status"] = status
     duration_ms = event.data.get("duration_ms")
     if isinstance(duration_ms, int) and not isinstance(duration_ms, bool) and 0 <= duration_ms <= 60_000:

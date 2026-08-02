@@ -93,6 +93,21 @@ def _extract_json(text: str) -> dict | None:
         return None
 
 
+def _tool_traces(agent) -> list[dict]:
+    """把一个 Agent 本次 run 的工具调用审计记录转成 trace 事件字典。"""
+    getter = getattr(agent, "get_tool_invocations", None)
+    records = getter() if callable(getter) else []
+    return [
+        {
+            "node": "tool",
+            "detail": r.detail,
+            "status": r.status,
+            "duration_ms": r.duration_ms,
+        }
+        for r in records
+    ]
+
+
 # ===== 3. 编排图构建 =====
 
 def build_diagnosis_graph(
@@ -165,6 +180,7 @@ def build_diagnosis_graph(
             agent = agents[target]
             result = agent.run(query)
             thinking = agent.get_thinking() if hasattr(agent, "get_thinking") else []
+            trace = trace + _tool_traces(agent)
 
         trace = trace + [{"node": "direct", "detail": f"目标 Agent={target}"}]
         return {
@@ -194,6 +210,7 @@ def build_diagnosis_graph(
             res = agent.run(sub_query)
             results[name] = res
             thinking_map[name] = agent.get_thinking() if hasattr(agent, "get_thinking") else []
+            trace = trace + _tool_traces(agent)
             context += f"\n[{name}] {res[:200]}"
             trace = trace + [{"node": "chain", "detail": f"逐层:{name}"}]
 
@@ -209,13 +226,15 @@ def build_diagnosis_graph(
             agent = agents[name]
             res = agent.run(query)
             think = agent.get_thinking() if hasattr(agent, "get_thinking") else []
-            return name, res, think
+            tools = _tool_traces(agent)   # 线程内取，防止 run 后状态被覆盖
+            return name, res, think, tools
 
         results, thinking_map = {}, {}
         with ThreadPoolExecutor(max_workers=max(1, len(names))) as pool:
-            for name, res, think in pool.map(_run, names):
+            for name, res, think, tools in pool.map(_run, names):
                 results[name] = res
                 thinking_map[name] = think
+                trace = trace + tools
 
         trace = trace + [{"node": "parallel", "detail": f"并发 Agent={names}"}]
         return {"agent_results": results, "agent_thinking": thinking_map, "trace": trace}

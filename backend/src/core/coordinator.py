@@ -4,6 +4,7 @@ from collections.abc import Iterator
 from datetime import datetime, timezone
 import logging
 from typing import Any, Literal, TypedDict, cast
+from typing_extensions import NotRequired
 
 from src.core.graph import build_diagnosis_graph
 from src.core.llm import LLMClient
@@ -19,6 +20,8 @@ class TraceRecord(TypedDict):
     node: str
     detail: str
     timestamp: str
+    status: NotRequired[str]        # 仅 tool_invoked 事件携带
+    duration_ms: NotRequired[int]   # 仅 tool_invoked 事件携带
 
 
 class TraceStreamItem(TypedDict):
@@ -53,6 +56,7 @@ _EVENT_TYPE_BY_NODE = {
     "direct": "agent_done",
     "chain": "agent_done",
     "parallel": "agent_done",
+    "tool": "tool_invoked",
     "conflict_check": "conflict_checked",
     "debate": "debate_round",
     "report": "report",
@@ -127,14 +131,20 @@ class CoordinatorAgent:
         normalized: list[TraceRecord] = []
         for event in raw_trace:
             node = str(event.get("node", "unknown"))
-            normalized.append(
-                {
-                    "type": _EVENT_TYPE_BY_NODE.get(node, "report"),
-                    "node": node,
-                    "detail": str(event.get("detail", "节点已完成")),
-                    "timestamp": str(event.get("timestamp") or self._timestamp()),
-                }
-            )
+            record: TraceRecord = {
+                "type": _EVENT_TYPE_BY_NODE.get(node, "report"),
+                "node": node,
+                "detail": str(event.get("detail", "节点已完成")),
+                "timestamp": str(event.get("timestamp") or self._timestamp()),
+            }
+            if node == "tool":
+                status = event.get("status")
+                if isinstance(status, str):
+                    record["status"] = status
+                duration = event.get("duration_ms")
+                if isinstance(duration, int) and not isinstance(duration, bool):
+                    record["duration_ms"] = duration
+            normalized.append(record)
         return normalized
 
     @staticmethod

@@ -55,6 +55,7 @@ class RunEventType(str, Enum):
     RUN_SUCCEEDED = "run_succeeded"
     RUN_FAILED = "run_failed"
     RUN_CANCELLED = "run_cancelled"
+    TOOL_INVOKED = "tool_invoked"
 
 
 RUN_TERMINAL_STATUSES = frozenset(

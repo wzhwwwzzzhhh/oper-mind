@@ -39,6 +39,7 @@ class CoordinatorDiagnosisExecutor(DiagnosisExecutor):
                         type=event_type,
                         node=_safe_node(event.get("node")),
                         occurred_at=_parse_timestamp(event.get("timestamp")),
+                        data=_event_data(event),
                     )
             elif kind == "complete":
                 yield DiagnosisExecutionResult(
@@ -55,6 +56,23 @@ def _event_type(value: dict[str, Any]) -> RunEventType | None:
         return RunEventType(str(value.get("type", "")))
     except ValueError:
         return None
+
+
+def _event_data(event: dict[str, Any]) -> dict[str, Any]:
+    """仅为工具事件构造安全 data；其余事件保持空 data，维持既有行为。"""
+    if str(event.get("type")) != "tool_invoked":
+        return {}
+    data: dict[str, Any] = {}
+    detail = event.get("detail")
+    if isinstance(detail, str) and detail:
+        data["summary"] = detail[:280]
+    status = event.get("status")
+    if isinstance(status, str):
+        data["status"] = status
+    duration = event.get("duration_ms")
+    if isinstance(duration, int) and not isinstance(duration, bool):
+        data["duration_ms"] = duration
+    return data
 
 
 def _safe_node(value: object) -> str:
