@@ -1,6 +1,7 @@
 """Agent 基类 — 所有领域 Agent 继承此类"""
 
 from src.core.llm import LLMClient
+from src.core.tool_gateway import ToolGateway
 from src.core.tool_registry import ToolRegistry
 from src.memory.short_term import ShortTermMemory
 from src.memory.long_term import LongTermMemory
@@ -28,11 +29,13 @@ class BaseAgent:
         self.long_term = LongTermMemory() if enable_long_term_memory else None
         self.current_query = ""
         self.thinking_log: list[str] = []
+        self._tool_invocations: list = []   # 本次 run 的工具调用审计记录（供上层串入 Trace）
 
     def run(self, user_input: str) -> str:
         """执行 ReAct 循环并返回最终诊断结论。"""
         self.current_query = user_input
         self.thinking_log = []
+        self._tool_invocations = []
 
         # 评测模式禁用长期记忆，保证样例之间互不影响。
         memory_context = self.long_term.format_context(user_input) if self.long_term else ""
@@ -42,53 +45,59 @@ class BaseAgent:
         messages = self.short_term.get_messages_for_llm()
         tool_schemas = self.tools.get_schemas()
 
-        for step in range(self.max_steps):
-            print(f"\n[Step {step + 1}/{self.max_steps}]")
-            response = self.llm.chat(messages, tools=tool_schemas)
+        gateway = ToolGateway(self.tools)
+        try:
+            for step in range(self.max_steps):
+                print(f"\n[Step {step + 1}/{self.max_steps}]")
+                response = self.llm.chat(messages, tools=tool_schemas)
 
-            if "error" in response:
-                return f"LLM 调用失败：{response['error']}"
+                if "error" in response:
+                    return f"LLM 调用失败：{response['error']}"
 
-            self.short_term.add_message(response)
-            messages = self.short_term.get_messages_for_llm()
+                self.short_term.add_message(response)
+                messages = self.short_term.get_messages_for_llm()
 
-            tool_calls = response.get("tool_calls")
-            content = response.get("content")
+                tool_calls = response.get("tool_calls")
+                content = response.get("content")
 
-            if tool_calls:
-                for tc in tool_calls:
-                    func = tc["function"]
-                    step_log = f"Step {step + 1}: 调用 {func['name']}({func['arguments']})"
-                    print(f"→ {step_log}")
+                if tool_calls:
+                    for tc in tool_calls:
+                        func = tc["function"]
+                        step_log = f"Step {step + 1}: 调用 {func['name']}({func['arguments']})"
+                        print(f"→ {step_log}")
 
-                    result = self.tools.execute_tool(func["name"], func["arguments"])
-                    short_result = result[:100] + "..." if len(result) > 100 else result
-                    print(f"← {short_result}")
-                    self.thinking_log.append(f"{step_log} → {short_result}")
+                        gw_result = gateway.invoke(func["name"], func["arguments"])
+                        result = gw_result.output
+                        self._tool_invocations.append(gw_result.record)
+                        short_result = result[:100] + "..." if len(result) > 100 else result
+                        print(f"← {short_result}")
+                        self.thinking_log.append(f"{step_log} → {short_result}")
 
-                    self.short_term.add_message(
-                        {
-                            "role": "tool",
-                            "tool_call_id": tc["id"],
-                            "content": result,
-                        }
-                    )
-                    messages = self.short_term.get_messages_for_llm()
-                continue
+                        self.short_term.add_message(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tc["id"],
+                                "content": result,
+                            }
+                        )
+                        messages = self.short_term.get_messages_for_llm()
+                    continue
 
-            if content:
-                if self.long_term:
-                    self.long_term.add_record(
-                        query=self.current_query,
-                        diagnosis=content[:200],
-                        tags=self._extract_tags(content),
-                    )
-                self.thinking_log.append(f"最终回答: {content[:100]}...")
-                return content
+                if content:
+                    if self.long_term:
+                        self.long_term.add_record(
+                            query=self.current_query,
+                            diagnosis=content[:200],
+                            tags=self._extract_tags(content),
+                        )
+                    self.thinking_log.append(f"最终回答: {content[:100]}...")
+                    return content
 
-            return "Agent 没有生成有效响应"
+                return "Agent 没有生成有效响应"
 
-        return f"Agent 超过最大步数（{self.max_steps}步），未得出最终结论"
+            return f"Agent 超过最大步数（{self.max_steps}步），未得出最终结论"
+        finally:
+            gateway.shutdown()
 
     def _extract_tags(self, text: str) -> list[str]:
         """从诊断结果中提取用于检索的基础标签。"""
@@ -117,3 +126,8 @@ class BaseAgent:
     def get_thinking(self) -> list[str]:
         """返回本次诊断的关键步骤。"""
         return self.thinking_log
+
+    def get_tool_invocations(self) -> list:
+        """返回本次 run 收集到的工具调用审计记录（供编排层串入 Trace）。"""
+        return self._tool_invocations
+
