@@ -271,6 +271,13 @@ function event_duration_text(event: PersistedRunEvent): string | undefined {
   return `${duration_ms} ms`
 }
 
+function tool_status_color(status: string): string {
+  if (status === 'ok') return 'green'
+  if (status === 'timeout') return 'orange'
+  if (status === 'rejected') return 'blue'
+  return 'red'   // error
+}
+
 function InvestigationProcess({ investigation, session_id }: { investigation: ConversationInvestigation; session_id: string }): ReactElement {
   const query_client = useQueryClient()
   const [events, set_events] = useState<PersistedRunEvent[]>([])
@@ -303,7 +310,9 @@ function InvestigationProcess({ investigation, session_id }: { investigation: Co
     run_id: investigation.id,
   })
 
-  const visible_events = events.filter((event) => event.type === 'agent_start' || event.type === 'agent_done' || event.type === 'route_decided')
+  const visible_events = events.filter((event) =>
+    event.type === 'agent_start' || event.type === 'agent_done' ||
+    event.type === 'route_decided' || event.type === 'tool_invoked')
   return (
     <div className="investigation-process" aria-label="调查过程">
       <Space align="center" size="small" wrap>
@@ -317,9 +326,11 @@ function InvestigationProcess({ investigation, session_id }: { investigation: Co
           {visible_events.map((event) => {
             const role = role_label(event.data.role)
             const duration = event_duration_text(event)
+            const tool_status = event.type === 'tool_invoked' ? event.data.status : undefined
             return (
               <div className="investigation-process-event" key={event.id}>
                 {role && <Tag color={event.type === 'agent_done' ? 'green' : 'blue'}>{role}</Tag>}
+                {tool_status && <Tag color={tool_status_color(tool_status)}>{tool_status}</Tag>}
                 <Typography.Text>{run_event_summary(event)}</Typography.Text>
                 {duration && <Typography.Text type="secondary">{duration}</Typography.Text>}
               </div>

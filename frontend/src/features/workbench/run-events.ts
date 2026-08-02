@@ -10,6 +10,7 @@ export const RUN_EVENT_TYPES = [
   'debate_round',
   'report',
   'reflection',
+  'tool_invoked',
   'run_succeeded',
   'run_failed',
   'run_cancelled',
