@@ -120,12 +120,12 @@ describe('App', () => {
   it('从 v1 active Session 列表恢复 DevOps Copilot 会话入口', async () => {
     render(<App />)
 
-    expect(screen.getByRole('heading', { name: '我的会话' })).toBeInTheDocument()
-    expect(await screen.findByRole('button', { name: /Nginx 5xx 排查/ })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '你好，我是 OperMind' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /排查慢查询/ })).toBeInTheDocument()
     expect(screen.getByText('当前环境')).toBeInTheDocument()
   })
 
-  it('新建会话按钮 POST /sessions 并进入新会话', async () => {
+  it('欢迎页快捷卡创建会话并进入新会话', async () => {
     const session_id = api_v1_contract_fixtures.session_id
     let create_body: unknown
     server.use(
@@ -134,7 +134,7 @@ describe('App', () => {
         return response(request, {
           session: {
             id: session_id,
-            title: '订单服务排查',
+            title: '帮我排查订单服务最近的慢查询，先从数据库只读调查开始。',
             status: 'active',
             service_id: null,
             created_at: '2026-07-28T09:00:00.000Z',
@@ -147,11 +147,9 @@ describe('App', () => {
     use_conversation_handlers(conversation_resources({ include_output: false, run_status: 'queued' }))
     render(<App />)
 
-    const input = await screen.findByLabelText('新会话标题')
-    fireEvent.change(input, { target: { value: '订单服务排查' } })
-    fireEvent.click(screen.getByRole('button', { name: '新建会话' }))
+    fireEvent.click(await screen.findByRole('button', { name: /排查慢查询/ }))
 
-    await waitFor(() => expect(create_body).toEqual({ title: '订单服务排查' }))
+    await waitFor(() => expect(create_body).toEqual({ title: '帮我排查订单服务最近的慢查询，先从数据库只读调查开始。' }))
     await waitFor(() =>
       expect(request_paths).toContain(`/api/v1/sessions/${session_id}`),
     )

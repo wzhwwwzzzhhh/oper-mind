@@ -44,3 +44,7 @@ newproject/
 # Work 1 PostgreSQL 受控靶场运行时产物
 /demo/orders-slow-query/.env
 /demo/orders-slow-query/runtime/
+
+# Playwright MCP 截图/日志产物
+.playwright-mcp/
+*.playwright-mcp/

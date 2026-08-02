@@ -5,7 +5,6 @@ import {
   Card,
   Collapse,
   Empty,
-  Input,
   Skeleton,
   Space,
   Tag,
@@ -28,6 +27,7 @@ import {
   api_v1_query_keys,
   create_run_mutation,
   create_session_mutation,
+  default_session_list_query,
   get_session_query,
   list_run_events_query,
 } from '../../api/v1/queries'
@@ -41,6 +41,8 @@ import {
 } from './conversation-turns'
 import { ActionProposalPanel } from './ActionProposalPanel'
 import { DiagnosisResultPanel } from './DiagnosisResultPanel'
+import { Composer } from '../shell/Composer'
+import { WelcomePanel } from '../shell/WelcomePanel'
 import { merge_persisted_run_events, run_event_summary, type PersistedRunEvent } from './run-events'
 import { use_run_event_stream } from './use-run-event-stream'
 import { read_diagnosis_result } from './result-readers'
@@ -156,105 +158,6 @@ function LoadMoreButton({
     <Button className="load-more-button" disabled={is_fetching} onClick={on_click} type="link">
       {is_fetching ? '正在加载…' : label}
     </Button>
-  )
-}
-
-function SessionNavigator(): ReactElement {
-  const navigate = useNavigate()
-  const query_client = useQueryClient()
-  const [new_title, set_new_title] = useState('')
-  const create_session = useMutation({
-    ...create_session_mutation(),
-    onSuccess: async (response) => {
-      const created = read_record(response.data.session)
-      const created_id = resource_optional_string(created, 'id')
-      if (!created_id) return
-      await query_client.invalidateQueries({ queryKey: ['api-v1', 'sessions'] })
-      set_new_title('')
-      navigate(`/workbench/sessions/${encodeURIComponent(created_id)}`)
-    },
-  })
-  const submit_new_session = (): void => {
-    const title = new_title.trim()
-    if (!title || create_session.isPending) return
-    create_session.mutate({ title })
-  }
-  const sessions_query = useInfiniteQuery({
-    queryKey: api_v1_query_keys.sessions({ limit: API_V1_DEFAULT_PAGE_SIZE, status: 'active' }),
-    initialPageParam: undefined as string | undefined,
-    queryFn: ({ pageParam, signal }) =>
-      api_v1_client.list_sessions(
-        { cursor: pageParam, limit: API_V1_DEFAULT_PAGE_SIZE, status: 'active' },
-        { signal },
-      ),
-    getNextPageParam: (last_page) => {
-      const page = read_page(last_page.data)
-      return page.has_more ? page.next_cursor : undefined
-    },
-  })
-  const sessions = useMemo(
-    () => sessions_query.data?.pages.flatMap((page) => read_items(page.data)) ?? [],
-    [sessions_query.data],
-  )
-
-  return (
-    <Card className="session-navigator" size="small" title="你的会话">
-      <Typography.Paragraph type="secondary">
-        会话会保存问题、调查过程和后续答复。新建一个会话即可进入并发起调查。
-      </Typography.Paragraph>
-      <Space.Compact className="new-session-form" style={{ width: '100%' }}>
-        <Input
-          aria-label="新会话标题"
-          maxLength={200}
-          onChange={(event) => set_new_title(event.target.value)}
-          onPressEnter={submit_new_session}
-          placeholder="给新会话起个名字，例如：订单服务排查"
-          value={new_title}
-        />
-        <Button
-          disabled={!new_title.trim()}
-          loading={create_session.isPending}
-          onClick={submit_new_session}
-          type="primary"
-        >
-          新建会话
-        </Button>
-      </Space.Compact>
-      {create_session.isError && <ApiErrorNotice error={create_session.error} />}
-      {sessions_query.isPending && <LoadingBlock label="正在恢复会话列表" />}
-      {sessions_query.isError && <ApiErrorNotice error={sessions_query.error} />}
-      {sessions_query.isSuccess && sessions.length === 0 && (
-        <Empty description="暂时没有活跃会话" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-      )}
-      {sessions.length > 0 && (
-        <div className="resource-list" role="list">
-          {sessions.map((session, index) => {
-            const session_id = resource_optional_string(session, 'id')
-            const title = resource_string(session, 'title', '未命名会话')
-            const updated_at = resource_string(session, 'updated_at')
-            return (
-              <div key={session_id ?? index} role="listitem">
-                <button
-                  className="session-navigation-item"
-                  disabled={!session_id}
-                  onClick={() => session_id && navigate(`/workbench/sessions/${encodeURIComponent(session_id)}`)}
-                  type="button"
-                >
-                  <span>{title}</span>
-                  <small>最近更新 {updated_at}</small>
-                </button>
-              </div>
-            )
-          })}
-        </div>
-      )}
-      <LoadMoreButton
-        has_more={Boolean(sessions_query.hasNextPage)}
-        is_fetching={sessions_query.isFetchingNextPage}
-        label="加载更多会话"
-        on_click={() => void sessions_query.fetchNextPage()}
-      />
-    </Card>
   )
 }
 
@@ -780,14 +683,30 @@ export function WorkbenchPage(): ReactElement {
     : ''
   if (session_id) return <SessionWorkspace prefilled_query={prefilled_query} session_id={session_id} />
 
+  return <ConversationHome />
+}
+
+function ConversationHome(): ReactElement {
+  const navigate = useNavigate()
+  const query_client = useQueryClient()
+  const create_session = useMutation({
+    ...create_session_mutation(),
+    onSuccess: async (response) => {
+      const created = read_record(response.data.session)
+      const created_id = resource_optional_string(created, 'id')
+      if (!created_id) return
+      await query_client.invalidateQueries({ queryKey: api_v1_query_keys.sessions(default_session_list_query) })
+      navigate(`/workbench/sessions/${encodeURIComponent(created_id)}`)
+    },
+  })
+  const submit_prompt = (prompt: string): void => {
+    const title = prompt.slice(0, 40)
+    create_session.mutate({ title })
+  }
   return (
-    <section className="workbench-page" aria-labelledby="workbench-title">
-      <div className="page-eyebrow">OPERATIONS COPILOT</div>
-      <Typography.Title id="workbench-title" level={2}>我的会话</Typography.Title>
-      <Typography.Paragraph className="page-description">
-        在会话中提出运维问题，由多 Agent 协作调查并给出结论与安全 Trace。受控工具与真实服务接入仍在逐步接入，未启用的能力会如实标注。
-      </Typography.Paragraph>
-      <SessionNavigator />
-    </section>
+    <>
+      <WelcomePanel on_prompt={submit_prompt} />
+      <Composer disabled={create_session.isPending} onSubmit={submit_prompt} />
+    </>
   )
 }

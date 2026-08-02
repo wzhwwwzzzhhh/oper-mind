@@ -1,7 +1,7 @@
+/* 全局基础样式：颜色/字体统一由 design-tokens.css 的 CSS 变量接管，
+   这里只保留非视觉骨架（排版、盒模型）。避免与设计系统冲突。 */
 :root {
-  color: #17212b;
-  background: #f3f7f9;
-  font-family: Inter, "Microsoft YaHei", sans-serif;
+  color-scheme: light;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
@@ -14,7 +14,6 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: #f3f7f9;
 }
 
 button {
@@ -23,29 +22,6 @@ button {
 
 .product-shell {
   min-height: 100vh;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  height: 72px;
-  padding: 0 20px;
-  color: #ffffff;
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
-
-.brand-mark {
-  display: inline-grid;
-  width: 32px;
-  height: 32px;
-  place-items: center;
-  border-radius: 9px;
-  background: linear-gradient(135deg, #27a6c8, #6dd8bc);
-  color: #062534;
-  font-size: 12px;
 }
 
 .main-navigation {
