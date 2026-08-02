@@ -47,6 +47,10 @@ class ToolRegistry:
         """注册一个工具"""
         self._tools[tool.name] = tool
 
+    def get(self, name: str) -> Tool | None:
+        """按名取回已注册工具；未注册返回 None（供网关做准入判定）。"""
+        return self._tools.get(name)
+
     def get_schemas(self) -> list[dict]:
         """返回所有工具的OpenAI Schema列表，传给LLM"""
         return [t.to_openai_schema() for t in self._tools.values()]
