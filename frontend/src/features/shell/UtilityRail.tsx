@@ -1,4 +1,8 @@
+import { useQuery } from '@tanstack/react-query'
 import type { ReactElement } from 'react'
+
+import { list_services_query } from '../../api/v1/queries'
+import { read_items } from '../workbench/resource-readers'
 
 interface UtilityRailProps {
   collapsed: boolean
@@ -8,14 +12,18 @@ interface UtilityRailProps {
 
 export type UtilityKey = 'connections' | 'monitoring' | 'models' | 'documents'
 
-const UTILITIES: Array<{ key: UtilityKey; icon: string; tone: '' | 'green' | 'orange' | 'purple'; title: string; note: string }> = [
-  { key: 'connections', icon: '⌘', tone: '', title: '服务连接', note: '3 个服务已接入' },
-  { key: 'monitoring', icon: '⌁', tone: 'green', title: '服务监控', note: '3 个在线 · 0 条告警' },
-  { key: 'models', icon: '✦', tone: 'purple', title: '模型设置', note: 'OperMind-Reasoner · 温度 0' },
-  { key: 'documents', icon: '＋', tone: 'orange', title: '文档添加', note: '知识库已就绪' },
-]
-
 export function UtilityRail({ collapsed, on_collapse, on_open_utility }: UtilityRailProps): ReactElement {
+  const services_query = useQuery({ ...list_services_query() })
+  const services = services_query.data ? read_items(services_query.data.data) : []
+  const service_count = services.length
+
+  const utilities: Array<{ key: UtilityKey; icon: string; tone: '' | 'green' | 'orange' | 'purple'; title: string; note: string }> = [
+    { key: 'connections', icon: '⌘', tone: '', title: '服务连接', note: `${service_count} 个服务已接入` },
+    { key: 'monitoring', icon: '⌁', tone: 'green', title: '服务监控', note: `${service_count} 个在线 · 0 条告警` },
+    { key: 'models', icon: '✦', tone: 'purple', title: '模型设置', note: 'OperMind-Reasoner · 温度 0' },
+    { key: 'documents', icon: '＋', tone: 'orange', title: '文档添加', note: '知识库已就绪' },
+  ]
+
   return (
     <aside aria-label="工作台功能" className={`right-rail${collapsed ? ' collapsed' : ''}`}>
       <div className="right-rail-heading">
@@ -29,7 +37,7 @@ export function UtilityRail({ collapsed, on_collapse, on_open_utility }: Utility
       <div className="utility-group">
         <p className="utility-group-title">服务状态</p>
         <div className="utility-list">
-          {UTILITIES.slice(0, 2).map((item) => (
+          {utilities.slice(0, 2).map((item) => (
             <button className="utility-card" key={item.key} onClick={() => on_open_utility(item.key)} type="button">
               <span className={`utility-icon${item.tone ? ` ${item.tone}` : ''}`}>{item.icon}</span>
               <span className="utility-copy">
@@ -45,7 +53,7 @@ export function UtilityRail({ collapsed, on_collapse, on_open_utility }: Utility
       <div className="utility-group">
         <p className="utility-group-title">工作台设置</p>
         <div className="utility-list">
-          {UTILITIES.slice(2).map((item) => (
+          {utilities.slice(2).map((item) => (
             <button className="utility-card" key={item.key} onClick={() => on_open_utility(item.key)} type="button">
               <span className={`utility-icon${item.tone ? ` ${item.tone}` : ''}`}>{item.icon}</span>
               <span className="utility-copy">
@@ -64,7 +72,7 @@ export function UtilityRail({ collapsed, on_collapse, on_open_utility }: Utility
         <div className="rail-status-summary">
           <span className="alert-dot" />
           <span>
-            <span className="status-count">3</span> 个服务在线
+            <span className="status-count">{service_count}</span> 个服务在线
           </span>
         </div>
         <div className="rail-status-row">

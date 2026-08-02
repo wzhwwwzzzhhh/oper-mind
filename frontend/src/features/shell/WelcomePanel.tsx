@@ -2,6 +2,7 @@ import type { ReactElement } from 'react'
 
 interface WelcomePanelProps {
   on_prompt: (prompt: string) => void
+  service_count?: number
 }
 
 const QUICK_PROMPTS: Array<{ title: string; note: string; prompt: string }> = [
@@ -27,7 +28,7 @@ const QUICK_PROMPTS: Array<{ title: string; note: string; prompt: string }> = [
   },
 ]
 
-export function WelcomePanel({ on_prompt }: WelcomePanelProps): ReactElement {
+export function WelcomePanel({ on_prompt, service_count = 3 }: WelcomePanelProps): ReactElement {
   return (
     <section className="welcome">
       <div className="welcome-mark">O</div>
@@ -35,7 +36,7 @@ export function WelcomePanel({ on_prompt }: WelcomePanelProps): ReactElement {
       <p>面向研发与运维的会话式 Copilot。描述一个问题，我会基于已接入服务和受控工具，陪你一起定位根因。</p>
       <div className="state-strip">
         <span className="state-dot" />
-        <span>3 个服务在线 · 默认只读调查</span>
+        <span>{service_count} 个服务在线 · 默认只读调查</span>
       </div>
       <div className="quick-grid">
         {QUICK_PROMPTS.map((item) => (

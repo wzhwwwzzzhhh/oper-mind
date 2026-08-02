@@ -165,7 +165,9 @@ describe('App', () => {
     expect(screen.getByText((content) => content.includes('调查已完成'))).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: '调查问题' })).toBeInTheDocument()
     await waitFor(() => expect(request_paths).toEqual([
+      `/api/v1/sessions`,
       `/api/v1/sessions/${api_v1_contract_fixtures.session_id}`,
+      `/api/v1/services`,
       `/api/v1/sessions/${api_v1_contract_fixtures.session_id}/runs`,
       `/api/v1/sessions/${api_v1_contract_fixtures.session_id}/messages`,
       `/api/v1/runs/${api_v1_contract_fixtures.run_id}/events`,
@@ -350,7 +352,9 @@ describe('App', () => {
 
     expect(await screen.findByLabelText('用户问题')).toBeInTheDocument()
     await waitFor(() => expect(request_paths).toEqual([
+      `/api/v1/sessions`,
       `/api/v1/sessions/${api_v1_contract_fixtures.session_id}`,
+      `/api/v1/services`,
       `/api/v1/sessions/${api_v1_contract_fixtures.session_id}/runs`,
       `/api/v1/sessions/${api_v1_contract_fixtures.session_id}/messages`,
       `/api/v1/runs/${api_v1_contract_fixtures.run_id}/events`,

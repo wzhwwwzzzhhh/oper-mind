@@ -1,7 +1,9 @@
+import { useQuery } from '@tanstack/react-query'
 import type { ReactElement } from 'react'
 import { useState } from 'react'
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
 
+import { list_services_query } from '../api/v1/queries'
 import { ServiceCenterPage } from '../features/services/ServiceCenterPage'
 import { Sidebar } from '../features/shell/Sidebar'
 import { ThemeModal } from '../features/shell/ThemeModal'
@@ -9,6 +11,7 @@ import { TopBar } from '../features/shell/TopBar'
 import { UtilityModal } from '../features/shell/UtilityModal'
 import { UtilityRail, type UtilityKey } from '../features/shell/UtilityRail'
 import { WorkbenchPage } from '../features/workbench/WorkbenchPage'
+import { read_items } from '../features/workbench/resource-readers'
 import { AppProviders } from './providers'
 
 function ProductShell(): ReactElement {
@@ -18,6 +21,8 @@ function ProductShell(): ReactElement {
   const [utility_open, set_utility_open] = useState(false)
   const [utility_key, set_utility_key] = useState<UtilityKey | null>(null)
   const [toast, set_toast] = useState<string | null>(null)
+  const services_query = useQuery({ ...list_services_query() })
+  const services = services_query.data ? read_items(services_query.data.data) : []
 
   const show_toast = (message: string): void => {
     set_toast(message)
@@ -63,6 +68,7 @@ function ProductShell(): ReactElement {
       <UtilityModal
         on_close={() => set_utility_open(false)}
         open={utility_open}
+        services={services}
         utility={utility_key}
       />
       {toast && <div className="toast show">{toast}</div>}

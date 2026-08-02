@@ -28,6 +28,7 @@ import {
   default_session_list_query,
   get_session_query,
   list_run_events_query,
+  list_services_query,
 } from '../../api/v1/queries'
 import {
   investigation_status_text,
@@ -616,6 +617,8 @@ function ConversationHome(): ReactElement {
   const storage = session_storage()
   const pending_prompt = useRef<string | null>(null)
   const [query, set_query] = useState('')
+  const services_query = useQuery({ ...list_services_query() })
+  const service_count = services_query.data ? read_items(services_query.data.data).length : 3
   const create_session = useMutation({
     ...create_session_mutation(),
     onSuccess: async (response) => {
@@ -639,7 +642,7 @@ function ConversationHome(): ReactElement {
   }
   return (
     <>
-      <WelcomePanel on_prompt={submit_prompt} />
+      <WelcomePanel on_prompt={submit_prompt} service_count={service_count} />
       <Composer
         disabled={create_session.isPending}
         onChange={set_query}
