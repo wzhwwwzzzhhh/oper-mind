@@ -351,7 +351,7 @@ class RunEventResource(ApiV1Model):
     type: Literal[
         "run_queued", "run_started", "route_decided", "agent_start", "agent_done",
         "conflict_checked", "debate_round", "report", "reflection", "run_succeeded",
-        "run_failed", "run_cancelled",
+        "run_failed", "run_cancelled", "tool_invoked",
     ]
     occurred_at: datetime
     data: dict[str, JsonValue]
