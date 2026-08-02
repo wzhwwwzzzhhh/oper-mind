@@ -1,86 +1,72 @@
-import { CloudServerOutlined, MenuFoldOutlined, MenuUnfoldOutlined, MessageOutlined } from '@ant-design/icons'
-import { Layout, Menu, Typography } from 'antd'
 import type { ReactElement } from 'react'
-import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { useState } from 'react'
+import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
 
 import { ServiceCenterPage } from '../features/services/ServiceCenterPage'
+import { Sidebar } from '../features/shell/Sidebar'
+import { ThemeModal } from '../features/shell/ThemeModal'
+import { TopBar } from '../features/shell/TopBar'
+import { UtilityModal } from '../features/shell/UtilityModal'
+import { UtilityRail, type UtilityKey } from '../features/shell/UtilityRail'
 import { WorkbenchPage } from '../features/workbench/WorkbenchPage'
-import { useUiStore } from '../stores/use-ui-store'
 import { AppProviders } from './providers'
 
-const { Header, Sider, Content } = Layout
-
 function ProductShell(): ReactElement {
-  const isNavigationCollapsed = useUiStore((state) => state.is_navigation_collapsed)
-  const toggleNavigation = useUiStore((state) => state.toggle_navigation)
-  const location = useLocation()
-  const navigate = useNavigate()
-  const selected_key = location.pathname.startsWith('/services') ? 'services' : 'conversations'
+  const [sidebar_collapsed, set_sidebar_collapsed] = useState(false)
+  const [rail_collapsed, set_rail_collapsed] = useState(false)
+  const [theme_modal_open, set_theme_modal_open] = useState(false)
+  const [utility_open, set_utility_open] = useState(false)
+  const [utility_key, set_utility_key] = useState<UtilityKey | null>(null)
+  const [toast, set_toast] = useState<string | null>(null)
+
+  const show_toast = (message: string): void => {
+    set_toast(message)
+    window.setTimeout(() => set_toast(null), 1800)
+  }
+
+  const shell_class = [
+    'app-shell',
+    sidebar_collapsed ? 'sidebar-collapsed' : '',
+    rail_collapsed ? 'rail-collapsed' : '',
+  ].join(' ')
+
+  const open_utility = (key: UtilityKey): void => {
+    set_utility_key(key)
+    set_utility_open(true)
+  }
 
   return (
-    <Layout className="product-shell">
-      <Sider
-        aria-label="主导航"
-        breakpoint="lg"
-        collapsed={isNavigationCollapsed}
-        collapsedWidth={80}
-        theme="dark"
-        width={264}
-      >
-        <div className="brand" aria-label="OperMind">
-          <span className="brand-mark">OM</span>
-          {!isNavigationCollapsed && <span>OperMind</span>}
-        </div>
-        <Menu
-          className="main-navigation"
-          onClick={({ key }) => navigate(key === 'services' ? '/services' : '/workbench')}
-          selectedKeys={[selected_key]}
-          items={[
-            { key: 'services', icon: <CloudServerOutlined />, label: '服务中心' },
-            { key: 'conversations', icon: <MessageOutlined />, label: '我的会话' },
-          ]}
-          mode="inline"
-          theme="dark"
+    <div className={shell_class}>
+      <Sidebar
+        collapsed={sidebar_collapsed}
+        on_collapse={() => set_sidebar_collapsed((value) => !value)}
+      />
+      <main className="workspace">
+        <TopBar
+          on_mobile_menu={() => set_sidebar_collapsed((value) => !value)}
+          on_share={() => show_toast('分享链接功能将在接入会话 API 后启用')}
+          on_theme={() => set_theme_modal_open(true)}
+          on_utility={() => set_utility_open(true)}
         />
-        <div className="navigation-note">{!isNavigationCollapsed && 'DevOps Copilot · 受控调查'}</div>
-      </Sider>
-      <Layout>
-        <Header className="product-header">
-          <button
-            aria-label={isNavigationCollapsed ? '展开主导航' : '收起主导航'}
-            className="navigation-trigger"
-            onClick={toggleNavigation}
-            type="button"
-          >
-            {isNavigationCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-          </button>
-          <div>
-            <Typography.Text strong>DevOps Copilot</Typography.Text>
-            <Typography.Text className="header-context">会话式多 Agent 运维诊断</Typography.Text>
-          </div>
-        </Header>
-        <Content className="product-content">
-          <div className="workspace-grid">
+        <div className="chat-scroll">
+          <div className="chat-inner">
             <Outlet />
-            <aside className="context-rail" aria-labelledby="context-title">
-              <div className="rail-kicker">PRODUCT BOUNDARY</div>
-              <Typography.Title id="context-title" level={4}>当前边界</Typography.Title>
-              <Typography.Paragraph>
-                在会话中提出运维问题，由多 Agent 协作调查并给出结论与安全 Trace；过程只展示安全摘要，不展示模型思维链。
-              </Typography.Paragraph>
-              <Typography.Paragraph type="secondary">
-                受控工具、真实服务接入与监控仍在逐步接入；未接入的能力会如实标注。高风险动作必须经过提案、人工审批、白名单执行与验证。
-              </Typography.Paragraph>
-              <div className="honest-status" aria-label="能力状态">
-                <span className="context-status">会话与多 Agent 内核：已接通</span>
-                <span className="context-status">受控工具与真实证据：接入中</span>
-                <span className="context-status">服务接入 / 监控 / 动作闭环：未启用</span>
-              </div>
-            </aside>
           </div>
-        </Content>
-      </Layout>
-    </Layout>
+        </div>
+      </main>
+      <UtilityRail
+        collapsed={rail_collapsed}
+        on_collapse={() => set_rail_collapsed((value) => !value)}
+        on_open_utility={open_utility}
+      />
+      <ThemeModal on_close={() => set_theme_modal_open(false)} open={theme_modal_open} />
+      <UtilityModal
+        on_close={() => set_utility_open(false)}
+        open={utility_open}
+        utility={utility_key}
+      />
+      {toast && <div className="toast show">{toast}</div>}
+    </div>
   )
 }
 

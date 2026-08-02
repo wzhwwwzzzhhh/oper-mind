@@ -1,0 +1,942 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OperMind · 会话工作台</title>
+  <style>
+  :root {
+    color-scheme: light;
+    --canvas: #f7f7f5;
+    --surface: #ffffff;
+    --surface-muted: #f0f1ef;
+    --surface-rail: #fafaf8;
+    --surface-soft: #f4f5f3;
+    --border: #dfe3e1;
+    --border-strong: #cfd6d3;
+    --text: #1f272b;
+    --text-secondary: #637076;
+    --text-muted: #929b9d;
+    --accent: #315f86;
+    --accent-hover: #274e70;
+    --accent-soft: #eaf0f5;
+    --success: #28745f;
+    --success-soft: #e7f2ee;
+    --warning: #b6782c;
+    --warning-soft: #fff2de;
+    --danger: #b34e54;
+    --danger-soft: #f9e9e9;
+    --sidebar-width: 248px;
+    --sidebar-collapsed-width: 68px;
+    --utility-width: 232px;
+    --utility-collapsed-width: 68px;
+    --content-max-width: 780px;
+    --left-offset: var(--sidebar-width);
+    --right-offset: var(--utility-width);
+    --shadow-float: 0 16px 44px rgba(28, 40, 46, .10);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    color: var(--text);
+    background: var(--canvas);
+    font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, textarea { font: inherit; }
+  button { cursor: pointer; }
+
+  .app-shell {
+    display: flex;
+    min-height: 100vh;
+    background: var(--canvas);
+  }
+  .app-shell.sidebar-collapsed { --left-offset: var(--sidebar-collapsed-width); }
+  .app-shell.rail-collapsed { --right-offset: var(--utility-collapsed-width); }
+
+  /* 左侧会话导航 */
+  .sidebar {
+    width: var(--sidebar-width);
+    flex: 0 0 var(--sidebar-width);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 16px 13px 13px;
+    background: var(--surface-muted);
+    border-right: 1px solid var(--border);
+    transition: width .2s ease, flex-basis .2s ease, transform .2s ease;
+  }
+  .sidebar.collapsed {
+    width: var(--sidebar-collapsed-width);
+    flex-basis: var(--sidebar-collapsed-width);
+    padding-left: 9px;
+    padding-right: 9px;
+  }
+  .brand-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 38px;
+    padding: 1px 5px 19px;
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    color: var(--text);
+    text-decoration: none;
+    font-weight: 700;
+    letter-spacing: -.02em;
+  }
+  .brand-mark {
+    width: 29px;
+    height: 29px;
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    border: 1px solid #274e70;
+    border-radius: 7px;
+    color: #fff;
+    background: var(--accent);
+    font-size: 15px;
+    font-weight: 800;
+  }
+  .brand-copy { line-height: 1.1; }
+  .brand small {
+    display: block;
+    margin-top: 4px;
+    color: var(--text-muted);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: .1em;
+  }
+  .icon-btn {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    color: var(--text-muted);
+    background: transparent;
+    font-size: 17px;
+    line-height: 1;
+  }
+  .icon-btn:hover { color: var(--text); background: #e4e7e5; }
+  .sidebar.collapsed .brand-row { justify-content: center; padding-left: 0; padding-right: 0; }
+  .sidebar.collapsed .brand-copy,
+  .sidebar.collapsed .new-chat-label,
+  .sidebar.collapsed .new-chat-shortcut,
+  .sidebar.collapsed .history-heading,
+  .sidebar.collapsed .history-list,
+  .sidebar.collapsed .user-copy,
+  .sidebar.collapsed .user-more { display: none; }
+  .sidebar.collapsed .brand { gap: 0; }
+  .sidebar.collapsed .new-chat { justify-content: center; padding-left: 7px; padding-right: 7px; }
+  .sidebar.collapsed .user-card { justify-content: center; padding-left: 0; padding-right: 0; }
+  .sidebar.collapsed #collapse-btn { transform: rotate(180deg); }
+
+  .new-chat {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    min-height: 39px;
+    padding: 8px 10px;
+    border: 1px solid var(--border-strong);
+    border-radius: 7px;
+    color: #30414b;
+    background: var(--surface);
+    box-shadow: none;
+    font-size: 13px;
+    font-weight: 650;
+    text-align: left;
+  }
+  .new-chat:hover { border-color: #a9bac3; color: var(--accent); background: #fbfcfd; }
+  .new-chat .plus {
+    width: 20px;
+    height: 20px;
+    display: grid;
+    place-items: center;
+    border-radius: 5px;
+    color: #fff;
+    background: var(--accent);
+    font-size: 16px;
+    line-height: 1;
+  }
+  .history-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 24px 7px 7px;
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+  .history-heading .icon-btn { width: 23px; height: 23px; font-size: 14px; }
+  .history-list { display: grid; gap: 2px; overflow: auto; padding-right: 1px; }
+  .history-item {
+    position: relative;
+    display: block;
+    width: 100%;
+    overflow: hidden;
+    padding: 9px 10px 9px 12px;
+    border: 0;
+    border-radius: 5px;
+    color: var(--text-secondary);
+    background: transparent;
+    font-size: 12px;
+    text-align: left;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .history-item:hover { color: var(--text); background: #e6e9e7; }
+  .history-item.active { color: var(--text); background: #e2e7e7; font-weight: 650; }
+  .history-item.active::before {
+    content: "";
+    position: absolute;
+    top: 8px;
+    bottom: 8px;
+    left: 0;
+    width: 2px;
+    border-radius: 2px;
+    background: var(--accent);
+  }
+  .sidebar-footer { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border); }
+  .user-card { display: flex; align-items: center; gap: 9px; padding: 8px; border-radius: 6px; }
+  .user-card:hover { background: #e6e9e7; }
+  .avatar {
+    width: 27px;
+    height: 27px;
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    color: #fff;
+    background: #78858a;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .user-copy strong { display: block; font-size: 12px; font-weight: 650; }
+  .user-copy span { display: block; margin-top: 3px; color: var(--text-muted); font-size: 10px; }
+
+  /* 右侧工作台检查器 */
+  .right-rail {
+    width: var(--utility-width);
+    flex: 0 0 var(--utility-width);
+    min-height: 100vh;
+    padding: 18px 13px 14px;
+    background: var(--surface-rail);
+    border-left: 1px solid var(--border);
+    transition: width .2s ease, flex-basis .2s ease, transform .2s ease;
+  }
+  .right-rail.collapsed {
+    width: var(--utility-collapsed-width);
+    flex-basis: var(--utility-collapsed-width);
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+  .right-rail-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 30px;
+    margin: 1px 3px 17px;
+  }
+  .right-rail-heading strong { color: var(--text); font-size: 13px; font-weight: 700; }
+  .right-rail-heading > span { color: var(--text-muted); font-size: 10px; }
+  .right-rail-heading .icon-btn { width: 25px; height: 25px; font-size: 18px; }
+  .right-rail.collapsed .right-rail-heading { justify-content: center; }
+  .right-rail.collapsed .right-rail-heading strong,
+  .right-rail.collapsed .right-rail-heading > span,
+  .right-rail.collapsed .utility-copy,
+  .right-rail.collapsed .utility-arrow,
+  .right-rail.collapsed .utility-group-title,
+  .right-rail.collapsed .rail-divider,
+  .right-rail.collapsed .rail-section-title,
+  .right-rail.collapsed .rail-status { display: none; }
+  .right-rail.collapsed .utility-card { justify-content: center; padding-left: 6px; padding-right: 6px; }
+  .right-rail.collapsed #rail-collapse { transform: rotate(180deg); }
+  .utility-group { display: grid; gap: 8px; margin-bottom: 20px; }
+  .utility-group-title {
+    margin: 0 4px 1px;
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 750;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+  .utility-list { display: grid; gap: 6px; }
+  .utility-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 58px;
+    padding: 9px 9px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--text);
+    background: var(--surface);
+    box-shadow: none;
+    text-align: left;
+    transition: border-color .16s ease, background .16s ease;
+  }
+  .utility-card:hover { border-color: #a8bbc5; background: #fbfcfd; }
+  .utility-icon {
+    width: 29px;
+    height: 29px;
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    border-radius: 6px;
+    color: var(--accent);
+    background: var(--accent-soft);
+    font-size: 14px;
+  }
+  .utility-icon.green { color: var(--success); background: var(--success-soft); }
+  .utility-icon.orange { color: var(--warning); background: var(--warning-soft); }
+  .utility-icon.purple { color: #68747b; background: #eef0f0; }
+  .utility-copy { min-width: 0; flex: 1; }
+  .utility-copy strong { display: block; font-size: 12px; font-weight: 650; }
+  .utility-copy span { display: block; overflow: hidden; margin-top: 4px; color: var(--text-muted); font-size: 10px; white-space: nowrap; text-overflow: ellipsis; }
+  .utility-arrow { color: #a4adb0; font-size: 16px; }
+  .rail-divider { margin: 20px 4px 13px; border: 0; border-top: 1px solid var(--border); }
+  .rail-section-title { margin: 0 4px 8px; color: var(--text-muted); font-size: 10px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+  .rail-status { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); }
+  .rail-status-summary { display: flex; align-items: center; gap: 7px; color: var(--text-secondary); font-size: 11px; font-weight: 650; }
+  .rail-status-summary .status-count { color: var(--success); font-size: 14px; }
+  .alert-dot { width: 6px; height: 6px; display: inline-block; border-radius: 50%; background: var(--success); }
+  .rail-status-row { display: flex; align-items: center; justify-content: space-between; color: var(--text-secondary); font-size: 11px; }
+  .rail-status-row strong { color: var(--text); font-size: 11px; font-weight: 650; }
+  .status-ok { display: inline-flex; align-items: center; gap: 5px; color: var(--success); }
+  .status-ok::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+  /* 主会话区 */
+  .workspace { min-width: 0; flex: 1; display: flex; flex-direction: column; position: relative; background: var(--surface); }
+  .topbar {
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 25px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,.96);
+  }
+  .topbar-left, .topbar-right { display: flex; align-items: center; gap: 8px; }
+  .mobile-menu { display: none; }
+  .model-select {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 0;
+    border: 0;
+    color: var(--text);
+    background: transparent;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .model-select::after { content: "⌄"; margin-top: -3px; color: var(--text-muted); font-size: 14px; }
+  .online-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 4px var(--success-soft); }
+  .top-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 9px;
+    border: 0;
+    border-radius: 6px;
+    color: var(--text-muted);
+    background: transparent;
+    font-size: 12px;
+  }
+  .top-action:hover { color: var(--text); background: var(--surface-soft); }
+  .utility-toggle { display: none; }
+  .theme-button { color: var(--text-secondary); }
+  .theme-button:hover { color: var(--accent); }
+
+  /* 主题方案：不同主题只切换视觉 token，不改变页面结构。 */
+  html[data-theme="indigo"] {
+    --canvas: #f6f7fb; --surface: #fff; --surface-muted: #f0f1f7; --surface-rail: #fafaff; --surface-soft: #f3f4fa;
+    --border: #dfe2eb; --border-strong: #cdd3e0; --text: #252936; --text-secondary: #656d7e; --text-muted: #969cac;
+    --accent: #5868a9; --accent-hover: #46568f; --accent-soft: #eceefd; --success: #2f8066; --success-soft: #e7f3ee;
+    --warning: #b67b2e; --warning-soft: #fff2df; --danger: #b2545d; --danger-soft: #fae9eb;
+  }
+  html[data-theme="forest"] {
+    --canvas: #f6f7f2; --surface: #fff; --surface-muted: #eef1eb; --surface-rail: #fafbf8; --surface-soft: #f2f5ef;
+    --border: #dfe5dc; --border-strong: #cbd7c7; --text: #27302b; --text-secondary: #68746c; --text-muted: #949d94;
+    --accent: #52745d; --accent-hover: #3f5f4a; --accent-soft: #eaf2eb; --success: #2f7d5d; --success-soft: #e7f3ea;
+    --warning: #b77a2b; --warning-soft: #fff2dd; --danger: #b25758; --danger-soft: #faeaea;
+  }
+  html[data-theme="amber"] {
+    --canvas: #faf8f4; --surface: #fff; --surface-muted: #f3efe8; --surface-rail: #fcfbf8; --surface-soft: #f7f3ed;
+    --border: #e6dfd4; --border-strong: #d8cbb9; --text: #302b26; --text-secondary: #756b60; --text-muted: #a0988d;
+    --accent: #9a6844; --accent-hover: #7d5033; --accent-soft: #f5ece4; --success: #4d8067; --success-soft: #eaf3ec;
+    --warning: #ad762a; --warning-soft: #fff1db; --danger: #b3554e; --danger-soft: #fae9e6;
+  }
+  html[data-theme="night"] {
+    --canvas: #20262c; --surface: #252d34; --surface-muted: #1d242a; --surface-rail: #222a30; --surface-soft: #2b343c;
+    --border: #3a454e; --border-strong: #4b5964; --text: #ecf0f1; --text-secondary: #b5c0c5; --text-muted: #85939a;
+    --accent: #79a8c9; --accent-hover: #97bed9; --accent-soft: #2d414f; --success: #70bd9b; --success-soft: #29463c;
+    --warning: #dfab61; --warning-soft: #4b3b25; --danger: #dd8588; --danger-soft: #4a2e32;
+    --shadow-float: 0 18px 48px rgba(0,0,0,.28);
+  }
+  html[data-theme="night"] .workspace, html[data-theme="night"] .topbar, html[data-theme="night"] .utility-dialog,
+  html[data-theme="night"] .composer, html[data-theme="night"] .trace-card, html[data-theme="night"] .quick-card,
+  html[data-theme="night"] .utility-card, html[data-theme="night"] .rail-status { background: var(--surface); }
+  html[data-theme="night"] .brand-mark, html[data-theme="night"] .welcome-mark, html[data-theme="night"] .assistant .message-avatar { border-color: #79a8c9; color: #1d242a; background: var(--accent); }
+  html[data-theme="night"] .user .bubble { color: var(--text); background: var(--surface-soft); border-color: var(--border); }
+  html[data-theme="night"] .composer-wrap { background: linear-gradient(to bottom, rgba(32,38,44,0), rgba(32,38,44,.93) 24%, #20262c 50%); }
+  html[data-theme="night"] .trace-row { border-color: #354149; }
+  html[data-theme="night"] .trace-row:not(:last-child)::before { background: #45535c; }
+
+  .theme-modal { position: fixed; z-index: 21; inset: 0; display: none; align-items: center; justify-content: center; padding: 20px; background: rgba(31,39,43,.2); }
+  .theme-modal.open { display: flex; }
+  .theme-dialog { width: min(560px, 100%); overflow: hidden; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--surface); box-shadow: var(--shadow-float); }
+  .theme-dialog-head { display: flex; align-items: center; justify-content: space-between; padding: 15px 17px; border-bottom: 1px solid var(--border); }
+  .theme-dialog-head strong { font-size: 14px; font-weight: 720; }
+  .theme-dialog-head span { display: block; margin-top: 4px; color: var(--text-muted); font-size: 10px; font-weight: 400; }
+  .theme-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 9px; padding: 16px; }
+  .theme-option { display: grid; grid-template-columns: 72px 1fr; gap: 11px; align-items: center; min-height: 82px; padding: 9px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--surface); text-align: left; }
+  .theme-option:hover { border-color: var(--accent); background: var(--surface-soft); }
+  .theme-option.selected { border: 2px solid var(--accent); padding: 8px; }
+  .theme-preview { position: relative; height: 60px; overflow: hidden; border: 1px solid rgba(0,0,0,.1); border-radius: 6px; background: #f7f7f5; }
+  .theme-preview::before { content: ""; position: absolute; inset: 0 42px 0 0; background: #f0f1ef; border-right: 1px solid rgba(0,0,0,.1); }
+  .theme-preview::after { content: ""; position: absolute; top: 10px; right: 8px; left: 51px; height: 10px; border-radius: 2px; background: var(--preview-accent); box-shadow: 0 17px 0 -2px var(--preview-soft); }
+  .theme-preview .preview-dot { position: absolute; z-index: 1; right: 9px; bottom: 9px; width: 7px; height: 7px; border-radius: 50%; background: var(--preview-success); }
+  .theme-preview.steel { --preview-accent: #315f86; --preview-soft: #eaf0f5; --preview-success: #28745f; }
+  .theme-preview.indigo { --preview-accent: #5868a9; --preview-soft: #eceefd; --preview-success: #2f8066; background: #f6f7fb; }
+  .theme-preview.indigo::before { background: #f0f1f7; }
+  .theme-preview.forest { --preview-accent: #52745d; --preview-soft: #eaf2eb; --preview-success: #2f7d5d; background: #f6f7f2; }
+  .theme-preview.forest::before { background: #eef1eb; }
+  .theme-preview.amber { --preview-accent: #9a6844; --preview-soft: #f5ece4; --preview-success: #4d8067; background: #faf8f4; }
+  .theme-preview.amber::before { background: #f3efe8; }
+  .theme-preview.night { --preview-accent: #79a8c9; --preview-soft: #2d414f; --preview-success: #70bd9b; background: #20262c; }
+  .theme-preview.night::before { background: #1d242a; }
+  .theme-copy strong { display: block; font-size: 12px; font-weight: 680; }
+  .theme-copy span { display: block; margin-top: 4px; color: var(--text-muted); font-size: 10px; line-height: 1.4; }
+  .theme-check { display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; color: var(--accent); font-size: 10px; }
+  .theme-footer { display: flex; justify-content: flex-end; padding: 0 16px 15px; color: var(--text-muted); font-size: 10px; }
+
+  .chat-scroll { flex: 1; overflow: auto; }
+  .chat-inner {
+    width: min(var(--content-max-width), calc(100% - 48px));
+    min-height: calc(100vh - 60px);
+    margin: 0 auto;
+    padding: 58px 0 185px;
+  }
+  .welcome { padding: 29px 0 43px; text-align: center; }
+  .welcome-mark {
+    width: 45px;
+    height: 45px;
+    display: grid;
+    place-items: center;
+    margin: 0 auto 17px;
+    border: 1px solid #274e70;
+    border-radius: 10px;
+    color: #fff;
+    background: var(--accent);
+    font-size: 21px;
+    font-weight: 800;
+  }
+  .welcome h1 { margin: 0; color: var(--text); font-size: clamp(25px, 3vw, 31px); font-weight: 760; letter-spacing: -.045em; }
+  .welcome p { max-width: 570px; margin: 12px auto 0; color: var(--text-secondary); font-size: 14px; line-height: 1.7; }
+  .state-strip { display: flex; align-items: center; gap: 7px; width: fit-content; margin: 17px auto 0; padding: 6px 9px; border: 1px solid var(--border); border-radius: 6px; color: var(--text-secondary); background: var(--surface-soft); font-size: 11px; }
+  .state-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--success); }
+  .quick-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; max-width: 650px; margin: 25px auto 0; text-align: left; }
+  .quick-card {
+    min-height: 70px;
+    padding: 13px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    background: var(--surface);
+    box-shadow: none;
+    text-align: left;
+    transition: border-color .16s ease, background .16s ease;
+  }
+  .quick-card:hover { border-color: #a8bbc5; background: #fbfcfd; }
+  .quick-card strong { display: block; margin-bottom: 5px; color: var(--text); font-size: 13px; font-weight: 680; }
+  .quick-card span { color: var(--text-muted); font-size: 11px; }
+
+  .conversation { display: grid; gap: 35px; margin-bottom: 25px; }
+  .message { display: flex; gap: 14px; }
+  .message.user { justify-content: flex-end; }
+  .message-avatar { width: 31px; height: 31px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 7px; font-size: 11px; font-weight: 750; }
+  .assistant .message-avatar { color: #fff; background: var(--accent); }
+  .user .message-avatar { order: 2; border-radius: 50%; color: #fff; background: #7c878b; }
+  .message-body { max-width: min(720px, calc(100% - 45px)); }
+  .user .message-body { display: flex; flex-direction: column; align-items: flex-end; max-width: 620px; }
+  .message-label { margin: 2px 0 7px; color: var(--text-muted); font-size: 10px; letter-spacing: .02em; }
+  .bubble { color: var(--text); font-size: 14px; line-height: 1.78; }
+  .user .bubble { padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px 10px 3px 10px; color: #42525a; background: var(--surface-soft); }
+  .assistant-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: -1px 0 10px; color: var(--text-muted); font-size: 10px; }
+  .meta-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 7px; border: 1px solid var(--border); border-radius: 5px; color: var(--text-secondary); background: var(--surface-soft); }
+  .meta-pill.readonly { border-color: #cce2da; color: var(--success); background: var(--success-soft); }
+  .meta-pill.blue { border-color: #cedce7; color: var(--accent); background: var(--accent-soft); }
+  .mini-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+  .bubble p { margin: 0 0 12px; }
+  .bubble p:last-child { margin-bottom: 0; }
+  .answer-heading { margin: 0 0 9px; color: var(--text); font-size: 16px; font-weight: 720; }
+  .muted-note { color: var(--text-muted); font-size: 12px; }
+
+  /* 平面审计时间线 */
+  .trace-card { margin: 14px 0 16px; overflow: hidden; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); box-shadow: none; }
+  .trace-card.collapsed .trace-body { display: none; }
+  .trace-head { display: flex; align-items: center; justify-content: space-between; min-height: 44px; padding: 9px 12px; border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; }
+  .trace-head:hover { background: var(--surface-soft); }
+  .trace-head-left { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+  .trace-title { display: inline-flex; align-items: center; gap: 7px; color: var(--text-secondary); font-size: 11px; font-weight: 700; }
+  .pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+  .trace-meta { color: var(--text-muted); font-size: 10px; white-space: nowrap; }
+  .trace-state { color: var(--success); font-size: 10px; white-space: nowrap; }
+  .trace-toggle { color: var(--text-muted); font-size: 14px; transition: transform .18s ease; }
+  .trace-card:not(.collapsed) .trace-toggle { transform: rotate(180deg); }
+  .trace-body { padding: 2px 0; }
+  .trace-row { position: relative; display: grid; grid-template-columns: 20px 1fr auto; gap: 9px; align-items: center; min-height: 48px; padding: 9px 12px; border-bottom: 1px solid #edf0ee; font-size: 11px; }
+  .trace-row:last-child { border-bottom: 0; }
+  .trace-row:not(:last-child)::before { content: ""; position: absolute; top: 28px; bottom: -8px; left: 21px; width: 1px; background: #dfe5e2; }
+  .trace-icon { z-index: 1; width: 18px; height: 18px; display: grid; place-items: center; border: 1px solid #cedbe0; border-radius: 5px; color: var(--accent); background: #f3f6f7; font-size: 9px; font-weight: 750; }
+  .trace-row strong { display: block; color: var(--text-secondary); font-size: 11px; font-weight: 680; }
+  .trace-row span { display: block; margin-top: 3px; color: var(--text-muted); }
+  .trace-badge { min-width: 32px; padding: 3px 6px; border-radius: 4px; color: var(--success); background: var(--success-soft); font-size: 10px; font-weight: 700; text-align: center; }
+  .trace-badge.warn { color: var(--warning); background: var(--warning-soft); }
+
+  /* 底部输入区 */
+  .composer-wrap { position: fixed; z-index: 3; right: var(--right-offset); bottom: 0; left: var(--left-offset); display: flex; justify-content: center; padding: 13px 21px 15px; background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,.93) 24%, #fff 50%); pointer-events: none; }
+  .composer-area { width: min(var(--content-max-width), 100%); pointer-events: auto; }
+  .composer { position: relative; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--surface); box-shadow: var(--shadow-float); transition: border-color .18s ease, box-shadow .18s ease; }
+  .composer:focus-within { border-color: #91aebe; box-shadow: 0 15px 38px rgba(28,48,60,.12), 0 0 0 3px rgba(49,95,134,.07); }
+  textarea { display: block; width: 100%; min-height: 62px; max-height: 170px; resize: none; padding: 14px 15px 46px; border: 0; outline: none; border-radius: 10px; color: var(--text); background: transparent; font-size: 14px; line-height: 1.55; }
+  textarea::placeholder { color: #a1a9aa; }
+  .composer-tools { position: absolute; right: 8px; bottom: 7px; left: 8px; display: flex; align-items: center; justify-content: space-between; }
+  .tool-group { display: flex; align-items: center; gap: 3px; min-width: 0; }
+  .composer-btn { width: 29px; height: 29px; border: 0; border-radius: 6px; color: var(--text-muted); background: transparent; font-size: 15px; }
+  .composer-btn:hover { color: var(--text); background: var(--surface-soft); }
+  .context-strip { display: inline-flex; align-items: center; gap: 4px; margin-left: 4px; color: var(--text-muted); font-size: 10px; white-space: nowrap; }
+  .context-chip { padding: 3px 6px; border: 1px solid var(--border); border-radius: 4px; color: var(--text-secondary); background: var(--surface-soft); }
+  .send-btn { width: 32px; height: 32px; border: 0; border-radius: 7px; color: #fff; background: #b2bdc1; font-size: 16px; transition: background .16s ease, transform .16s ease; }
+  .send-btn.ready { background: var(--accent); }
+  .send-btn.ready:hover { background: var(--accent-hover); transform: translateY(-1px); }
+  .disclaimer { margin-top: 7px; color: var(--text-muted); font-size: 10px; text-align: center; }
+
+  /* 弹窗 */
+  .utility-modal { position: fixed; z-index: 20; inset: 0; display: none; align-items: center; justify-content: center; padding: 20px; background: rgba(31, 39, 43, .2); }
+  .utility-modal.open { display: flex; }
+  .utility-dialog { width: min(470px, 100%); overflow: hidden; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--surface); box-shadow: var(--shadow-float); }
+  .utility-dialog-head { display: flex; align-items: center; justify-content: space-between; padding: 15px 16px; border-bottom: 1px solid var(--border); }
+  .utility-dialog-head strong { font-size: 14px; font-weight: 720; }
+  .utility-dialog-body { padding: 16px; color: var(--text-secondary); font-size: 13px; line-height: 1.7; }
+  .utility-dialog-body p { margin: 0 0 14px; }
+  .dialog-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+  .dialog-list li { display: flex; align-items: center; justify-content: space-between; padding: 9px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-soft); }
+  .dialog-list li span { color: var(--text-muted); font-size: 11px; }
+  .dialog-list li strong { color: var(--text); font-size: 11px; font-weight: 650; }
+  .dialog-footer { display: flex; justify-content: flex-end; gap: 7px; padding: 0 16px 15px; }
+  .dialog-action { padding: 7px 11px; border: 1px solid var(--border-strong); border-radius: 6px; color: var(--text-secondary); background: var(--surface); font-size: 11px; }
+  .dialog-action.primary { border-color: var(--accent); color: #fff; background: var(--accent); }
+  .toast { position: fixed; z-index: 30; top: 74px; left: 50%; padding: 8px 11px; border: 1px solid var(--border); border-radius: 6px; color: var(--text-secondary); background: var(--surface); box-shadow: var(--shadow-float); font-size: 11px; opacity: 0; pointer-events: none; transform: translate(-50%, -10px); transition: opacity .18s ease, transform .18s ease; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (max-width: 1439px) and (min-width: 1201px) {
+    .chat-inner { width: min(760px, calc(100% - 44px)); }
+    .composer-area { width: min(760px, 100%); }
+  }
+
+  @media (max-width: 1200px) and (min-width: 901px) {
+    .right-rail { position: fixed; z-index: 9; top: 0; right: 0; bottom: 0; transform: translateX(100%); box-shadow: -18px 0 44px rgba(28,40,46,.12); }
+    .right-rail.open { transform: translateX(0); }
+    .utility-toggle { display: inline-flex; }
+    .app-shell { --right-offset: 0px; }
+    .composer-wrap { right: 0; }
+    .chat-inner { width: min(760px, calc(100% - 44px)); }
+    .composer-area { width: min(760px, 100%); }
+  }
+
+  @media (max-width: 900px) and (min-width: 761px) {
+    .sidebar { width: var(--sidebar-collapsed-width); flex-basis: var(--sidebar-collapsed-width); padding-left: 9px; padding-right: 9px; }
+    .sidebar.open { width: var(--sidebar-width); flex-basis: var(--sidebar-width); padding-left: 13px; padding-right: 13px; }
+    .sidebar:not(.open) .brand-copy,
+    .sidebar:not(.open) .new-chat-label,
+    .sidebar:not(.open) .new-chat-shortcut,
+    .sidebar:not(.open) .history-heading,
+    .sidebar:not(.open) .history-list,
+    .sidebar:not(.open) .user-copy,
+    .sidebar:not(.open) .user-more { display: none; }
+    .sidebar:not(.open) .brand-row { justify-content: center; padding-left: 0; padding-right: 0; }
+    .sidebar:not(.open) .brand { gap: 0; }
+    .sidebar:not(.open) .new-chat { justify-content: center; padding-left: 7px; padding-right: 7px; }
+    .sidebar:not(.open) .user-card { justify-content: center; padding-left: 0; padding-right: 0; }
+    .app-shell { --left-offset: var(--sidebar-collapsed-width); --right-offset: 0px; }
+    .right-rail { position: fixed; z-index: 9; top: 0; right: 0; bottom: 0; transform: translateX(100%); box-shadow: -18px 0 44px rgba(28,40,46,.12); }
+    .right-rail.open { transform: translateX(0); }
+    .utility-toggle { display: inline-flex; }
+    .composer-wrap { left: var(--sidebar-collapsed-width); right: 0; }
+  }
+
+  @media (max-width: 760px) {
+    .sidebar { position: fixed; z-index: 8; top: 0; bottom: 0; left: 0; transform: translateX(-100%); box-shadow: 18px 0 44px rgba(28,40,46,.12); }
+    .sidebar.open { transform: translateX(0); }
+    .sidebar.collapsed { width: var(--sidebar-width); flex-basis: var(--sidebar-width); padding-left: 13px; padding-right: 13px; }
+    .sidebar.collapsed .brand-copy,
+    .sidebar.collapsed .new-chat-label,
+    .sidebar.collapsed .history-heading,
+    .sidebar.collapsed .history-list,
+    .sidebar.collapsed .user-copy,
+    .sidebar.collapsed .user-more { display: initial; }
+    .sidebar.collapsed .brand-row { justify-content: space-between; padding-left: 5px; padding-right: 5px; }
+    .sidebar.collapsed .new-chat { justify-content: flex-start; padding-left: 10px; padding-right: 10px; }
+    .sidebar.collapsed .user-card { justify-content: flex-start; padding-left: 8px; padding-right: 8px; }
+    .right-rail { width: min(286px, 88vw); position: fixed; z-index: 9; top: 0; right: 0; bottom: 0; transform: translateX(100%); box-shadow: -18px 0 44px rgba(28,40,46,.12); }
+    .right-rail.open { transform: translateX(0); }
+    .mobile-menu { display: inline-grid; place-items: center; }
+    .topbar { height: 56px; padding: 0 13px; }
+    .topbar-right .top-action span { display: none; }
+    .chat-inner { width: min(100% - 28px, var(--content-max-width)); padding-top: 32px; }
+    .welcome { padding-top: 20px; }
+    .quick-grid { grid-template-columns: 1fr; }
+    .composer-wrap { left: 0; right: 0; padding: 9px 11px 12px; }
+    .conversation { gap: 27px; }
+    .message-body { max-width: calc(100% - 44px); }
+    .context-strip { max-width: 190px; overflow: hidden; }
+    .context-chip:nth-child(2) { display: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand-row">
+        <a class="brand" href="#" aria-label="OperMind 首页">
+          <span class="brand-mark">O</span>
+          <span class="brand-copy">OperMind<small>DEVOPS COPILOT</small></span>
+        </a>
+        <button class="icon-btn" id="collapse-btn" aria-label="收起侧栏">‹</button>
+      </div>
+
+      <button class="new-chat" id="new-chat"><span class="plus">＋</span><span class="new-chat-label">新建会话</span><span class="new-chat-shortcut" style="margin-left:auto;color:#a5abb6;font-size:11px">Ctrl K</span></button>
+
+      <div class="history-heading"><span>最近会话</span><button class="icon-btn" style="width:24px;height:24px;font-size:15px" aria-label="更多">···</button></div>
+      <nav class="history-list" id="history-list">
+        <button class="history-item active" data-title="订单服务慢查询排查">订单服务慢查询排查</button>
+        <button class="history-item" data-title="支付接口 5xx 调查">支付接口 5xx 调查</button>
+        <button class="history-item" data-title="Redis 连接池异常">Redis 连接池异常</button>
+        <button class="history-item" data-title="发布前服务巡检">发布前服务巡检</button>
+        <button class="history-item" data-title="Nginx 日志错误分析">Nginx 日志错误分析</button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-card">
+          <span class="avatar">W</span>
+          <span class="user-copy"><strong>王志海</strong><span>研发运维团队</span></span>
+          <span class="user-more" style="margin-left:auto;color:#9da4af">···</span>
+        </div>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="icon-btn mobile-menu" id="mobile-menu" aria-label="打开侧栏">☰</button>
+          <button class="model-select" id="model-select">OperMind-Reasoner</button>
+          <span class="online-dot" title="服务在线"></span>
+        </div>
+        <div class="topbar-right">
+          <button class="top-action theme-button" id="theme-btn">◐ <span>主题</span></button>
+          <button class="top-action utility-toggle" id="utility-toggle">☷ <span>工作台</span></button>
+          <button class="top-action" id="share-btn">⌁ <span>分享</span></button>
+          <button class="top-action" id="more-btn">···</button>
+        </div>
+      </header>
+
+      <div class="chat-scroll" id="chat-scroll">
+        <div class="chat-inner">
+          <section class="welcome" id="welcome">
+            <div class="welcome-mark">O</div>
+            <h1>你好，我是 OperMind</h1>
+            <p>面向研发与运维的会话式 Copilot。描述一个问题，我会基于已接入服务和受控工具，陪你一起定位根因。</p>
+            <div class="state-strip"><span class="state-dot"></span><span>3 个服务在线 · 默认只读调查</span></div>
+            <div class="quick-grid">
+              <button class="quick-card" data-prompt="帮我排查订单服务最近的慢查询，先从数据库只读调查开始。"><strong>排查慢查询</strong><span>从数据库监控和执行计划开始</span></button>
+              <button class="quick-card" data-prompt="检查支付服务 5xx 增多的可能原因，给我一个只读调查计划。"><strong>调查接口错误</strong><span>串联服务、日志和数据库证据</span></button>
+              <button class="quick-card" data-prompt="帮我做一次发布前服务巡检，只读检查并列出风险。"><strong>发布前巡检</strong><span>并行查看关键服务健康状态</span></button>
+              <button class="quick-card" data-prompt="Redis 连接池出现偶发超时，应该如何安全定位？"><strong>定位连接超时</strong><span>先确认事实，再给出可审批建议</span></button>
+            </div>
+          </section>
+
+          <section class="conversation" id="conversation" aria-live="polite">
+            <article class="message user">
+              <div class="message-avatar">W</div>
+              <div class="message-body">
+                <div class="message-label">你</div>
+                <div class="bubble">订单服务最近变慢了，帮我排查一下慢查询。</div>
+              </div>
+            </article>
+
+            <article class="message assistant">
+              <div class="message-avatar">O</div>
+              <div class="message-body">
+                <div class="message-label">OperMind · 已完成调查</div>
+                <div class="assistant-meta"><span class="meta-pill readonly"><span class="mini-dot"></span>只读调查</span><span class="meta-pill blue">3 个工具调用</span><span>1.2s</span></div>
+                <div class="bubble">
+                  <p class="answer-heading">我先完成了一轮只读调查</p>
+                  <p>从数据库监控与执行计划看，问题集中在 <strong>orders.status</strong> 条件缺少有效索引，查询扫描行数明显偏高。</p>
+                  <div class="trace-card">
+                    <div class="trace-head" data-trace-toggle><span class="trace-head-left"><span class="trace-title"><i class="pulse"></i>调查过程</span><span class="trace-meta">3 个事件 · 145 ms</span><span class="trace-state">已验证</span></span><span class="trace-toggle">⌄</span></div>
+                    <div class="trace-body">
+                      <div class="trace-row"><span class="trace-icon">↗</span><div><strong>数据库 Agent</strong><span>已读取慢查询摘要</span></div><span class="trace-badge">ok</span></div>
+                      <div class="trace-row"><span class="trace-icon">⚙</span><div><strong>explain_sql</strong><span>调用 explain_sql 成功 · 7 ms</span></div><span class="trace-badge">ok</span></div>
+                      <div class="trace-row"><span class="trace-icon">✓</span><div><strong>证据核验</strong><span>执行计划与监控事实一致</span></div><span class="trace-badge">ok</span></div>
+                    </div>
+                  </div>
+                  <p><strong>建议：</strong>先创建低风险索引提案，经过人工审批后再执行。当前没有对真实数据库做写入。</p>
+                  <p class="muted-note">需要我继续生成一份可审批的变更提案吗？</p>
+                </div>
+              </div>
+            </article>
+          </section>
+        </div>
+      </div>
+
+      <div class="composer-wrap">
+        <div class="composer-area">
+          <div class="composer">
+            <textarea id="composer" rows="1" placeholder="给 OperMind 发送消息…"></textarea>
+            <div class="composer-tools">
+              <div class="tool-group">
+                <button class="composer-btn" id="attach-btn" aria-label="添加附件">＋</button>
+                <button class="composer-btn" id="safe-btn" aria-label="安全策略">◌</button>
+                <span class="context-strip"><span class="context-chip">订单服务</span><span class="context-chip">PostgreSQL</span><span class="context-chip">只读</span></span>
+              </div>
+              <button class="send-btn" id="send-btn" aria-label="发送">↑</button>
+            </div>
+          </div>
+          <div class="disclaimer">OperMind 可能会犯错，请核验关键事实。所有外部服务访问均需经过受控连接器。</div>
+        </div>
+      </div>
+    </main>
+
+    <aside class="right-rail" id="right-rail" aria-label="工作台功能">
+      <div class="right-rail-heading"><strong>工作台</strong><span>快捷入口</span><button class="icon-btn" id="rail-collapse" aria-label="收起右侧栏">›</button></div>
+      <div class="utility-group">
+        <p class="utility-group-title">服务状态</p>
+        <div class="utility-list">
+          <button class="utility-card" data-utility="connections">
+            <span class="utility-icon">⌘</span>
+            <span class="utility-copy"><strong>服务连接</strong><span>3 个服务已接入</span></span>
+            <span class="utility-arrow">›</span>
+          </button>
+          <button class="utility-card" data-utility="monitoring">
+            <span class="utility-icon green">⌁</span>
+            <span class="utility-copy"><strong>服务监控</strong><span>3 个在线 · 0 条告警</span></span>
+            <span class="utility-arrow">›</span>
+          </button>
+        </div>
+      </div>
+      <div class="utility-group">
+        <p class="utility-group-title">工作台设置</p>
+        <div class="utility-list">
+          <button class="utility-card" data-utility="models">
+            <span class="utility-icon purple">✦</span>
+            <span class="utility-copy"><strong>模型设置</strong><span>OperMind-Reasoner · 温度 0</span></span>
+            <span class="utility-arrow">›</span>
+          </button>
+          <button class="utility-card" data-utility="documents">
+            <span class="utility-icon orange">＋</span>
+            <span class="utility-copy"><strong>文档添加</strong><span>知识库已就绪</span></span>
+            <span class="utility-arrow">›</span>
+          </button>
+        </div>
+      </div>
+
+      <hr class="rail-divider" />
+      <p class="rail-section-title">当前环境</p>
+      <div class="rail-status">
+        <div class="rail-status-summary"><span class="alert-dot"></span><span><span class="status-count">3</span> 个服务在线</span></div>
+        <div class="rail-status-row"><span>当前告警</span><strong class="status-ok">0 条</strong></div>
+        <div class="rail-status-row"><span>调查权限</span><strong class="status-ok">只读</strong></div>
+        <div class="rail-status-row"><span>外部连接</span><strong class="status-ok">已保护</strong></div>
+        <div class="rail-status-row"><span>审批策略</span><strong>人工确认</strong></div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="theme-modal" id="theme-modal" role="dialog" aria-modal="true" aria-labelledby="theme-dialog-title">
+    <div class="theme-dialog">
+      <div class="theme-dialog-head"><div><strong id="theme-dialog-title">选择主题</strong><span>只改变视觉风格，不影响会话内容和交互。</span></div><button class="icon-btn" id="theme-close" aria-label="关闭主题选择">×</button></div>
+      <div class="theme-grid">
+        <button class="theme-option" data-theme-option="steel"><span class="theme-preview steel"><i class="preview-dot"></i></span><span class="theme-copy"><strong>钢蓝工作台</strong><span>克制、清晰、偏企业级</span></span></button>
+        <button class="theme-option" data-theme-option="indigo"><span class="theme-preview indigo"><i class="preview-dot"></i></span><span class="theme-copy"><strong>雾紫蓝</strong><span>柔和、安静、偏编辑器</span></span></button>
+        <button class="theme-option" data-theme-option="forest"><span class="theme-preview forest"><i class="preview-dot"></i></span><span class="theme-copy"><strong>森林绿</strong><span>稳定、自然、运维感更强</span></span></button>
+        <button class="theme-option" data-theme-option="amber"><span class="theme-preview amber"><i class="preview-dot"></i></span><span class="theme-copy"><strong>暖琥珀</strong><span>温和、低刺激、暖白界面</span></span></button>
+        <button class="theme-option" data-theme-option="night"><span class="theme-preview night"><i class="preview-dot"></i></span><span class="theme-copy"><strong>深夜模式</strong><span>深色背景、适合夜间查看</span></span></button>
+      </div>
+      <div class="theme-footer">主题偏好会保存在当前浏览器中</div>
+    </div>
+  </div>
+
+  <div class="utility-modal" id="utility-modal" role="dialog" aria-modal="true" aria-labelledby="utility-dialog-title">
+    <div class="utility-dialog">
+      <div class="utility-dialog-head"><strong id="utility-dialog-title">工作台设置</strong><button class="icon-btn" id="utility-close" aria-label="关闭">×</button></div>
+      <div class="utility-dialog-body" id="utility-dialog-body"></div>
+      <div class="dialog-footer"><button class="dialog-action" id="utility-cancel">稍后设置</button><button class="dialog-action primary" id="utility-confirm">打开设置</button></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const composer = document.getElementById('composer');
+    const sendButton = document.getElementById('send-btn');
+    const conversation = document.getElementById('conversation');
+    const welcome = document.getElementById('welcome');
+    const chatScroll = document.getElementById('chat-scroll');
+    const toast = document.getElementById('toast');
+    const sidebar = document.getElementById('sidebar');
+    const appShell = document.querySelector('.app-shell');
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(() => toast.classList.remove('show'), 1800);
+    }
+
+    const themeModal = document.getElementById('theme-modal');
+    const themeOptions = document.querySelectorAll('[data-theme-option]');
+    const savedTheme = (() => { try { return localStorage.getItem('opermind-theme'); } catch (_) { return null; } })();
+    const allowedThemes = new Set(['steel', 'indigo', 'forest', 'amber', 'night']);
+    const initialTheme = allowedThemes.has(savedTheme) ? savedTheme : 'steel';
+    document.documentElement.dataset.theme = initialTheme;
+
+    function closeTheme() { themeModal.classList.remove('open'); }
+    function setTheme(theme) {
+      if (!allowedThemes.has(theme)) return;
+      document.documentElement.dataset.theme = theme;
+      try { localStorage.setItem('opermind-theme', theme); } catch (_) { /* 演示页面无持久化时继续使用当前主题。 */ }
+      themeOptions.forEach((option) => option.classList.toggle('selected', option.dataset.themeOption === theme));
+    }
+    setTheme(initialTheme);
+
+    const rightRail = document.getElementById('right-rail');
+    const utilityModal = document.getElementById('utility-modal');
+    const utilityTitle = document.getElementById('utility-dialog-title');
+    const utilityBody = document.getElementById('utility-dialog-body');
+    const utilityCopy = {
+      connections: { title: '服务连接', text: '统一管理已接入的外部服务与授权边界。前端不直接连接用户服务，所有访问都由受控 Connector 执行。', rows: [['数据库', 'PostgreSQL · 已连接'], ['缓存', 'Redis · 已连接'], ['日志', '待配置']] },
+      models: { title: '模型设置', text: '选择会话使用的推理模型，并查看当前运行策略。高风险工具始终需要人工审批。', rows: [['当前模型', 'OperMind-Reasoner'], ['响应策略', '稳定优先'], ['工具模式', '受控调用']] },
+      monitoring: { title: '服务监控', text: '从这里快速查看服务健康状态，再回到会话中发起只读调查。', rows: [['在线服务', '3 / 3'], ['当前告警', '0 条'], ['最近检查', '刚刚']] },
+      documents: { title: '文档添加', text: '添加运行手册、架构说明和服务知识，让 Agent 在调查时获得经过授权的上下文。', rows: [['已接入文档', '12 份'], ['支持格式', 'PDF · Markdown · TXT'], ['索引状态', '已就绪']] },
+    };
+
+    function openUtility(name) {
+      const item = utilityCopy[name];
+      if (!item) return;
+      utilityTitle.textContent = item.title;
+      utilityBody.innerHTML = '<p>' + item.text + '</p><ul class="dialog-list">' + item.rows.map((row) => '<li><span>' + row[0] + '</span><strong>' + row[1] + '</strong></li>').join('') + '</ul>';
+      utilityModal.classList.add('open');
+      rightRail.classList.remove('open');
+    }
+
+    function closeUtility() { utilityModal.classList.remove('open'); }
+
+    document.querySelectorAll('[data-trace-toggle]').forEach((head) => head.addEventListener('click', () => {
+      head.closest('.trace-card').classList.toggle('collapsed');
+    }));
+
+    function resizeComposer() {
+      composer.style.height = 'auto';
+      composer.style.height = Math.min(composer.scrollHeight, 170) + 'px';
+      sendButton.classList.toggle('ready', composer.value.trim().length > 0);
+    }
+
+    function addMessage(text, role) {
+      const article = document.createElement('article');
+      article.className = 'message ' + role;
+      article.innerHTML = role === 'user'
+        ? '<div class="message-avatar">W</div><div class="message-body"><div class="message-label">你</div><div class="bubble"></div></div>'
+        : '<div class="message-avatar">O</div><div class="message-body"><div class="message-label">OperMind · 分析中</div><div class="assistant-meta"><span class="meta-pill readonly"><span class="mini-dot"></span>只读调查</span><span class="meta-pill">工具调用中</span></div><div class="bubble"><p>收到。我会先进行只读调查，整理可验证事实后再给出建议。</p><div class="trace-card"><div class="trace-head" data-trace-toggle><span class="trace-head-left"><span class="trace-title"><i class="pulse"></i>调查过程</span><span class="trace-meta">进行中</span><span class="trace-state">running</span></span><span class="trace-toggle">⌄</span></div><div class="trace-body"><div class="trace-row"><span class="trace-icon">⌁</span><div><strong>受控工具链</strong><span>正在准备调查上下文</span></div><span class="trace-badge warn">running</span></div></div></div></div></div>';
+      if (role === 'user') article.querySelector('.bubble').textContent = text;
+      conversation.appendChild(article);
+      return article;
+    }
+
+    function sendMessage(text) {
+      const value = (text || composer.value).trim();
+      if (!value) return;
+      welcome.style.display = 'none';
+      addMessage(value, 'user');
+      composer.value = '';
+      resizeComposer();
+      const assistant = addMessage('', 'assistant');
+      assistant.querySelectorAll('[data-trace-toggle]').forEach((head) => head.addEventListener('click', () => {
+        head.closest('.trace-card').classList.toggle('collapsed');
+      }));
+      chatScroll.scrollTo({ top: chatScroll.scrollHeight, behavior: 'smooth' });
+      setTimeout(() => {
+        const label = assistant.querySelector('.message-label');
+        const bubble = assistant.querySelector('.bubble');
+        label.textContent = 'OperMind · 已完成调查';
+        bubble.innerHTML = '<p class="answer-heading">已完成一轮安全调查</p><p>我已基于当前接入范围完成只读检查。建议先核验监控事实，再生成需要人工审批的变更提案。</p><p class="muted-note">这是演示页面，后续可接入真实会话 API。</p>';
+        chatScroll.scrollTo({ top: chatScroll.scrollHeight, behavior: 'smooth' });
+      }, 900);
+    }
+
+    composer.addEventListener('input', resizeComposer);
+    composer.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendMessage(); }
+    });
+    sendButton.addEventListener('click', () => sendMessage());
+    document.querySelectorAll('.quick-card').forEach((card) => card.addEventListener('click', () => sendMessage(card.dataset.prompt)));
+    document.querySelectorAll('.history-item').forEach((item) => item.addEventListener('click', () => {
+      document.querySelectorAll('.history-item').forEach((node) => node.classList.remove('active'));
+      item.classList.add('active');
+      showToast('已切换到「' + item.dataset.title + '」');
+      sidebar.classList.remove('open');
+    }));
+    document.getElementById('new-chat').addEventListener('click', () => {
+      conversation.innerHTML = '';
+      welcome.style.display = '';
+      showToast('已新建会话');
+    });
+    document.getElementById('theme-btn').addEventListener('click', () => themeModal.classList.add('open'));
+    themeOptions.forEach((option) => option.addEventListener('click', () => { setTheme(option.dataset.themeOption); showToast('已切换为「' + option.querySelector('strong').textContent + '」'); }));
+    document.getElementById('theme-close').addEventListener('click', closeTheme);
+    themeModal.addEventListener('click', (event) => { if (event.target === themeModal) closeTheme(); });
+    document.getElementById('share-btn').addEventListener('click', () => showToast('分享链接功能将在接入会话 API 后启用'));
+    document.getElementById('model-select').addEventListener('click', () => showToast('当前模型：OperMind-Reasoner'));
+    document.getElementById('safe-btn').addEventListener('click', () => showToast('安全策略：只读调查，变更必须审批'));
+    document.getElementById('attach-btn').addEventListener('click', () => showToast('附件能力将在接入服务中心后启用'));
+    document.getElementById('mobile-menu').addEventListener('click', () => sidebar.classList.toggle('open'));
+    document.querySelectorAll('.utility-card').forEach((card) => card.addEventListener('click', () => openUtility(card.dataset.utility)));
+    document.getElementById('utility-toggle').addEventListener('click', () => rightRail.classList.toggle('open'));
+    document.getElementById('rail-collapse').addEventListener('click', () => {
+      if (window.matchMedia('(max-width: 1100px)').matches) {
+        rightRail.classList.remove('open');
+      } else {
+        rightRail.classList.toggle('collapsed');
+        appShell.classList.toggle('rail-collapsed', rightRail.classList.contains('collapsed'));
+      }
+    });
+    document.getElementById('utility-close').addEventListener('click', closeUtility);
+    document.getElementById('utility-cancel').addEventListener('click', closeUtility);
+    document.getElementById('utility-confirm').addEventListener('click', () => { closeUtility(); showToast('设置入口已打开，演示页面暂不保存真实配置'); });
+    utilityModal.addEventListener('click', (event) => { if (event.target === utilityModal) closeUtility(); });
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape') { closeTheme(); closeUtility(); rightRail.classList.remove('open'); sidebar.classList.remove('open'); } });
+    document.getElementById('collapse-btn').addEventListener('click', () => {
+      if (window.matchMedia('(max-width: 760px)').matches) {
+        sidebar.classList.remove('open');
+      } else {
+        sidebar.classList.toggle('collapsed');
+        appShell.classList.toggle('sidebar-collapsed', sidebar.classList.contains('collapsed'));
+      }
+    });
+    window.addEventListener('keydown', (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); composer.focus(); }
+    });
+    resizeComposer();
+  </script>
+</body>
+</html>

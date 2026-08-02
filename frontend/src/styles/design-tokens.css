@@ -1,0 +1,91 @@
+/* OperMind 设计系统 —— 主题 token 与基础样式
+   来源：frontend/参考原型/opermind-deepseek.html（设计稿）
+   主题机制：:root 定义默认（steel 钢蓝）；html[data-theme=...] 切换 token。
+   只切换视觉 token，不改变页面结构。 */
+
+:root {
+  color-scheme: light;
+  --canvas: #f7f7f5;
+  --surface: #ffffff;
+  --surface-muted: #f0f1ef;
+  --surface-rail: #fafaf8;
+  --surface-soft: #f4f5f3;
+  --border: #dfe3e1;
+  --border-strong: #cfd6d3;
+  --text: #1f272b;
+  --text-secondary: #637076;
+  --text-muted: #929b9d;
+  --accent: #315f86;
+  --accent-hover: #274e70;
+  --accent-soft: #eaf0f5;
+  --success: #28745f;
+  --success-soft: #e7f2ee;
+  --warning: #b6782c;
+  --warning-soft: #fff2de;
+  --danger: #b34e54;
+  --danger-soft: #f9e9e9;
+  --sidebar-width: 248px;
+  --sidebar-collapsed-width: 68px;
+  --utility-width: 232px;
+  --utility-collapsed-width: 68px;
+  --content-max-width: 780px;
+  --left-offset: var(--sidebar-width);
+  --right-offset: var(--utility-width);
+  --shadow-float: 0 16px 44px rgba(28, 40, 46, 0.1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--text);
+  background: var(--canvas);
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+/* 主题：不同主题只切换视觉 token，不改变页面结构。 */
+html[data-theme='indigo'] {
+  --canvas: #f6f7fb; --surface: #fff; --surface-muted: #f0f1f7; --surface-rail: #fafaff; --surface-soft: #f3f4fa;
+  --border: #dfe2eb; --border-strong: #cdd3e0; --text: #252936; --text-secondary: #656d7e; --text-muted: #969cac;
+  --accent: #5868a9; --accent-hover: #46568f; --accent-soft: #eceefd; --success: #2f8066; --success-soft: #e7f3ee;
+  --warning: #b67b2e; --warning-soft: #fff2df; --danger: #b2545d; --danger-soft: #fae9eb;
+}
+
+html[data-theme='forest'] {
+  --canvas: #f6f7f2; --surface: #fff; --surface-muted: #eef1eb; --surface-rail: #fafbf8; --surface-soft: #f2f5ef;
+  --border: #dfe5dc; --border-strong: #cbd7c7; --text: #27302b; --text-secondary: #68746c; --text-muted: #949d94;
+  --accent: #52745d; --accent-hover: #3f5f4a; --accent-soft: #eaf2eb; --success: #2f7d5d; --success-soft: #e7f3ea;
+  --warning: #b77a2b; --warning-soft: #fff2dd; --danger: #b25758; --danger-soft: #faeaea;
+}
+
+html[data-theme='amber'] {
+  --canvas: #faf8f4; --surface: #fff; --surface-muted: #f3efe8; --surface-rail: #fcfbf8; --surface-soft: #f7f3ed;
+  --border: #e6dfd4; --border-strong: #d8cbb9; --text: #302b26; --text-secondary: #756b60; --text-muted: #a0988d;
+  --accent: #9a6844; --accent-hover: #7d5033; --accent-soft: #f5ece4; --success: #4d8067; --success-soft: #eaf3ec;
+  --warning: #ad762a; --warning-soft: #fff1db; --danger: #b3554e; --danger-soft: #fae9e6;
+}
+
+html[data-theme='night'] {
+  --canvas: #20262c; --surface: #252d34; --surface-muted: #1d242a; --surface-rail: #222a30; --surface-soft: #2b343c;
+  --border: #3a454e; --border-strong: #4b5964; --text: #ecf0f1; --text-secondary: #b5c0c5; --text-muted: #85939a;
+  --accent: #79a8c9; --accent-hover: #97bed9; --accent-soft: #2d414f; --success: #70bd9b; --success-soft: #29463c;
+  --warning: #dfab61; --warning-soft: #4b3b25; --danger: #dd8588; --danger-soft: #4a2e32;
+  --shadow-float: 0 18px 48px rgba(0, 0, 0, 0.28);
+}

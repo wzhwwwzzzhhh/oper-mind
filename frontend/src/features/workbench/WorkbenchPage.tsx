@@ -327,10 +327,11 @@ function InvestigationProcess({ investigation, session_id }: { investigation: Co
             const role = role_label(event.data.role)
             const duration = event_duration_text(event)
             const tool_status = event.type === 'tool_invoked' ? event.data.status : undefined
+            const tool_status_text = typeof tool_status === 'string' ? tool_status : undefined
             return (
               <div className="investigation-process-event" key={event.id}>
                 {role && <Tag color={event.type === 'agent_done' ? 'green' : 'blue'}>{role}</Tag>}
-                {tool_status && <Tag color={tool_status_color(tool_status)}>{tool_status}</Tag>}
+                {tool_status_text && <Tag color={tool_status_color(tool_status_text)}>{tool_status_text}</Tag>}
                 <Typography.Text>{run_event_summary(event)}</Typography.Text>
                 {duration && <Typography.Text type="secondary">{duration}</Typography.Text>}
               </div>
