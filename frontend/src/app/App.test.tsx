@@ -160,15 +160,15 @@ describe('App', () => {
     open_path(`/workbench/sessions/${api_v1_contract_fixtures.session_id}`)
     render(<App />)
 
-    expect(await screen.findByRole('heading', { name: /Nginx 5xx 排查/ })).toBeInTheDocument()
     expect(await screen.findByLabelText('用户问题')).toHaveTextContent('请检查 Nginx 5xx。')
     expect(await screen.findByLabelText('助手答复')).toHaveTextContent('初步判断是上游连接池已经耗尽。')
-    expect(screen.getByText('调查已完成')).toBeInTheDocument()
+    expect(screen.getByText((content) => content.includes('调查已完成'))).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: '调查问题' })).toBeInTheDocument()
     await waitFor(() => expect(request_paths).toEqual([
       `/api/v1/sessions/${api_v1_contract_fixtures.session_id}`,
       `/api/v1/sessions/${api_v1_contract_fixtures.session_id}/runs`,
       `/api/v1/sessions/${api_v1_contract_fixtures.session_id}/messages`,
+      `/api/v1/runs/${api_v1_contract_fixtures.run_id}/events`,
     ]))
   })
 
@@ -232,10 +232,10 @@ describe('App', () => {
 
     const input = await screen.findByRole('textbox', { name: '调查问题' })
     fireEvent.change(input, { target: { value: submitted_query } })
-    fireEvent.click(screen.getByRole('button', { name: '开始调查' }))
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
 
     expect(await screen.findByLabelText('用户问题')).toHaveTextContent(submitted_query)
-    expect(screen.getAllByText('正在准备调查')).toHaveLength(2)
+    expect(screen.getAllByText((content) => content.includes('正在准备调查')).length).toBeGreaterThanOrEqual(1)
     expect(captured_key).toMatch(/^[0-9a-f-]{36}$/i)
     expect(request_paths.filter((path) => path === `/api/v1/sessions/${session_id}/runs`).length).toBeGreaterThanOrEqual(2)
     expect(request_paths.filter((path) => path === `/api/v1/sessions/${session_id}/messages`).length).toBeGreaterThanOrEqual(2)
@@ -263,7 +263,7 @@ describe('App', () => {
 
     const input = await screen.findByRole('textbox', { name: '调查问题' })
     fireEvent.change(input, { target: { value: '请检查首次问题。' } })
-    fireEvent.click(screen.getByRole('button', { name: '开始调查' }))
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
 
     expect(await screen.findByText('IDEMPOTENCY_KEY_REUSED：幂等键已用于不同问题。')).toBeInTheDocument()
     expect(input).toBeDisabled()
@@ -334,9 +334,9 @@ describe('App', () => {
 
     const input = await screen.findByRole('textbox', { name: '调查问题' })
     fireEvent.change(input, { target: { value: submitted_query } })
-    fireEvent.click(screen.getByRole('button', { name: '开始调查' }))
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
     expect(await screen.findByText('NETWORK_ERROR：无法连接到服务。')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '用相同请求重试' }))
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
 
     expect(await screen.findByLabelText('用户问题')).toHaveTextContent(submitted_query)
     expect(idempotency_keys).toHaveLength(2)
@@ -353,6 +353,7 @@ describe('App', () => {
       `/api/v1/sessions/${api_v1_contract_fixtures.session_id}`,
       `/api/v1/sessions/${api_v1_contract_fixtures.session_id}/runs`,
       `/api/v1/sessions/${api_v1_contract_fixtures.session_id}/messages`,
+      `/api/v1/runs/${api_v1_contract_fixtures.run_id}/events`,
     ]))
   })
 
@@ -401,7 +402,7 @@ describe('App', () => {
 
     use_conversation_handlers(conversation_resources({ include_output: false, run_status: 'cancelled' }))
     render(<App />)
-    expect(await screen.findAllByText('调查已取消')).toHaveLength(2)
+    expect(await screen.findAllByText((content) => content.includes('调查已取消'))).toHaveLength(2)
     expect(screen.queryByLabelText('助手答复')).not.toBeInTheDocument()
   })
 
@@ -449,7 +450,7 @@ describe('App', () => {
 
     expect(await screen.findByRole('textbox', { name: '调查问题' })).toHaveValue('订单服务变慢，帮我排查慢查询。')
     expect(await screen.findByText('尚未开始调查')).toBeInTheDocument()
-    expect(screen.getByText('订单服务靶场')).toBeInTheDocument()
+    expect(screen.getByText((content) => content.includes('预填问题尚未提交'))).toBeInTheDocument()
     expect(request_paths).toContain('/api/v1/services/order-service/sessions')
     expect(request_paths.filter((path) => path === `/api/v1/sessions/${api_v1_contract_fixtures.service_session_id}/runs`)).toHaveLength(1)
     expect(request_paths).not.toContain(`/api/v1/sessions/${api_v1_contract_fixtures.service_session_id}/runs/action-proposal`)

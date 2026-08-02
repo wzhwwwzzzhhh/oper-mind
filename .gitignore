@@ -48,3 +48,6 @@ newproject/
 # Playwright MCP 截图/日志产物
 .playwright-mcp/
 *.playwright-mcp/
+
+# Playwright CLI 产物
+.playwright-cli/

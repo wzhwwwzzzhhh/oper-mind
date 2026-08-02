@@ -2,9 +2,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import {
   Alert,
   Button,
-  Card,
   Collapse,
-  Empty,
   Skeleton,
   Space,
   Tag,
@@ -32,7 +30,6 @@ import {
   list_run_events_query,
 } from '../../api/v1/queries'
 import {
-  investigation_status_color,
   investigation_status_text,
   project_conversation_turns,
   type ConversationInvestigation,
@@ -43,7 +40,8 @@ import { ActionProposalPanel } from './ActionProposalPanel'
 import { DiagnosisResultPanel } from './DiagnosisResultPanel'
 import { Composer } from '../shell/Composer'
 import { WelcomePanel } from '../shell/WelcomePanel'
-import { merge_persisted_run_events, run_event_summary, type PersistedRunEvent } from './run-events'
+import { TraceCard } from './TraceCard'
+import { merge_persisted_run_events, type PersistedRunEvent } from './run-events'
 import { use_run_event_stream } from './use-run-event-stream'
 import { read_diagnosis_result } from './result-readers'
 import {
@@ -82,14 +80,6 @@ function safe_error(error: unknown): { title: string; detail: ReactNode } {
   }
 
   return { title: '暂时无法读取服务数据。', detail: '请稍后刷新；页面不会使用本地数据代替服务端事实。' }
-}
-
-function status_color(status: string): string {
-  if (status === 'succeeded' || status === 'active') return 'green'
-  if (status === 'failed') return 'red'
-  if (status === 'running') return 'blue'
-  if (status === 'queued') return 'gold'
-  return 'default'
 }
 
 function LoadingBlock({ label }: { label: string }): ReactElement {
@@ -161,26 +151,6 @@ function LoadMoreButton({
   )
 }
 
-function role_label(role: unknown): string | undefined {
-  if (role === 'db') return '数据库'
-  if (role === 'log') return '日志'
-  if (role === 'server') return '服务'
-  return undefined
-}
-
-function event_duration_text(event: PersistedRunEvent): string | undefined {
-  const duration_ms = event.data.duration_ms
-  if (typeof duration_ms !== 'number' || !Number.isSafeInteger(duration_ms) || duration_ms < 0) return undefined
-  return `${duration_ms} ms`
-}
-
-function tool_status_color(status: string): string {
-  if (status === 'ok') return 'green'
-  if (status === 'timeout') return 'orange'
-  if (status === 'rejected') return 'blue'
-  return 'red'   // error
-}
-
 function InvestigationProcess({ investigation, session_id }: { investigation: ConversationInvestigation; session_id: string }): ReactElement {
   const query_client = useQueryClient()
   const [events, set_events] = useState<PersistedRunEvent[]>([])
@@ -213,37 +183,11 @@ function InvestigationProcess({ investigation, session_id }: { investigation: Co
     run_id: investigation.id,
   })
 
-  const visible_events = events.filter((event) =>
-    event.type === 'agent_start' || event.type === 'agent_done' ||
-    event.type === 'route_decided' || event.type === 'tool_invoked')
   return (
-    <div className="investigation-process" aria-label="调查过程">
-      <Space align="center" size="small" wrap>
-        <Typography.Text strong>只读调查过程</Typography.Text>
-        <Tag color={stream_state === 'connected' ? 'blue' : 'default'}>{stream_state === 'connected' ? '实时更新' : '已保存事件'}</Tag>
-      </Space>
-      {visible_events.length === 0 ? (
-        <Typography.Text type="secondary">正在等待服务端写入可展示的调查过程。</Typography.Text>
-      ) : (
-        <div className="investigation-process-events">
-          {visible_events.map((event) => {
-            const role = role_label(event.data.role)
-            const duration = event_duration_text(event)
-            const tool_status = event.type === 'tool_invoked' ? event.data.status : undefined
-            const tool_status_text = typeof tool_status === 'string' ? tool_status : undefined
-            return (
-              <div className="investigation-process-event" key={event.id}>
-                {role && <Tag color={event.type === 'agent_done' ? 'green' : 'blue'}>{role}</Tag>}
-                {tool_status_text && <Tag color={tool_status_color(tool_status_text)}>{tool_status_text}</Tag>}
-                <Typography.Text>{run_event_summary(event)}</Typography.Text>
-                {duration && <Typography.Text type="secondary">{duration}</Typography.Text>}
-              </div>
-            )
-          })}
-        </div>
-      )}
-      {events_query.isError && <Typography.Text type="secondary">过程事件暂不可读取；不会以本地内容替代服务端事实。</Typography.Text>}
-    </div>
+    <TraceCard
+      events={events}
+      running={investigation.status === 'queued' || investigation.status === 'running' || stream_state === 'connected'}
+    />
   )
 }
 function AssistantReply({ investigation, output, session_id }: { investigation: ConversationInvestigation; output?: ConversationMessage; session_id: string }): ReactElement {
@@ -252,25 +196,24 @@ function AssistantReply({ investigation, output, session_id }: { investigation: 
       ? { issues: [{ field: 'result', message: '成功调查缺少结构化结果。' }] }
       : read_diagnosis_result(investigation.result, investigation.id)
 
-    if (!output) {
-      return (
-        <Alert
-          description="服务端已标记调查成功，但尚未恢复关联的助手答复。页面不会根据 Result 伪造一条已保存消息。"
-          title="ANSWER_RECOVERY_PENDING"
-          showIcon
-          type="warning"
-        />
-      )
-    }
-
-    const first_issue = result_read.issues[0]
     return (
-      <div className="conversation-message conversation-message-assistant" aria-label="助手答复">
-        <div className="conversation-message-meta">
-          <Tag color="purple">OperMind</Tag>
-          <Typography.Text type="secondary">{output.created_at}</Typography.Text>
+      <div className="message-body">
+        <div className="message-label">OperMind · {investigation_status_text(investigation.status)}</div>
+        <div className="assistant-meta">
+          <span className="meta-pill readonly"><span className="mini-dot" />只读调查</span>
+          <span className="meta-pill blue">工具调用</span>
+          {output && <span>{output.created_at}</span>}
         </div>
-        <Typography.Paragraph className="conversation-message-content">{output.content}</Typography.Paragraph>
+        <InvestigationProcess investigation={investigation} session_id={session_id} />
+        {output && <div className="bubble">{output.content}</div>}
+        {!output && (
+          <Alert
+            description="服务端已标记调查成功，但尚未恢复关联的助手答复。页面不会根据 Result 伪造一条已保存消息。"
+            title="ANSWER_RECOVERY_PENDING"
+            showIcon
+            type="warning"
+          />
+        )}
         {result_read.result ? (
           <Collapse
             className="investigation-details"
@@ -282,7 +225,7 @@ function AssistantReply({ investigation, output, session_id }: { investigation: 
           />
         ) : (
           <Alert
-            description={first_issue ? `${first_issue.field}：${first_issue.message}` : '结构化结果不符合公开契约。'}
+            description={result_read.issues[0] ? `${result_read.issues[0].field}：${result_read.issues[0].message}` : '结构化结果不符合公开契约。'}
             title="RESULT_PROTOCOL_ERROR"
             showIcon
             type="warning"
@@ -297,64 +240,67 @@ function AssistantReply({ investigation, output, session_id }: { investigation: 
     const code = typeof error_record?.code === 'string' ? error_record.code : undefined
     const message = typeof error_record?.message === 'string' ? error_record.message : undefined
     return (
-      <Alert
-        description={code && message ? message : '服务端未返回可安全展示的调查错误。'}
-        title={code ?? '调查未完成'}
-        showIcon
-        type="error"
-      />
+      <div className="message-body">
+        <div className="message-label">OperMind · 调查未完成</div>
+        <Alert
+          description={code && message ? message : '服务端未返回可安全展示的调查错误。'}
+          title={code ?? '调查未完成'}
+          showIcon
+          type="error"
+        />
+        <InvestigationProcess investigation={investigation} session_id={session_id} />
+      </div>
     )
   }
 
   if (investigation.status === 'cancelled') {
-    return <Alert description="可保留已保存的会话内容；当前不推断取消原因或继续执行。" title="调查已取消" showIcon type="warning" />
-  }
-
-  return (
-    <Space direction="vertical" size="small" style={{ width: '100%' }}>
-      <Alert
-        description={investigation.status === 'queued' ? '请求已保存，正在等待调查开始。' : '正在并行收集数据库、日志和服务的只读证据。'}
-        title={investigation.status === 'queued' ? '正在准备调查' : '正在调查'}
-        showIcon
-        type="info"
-      />
-      <InvestigationProcess investigation={investigation} session_id={session_id} />
-    </Space>
-  )
-}
-
-function InvestigationSummary({ investigation, output, session_id }: { investigation?: ConversationInvestigation; output?: ConversationMessage; session_id: string }): ReactElement {
-  if (!investigation) {
     return (
-      <div className="investigation-summary investigation-summary-empty">
-        <Typography.Text type="secondary">这条消息尚未关联已保存的调查；页面不会创建或猜测调查记录。</Typography.Text>
+      <div className="message-body">
+        <div className="message-label">OperMind · 调查已取消</div>
+        <Alert description="可保留已保存的会话内容；当前不推断取消原因或继续执行。" title="调查已取消" showIcon type="warning" />
       </div>
     )
   }
 
   return (
-    <div className="investigation-summary" aria-label="调查摘要">
-      <Space align="center" wrap>
-        <Typography.Text strong>调查摘要</Typography.Text>
-        <Tag color={investigation_status_color(investigation.status)}>{investigation_status_text(investigation.status)}</Tag>
-      </Space>
-      <AssistantReply investigation={investigation} output={output} session_id={session_id} />
+    <div className="message-body">
+      <div className="message-label">OperMind · {investigation_status_text(investigation.status)}</div>
+      <div className="assistant-meta">
+        <span className="meta-pill readonly"><span className="mini-dot" />只读调查</span>
+        <span className="meta-pill blue">工具调用中</span>
+      </div>
+      <InvestigationProcess investigation={investigation} session_id={session_id} />
     </div>
   )
 }
 
 function ConversationTurnCard({ turn, session_id }: { turn: ConversationTurn; session_id: string }): ReactElement {
+  const investigation = turn.investigation
+  const is_live = investigation != null && (investigation.status === 'queued' || investigation.status === 'running')
+  const has_genuine_output = turn.output != null
+
   return (
-    <article className="conversation-turn">
-      <div className="conversation-message conversation-message-user" aria-label="用户问题">
-        <div className="conversation-message-meta">
-          <Tag color="blue">你</Tag>
-          <Typography.Text type="secondary">{turn.input.created_at}</Typography.Text>
+    <>
+      <article className="message user" aria-label="用户问题">
+        <div className="message-avatar">W</div>
+        <div className="message-body">
+          <div className="message-label">你</div>
+          <div className="bubble">{turn.input.content}</div>
         </div>
-        <Typography.Paragraph className="conversation-message-content">{turn.input.content}</Typography.Paragraph>
-      </div>
-      <InvestigationSummary investigation={turn.investigation} output={turn.output} session_id={session_id} />
-    </article>
+      </article>
+      {investigation && (is_live || has_genuine_output) && (
+        <article className="message assistant" aria-label="助手答复">
+          <div className="message-avatar">O</div>
+          <AssistantReply investigation={investigation} output={turn.output} session_id={session_id} />
+        </article>
+      )}
+      {investigation && !is_live && !has_genuine_output && (
+        <div className="message assistant">
+          <div className="message-avatar">O</div>
+          <AssistantReply investigation={investigation} output={turn.output} session_id={session_id} />
+        </div>
+      )}
+    </>
   )
 }
 
@@ -365,31 +311,29 @@ function ConversationTimeline({ messages, runs, session_id }: { messages: unknow
   )
 
   return (
-    <Card className="conversation-card" size="small" title="对话">
+    <section className="conversation">
       {issues.map((issue, index) => (
         <Alert className="conversation-protocol-notice" description={issue} key={`${issue}-${index}`} showIcon title="会话关联异常" type="warning" />
       ))}
       {timeline.length === 0 && (
-        <Empty description="该会话还没有可恢复的对话内容" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        <Typography.Text className="muted-note">该会话还没有可恢复的对话内容</Typography.Text>
       )}
-      <div className="conversation-timeline">
-        {timeline.map((item) => {
-          if (item.kind === 'system') {
-            return (
-              <Alert
-                className="conversation-system-message"
-                description={item.message.content}
-                key={item.message.id}
-                title={`系统提醒 · ${item.message.created_at}`}
-                showIcon
-                type="info"
-              />
-            )
-          }
-          return <ConversationTurnCard key={item.turn.input.id} session_id={session_id} turn={item.turn} />
-        })}
-      </div>
-    </Card>
+      {timeline.map((item) => {
+        if (item.kind === 'system') {
+          return (
+            <Alert
+              className="conversation-system-message"
+              description={item.message.content}
+              key={item.message.id}
+              title={`系统提醒 · ${item.message.created_at}`}
+              showIcon
+              type="info"
+            />
+          )
+        }
+        return <ConversationTurnCard key={item.turn.input.id} session_id={session_id} turn={item.turn} />
+      })}
+    </section>
   )
 }
 
@@ -447,6 +391,12 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
     set_query(restored?.query ?? prefilled_query)
     set_recovery_error(undefined)
   }, [prefilled_query, session_id, storage])
+
+  // 记录挂载时已存在的发送意图：仅对"进会话前就写好"的意图做自动提交，
+  // 用户在会话内自行输入并发送的意图走手动提交，避免重复提交。
+  const initial_intent_key = useRef<string | undefined>(
+    storage ? load_session_run_send_intent(storage, session_id)?.idempotency_key : undefined,
+  )
 
   const reconcile_accepted_intent = async (intent: SessionRunSendIntent): Promise<void> => {
     if (!intent.accepted_run_id || !intent.input_message_id) return
@@ -521,15 +471,29 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
     void reconcile_accepted_intent(send_intent).catch(set_recovery_error)
   }, [create_run.isPending, send_intent, session_id, session_query.isSuccess])
 
+  // 从欢迎页创建的会话：挂载时就带着预写发送意图（acceptance_unknown），进入会话页后自动提交调查。
+  const auto_submit_attempted = useRef<string | null>(null)
+  useEffect(() => {
+    if (!session_query.isSuccess || create_run.isPending) return
+    if (send_intent?.phase !== 'acceptance_unknown') return
+    if (!send_intent.query.trim()) return
+    // 仅自动提交"进会话前就写好"的意图，不处理用户在会话内新输入并发送的意图。
+    if (send_intent.idempotency_key !== initial_intent_key.current) return
+    const attempt_key = `${session_id}:${send_intent.idempotency_key}`
+    if (auto_submit_attempted.current === attempt_key) return
+    auto_submit_attempted.current = attempt_key
+    submit_investigation(send_intent.query)
+  }, [create_run.isPending, send_intent, session_id, session_query.isSuccess])
+
   const discard_send_intent = (): void => {
     if (storage) clear_session_run_send_intent(storage, session_id)
     set_send_intent(undefined)
     set_recovery_error(undefined)
   }
 
-  const submit_investigation = (): void => {
+  const submit_investigation = (composer_value?: string): void => {
     if (create_run.isPending || !storage) return
-    const normalized_query = query.trim()
+    const normalized_query = (composer_value ?? query).trim()
     if (!normalized_query) {
       set_recovery_error(new Error('调查问题不能为空。'))
       return
@@ -550,11 +514,6 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
     })
   }
 
-  const retry_recovery = (): void => {
-    if (!send_intent?.accepted_run_id || !send_intent.input_message_id || create_run.isPending) return
-    void reconcile_accepted_intent(send_intent).catch(set_recovery_error)
-  }
-
   if (session_query.isPending) return <LoadingBlock label="正在恢复会话" />
   if (session_query.isError) {
     return (
@@ -568,84 +527,21 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
 
   const session = (session_query.data as ApiResponse<SessionResponse>).data.session
   const session_status = resource_string(session, 'status', 'unknown')
-  const is_order_service_session = resource_optional_string(session, 'service_id') === 'order-service'
   const can_send = session_status === 'active'
   const has_idempotency_key_conflict = is_idempotency_key_conflict(recovery_error)
   return (
-    <section className="workbench-page" aria-labelledby="workbench-title">
-      <div className="page-eyebrow">PERSONAL CONVERSATION · INVESTIGATION</div>
-      <Space align="center" className="workbench-title-row" wrap>
-        <Typography.Title id="workbench-title" level={2}>{resource_string(session, 'title', '个人会话')}</Typography.Title>
-        <Tag color={status_color(session_status)}>{session_status}</Tag>
-        {is_order_service_session && <Tag color="cyan">订单服务靶场</Tag>}
-      </Space>
-      <Typography.Paragraph className="page-description">
-        这里按对话阅读已保存的问题、调查和助手答复。每次提交都会创建一次运维调查，不提供普通聊天或自动处理。
-      </Typography.Paragraph>
+    <>
       {session_status === 'archived' && (
         <Alert className="archive-notice" description="会话已归档，仅可阅读历史内容；重新激活和编辑尚未实现。" title="已归档会话" showIcon type="info" />
       )}
-      {can_send && (
-        <Card className="investigation-composer" size="small" title="发起调查">
-          <Typography.Paragraph type="secondary">
-            每次提问都会创建一次运维调查。问题会先由服务端持久化；页面不会把本地输入伪造成已保存消息。
-          </Typography.Paragraph>
-          {is_order_service_session && (
-            <Alert
-              className="investigation-send-notice"
-              description="此会话来自订单服务靶场，预填问题尚未提交。你可以修改问题；只有点击“开始调查”后才会创建 Message 和 Run。"
-              title="尚未开始调查"
-              showIcon
-              type="info"
-            />
-          )}
-          <textarea
-            aria-label="调查问题"
-            className="investigation-input"
-            disabled={create_run.isPending || Boolean(send_intent) || has_idempotency_key_conflict}
-            onChange={(event) => {
-              set_query(event.target.value)
-              if (is_validation_error(recovery_error)) set_recovery_error(undefined)
-            }}
-            placeholder="例如：订单服务变慢，帮我排查慢查询。"
-            value={query}
-          />
-          <Space className="investigation-composer-actions" wrap>
-            <Button
-              disabled={create_run.isPending || Boolean(send_intent?.accepted_run_id) || has_idempotency_key_conflict}
-              loading={create_run.isPending}
-              onClick={submit_investigation}
-              type="primary"
-            >
-              {send_intent?.phase === 'acceptance_unknown' ? '用相同请求重试' : '开始调查'}
-            </Button>
-            {send_intent?.accepted_run_id && (
-              <Button onClick={retry_recovery} type="default">重新恢复已保存内容</Button>
-            )}
-            {has_idempotency_key_conflict && (
-              <Button onClick={discard_send_intent} type="default">丢弃当前发送意图</Button>
-            )}
-          </Space>
-          {send_intent?.phase === 'acceptance_unknown' && (
-            <Alert
-              className="investigation-send-notice"
-              description="本次请求的受理结果尚未确认。请使用同一问题和同一幂等键重试，或刷新页面恢复；不要修改问题后盲目再次发送。"
-              title="等待确认调查是否已受理"
-              showIcon
-              type="warning"
-            />
-          )}
-          {send_intent?.phase === 'accepted' && (
-            <Alert
-              className="investigation-send-notice"
-              description="调查已受理，正在按已保存的 Run 与 Message 对账。完成前不会显示本地伪造的问题。"
-              title="正在恢复已保存的调查"
-              showIcon
-              type="info"
-            />
-          )}
-          {recovery_error !== undefined && <ApiErrorNotice error={recovery_error} />}
-        </Card>
+      {prefilled_query && !send_intent && !has_idempotency_key_conflict && (
+        <Alert
+          className="investigation-send-notice"
+          description="此会话从服务中心进入，预填问题尚未提交。你可以修改问题；只有点击发送后才会创建 Message 和 Run。"
+          title="尚未开始调查"
+          showIcon
+          type="info"
+        />
       )}
       {runs_query.isPending && <LoadingBlock label="正在恢复关联调查" />}
       {runs_query.isError && <ApiErrorNotice error={runs_query.error} />}
@@ -666,12 +562,40 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
             label="加载更多已保存消息"
             on_click={() => void messages_query.fetchNextPage()}
           />
-          <Typography.Paragraph className="conversation-history-boundary" type="secondary">
-            当前按服务端正序 cursor 读取已保存消息和关联调查；尚未实现“最近优先、向前加载历史”的新契约。
-          </Typography.Paragraph>
         </>
       )}
-    </section>
+      {can_send && (
+        <Composer
+          disabled={create_run.isPending || has_idempotency_key_conflict}
+          onChange={(text) => {
+            set_query(text)
+            if (is_validation_error(recovery_error)) set_recovery_error(undefined)
+          }}
+          onSubmit={(text) => submit_investigation(text)}
+          value={query}
+        />
+      )}
+      {send_intent?.phase === 'acceptance_unknown' && (
+        <Alert
+          className="investigation-send-notice"
+          description="本次请求的受理结果尚未确认。请使用同一问题和同一幂等键重试，或刷新页面恢复；不要修改问题后盲目再次发送。"
+          title="等待确认调查是否已受理"
+          showIcon
+          type="warning"
+        />
+      )}
+      {has_idempotency_key_conflict && (
+        <Alert
+          action={<Button onClick={discard_send_intent} type="link">丢弃当前发送意图</Button>}
+          className="investigation-send-notice"
+          description="幂等键已用于不同问题。请丢弃当前发送意图后重新提问。"
+          title="发送冲突"
+          showIcon
+          type="warning"
+        />
+      )}
+      {recovery_error !== undefined && <ApiErrorNotice error={recovery_error} />}
+    </>
   )
 }
 
@@ -689,24 +613,39 @@ export function WorkbenchPage(): ReactElement {
 function ConversationHome(): ReactElement {
   const navigate = useNavigate()
   const query_client = useQueryClient()
+  const storage = session_storage()
+  const pending_prompt = useRef<string | null>(null)
+  const [query, set_query] = useState('')
   const create_session = useMutation({
     ...create_session_mutation(),
     onSuccess: async (response) => {
       const created = read_record(response.data.session)
       const created_id = resource_optional_string(created, 'id')
       if (!created_id) return
+      // 预写发送意图，让会话页加载后自动提交调查，避免"创建会话后消息丢失"。
+      const prompt = pending_prompt.current
+      if (storage && prompt) {
+        const intent = create_session_run_send_intent(created_id, prompt)
+        save_session_run_send_intent(storage, intent)
+      }
+      pending_prompt.current = null
       await query_client.invalidateQueries({ queryKey: api_v1_query_keys.sessions(default_session_list_query) })
       navigate(`/workbench/sessions/${encodeURIComponent(created_id)}`)
     },
   })
   const submit_prompt = (prompt: string): void => {
-    const title = prompt.slice(0, 40)
-    create_session.mutate({ title })
+    pending_prompt.current = prompt
+    create_session.mutate({ title: prompt.slice(0, 40) })
   }
   return (
     <>
       <WelcomePanel on_prompt={submit_prompt} />
-      <Composer disabled={create_session.isPending} onSubmit={submit_prompt} />
+      <Composer
+        disabled={create_session.isPending}
+        onChange={set_query}
+        onSubmit={submit_prompt}
+        value={query}
+      />
     </>
   )
 }

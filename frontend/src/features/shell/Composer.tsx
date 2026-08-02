@@ -1,22 +1,21 @@
 import type { ReactElement } from 'react'
-import { useState } from 'react'
 
 interface ComposerProps {
   disabled?: boolean
   onSubmit: (value: string) => void
   placeholder?: string
-  initial?: string
+  /** 受控值；父组件负责维护（含恢复/禁用语义）。 */
+  value: string
+  onChange?: (value: string) => void
 }
 
-export function Composer({ disabled, onSubmit, placeholder, initial }: ComposerProps): ReactElement {
-  const [value, set_value] = useState(initial ?? '')
+export function Composer({ disabled, onSubmit, placeholder, value, onChange }: ComposerProps): ReactElement {
   const ready = value.trim().length > 0
 
   const submit = (): void => {
     const text = value.trim()
     if (!text || disabled) return
     onSubmit(text)
-    set_value('')
   }
 
   return (
@@ -26,7 +25,7 @@ export function Composer({ disabled, onSubmit, placeholder, initial }: ComposerP
           <textarea
             aria-label="调查问题"
             disabled={disabled}
-            onChange={(event) => set_value(event.target.value)}
+            onChange={(event) => onChange?.(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault()
