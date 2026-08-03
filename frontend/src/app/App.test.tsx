@@ -114,6 +114,7 @@ describe('App', () => {
   beforeEach(() => {
     request_paths = []
     window.sessionStorage.clear()
+    window.localStorage.clear()
     open_path('/workbench')
   })
 
@@ -450,6 +451,34 @@ describe('App', () => {
     fireEvent.click(investigate)
 
     await waitFor(() => expect(request_paths).toContain('/api/v1/services/order-service/sessions'))
+  })
+
+  it('服务详情读取真实快照，缺失历史趋势时展示诚实空态', async () => {
+    open_path('/services/order-service')
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: '订单服务靶场' })).toBeInTheDocument()
+    expect(screen.getByText('82 ms')).toBeInTheDocument()
+    expect(screen.getByText('210 ms')).toBeInTheDocument()
+    expect(screen.getByText('暂无趋势数据')).toBeInTheDocument()
+    expect(screen.queryByText('99.98%')).not.toBeInTheDocument()
+  })
+
+  it('模型服务页使用静态 Provider 展示并把 Agent 开关保存到 localStorage', async () => {
+    open_path('/models')
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: '模型服务' })).toBeInTheDocument()
+    expect(screen.getByText('示例配置')).toBeInTheDocument()
+    expect(screen.getByText('未连接')).toBeInTheDocument()
+    const coordinator_toggle = screen.getByRole('button', { name: 'Coordinator 策略开关' })
+    fireEvent.click(coordinator_toggle)
+    expect(JSON.parse(window.localStorage.getItem('opermind:model-policy') ?? '{}')).toMatchObject({ coordinator: false })
+
+    fireEvent.click(screen.getByRole('button', { name: '＋ 添加模型服务' }))
+    expect(screen.getByRole('dialog', { name: '添加模型服务' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '继续配置' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('已进入')
   })
 
   it('服务中心列表展示真实服务目录，不伪装成实时监控', async () => {

@@ -6,18 +6,20 @@ export function GlobalNav(): ReactElement {
   const navigate = useNavigate()
   const location = useLocation()
   const on_services = location.pathname.startsWith('/services')
+  const on_models = location.pathname.startsWith('/models')
 
   const items = [
-    { key: 'chat', icon: '⌂', label: '会话工作台', active: !on_services },
+    { key: 'chat', icon: '⌂', label: '会话工作台', active: !on_services && !on_models },
     { key: 'services', icon: '◫', label: '服务中心', active: on_services },
     { key: 'monitor', icon: '◌', label: '服务监控', active: false },
     { key: 'docs', icon: '▤', label: '文档知识库', active: false },
-    { key: 'models', icon: '✦', label: '模型设置', active: false },
+    { key: 'models', icon: '✦', label: '模型设置', active: on_models },
   ]
 
   const go = (key: string): void => {
     if (key === 'chat') navigate('/workbench')
     else if (key === 'services') navigate('/services')
+    else if (key === 'models') navigate('/models')
   }
 
   return (

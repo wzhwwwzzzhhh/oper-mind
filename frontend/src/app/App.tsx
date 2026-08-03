@@ -3,6 +3,8 @@ import { useState } from 'react'
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 
 import { ServiceCenterPage } from '../features/services/ServiceCenterPage'
+import { ServiceDetailPage } from '../features/services/ServiceDetailPage'
+import { ModelSettingsPage } from '../features/models/ModelSettingsPage'
 import { GlobalNav } from '../features/shell/GlobalNav'
 import { ServiceContextNav } from '../features/shell/ServiceContextNav'
 import { Sidebar } from '../features/shell/Sidebar'
@@ -17,6 +19,8 @@ function ProductShell(): ReactElement {
   const [toast, set_toast] = useState<string | null>(null)
   const location = useLocation()
   const is_services = location.pathname.startsWith('/services')
+  const is_models = location.pathname.startsWith('/models')
+  const is_operations = is_services || is_models
 
   const show_toast = (message: string): void => {
     set_toast(message)
@@ -24,10 +28,10 @@ function ProductShell(): ReactElement {
   }
 
   return (
-    <div className={`app-shell${is_services ? ' mode-service' : ' mode-chat'}`}>
+    <div className={`app-shell${is_operations ? ' mode-service' : ' mode-chat'}`}>
       <GlobalNav />
       {/* 第二栏：随模式切换（会话侧栏 / 服务中心上下文） */}
-      {is_services ? <ServiceContextNav /> : <Sidebar collapsed={sidebar_collapsed} on_collapse={() => set_sidebar_collapsed((value) => !value)} />}
+      {is_operations ? <ServiceContextNav /> : <Sidebar collapsed={sidebar_collapsed} on_collapse={() => set_sidebar_collapsed((value) => !value)} />}
       <main className="workspace">
         <TopBar
           on_theme={() => set_theme_modal_open(true)}
@@ -52,8 +56,9 @@ export function App(): ReactElement {
           <Route element={<ProductShell />}>
             <Route path="/services">
               <Route element={<ServiceCenterPage />} index />
-              <Route element={<ServiceCenterPage />} path=":service_id" />
+              <Route element={<ServiceDetailPage />} path=":service_id" />
             </Route>
+            <Route element={<ModelSettingsPage />} path="/models" />
             <Route path="/workbench">
               <Route element={<WorkbenchPage />} index />
               <Route element={<WorkbenchPage />} path="sessions/:session_id" />
