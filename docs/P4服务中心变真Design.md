@@ -112,9 +112,23 @@ ServiceRegistry((
 
 回滚：移除 Connector 装配，回到 `ServiceRegistry(())` 空态，接口不变。
 
-## 8. 待确认
+## 8. 已确认决策
 
-1. 是否接受「接 PostgreSQL 只读诊断」作为第一个真实服务？
-2. 凭据用单一 DSN 环境变量，还是拆分 host/port/user/password？
-3. 快照指标深度：p50/p95/慢查询计数够不够，还是需要更多？
-4. 本阶段只做「服务快照变真」，是否也要顺带让会话里 DBAgent 的工具连真库？（建议：本阶段只做快照，DBAgent 连真库放到 P4.2 单独 Design）
+1. ✅ 接 PostgreSQL 只读诊断作为第一个真实服务
+2. ✅ 凭据用单一环境变量 `OPERMIND_PG_DSN`
+3. ✅ 指标深度：SELECT 1 连通性 + pg_stat_database 基础行；扩展可用才读 p50/p95/慢查询，读不到留 None
+4. ✅ 本阶段只做「服务快照变真」，DBAgent 工具连真库放到 P4.2 单独 Design
+
+## 9. 实施中发现的既有设计缺陷（P4 需一并修复）
+
+> 2026-08-03 复核发现，这两处是 P2 演示遗留，会阻塞服务中心 API 全链路。
+
+1. **`schemas.py` 写死 P2 演示字面量**：
+   `ServiceInvestigationResource.id: Literal["orders_slow_query.v1"]`、
+   `ServiceResource.id: Literal["order-service"]`、`kind: Literal["postgres_orders_demo"]`
+   → 改为通用字符串字段（id/kind 用 `str` + 长度约束）。
+2. **`DatabaseSignal` 缺健康结论值**：
+   `DatabaseSignal` 没有 `NO_SLOW_QUERY_DETECTED`（健康分支需要的诚实结论）
+   → 补该枚举值，并在 schemas 的 `signal` Literal 同步补 `"no_slow_query_detected"`。
+
+这两处是「正式产品去 P2 演示硬编码」的一部分，不属于新增功能，故纳入 P4 实施范围。

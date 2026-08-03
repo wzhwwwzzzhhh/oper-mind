@@ -17,13 +17,39 @@ Design 文档：`docs/P4服务中心变真Design.md`（已确认）。
 - 只读：连接用 `SET TRANSACTION READ ONLY`（或 `pg_read_only` 风格），无任何写路径
 - 每次快照读取限时 3 秒
 
-## 只允许修改/创建这些文件
+## 允许修改/创建这些文件
 1. 新建 `backend/src/infrastructure/services/postgres_connector.py`
 2. 新建 `backend/tests/test_postgres_connector.py`
 3. 改 `backend/src/config.py`
 4. 改 `backend/src/api/v1/dependencies.py`
+5. 改 `backend/src/domain/services.py`（只补 DatabaseSignal 枚举值，见下）
+6. 改 `backend/src/api/v1/schemas.py`（把写死的 P2 演示字面量改通用字符串，见下）
+7. 新建/改 `backend/tests/test_p4_service_center.py`（API 级测试，见下）
 
-**严禁触碰其他文件**（不改 domain/services.py、不改前端、不改 DBAgent/工具、不改 mock 数据源、不改 requirements.txt——psycopg 已存在）。
+**严禁触碰其他文件**（不改前端、不改 DBAgent/工具、不改 mock 数据源、不改 requirements.txt——psycopg 已存在）。
+
+### 修复 1：schemas.py 去掉 P2 写死字面量（必须做）
+现有 `ServiceInvestigationResource.id: Literal["orders_slow_query.v1"]`、
+`ServiceResource.id: Literal["order-service"]`、`ServiceResource.kind: Literal["postgres_orders_demo"]`
+是 P2 演示服务写死的，导致 P4 的 `postgres-production` / `postgres` / `postgres_slow_query.v1`
+无法通过 `service_resource()` 校验。改成通用字符串字段：
+```python
+# ServiceInvestigationResource
+id: str = Field(min_length=1, max_length=80)
+# ServiceResource
+id: str = Field(min_length=1, max_length=64)
+kind: str = Field(min_length=1, max_length=80)
+```
+同时把 `ServiceSnapshotResource.signal` 的 Literal 补上 `"no_slow_query_detected"`（见修复 2）。
+
+### 修复 2：domain/services.py 补 DatabaseSignal 枚举值（必须做）
+现有 `DatabaseSignal` 缺 `NO_SLOW_QUERY_DETECTED`（健康分支要用的诚实结论）。
+补一个枚举值：
+```python
+NO_SLOW_QUERY_DETECTED = "no_slow_query_detected"
+```
+同时 `schemas.py` 的 `ServiceDatabaseStateResource.signal` Literal 也补 `"no_slow_query_detected"`。
+health_snapshot 健康分支用 `DatabaseSignal.NO_SLOW_QUERY_DETECTED`。
 
 ## 被依赖的现有契约（照此实现）
 ```python
@@ -174,7 +200,9 @@ from src.infrastructure.services.postgres_connector import PostgresServiceConnec
 ServiceRegistry((PostgresServiceConnector(load_service_settings().pg_dsn),))
 ```
 
-## 测试 `tests/test_postgres_connector.py`（不连真库，用假 engine 注入）
+## 测试（两处）
+
+### 1. tests/test_postgres_connector.py（不连真库，用假 engine 注入）
 用 `unittest.mock` 或最小假对象构造 Engine，覆盖：
 1. **无凭据**：`PostgresServiceConnector(None)` → snapshot.availability == ServiceAvailability.NOT_CONFIGURED，不抛异常
 2. **连接失败**：假 engine 的 connect 抛 `OperationalError` → availability == UNAVAILABLE
@@ -184,16 +212,26 @@ ServiceRegistry((PostgresServiceConnector(load_service_settings().pg_dsn),))
 6. **definition 完整**：id == "postgres-production"，各字段非空
 （中文 docstring；用 `PostgresServiceConnector("postgresql://u:p@h/db", engine=fake_engine)` 注入假 engine。）
 
+### 2. tests/test_p4_service_center.py（API 级测试，验证全链路）
+用假 engine 装配一个 `ServiceRegistry((PostgresServiceConnector(None),))`，
+通过 `ServiceCenterApplicationService` + `service_resource()` 冒烟：
+1. **无凭据时 API 可响应**：`list_services()` 返回 1 个服务，`service_resource(view)` 不抛校验错误，availability == not_configured
+2. **健康分支 API 可响应**：注入假 healthy engine，`service_resource(view)` 不抛校验错误，availability == healthy、database.signal == no_slow_query_detected
+3. **get_service 同样可映射**：`get_service("postgres-production")` → `service_resource` 不抛错
+（中文 docstring；参考现有 `tests/test_p2_*` 的装配方式。）
+
 ## 验收
-- `cd backend && ../.venv/Scripts/python.exe -m pytest tests/test_postgres_connector.py -q` 全绿
+- `cd backend && ../.venv/Scripts/python.exe -m pytest tests/test_postgres_connector.py tests/test_p4_service_center.py -q` 全绿
 - 回归：`../.venv/Scripts/python.exe -m pytest tests/test_p2_application_services.py tests/test_p2_diagnosis_adapter.py -q` 全绿
-- `git status` 只出现允许的 4 个文件
+- `git status` 只出现允许的文件
 
 ## 完成后
 **不要 commit。** 停下告诉我"P4完成"，我审 diff + 跑测试后自己提交。
 
 ## 交差前自审清单（必须在完成报告里逐条回答）
-1. `git status --short` 完整输出 —— 确认只出现本任务允许的 4 个文件。
+1. `git status --short` 完整输出 —— 确认只出现本任务允许的文件。
 2. pytest 结果 —— 新测试全绿 + 现有回归全绿；确认没为了绿改现有测试。
-3. 明确说明：没有打印/记录 dsn、没有改 domain/services.py、没有改前端、没有改 DBAgent 工具、没有改 requirements.txt。
-4. 列出每个文件的改动点。
+3. 明确说明：没有打印/记录 dsn、没有改前端、没有改 DBAgent 工具、没有改 requirements.txt。
+4. schemas.py 改动说明 —— 列出改了哪些 Literal 为通用字符串、哪些信号枚举补了值。
+5. domain/services.py 改动说明 —— 确认只补了 DatabaseSignal 枚举值，没改其他。
+6. 列出每个文件的改动点。
