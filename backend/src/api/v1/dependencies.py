@@ -1,8 +1,7 @@
 """v1 API 的依赖装配。
 
-诊断执行统一走多 Agent 内核（Coordinator）；审批闭环与服务中心保留为
-通用骨架，但当前不注册任何具体动作执行器或服务 Connector——它们由后续
-按服务类型和动作模板完成 Design/Review/用户确认后再注入。
+诊断执行统一走多 Agent 内核（Coordinator）；审批闭环保留为通用骨架，
+服务中心通过显式依赖装配注册已确认的只读服务 Connector。
 """
 
 from __future__ import annotations
@@ -15,11 +14,12 @@ from fastapi import Request
 from src.application.action_services import ActionApplicationService
 from src.application.services import RunApplicationService, SessionApplicationService
 from src.application.service_center import ServiceCenterApplicationService
-from src.config import load_persistence_settings
+from src.config import load_persistence_settings, load_service_settings
 from src.domain.services import ServiceRegistry
 from src.infrastructure.diagnosis.coordinator_executor import CoordinatorDiagnosisExecutor
 from src.infrastructure.diagnosis.result_assembler import KernelReportResultAssembler
 from src.infrastructure.persistence.database import PersistenceRuntime, SessionFactory, create_persistence_runtime
+from src.infrastructure.services.postgres_connector import PostgresServiceConnector
 
 
 @dataclass(frozen=True)
@@ -50,7 +50,7 @@ def build_v1_services_for_runtime(
     """用给定 Runtime 构造服务，供临时库测试安全替换。
 
     诊断执行固定使用多 Agent 内核（每 Run 现造）；结果用 KernelReportResultAssembler，
-    报告作答复、结构化字段保守留空。审批执行器与服务注册表当前为空骨架。
+    报告作答复、结构化字段保守留空。审批执行器仍为空骨架，服务注册表显式装配已确认的 Connector。
     """
     session_factory = runtime.session_factory
     action_service = ActionApplicationService(session_factory, executor=None)
@@ -65,7 +65,10 @@ def build_v1_services_for_runtime(
             action_mode=None,
         ),
         action_service=action_service,
-        service_center=ServiceCenterApplicationService(session_factory, ServiceRegistry(())),
+        service_center=ServiceCenterApplicationService(
+            session_factory,
+            ServiceRegistry((PostgresServiceConnector(load_service_settings().pg_dsn),)),
+        ),
     )
 
 

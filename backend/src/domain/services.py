@@ -47,6 +47,7 @@ class DatabaseSignal(str, Enum):
     MISSING_INDEX_SEQ_SCAN_DETECTED = "missing_index_seq_scan_detected"
     INDEX_AND_PLAN_CONFIRMED = "index_and_plan_confirmed"
     INSUFFICIENT_DATA = "insufficient_data"
+    NO_SLOW_QUERY_DETECTED = "no_slow_query_detected"
     UNAVAILABLE = "unavailable"
     NOT_CONFIGURED = "not_configured"
 

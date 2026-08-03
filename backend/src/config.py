@@ -19,6 +19,7 @@ _ENV_TO_CONFIG_KEY = {
     "OPERMIND_JUDGE_BASE_URL": ("judge_llm", "base_url"),
     "OPERMIND_JUDGE_MODEL": ("judge_llm", "model"),
     "OPERMIND_APP_DATABASE_URL": ("persistence", "database_url"),
+    "OPERMIND_PG_DSN": ("services", "pg_dsn"),
 }
 
 
@@ -99,3 +100,20 @@ def load_persistence_settings() -> PersistenceSettings:
     if not isinstance(database_url, str) or not database_url.strip():
         raise ValueError("persistence.database_url 必须是非空数据库 URL。")
     return PersistenceSettings(database_url=database_url)
+
+
+@dataclass(frozen=True)
+class ServiceSettings:
+    """外部服务连接设置；缺省表示未配置。"""
+
+    pg_dsn: str | None
+
+
+def load_service_settings() -> ServiceSettings:
+    """读取外部服务 DSN；未配置返回 None。只读环境变量，不打印/记录 dsn。"""
+    config = _apply_env_overrides(_load_yaml_config())
+    services = config.get("services") or {}
+    dsn = services.get("pg_dsn")
+    if not isinstance(dsn, str) or not dsn.strip():
+        return ServiceSettings(pg_dsn=None)
+    return ServiceSettings(pg_dsn=dsn)

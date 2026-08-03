@@ -68,7 +68,7 @@ class SessionResource(ApiV1Model):
     status: Literal["active", "archived"]
     environment_id: UUID | None = None
     incident_id: UUID | None = None
-    service_id: Literal["order-service"] | None = None
+    service_id: str | None = Field(default=None, min_length=1, max_length=64)
     created_at: datetime
     updated_at: datetime
     archived_at: datetime | None = None
@@ -77,7 +77,7 @@ class SessionResource(ApiV1Model):
 class ServiceInvestigationResource(ApiV1Model):
     """静态服务暴露的固定调查入口。"""
 
-    id: Literal["orders_slow_query.v1"]
+    id: str = Field(min_length=1, max_length=80)
     title: str
     description: str
     default_query: str
@@ -102,6 +102,7 @@ class ServiceDatabaseResource(ApiV1Model):
         "missing_index_seq_scan_detected",
         "index_and_plan_confirmed",
         "insufficient_data",
+        "no_slow_query_detected",
         "unavailable",
         "not_configured",
     ]
@@ -127,9 +128,9 @@ class ServiceSnapshotResource(ApiV1Model):
 class ServiceResource(ApiV1Model):
     """静态注册服务与其当前安全快照。"""
 
-    id: Literal["order-service"]
+    id: str = Field(min_length=1, max_length=64)
     title: str
-    kind: Literal["postgres_orders_demo"]
+    kind: str = Field(min_length=1, max_length=80)
     supported_investigations: list[ServiceInvestigationResource]
     action_boundary: str
     snapshot: ServiceSnapshotResource
