@@ -122,7 +122,7 @@ describe('App', () => {
 
     expect(screen.getByRole('heading', { name: '你好，我是 OperMind' })).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: /排查慢查询/ })).toBeInTheDocument()
-    expect(screen.getByText('当前环境')).toBeInTheDocument()
+    expect(screen.getByLabelText('全局导航')).toBeInTheDocument()
   })
 
   it('欢迎页快捷卡创建会话并进入新会话', async () => {
@@ -167,7 +167,6 @@ describe('App', () => {
     await waitFor(() => expect(request_paths).toEqual([
       `/api/v1/sessions`,
       `/api/v1/sessions/${api_v1_contract_fixtures.session_id}`,
-      `/api/v1/services`,
       `/api/v1/sessions/${api_v1_contract_fixtures.session_id}/runs`,
       `/api/v1/sessions/${api_v1_contract_fixtures.session_id}/messages`,
       `/api/v1/runs/${api_v1_contract_fixtures.run_id}/events`,
@@ -354,7 +353,6 @@ describe('App', () => {
     await waitFor(() => expect(request_paths).toEqual([
       `/api/v1/sessions`,
       `/api/v1/sessions/${api_v1_contract_fixtures.session_id}`,
-      `/api/v1/services`,
       `/api/v1/sessions/${api_v1_contract_fixtures.session_id}/runs`,
       `/api/v1/sessions/${api_v1_contract_fixtures.session_id}/messages`,
       `/api/v1/runs/${api_v1_contract_fixtures.run_id}/events`,

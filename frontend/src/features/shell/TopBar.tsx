@@ -2,18 +2,13 @@ import type { ReactElement } from 'react'
 
 interface TopBarProps {
   on_theme: () => void
-  on_utility: () => void
-  on_mobile_menu: () => void
   on_share: () => void
 }
 
-export function TopBar({ on_theme, on_utility, on_mobile_menu, on_share }: TopBarProps): ReactElement {
+export function TopBar({ on_theme, on_share }: TopBarProps): ReactElement {
   return (
     <header className="topbar">
       <div className="topbar-left">
-        <button aria-label="打开侧栏" className="icon-btn mobile-menu" onClick={on_mobile_menu} type="button">
-          ☰
-        </button>
         <button className="model-select" type="button">
           OperMind-Reasoner
         </button>
@@ -22,9 +17,6 @@ export function TopBar({ on_theme, on_utility, on_mobile_menu, on_share }: TopBa
       <div className="topbar-right">
         <button className="top-action theme-button" onClick={on_theme} type="button">
           ◐ <span>主题</span>
-        </button>
-        <button className="top-action utility-toggle" onClick={on_utility} type="button">
-          ☷ <span>工作台</span>
         </button>
         <button className="top-action" onClick={on_share} type="button">
           ⌁ <span>分享</span>

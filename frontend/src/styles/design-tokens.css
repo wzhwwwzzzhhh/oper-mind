@@ -24,13 +24,10 @@
   --warning-soft: #fff2de;
   --danger: #b34e54;
   --danger-soft: #f9e9e9;
-  --sidebar-width: 248px;
-  --sidebar-collapsed-width: 68px;
-  --utility-width: 232px;
-  --utility-collapsed-width: 68px;
+  --global: 62px;
+  --sidebar: 248px;
+  --context: 226px;
   --content-max-width: 780px;
-  --left-offset: var(--sidebar-width);
-  --right-offset: var(--utility-width);
   --shadow-float: 0 16px 44px rgba(28, 40, 46, 0.1);
 }
 

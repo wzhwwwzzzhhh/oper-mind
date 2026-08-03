@@ -531,7 +531,7 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
   const can_send = session_status === 'active'
   const has_idempotency_key_conflict = is_idempotency_key_conflict(recovery_error)
   return (
-    <>
+    <div className="chat-inner">
       {session_status === 'archived' && (
         <Alert className="archive-notice" description="会话已归档，仅可阅读历史内容；重新激活和编辑尚未实现。" title="已归档会话" showIcon type="info" />
       )}
@@ -596,7 +596,7 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
         />
       )}
       {recovery_error !== undefined && <ApiErrorNotice error={recovery_error} />}
-    </>
+    </div>
   )
 }
 
@@ -641,7 +641,7 @@ function ConversationHome(): ReactElement {
     create_session.mutate({ title: prompt.slice(0, 40) })
   }
   return (
-    <>
+    <div className="chat-inner">
       <WelcomePanel on_prompt={submit_prompt} service_count={service_count} />
       <Composer
         disabled={create_session.isPending}
@@ -649,6 +649,6 @@ function ConversationHome(): ReactElement {
         onSubmit={submit_prompt}
         value={query}
       />
-    </>
+    </div>
   )
 }

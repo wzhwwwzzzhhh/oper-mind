@@ -2,33 +2,25 @@ import { useQuery } from '@tanstack/react-query'
 import type { ReactElement } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
-import {
-  list_sessions_query,
-} from '../../api/v1/queries'
-import {
-  read_items,
-  resource_optional_string,
-  resource_string,
-} from '../workbench/resource-readers'
+import { list_sessions_query } from '../../api/v1/queries'
+import { read_items, resource_optional_string, resource_string } from '../workbench/resource-readers'
 
 interface SidebarProps {
   collapsed: boolean
   on_collapse: () => void
 }
 
-/** 左栏会话导航：品牌 + 新建会话 + 最近会话列表（接真实 API）。 */
+/** 第二栏（会话模式）：品牌 + 新建会话 + 运维中心入口卡 + 最近会话列表（接真实 API）。 */
 export function Sidebar({ collapsed, on_collapse }: SidebarProps): ReactElement {
   const navigate = useNavigate()
   const location = useLocation()
   const current_session_id = location.pathname.match(/\/sessions\/([^/]+)/)?.[1]
 
-  const sessions_query = useQuery({
-    ...list_sessions_query({ limit: 20, status: 'active' }),
-  })
+  const sessions_query = useQuery({ ...list_sessions_query({ limit: 20, status: 'active' }) })
   const sessions = sessions_query.data ? read_items(sessions_query.data.data) : []
 
   return (
-    <aside aria-label="会话导航" className={`sidebar${collapsed ? ' collapsed' : ''}`}>
+    <aside aria-label="会话导航" className={`second chat-side${collapsed ? ' collapsed' : ''}`}>
       <div className="brand-row">
         <a aria-label="OperMind 首页" className="brand" href="/workbench">
           <span className="brand-mark">O</span>
@@ -46,6 +38,16 @@ export function Sidebar({ collapsed, on_collapse }: SidebarProps): ReactElement 
         <span className="plus">＋</span>
         <span className="new-chat-label">新建会话</span>
         <span className="new-chat-shortcut">Ctrl K</span>
+      </button>
+
+      {/* 运维中心入口 */}
+      <button className="ops-entry" onClick={() => navigate('/services')} type="button">
+        <span className="ops-icon">◫</span>
+        <span className="ops-copy">
+          <strong>运维中心</strong>
+          <span>服务接入 · 监控 · 调查</span>
+        </span>
+        <span className="ops-arrow">›</span>
       </button>
 
       <div className="history-heading">
