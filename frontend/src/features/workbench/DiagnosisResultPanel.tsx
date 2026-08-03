@@ -1,79 +1,73 @@
-import { Card, Descriptions, Empty, List, Space, Tag, Typography } from 'antd'
 import type { ReactElement } from 'react'
 
 import type { DiagnosisAgentSummary, DiagnosisEvidence, DiagnosisResultProjection, DiagnosisRisk, DiagnosisRootCause } from './result-readers'
 
-const SEVERITY_COLORS: Record<DiagnosisResultProjection['severity'], string> = {
-  critical: 'magenta',
-  high: 'red',
-  info: 'blue',
-  low: 'green',
-  medium: 'orange',
+const SEVERITY_CLASSES: Record<DiagnosisResultProjection['severity'], string> = {
+  critical: 'critical',
+  high: 'high',
+  info: 'info',
+  low: 'low',
+  medium: 'medium',
 }
 
 function EvidenceReferences({ evidence_ids, evidence_by_id }: { evidence_ids: string[]; evidence_by_id: ReadonlyMap<string, DiagnosisEvidence> }): ReactElement {
-  if (evidence_ids.length === 0) return <Typography.Text type="secondary">未关联结构化证据</Typography.Text>
+  if (evidence_ids.length === 0) return <span className="diagnosis-result-panel__muted">未关联结构化证据</span>
 
   return (
-    <Space size={[4, 4]} wrap>
+    <span className="diagnosis-result-panel__tags">
       {evidence_ids.map((evidence_id) => (
         evidence_by_id.has(evidence_id)
-          ? <Tag key={evidence_id}>证据 {evidence_id}</Tag>
-          : <Tag color="warning" key={evidence_id}>关联证据不可用</Tag>
+          ? <span className="diagnosis-result-panel__tag" key={evidence_id}>证据 {evidence_id}</span>
+          : <span className="diagnosis-result-panel__tag diagnosis-result-panel__tag--warning" key={evidence_id}>关联证据不可用</span>
       ))}
-    </Space>
+    </span>
   )
 }
 
 function RootCauseItem({ root_cause, evidence_by_id }: { root_cause: DiagnosisRootCause; evidence_by_id: ReadonlyMap<string, DiagnosisEvidence> }): ReactElement {
   return (
-    <List.Item>
-      <Space direction="vertical" size={4}>
-        <Typography.Text strong>{root_cause.title}</Typography.Text>
-        <Typography.Paragraph>{root_cause.summary}</Typography.Paragraph>
-        <Space size="small" wrap>
-          <Tag color="cyan">置信度 {(root_cause.confidence * 100).toFixed(0)}%</Tag>
-          <EvidenceReferences evidence_by_id={evidence_by_id} evidence_ids={root_cause.evidence_ids} />
-        </Space>
-      </Space>
-    </List.Item>
+    <li className="diagnosis-result-panel__item">
+      <div className="diagnosis-result-panel__item-title">{root_cause.title}</div>
+      <p className="diagnosis-result-panel__item-copy">{root_cause.summary}</p>
+      <div className="diagnosis-result-panel__tags">
+        <span className="diagnosis-result-panel__tag diagnosis-result-panel__tag--info">置信度 {(root_cause.confidence * 100).toFixed(0)}%</span>
+        <EvidenceReferences evidence_by_id={evidence_by_id} evidence_ids={root_cause.evidence_ids} />
+      </div>
+    </li>
   )
 }
 
-function agent_status_color(status: DiagnosisAgentSummary['status']): string {
-  if (status === 'completed') return 'green'
-  if (status === 'failed') return 'red'
-  return 'default'
+function agent_status_class(status: DiagnosisAgentSummary['status']): string {
+  if (status === 'completed') return 'success'
+  if (status === 'failed') return 'danger'
+  return 'muted'
 }
 
 function AgentSummaryItem({ item }: { item: DiagnosisAgentSummary }): ReactElement {
   return (
-    <List.Item>
-      <Space direction="vertical" size={4}>
-        <Space size="small" wrap>
-          <Typography.Text strong>{item.agent}</Typography.Text>
-          <Tag color={agent_status_color(item.status)}>{item.status}</Tag>
-          {item.duration_ms !== null && <Tag>{item.duration_ms} ms</Tag>}
-        </Space>
-        <Typography.Text>{item.summary}</Typography.Text>
-      </Space>
-    </List.Item>
+    <li className="diagnosis-result-panel__item">
+      <div className="diagnosis-result-panel__item-title-row">
+        <span className="diagnosis-result-panel__item-title">{item.agent}</span>
+        <span className={`diagnosis-result-panel__tag diagnosis-result-panel__tag--${agent_status_class(item.status)}`}>{item.status}</span>
+        {item.duration_ms !== null && <span className="diagnosis-result-panel__tag">{item.duration_ms} ms</span>}
+      </div>
+      <p className="diagnosis-result-panel__item-copy">{item.summary}</p>
+    </li>
   )
 }
 
 function RiskItem({ risk }: { risk: DiagnosisRisk }): ReactElement {
   return (
-    <List.Item>
-      <Space direction="vertical" size={4}>
-        <Space size="small" wrap>
-          <Tag color={SEVERITY_COLORS[risk.level]}>风险 {risk.level}</Tag>
-          <Typography.Text>{risk.summary}</Typography.Text>
-        </Space>
-        {risk.mitigation && <Typography.Text type="secondary">缓解：{risk.mitigation}</Typography.Text>}
-      </Space>
-    </List.Item>
+    <li className="diagnosis-result-panel__item">
+      <div className="diagnosis-result-panel__item-title-row">
+        <span className={`diagnosis-result-panel__tag diagnosis-result-panel__tag--${SEVERITY_CLASSES[risk.level]}`}>风险 {risk.level}</span>
+        <span className="diagnosis-result-panel__item-copy diagnosis-result-panel__item-copy--inline">{risk.summary}</span>
+      </div>
+      {risk.mitigation && <p className="diagnosis-result-panel__meta-line">缓解：{risk.mitigation}</p>}
+    </li>
   )
 }
+
 function attribute_text(attributes: DiagnosisEvidence['attributes']): string {
   return Object.entries(attributes).map(([key, value]) => `${key}: ${value === null ? 'null' : String(value)}`).join('；')
 }
@@ -81,22 +75,24 @@ function attribute_text(attributes: DiagnosisEvidence['attributes']): string {
 function EvidenceItem({ evidence }: { evidence: DiagnosisEvidence }): ReactElement {
   const attributes = attribute_text(evidence.attributes)
   return (
-    <List.Item>
-      <Space direction="vertical" size={4}>
-        <Space size="small" wrap>
-          <Typography.Text strong>{evidence.title}</Typography.Text>
-          <Tag>{evidence.source_type}</Tag>
-          <Tag color="default">{evidence.source_name}</Tag>
-        </Space>
-        <Typography.Paragraph>{evidence.summary}</Typography.Paragraph>
-        <Space direction="vertical" size={2}>
-          {evidence.observed_at && <Typography.Text type="secondary">观察时间：{evidence.observed_at}</Typography.Text>}
-          {evidence.locator && <Typography.Text type="secondary">定位信息：{evidence.locator}</Typography.Text>}
-          {attributes && <Typography.Text type="secondary">属性：{attributes}</Typography.Text>}
-        </Space>
-      </Space>
-    </List.Item>
+    <li className="diagnosis-result-panel__item">
+      <div className="diagnosis-result-panel__item-title-row">
+        <span className="diagnosis-result-panel__item-title">{evidence.title}</span>
+        <span className="diagnosis-result-panel__tag">{evidence.source_type}</span>
+        <span className="diagnosis-result-panel__tag diagnosis-result-panel__tag--muted">{evidence.source_name}</span>
+      </div>
+      <p className="diagnosis-result-panel__item-copy">{evidence.summary}</p>
+      <div className="diagnosis-result-panel__details">
+        {evidence.observed_at && <span className="diagnosis-result-panel__meta-line">观察时间：{evidence.observed_at}</span>}
+        {evidence.locator && <span className="diagnosis-result-panel__meta-line">定位信息：{evidence.locator}</span>}
+        {attributes && <span className="diagnosis-result-panel__meta-line">属性：{attributes}</span>}
+      </div>
+    </li>
   )
+}
+
+function EmptyState({ children }: { children: string }): ReactElement {
+  return <div className="diagnosis-result-panel__empty">{children}</div>
 }
 
 /**
@@ -106,48 +102,59 @@ export function DiagnosisResultPanel({ result }: { result: DiagnosisResultProjec
   const evidence_by_id = new Map(result.evidence.map((evidence) => [evidence.id, evidence]))
 
   return (
-    <Card className="diagnosis-result-panel" title="结构化诊断结果">
-      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-        <Space size="small" wrap>
-          <Tag color={SEVERITY_COLORS[result.severity]}>严重度 {result.severity}</Tag>
-          <Tag color="cyan">置信度 {(result.confidence * 100).toFixed(0)}%</Tag>
-          <Tag>结果时间 {result.created_at}</Tag>
-        </Space>
-        <Typography.Paragraph aria-label="诊断结果摘要" strong>{result.summary}</Typography.Paragraph>
+    <article className="diagnosis-result-panel">
+      <header className="diagnosis-result-panel__header">
+        <h3 className="diagnosis-result-panel__title">结构化诊断结果</h3>
+        <div className="diagnosis-result-panel__meta">
+          <span className={`diagnosis-result-panel__badge diagnosis-result-panel__badge--${SEVERITY_CLASSES[result.severity]}`}>严重度 {result.severity}</span>
+          <span className="diagnosis-result-panel__badge diagnosis-result-panel__badge--info">置信度 {(result.confidence * 100).toFixed(0)}%</span>
+          <span className="diagnosis-result-panel__badge">结果时间 {result.created_at}</span>
+        </div>
+      </header>
 
-        <section aria-labelledby="root-causes-heading">
-          <Typography.Title id="root-causes-heading" level={5}>可能根因</Typography.Title>
-          {result.root_causes.length === 0
-            ? <Empty description="服务未返回结构化根因" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-            : <List dataSource={result.root_causes} renderItem={(root_cause) => <RootCauseItem evidence_by_id={evidence_by_id} key={root_cause.id} root_cause={root_cause} />} />}
-        </section>
+      <p aria-label="诊断结果摘要" className="diagnosis-result-panel__summary">{result.summary}</p>
 
-        <section aria-labelledby="evidence-heading">
-          <Typography.Title id="evidence-heading" level={5}>结构化证据</Typography.Title>
-          {result.evidence.length === 0
-            ? <Empty description="服务未返回结构化证据" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-            : <List dataSource={result.evidence} renderItem={(evidence) => <EvidenceItem evidence={evidence} key={evidence.id} />} />}
-        </section>
+      <section aria-labelledby="root-causes-heading" className="diagnosis-result-panel__section">
+        <h4 className="diagnosis-result-panel__section-title" id="root-causes-heading">可能根因</h4>
+        {result.root_causes.length === 0
+          ? <EmptyState>服务未返回结构化根因</EmptyState>
+          : <ul className="diagnosis-result-panel__list">{result.root_causes.map((root_cause) => <RootCauseItem evidence_by_id={evidence_by_id} key={root_cause.id} root_cause={root_cause} />)}</ul>}
+      </section>
 
-        <section aria-labelledby="agent-summary-heading">
-          <Typography.Title id="agent-summary-heading" level={5}>调查角色摘要</Typography.Title>
-          {result.agent_summary.length === 0
-            ? <Empty description="服务未返回角色调查摘要" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-            : <List dataSource={result.agent_summary} renderItem={(item) => <AgentSummaryItem item={item} key={`${item.agent}-${item.status}`} />} />}
-        </section>
+      <section aria-labelledby="evidence-heading" className="diagnosis-result-panel__section">
+        <h4 className="diagnosis-result-panel__section-title" id="evidence-heading">结构化证据</h4>
+        {result.evidence.length === 0
+          ? <EmptyState>服务未返回结构化证据</EmptyState>
+          : <ul className="diagnosis-result-panel__list">{result.evidence.map((evidence) => <EvidenceItem evidence={evidence} key={evidence.id} />)}</ul>}
+      </section>
 
-        <section aria-labelledby="risks-heading">
-          <Typography.Title id="risks-heading" level={5}>调查范围与风险</Typography.Title>
-          {result.risks.length === 0
-            ? <Empty description="服务未返回风险说明" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-            : <List dataSource={result.risks} renderItem={(risk) => <RiskItem key={risk.id} risk={risk} />} />}
-        </section>
+      <section aria-labelledby="agent-summary-heading" className="diagnosis-result-panel__section">
+        <h4 className="diagnosis-result-panel__section-title" id="agent-summary-heading">调查角色摘要</h4>
+        {result.agent_summary.length === 0
+          ? <EmptyState>服务未返回角色调查摘要</EmptyState>
+          : <ul className="diagnosis-result-panel__list">{result.agent_summary.map((item) => <AgentSummaryItem item={item} key={`${item.agent}-${item.status}`} />)}</ul>}
+      </section>
 
-        <Descriptions column={1} size="small" title="结果关联">
-          <Descriptions.Item label="结果 ID">{result.id}</Descriptions.Item>
-          <Descriptions.Item label="Run ID">{result.run_id}</Descriptions.Item>
-        </Descriptions>
-      </Space>
-    </Card>
+      <section aria-labelledby="risks-heading" className="diagnosis-result-panel__section">
+        <h4 className="diagnosis-result-panel__section-title" id="risks-heading">调查范围与风险</h4>
+        {result.risks.length === 0
+          ? <EmptyState>服务未返回风险说明</EmptyState>
+          : <ul className="diagnosis-result-panel__list">{result.risks.map((risk) => <RiskItem key={risk.id} risk={risk} />)}</ul>}
+      </section>
+
+      <section aria-labelledby="result-relations-heading" className="diagnosis-result-panel__relations">
+        <h4 className="diagnosis-result-panel__section-title" id="result-relations-heading">结果关联</h4>
+        <dl className="diagnosis-result-panel__relation-grid">
+          <div className="diagnosis-result-panel__relation">
+            <dt>结果 ID</dt>
+            <dd>{result.id}</dd>
+          </div>
+          <div className="diagnosis-result-panel__relation">
+            <dt>Run ID</dt>
+            <dd>{result.run_id}</dd>
+          </div>
+        </dl>
+      </section>
+    </article>
   )
 }
