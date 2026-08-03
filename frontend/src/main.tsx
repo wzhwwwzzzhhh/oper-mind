@@ -5,6 +5,7 @@ import { App } from './app/App'
 import './styles/design-tokens.css'
 import './styles/app-shell.css'
 import './styles/workbench.css'
+import './styles/service-center.css'
 import './styles/global.css'
 
 const rootElement = document.getElementById('root')

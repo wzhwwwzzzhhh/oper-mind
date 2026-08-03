@@ -1,0 +1,327 @@
+/* OperMind 服务中心 —— 服务目录表格（设计稿 service-center.html） */
+
+.svc-page {
+  width: min(100%, 1060px);
+  margin: 0 auto;
+  padding: 0 30px 52px;
+}
+
+.breadcrumb {
+  height: 54px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.breadcrumb strong {
+  color: var(--text-secondary);
+  font-weight: 650;
+}
+
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 11px 0 23px;
+  border-bottom: 1px solid var(--border);
+}
+
+.eyebrow {
+  margin-bottom: 8px;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.page-head h1 {
+  margin: 0;
+  font-size: 26px;
+  letter-spacing: -0.05em;
+}
+
+.page-head p {
+  max-width: 660px;
+  margin: 9px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.head-actions {
+  display: flex;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.btn {
+  height: 33px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  background: var(--surface);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.btn.primary {
+  border-color: var(--accent);
+  color: #fff;
+  background: var(--accent);
+}
+
+.context-strip {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr 1fr 1fr;
+  margin-top: 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  overflow: hidden;
+}
+
+.context-stat {
+  min-height: 65px;
+  padding: 12px 15px;
+  border-right: 1px solid var(--border);
+}
+
+.context-stat:last-child {
+  border-right: 0;
+}
+
+.context-stat small {
+  display: block;
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
+.context-stat strong {
+  display: block;
+  margin-top: 7px;
+  font-size: 13px;
+  letter-spacing: -0.02em;
+}
+
+.context-stat span {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
+.good {
+  color: var(--success);
+  font-weight: 650;
+}
+
+.attn {
+  color: var(--warning);
+  font-weight: 650;
+}
+
+.section {
+  padding-top: 27px;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 11px;
+}
+
+.section-head h2 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.section-head span {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.catalog {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.catalog-head,
+.service-row {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.65fr) 1fr 0.78fr 1.12fr 1fr;
+  align-items: center;
+  column-gap: 14px;
+}
+
+.catalog-head {
+  min-height: 34px;
+  padding: 0 15px;
+  color: var(--text-muted);
+  background: var(--surface-soft);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.service-row {
+  min-height: 75px;
+  padding: 0 15px;
+  border-top: 1px solid var(--border);
+  font-size: 10px;
+}
+
+.service-row:hover {
+  background: var(--surface-soft);
+}
+
+.service-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.service-logo {
+  width: 33px;
+  height: 33px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: -0.08em;
+  flex: none;
+}
+
+.service-logo.pg { background: #3d7198; }
+.service-logo.mysql { background: #b47838; }
+.service-logo.redis { background: #a75052; }
+.service-logo.k8s { background: #526ca0; }
+
+.service-name {
+  min-width: 0;
+}
+
+.service-name strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.service-name span {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
+.type {
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.type small {
+  display: block;
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
+.state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: max-content;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.state::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.state.ok {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.state.attention {
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.state.muted {
+  color: var(--text-muted);
+  background: var(--surface-soft);
+}
+
+.fact strong {
+  display: block;
+  font-size: 11px;
+}
+
+.fact span {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.actions button {
+  padding: 0;
+  border: 0;
+  color: var(--accent);
+  background: transparent;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.actions button:hover {
+  text-decoration: underline;
+}
+
+.actions .investigate {
+  color: var(--warning);
+}
+
+.svc-empty {
+  padding: 30px;
+  text-align: center;
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.7;
+}

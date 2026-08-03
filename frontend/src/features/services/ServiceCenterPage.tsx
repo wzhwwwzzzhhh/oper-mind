@@ -1,303 +1,181 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Alert, Button, Card, Empty, List, Skeleton, Space, Tag, Typography } from 'antd'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ReactElement } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 
-import {
-  API_V1_DEFAULT_PAGE_SIZE,
-  ApiClientError,
-  api_v1_client,
-  type ApiResponse,
-  type ServiceListResponse,
-  type ServiceResponse,
-} from '../../api/v1/client'
-import {
-  api_v1_query_keys,
-  get_service_query,
-  list_services_query,
-} from '../../api/v1/queries'
+import { api_v1_client } from '../../api/v1/client'
+import { list_services_query } from '../../api/v1/queries'
 import {
   read_items,
-  read_page,
   read_record,
   resource_optional_string,
   resource_string,
   resource_value,
 } from '../workbench/resource-readers'
 
-const ORDERS_SLOW_QUERY_INTENT_ID = 'orders_slow_query.v1'
-
-function ServiceLoading({ label }: { label: string }): ReactElement {
-  return <Skeleton active aria-label={label} paragraph={{ rows: 5 }} title />
+function service_kind_label(kind: unknown): { short: string; label: string } {
+  const text = String(kind ?? '').toLowerCase()
+  if (text.includes('postgres')) return { short: 'PG', label: 'PostgreSQL' }
+  if (text.includes('mysql')) return { short: 'my', label: 'MySQL' }
+  if (text.includes('redis')) return { short: 'Re', label: 'Redis' }
+  if (text.includes('kubernetes') || text.includes('k8s')) return { short: 'K8s', label: 'Kubernetes' }
+  return { short: 'Sv', label: text || '服务' }
 }
 
-function ServiceErrorNotice({ error }: { error: unknown }): ReactElement {
-  const description = error instanceof ApiClientError
-    ? `服务中心未返回可用的受控事实（${error.code}）。页面不会以本地数据替代。`
-    : '服务中心当前无法返回受控事实。请稍后手动刷新；页面不会以本地数据替代。'
-  return <Alert description={description} showIcon title="暂时无法读取服务中心" type="error" />
+function logo_class(kind: unknown): string {
+  const text = String(kind ?? '').toLowerCase()
+  if (text.includes('postgres')) return 'pg'
+  if (text.includes('mysql')) return 'mysql'
+  if (text.includes('redis')) return 'redis'
+  if (text.includes('kubernetes') || text.includes('k8s')) return 'k8s'
+  return ''
 }
 
-function signal_color(value: string): string {
-  if (['healthy', 'index_and_plan_confirmed', 'no_slow_query_detected', 'verified'].includes(value)) return 'green'
-  if (['slow_query_detected', 'missing_index_seq_scan_detected', 'unhealthy', 'failed', 'blocked'].includes(value)) return 'red'
-  if (['insufficient_data', 'unavailable', 'not_configured', 'pending_approval', 'approved'].includes(value)) return 'gold'
-  return 'blue'
+function availability_state(availability: unknown): 'ok' | 'attention' | 'muted' {
+  if (availability === 'healthy') return 'ok'
+  if (availability === 'unhealthy') return 'attention'
+  return 'muted'
 }
 
-function label(value: string): string {
-  const labels: Record<string, string> = {
-    available: '可读取',
-    unavailable: '不可用',
-    not_configured: '未配置',
-    healthy: '健康',
-    unhealthy: '异常',
-    slow_query_detected: '检测到慢查询信号',
-    no_slow_query_detected: '未检测到慢查询信号',
-    missing_index_seq_scan_detected: '检测到缺失索引 / 顺序扫描',
-    index_and_plan_confirmed: '索引与计划已确认',
-    insufficient_data: '证据不足',
-    mock: '模拟快照',
-    target: '受控靶场读取',
-    disabled: '未启用',
-    queued: '已排队',
-    running: '调查中',
-    succeeded: '调查完成',
-    failed: '失败',
-    cancelled: '已取消',
-    pending_approval: '等待审批',
-    approved: '已批准',
-    executing: '执行中',
-    verifying: '验证中',
-    verified: '已验证',
-    rejected: '已拒绝',
-    expired: '已过期',
-    blocked: '已阻断',
-  }
-  return labels[value] ?? value
+function availability_text(availability: unknown): string {
+  if (availability === 'healthy') return '正常'
+  if (availability === 'unhealthy') return '需关注'
+  if (availability === 'not_configured') return '未接入'
+  return String(availability ?? '—')
 }
 
-function display_metric(value: unknown, suffix = ''): string {
-  return typeof value === 'number' ? `${value}${suffix}` : '—'
-}
-
-function SnapshotSummary({ service }: { service: unknown }): ReactElement {
-  const snapshot = read_record(resource_value(service, 'snapshot'))
-  const metrics = read_record(snapshot?.server_metrics)
-  const database = read_record(snapshot?.database)
-  const availability = resource_string(snapshot, 'availability')
-  const performance = resource_string(snapshot, 'performance_signal')
-  const mode = resource_string(snapshot, 'mode')
-  const database_signal = resource_string(database, 'signal')
-  return (
-    <div className="service-snapshot-summary">
-      <Space wrap>
-        <Tag color={signal_color(availability)}>{label(availability)}</Tag>
-        <Tag color={signal_color(performance)}>{label(performance)}</Tag>
-        <Tag>{label(mode)}</Tag>
-      </Space>
-      <Typography.Paragraph className="service-observed-at" type="secondary">
-        最近快照：{resource_string(snapshot, 'observed_at')}
-      </Typography.Paragraph>
-      <div className="service-metric-grid">
-        <span>P50：<strong>{display_metric(metrics?.p50_ms, ' ms')}</strong></span>
-        <span>P95：<strong>{display_metric(metrics?.p95_ms, ' ms')}</strong></span>
-        <span>窗口：<strong>{display_metric(metrics?.window_size)}</strong></span>
-        <span>慢查询：<strong>{display_metric(metrics?.slow_query_count)}</strong></span>
-        <span>超时：<strong>{display_metric(metrics?.timeout_count)}</strong></span>
-      </div>
-      <Typography.Text type="secondary">数据库状态：{label(database_signal)}</Typography.Text>
-    </div>
-  )
-}
-
-function ServicesList(): ReactElement {
-  const navigate = useNavigate()
-  const services_query = useQuery(list_services_query())
-
-  return (
-    <section className="workbench-page service-center-page" aria-labelledby="services-title">
-      <div className="page-eyebrow">SERVICE CENTER · CONTROLLED DEMO</div>
-      <Typography.Title id="services-title" level={2}>服务中心</Typography.Title>
-      <Typography.Paragraph className="page-description">
-        先确认正在管理的受控服务与当前有限事实，再进入会话调查。这里不是实时监控平台，也不提供动态接入或自动修复。
-      </Typography.Paragraph>
-      {services_query.isPending && <ServiceLoading label="正在读取服务中心" />}
-      {services_query.isError && <ServiceErrorNotice error={services_query.error} />}
-      {services_query.isSuccess && (
-        <List
-          className="service-list"
-          dataSource={read_items((services_query.data as ApiResponse<ServiceListResponse>).data)}
-          locale={{ emptyText: <Empty description="暂无已注册服务" /> }}
-          renderItem={(service) => (
-            <List.Item>
-              <Card className="service-card" title={resource_string(service, 'title')}>
-                <Typography.Paragraph type="secondary">
-                  类型：{resource_string(service, 'kind')} · 仅限受控靶场
-                </Typography.Paragraph>
-                <SnapshotSummary service={service} />
-                <Button
-                  onClick={() => navigate(`/services/${resource_string(service, 'id')}`)}
-                  type="primary"
-                >
-                  查看服务详情
-                </Button>
-              </Card>
-            </List.Item>
-          )}
-        />
-      )}
-    </section>
-  )
-}
-
-function ActivityList({ service_id }: { service_id: string }): ReactElement {
-  const navigate = useNavigate()
-  const activities_query = useInfiniteQuery({
-    queryKey: api_v1_query_keys.service_activities(service_id, { limit: API_V1_DEFAULT_PAGE_SIZE }),
-    initialPageParam: undefined as string | undefined,
-    queryFn: ({ pageParam, signal }) => api_v1_client.list_service_activities(
-      service_id,
-      { cursor: pageParam, limit: API_V1_DEFAULT_PAGE_SIZE },
-      { signal },
-    ),
-    getNextPageParam: (last_page) => {
-      const page = read_page(last_page.data)
-      return page.has_more ? page.next_cursor : undefined
-    },
-  })
-  const items = activities_query.data?.pages.flatMap((page) => read_items(page.data)) ?? []
-
-  if (activities_query.isPending) return <ServiceLoading label="正在读取最近调查与修复留痕" />
-  if (activities_query.isError) return <ServiceErrorNotice error={activities_query.error} />
-  if (items.length === 0) {
-    return <Empty description="尚无从此服务入口发起的调查。" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-  }
-
-  return (
-    <>
-      <List
-        className="service-activity-list"
-        dataSource={items}
-        renderItem={(item) => {
-          const session_id = resource_optional_string(item, 'session_id')
-          const run_id = resource_optional_string(item, 'run_id')
-          const run_status = resource_string(item, 'run_status')
-          const proposal_status = resource_optional_string(item, 'proposal_status')
-          const verification_status = resource_optional_string(item, 'verification_status')
-          return (
-            <List.Item
-              actions={session_id ? [
-                <Button
-                  key="open"
-                  onClick={() => navigate(`/workbench/sessions/${session_id}${run_id ? `/runs/${run_id}` : ''}`)}
-                  type="link"
-                >
-                  查看会话
-                </Button>,
-              ] : []}
-            >
-              <List.Item.Meta
-                description={resource_optional_string(item, 'summary') ?? '调查尚未形成可展示结论。'}
-                title={resource_string(item, 'session_title')}
-              />
-              <Space wrap>
-                <Tag color={signal_color(run_status)}>{label(run_status)}</Tag>
-                {proposal_status && <Tag color={signal_color(proposal_status)}>提案：{label(proposal_status)}</Tag>}
-                {verification_status && <Tag color={signal_color(verification_status)}>验证：{label(verification_status)}</Tag>}
-              </Space>
-            </List.Item>
-          )
-        }}
-      />
-      {activities_query.hasNextPage && (
-        <Button
-          disabled={activities_query.isFetchingNextPage}
-          onClick={() => void activities_query.fetchNextPage()}
-          type="link"
-        >
-          {activities_query.isFetchingNextPage ? '正在加载…' : '加载更多留痕'}
-        </Button>
-      )}
-    </>
-  )
-}
-
-function ServiceDetail({ service_id }: { service_id: string }): ReactElement {
+/** 服务中心首页 —— 按设计稿（service-center.html）的服务目录表格。 */
+export function ServiceCenterPage(): ReactElement {
   const navigate = useNavigate()
   const query_client = useQueryClient()
-  const service_query = useQuery({
-    ...get_service_query(service_id),
-    refetchInterval: () => (typeof document !== 'undefined' && document.visibilityState === 'visible' ? 15_000 : false),
-  })
-  const create_session = useMutation({
-    mutationFn: () => api_v1_client.create_service_session(service_id),
-    onSuccess: (response) => {
+  const services_query = useQuery({ ...list_services_query() })
+  const services = services_query.data ? read_items(services_query.data.data) : []
+
+  const create_investigation = useMutation({
+    mutationFn: (service_id: string) => api_v1_client.create_service_session(service_id, {}),
+    onSuccess: async (response) => {
       const session = read_record(response.data.session)
       const session_id = resource_optional_string(session, 'id')
-      if (!session_id) return
-      void query_client.invalidateQueries({ queryKey: api_v1_query_keys.sessions({ limit: API_V1_DEFAULT_PAGE_SIZE, status: 'active' }) })
-      navigate(`/workbench/sessions/${session_id}?intent=${ORDERS_SLOW_QUERY_INTENT_ID}`)
+      await query_client.invalidateQueries({ queryKey: ['api-v1', 'sessions'] })
+      if (session_id) navigate(`/workbench/sessions/${encodeURIComponent(session_id)}?intent=orders_slow_query.v1`)
     },
   })
 
-  if (service_query.isPending) {
-    return <section className="workbench-page service-center-page"><ServiceLoading label="正在读取服务详情" /></section>
-  }
-  if (service_query.isError) {
-    return <section className="workbench-page service-center-page"><ServiceErrorNotice error={service_query.error} /></section>
-  }
-
-  const service = (service_query.data as ApiResponse<ServiceResponse>).data.service
-  const supported_investigations = resource_value(service, 'supported_investigations')
-  const investigations = Array.isArray(supported_investigations) ? supported_investigations : []
-  const supports_slow_query = investigations.some((item) => resource_optional_string(item, 'id') === ORDERS_SLOW_QUERY_INTENT_ID)
   return (
-    <section className="workbench-page service-center-page" aria-labelledby="service-detail-title">
-      <div className="page-eyebrow">REGISTERED SERVICE · LIMITED SNAPSHOT</div>
-      <Space align="center" className="workbench-title-row" wrap>
-        <Typography.Title id="service-detail-title" level={2}>{resource_string(service, 'title')}</Typography.Title>
-        <Tag>{resource_string(service, 'kind')}</Tag>
-      </Space>
-      <Typography.Paragraph className="page-description">
-        当前页面仅在可见时最多每 15 秒读取一次受控快照；它不是实时监控、告警或自动修复平台。
-      </Typography.Paragraph>
-      <Card className="service-detail-card" title="当前有限快照">
-        <SnapshotSummary service={service} />
-        <Button onClick={() => void service_query.refetch()} type="default">手动刷新</Button>
-      </Card>
-      <Card className="service-detail-card" title="支持的调查与动作边界">
-        {investigations.map((investigation) => (
-          <div className="service-capability" key={resource_string(investigation, 'id')}>
-            <Typography.Text strong>{resource_string(investigation, 'title')}</Typography.Text>
-            <Typography.Paragraph type="secondary">{resource_string(investigation, 'description')}</Typography.Paragraph>
-          </div>
-        ))}
-        <Alert description={resource_string(service, 'action_boundary')} showIcon title="动作边界" type="info" />
-      </Card>
-      <Card className="service-detail-card" title="发起调查">
-        <Typography.Paragraph type="secondary">
-          创建后只会进入带服务上下文的会话并预填固定问题，尚未开始调查。请在工作台确认后点击“开始调查”。
-        </Typography.Paragraph>
-        <Button
-          disabled={!supports_slow_query || create_session.isPending}
-          loading={create_session.isPending}
-          onClick={() => create_session.mutate()}
-          type="primary"
-        >
-          创建订单慢查询调查会话
-        </Button>
-        {create_session.isError && <div className="service-mutation-error"><ServiceErrorNotice error={create_session.error} /></div>}
-      </Card>
-      <Card className="service-detail-card" title="最近调查与修复留痕">
-        <ActivityList service_id={service_id} />
-      </Card>
-    </section>
-  )
-}
+    <div className="svc-page">
+      <div className="breadcrumb">
+        <span>会话工作台</span>
+        <span>/</span>
+        <strong>服务中心</strong>
+      </div>
 
-export function ServiceCenterPage(): ReactElement {
-  const { service_id } = useParams<{ service_id: string }>()
-  if (service_id) return <ServiceDetail service_id={service_id} />
-  return <ServicesList />
+      <section className="page-head">
+        <div>
+          <div className="eyebrow">Service workspace</div>
+          <h1>服务中心</h1>
+          <p>管理当前工作空间已授权接入的服务，从服务事实出发进入详情或发起一轮只读调查。</p>
+        </div>
+        <div className="head-actions">
+          <button className="btn" onClick={() => void services_query.refetch()} type="button">↻ 刷新状态</button>
+        </div>
+      </section>
+
+      <div className="context-strip">
+        <div className="context-stat">
+          <small>当前工作空间</small>
+          <strong>研发运维团队</strong>
+          <span>platform-team · 受控访问</span>
+        </div>
+        <div className="context-stat">
+          <small>服务状态</small>
+          <strong>{services.length} 个服务</strong>
+          <span>{services.length} 个已接入</span>
+        </div>
+        <div className="context-stat">
+          <small>默认权限</small>
+          <strong>只读调查</strong>
+          <span>变更操作需要人工审批</span>
+        </div>
+        <div className="context-stat">
+          <small>最近同步</small>
+          <strong>刚刚</strong>
+          <span>状态按需刷新</span>
+        </div>
+      </div>
+
+      <section className="section">
+        <div className="section-head">
+          <h2>服务目录</h2>
+          <span>仅展示当前工作空间授权范围内的信息</span>
+        </div>
+
+        {services_query.isPending && <div className="svc-empty">正在读取服务中心…</div>}
+        {services_query.isError && <div className="svc-empty">暂时无法读取服务中心。</div>}
+
+        {services_query.isSuccess && services.length === 0 && (
+          <div className="svc-empty">
+            当前还没有已接入的服务。服务接入能力（PostgreSQL / MySQL / Redis 等）将在后续工作包提供；
+            页面不会用示例数据伪装真实服务。
+          </div>
+        )}
+
+        {services.length > 0 && (
+          <div className="catalog">
+            <div className="catalog-head">
+              <span>服务</span>
+              <span>类型 / 环境</span>
+              <span>状态</span>
+              <span>能力</span>
+              <span>操作</span>
+            </div>
+            {services.map((service) => {
+              const service_id = resource_optional_string(service, 'id')
+              const title = resource_string(service, 'title', '未命名服务')
+              const kind = resource_optional_string(service, 'kind')
+              const info = service_kind_label(kind)
+              const snapshot = resource_value(service, 'snapshot')
+              const availability = resource_optional_string(snapshot, 'availability')
+              const state = availability_state(availability)
+              return (
+                <article className="service-row" key={service_id ?? title}>
+                  <div className="service-main">
+                    <div className={`service-logo ${logo_class(kind)}`}>{info.short}</div>
+                    <div className="service-name">
+                      <strong>{title}</strong>
+                      <span>{info.label} · 已接入</span>
+                    </div>
+                  </div>
+                  <div className="type">
+                    {info.label}
+                    <small>受控访问</small>
+                  </div>
+                  <div>
+                    <span className={`state ${state}`}>{availability_text(availability)}</span>
+                  </div>
+                  <div className="fact">
+                    <strong>只读</strong>
+                    <span>受控调查</span>
+                  </div>
+                  <div className="actions">
+                    {service_id && (
+                      <>
+                        <button onClick={() => navigate(`/services/${encodeURIComponent(service_id)}`)} type="button">查看详情</button>
+                        <button
+                          className="investigate"
+                          disabled={create_investigation.isPending}
+                          onClick={() => create_investigation.mutate(service_id)}
+                          type="button"
+                        >
+                          发起调查
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        )}
+      </section>
+    </div>
+  )
 }

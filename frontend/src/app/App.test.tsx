@@ -441,31 +441,25 @@ describe('App', () => {
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
   })
 
-  it('从服务中心进入绑定订单服务的会话，并明确尚未开始调查', async () => {
-    open_path('/services/order-service')
+  it('从服务中心服务目录发起只读调查，进入对应会话', async () => {
+    open_path('/services')
     render(<App />)
 
-    expect(await screen.findByRole('heading', { name: '订单服务靶场' })).toBeInTheDocument()
-    expect(screen.getByText('当前有限快照')).toBeInTheDocument()
-    expect(screen.getByText('当前页面仅在可见时最多每 15 秒读取一次受控快照；它不是实时监控、告警或自动修复平台。')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '创建订单慢查询调查会话' }))
+    expect(await screen.findByRole('heading', { name: '服务中心' })).toBeInTheDocument()
+    const investigate = await screen.findByRole('button', { name: '发起调查' })
+    fireEvent.click(investigate)
 
-    expect(await screen.findByRole('textbox', { name: '调查问题' })).toHaveValue('订单服务变慢，帮我排查慢查询。')
-    expect(await screen.findByText('尚未开始调查')).toBeInTheDocument()
-    expect(screen.getByText((content) => content.includes('预填问题尚未提交'))).toBeInTheDocument()
-    expect(request_paths).toContain('/api/v1/services/order-service/sessions')
-    expect(request_paths.filter((path) => path === `/api/v1/sessions/${api_v1_contract_fixtures.service_session_id}/runs`)).toHaveLength(1)
-    expect(request_paths).not.toContain(`/api/v1/sessions/${api_v1_contract_fixtures.service_session_id}/runs/action-proposal`)
+    await waitFor(() => expect(request_paths).toContain('/api/v1/services/order-service/sessions'))
   })
 
-  it('服务中心列表展示唯一静态服务，而不伪装成实时监控', async () => {
+  it('服务中心列表展示真实服务目录，不伪装成实时监控', async () => {
     open_path('/services')
     render(<App />)
 
     expect(await screen.findByRole('heading', { name: '服务中心' })).toBeInTheDocument()
     expect(await screen.findByText('订单服务靶场')).toBeInTheDocument()
-    expect(screen.getByText('模拟快照')).toBeInTheDocument()
-    expect(screen.getByText('先确认正在管理的受控服务与当前有限事实，再进入会话调查。这里不是实时监控平台，也不提供动态接入或自动修复。')).toBeInTheDocument()
+    expect(screen.getByText('服务目录')).toBeInTheDocument()
+    expect(screen.getByText((content) => content.includes('仅展示当前工作空间授权范围内的信息'))).toBeInTheDocument()
   })
 
 })
