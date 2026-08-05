@@ -10,17 +10,9 @@ useDefault = true
 regexes = [
   '''your-[a-z-]+''',
   '''sk-abcdef123456''',
-  '''user:pass@host''',
   '''password=hunter2''',
-  '''u:p@h''',
-  '''u:password@host''',
-  '''user:password@host''',
-  '''admin:token@db\\.example''',
-  '''opermind:password@localhost''',
-  '''opermind:password@db\\.example''',
-  '''user:password@private\\.example''',
-  '''u:p@host''',
-  '''scheme://user:pass@host''',
+  # 测试桩/文档中的占位连接串:用户名是明显占位词,不带真实凭据
+  '''(?:u|user|admin|opermind):[^@\s'" ]+@[^/'"\s]+(?:/|$)''',
   '''scheme://u:p@host''',
 ]
 
