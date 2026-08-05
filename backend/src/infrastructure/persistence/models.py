@@ -28,7 +28,7 @@ class SessionRecord(Base):
             name="session_status_valid",
         ),
         CheckConstraint(
-            "service_id IS NULL OR service_id = 'order-service'",
+            "service_id IS NULL OR service_id IN ('postgres-production', 'postgres-staging')",
             name="session_service_id_valid",
         ),
         Index("ix_sessions_updated_at_id", "updated_at", "id"),
@@ -89,6 +89,7 @@ class DiagnosisRunRecord(Base):
         CheckConstraint("next_event_sequence >= 1", name="diagnosis_run_next_sequence_positive"),
         UniqueConstraint("input_message_id", name="diagnosis_run_input_message_unique"),
         Index("ix_diagnosis_runs_session_created_at_id", "session_id", "created_at", "id"),
+        Index("ix_diagnosis_runs_service_created_at_id", "service_id", "created_at", "id"),
         Index("ix_diagnosis_runs_trace_id", "trace_id"),
     )
 
@@ -104,6 +105,7 @@ class DiagnosisRunRecord(Base):
         ForeignKey("messages.id", ondelete="RESTRICT"),
         nullable=False,
     )
+    service_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default=RunStatus.QUEUED.value)
     next_event_sequence: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     error_code: Mapped[str | None] = mapped_column(String(100), nullable=True)

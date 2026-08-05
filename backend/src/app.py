@@ -32,7 +32,7 @@ app = FastAPI(
 # 共享 LLM 客户端（多 Run 间无可变状态，可安全复用）。
 _shared_llm = build_llm()
 # v1 正式路径：每 Run 现造一套内核，隔离并发 Agent 状态。
-app.state.v1_services = build_v1_services(lambda: build_coordinator(_shared_llm))
+app.state.v1_services = build_v1_services(lambda service_id: build_coordinator(_shared_llm, service_id=service_id))
 
 
 @app.middleware("http")

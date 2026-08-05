@@ -90,6 +90,7 @@ def run_resource(value: DiagnosisRunData, result: DiagnosisResultData | None) ->
         session_id=value.session_id,
         trace_id=value.trace_id,
         input_message_id=value.input_message_id,
+        service_id=value.service_id,
         status=value.status.value,
         result=result_resource(result) if result is not None else None,
         error=error,

@@ -33,7 +33,7 @@ class V1Services:
     service_center: ServiceCenterApplicationService | None = None
 
 
-def build_v1_services(coordinator_factory: Callable[[], object]) -> V1Services:
+def build_v1_services(coordinator_factory: Callable[[str | None], object]) -> V1Services:
     """装配默认持久化 Runtime 与多 Agent 内核诊断执行。
 
     coordinator_factory 每 Run 现造一套内核，隔离并发 Run 的 Agent 状态。
@@ -45,7 +45,7 @@ def build_v1_services(coordinator_factory: Callable[[], object]) -> V1Services:
 
 def build_v1_services_for_runtime(
     runtime: PersistenceRuntime,
-    coordinator_factory: Callable[[], object],
+    coordinator_factory: Callable[[str | None], object],
 ) -> V1Services:
     """用给定 Runtime 构造服务，供临时库测试安全替换。
 
@@ -58,9 +58,19 @@ def build_v1_services_for_runtime(
         ("postgres-production", "生产 PostgreSQL 主库"),
         ("postgres-staging", "预发布 PostgreSQL 主库"),
     )
+    registry = ServiceRegistry(
+        tuple(
+            PostgresServiceConnector(
+                load_service_dsn(instance_id),
+                instance_id=instance_id,
+                title=title,
+            )
+            for instance_id, title in postgres_instances
+        )
+    )
     return V1Services(
         session_factory=session_factory,
-        session_service=SessionApplicationService(session_factory),
+        session_service=SessionApplicationService(session_factory, registry=registry),
         run_service=RunApplicationService(
             session_factory,
             CoordinatorDiagnosisExecutor(coordinator_factory),
@@ -71,16 +81,7 @@ def build_v1_services_for_runtime(
         action_service=action_service,
         service_center=ServiceCenterApplicationService(
             session_factory,
-            ServiceRegistry(
-                tuple(
-                    PostgresServiceConnector(
-                        load_service_dsn(instance_id),
-                        instance_id=instance_id,
-                        title=title,
-                    )
-                    for instance_id, title in postgres_instances
-                )
-            ),
+            registry,
         ),
     )
 
