@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.domain.diagnosis import MessageRole, RunEventType, RunStatus, SessionStatus
@@ -365,3 +365,40 @@ class ActionIdempotencyKeyRecord(Base):
     resource_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+
+class ServiceMonitorSampleRecord(Base):
+    """定时采样留下的服务脱敏标量历史。"""
+
+    __tablename__ = "service_monitor_samples"
+    __table_args__ = (
+        CheckConstraint(
+            "availability IN ('healthy', 'unhealthy', 'unavailable', 'not_configured')",
+            name="monitor_sample_availability_valid",
+        ),
+        CheckConstraint(
+            "performance_signal IN ('slow_query_detected', 'no_slow_query_detected', 'insufficient_data', 'unavailable', 'not_configured')",
+            name="monitor_sample_performance_signal_valid",
+        ),
+        CheckConstraint(
+            "source_status IN ('available', 'unavailable', 'not_configured')",
+            name="monitor_sample_source_status_valid",
+        ),
+        CheckConstraint("p50_ms IS NULL OR p50_ms >= 0", name="monitor_sample_p50_nonnegative"),
+        CheckConstraint("p95_ms IS NULL OR p95_ms >= 0", name="monitor_sample_p95_nonnegative"),
+        CheckConstraint("slow_query_count IS NULL OR slow_query_count >= 0", name="monitor_sample_slow_count_nonnegative"),
+        CheckConstraint("timeout_count IS NULL OR timeout_count >= 0", name="monitor_sample_timeout_count_nonnegative"),
+        Index("ix_service_monitor_samples_service_observed_at", "service_id", "observed_at"),
+        Index("ix_service_monitor_samples_observed_at", "observed_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    service_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    availability: Mapped[str] = mapped_column(String(24), nullable=False)
+    p50_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    p95_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    slow_query_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    timeout_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    performance_signal: Mapped[str] = mapped_column(String(40), nullable=False)
+    source_status: Mapped[str] = mapped_column(String(24), nullable=False)
