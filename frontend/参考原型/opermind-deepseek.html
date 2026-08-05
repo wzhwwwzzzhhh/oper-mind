@@ -223,6 +223,24 @@
   .user-copy strong { display: block; font-size: 12px; font-weight: 650; }
   .user-copy span { display: block; margin-top: 3px; color: var(--text-muted); font-size: 10px; }
 
+
+  /* 运维中心入口：从会话模式切换到运维工作模式 */
+  .ops-center-entry { margin: 10px 0 11px; padding: 9px; display: flex; align-items: center; gap: 9px; width: 100%; border: 1px solid var(--border); border-radius: 7px; color: var(--text); background: rgba(255,255,255,.58); text-align: left; transition: border-color .16s ease, background .16s ease, transform .16s ease; }
+  .ops-center-entry:hover { border-color: var(--accent); background: var(--surface); transform: translateY(-1px); }
+  .ops-center-icon { width: 27px; height: 27px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 7px; color: var(--accent); background: var(--accent-soft); font-size: 14px; }
+  .ops-center-copy { min-width: 0; flex: 1; }
+  .ops-center-copy strong { display: block; font-size: 11px; font-weight: 700; }
+  .ops-center-copy span { display: block; overflow: hidden; margin-top: 3px; color: var(--text-muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+  .ops-center-arrow { color: var(--text-muted); font-size: 16px; }
+  .sidebar.collapsed .ops-center-entry { justify-content: center; padding: 7px; }
+  .sidebar.collapsed .ops-center-copy, .sidebar.collapsed .ops-center-arrow { display: none; }
+  .utility-card.service-center-card { border-color: var(--accent); background: var(--accent-soft); }
+  .utility-card.service-center-card:hover { background: var(--accent-soft); }
+  .welcome + .conversation:not(:empty) { margin-top: 18px; }
+  .app-shell.has-conversation .welcome { display: none; }
+  .app-shell.has-conversation .conversation { margin-top: 18px; }
+  @media (max-width: 760px) { .ops-center-entry { margin-top: 9px; } }
+
   /* 右侧工作台检查器 */
   .right-rail {
     width: var(--utility-width);
@@ -606,7 +624,7 @@
 </style>
 </head>
 <body>
-  <div class="app-shell">
+  <div class="app-shell has-conversation">
     <aside class="sidebar" id="sidebar">
       <div class="brand-row">
         <a class="brand" href="#" aria-label="OperMind 首页">
@@ -628,6 +646,11 @@
       </nav>
 
       <div class="sidebar-footer">
+        <button class="ops-center-entry" id="ops-center-entry" aria-label="进入运维中心">
+          <span class="ops-center-icon">◫</span>
+          <span class="ops-center-copy"><strong>运维中心</strong><span><i class="mini-dot"></i> 3 个服务在线 · 1 个关注</span></span>
+          <span class="ops-center-arrow">›</span>
+        </button>
         <div class="user-card">
           <span class="avatar">W</span>
           <span class="user-copy"><strong>王志海</strong><span>研发运维团队</span></span>
@@ -657,7 +680,7 @@
             <div class="welcome-mark">O</div>
             <h1>你好，我是 OperMind</h1>
             <p>面向研发与运维的会话式 Copilot。描述一个问题，我会基于已接入服务和受控工具，陪你一起定位根因。</p>
-            <div class="state-strip"><span class="state-dot"></span><span>3 个服务在线 · 默认只读调查</span></div>
+            <div class="state-strip"><span class="state-dot"></span><span>4 个服务在线 · 1 个需关注 · 默认只读</span></div>
             <div class="quick-grid">
               <button class="quick-card" data-prompt="帮我排查订单服务最近的慢查询，先从数据库只读调查开始。"><strong>排查慢查询</strong><span>从数据库监控和执行计划开始</span></button>
               <button class="quick-card" data-prompt="检查支付服务 5xx 增多的可能原因，给我一个只读调查计划。"><strong>调查接口错误</strong><span>串联服务、日志和数据库证据</span></button>
@@ -719,18 +742,18 @@
     </main>
 
     <aside class="right-rail" id="right-rail" aria-label="工作台功能">
-      <div class="right-rail-heading"><strong>工作台</strong><span>快捷入口</span><button class="icon-btn" id="rail-collapse" aria-label="收起右侧栏">›</button></div>
+      <div class="right-rail-heading"><strong>会话工具</strong><span>当前会话</span><button class="icon-btn" id="rail-collapse" aria-label="收起右侧栏">›</button></div>
       <div class="utility-group">
         <p class="utility-group-title">服务状态</p>
         <div class="utility-list">
-          <button class="utility-card" data-utility="connections">
+          <button class="utility-card service-center-card" data-utility="connections">
             <span class="utility-icon">⌘</span>
-            <span class="utility-copy"><strong>服务连接</strong><span>3 个服务已接入</span></span>
+            <span class="utility-copy"><strong>服务中心</strong><span>4 个服务已接入</span></span>
             <span class="utility-arrow">›</span>
           </button>
           <button class="utility-card" data-utility="monitoring">
             <span class="utility-icon green">⌁</span>
-            <span class="utility-copy"><strong>服务监控</strong><span>3 个在线 · 0 条告警</span></span>
+            <span class="utility-copy"><strong>服务监控</strong><span>3 个在线 · 1 个需关注</span></span>
             <span class="utility-arrow">›</span>
           </button>
         </div>
@@ -755,7 +778,7 @@
       <p class="rail-section-title">当前环境</p>
       <div class="rail-status">
         <div class="rail-status-summary"><span class="alert-dot"></span><span><span class="status-count">3</span> 个服务在线</span></div>
-        <div class="rail-status-row"><span>当前告警</span><strong class="status-ok">0 条</strong></div>
+        <div class="rail-status-row"><span>当前告警</span><strong class="status-ok">1 条关注</strong></div>
         <div class="rail-status-row"><span>调查权限</span><strong class="status-ok">只读</strong></div>
         <div class="rail-status-row"><span>外部连接</span><strong class="status-ok">已保护</strong></div>
         <div class="rail-status-row"><span>审批策略</span><strong>人工确认</strong></div>
@@ -825,9 +848,9 @@
     const utilityTitle = document.getElementById('utility-dialog-title');
     const utilityBody = document.getElementById('utility-dialog-body');
     const utilityCopy = {
-      connections: { title: '服务连接', text: '统一管理已接入的外部服务与授权边界。前端不直接连接用户服务，所有访问都由受控 Connector 执行。', rows: [['数据库', 'PostgreSQL · 已连接'], ['缓存', 'Redis · 已连接'], ['日志', '待配置']] },
+      connections: { title: '服务中心', text: '统一管理已接入的外部服务与授权边界。前端不直接连接用户服务，所有访问都由受控 Connector 执行。', rows: [['数据库', 'PostgreSQL / MySQL · 已连接'], ['缓存', 'Redis · 已连接'], ['基础设施', 'Kubernetes · 已连接']] },
       models: { title: '模型设置', text: '选择会话使用的推理模型，并查看当前运行策略。高风险工具始终需要人工审批。', rows: [['当前模型', 'OperMind-Reasoner'], ['响应策略', '稳定优先'], ['工具模式', '受控调用']] },
-      monitoring: { title: '服务监控', text: '从这里快速查看服务健康状态，再回到会话中发起只读调查。', rows: [['在线服务', '3 / 3'], ['当前告警', '0 条'], ['最近检查', '刚刚']] },
+      monitoring: { title: '服务监控', text: '从这里快速查看服务健康状态，再回到会话中发起只读调查。', rows: [['在线服务', '3 / 4'], ['当前关注', '1 条'], ['最近检查', '刚刚']] },
       documents: { title: '文档添加', text: '添加运行手册、架构说明和服务知识，让 Agent 在调查时获得经过授权的上下文。', rows: [['已接入文档', '12 份'], ['支持格式', 'PDF · Markdown · TXT'], ['索引状态', '已就绪']] },
     };
 
@@ -866,6 +889,7 @@
     function sendMessage(text) {
       const value = (text || composer.value).trim();
       if (!value) return;
+      appShell.classList.add('has-conversation');
       welcome.style.display = 'none';
       addMessage(value, 'user');
       composer.value = '';
@@ -893,14 +917,18 @@
     document.querySelectorAll('.history-item').forEach((item) => item.addEventListener('click', () => {
       document.querySelectorAll('.history-item').forEach((node) => node.classList.remove('active'));
       item.classList.add('active');
+      appShell.classList.add('has-conversation');
+      welcome.style.display = 'none';
       showToast('已切换到「' + item.dataset.title + '」');
       sidebar.classList.remove('open');
     }));
     document.getElementById('new-chat').addEventListener('click', () => {
       conversation.innerHTML = '';
+      appShell.classList.remove('has-conversation');
       welcome.style.display = '';
       showToast('已新建会话');
     });
+    document.getElementById('ops-center-entry').addEventListener('click', () => { window.location.href = 'service-center.html'; });
     document.getElementById('theme-btn').addEventListener('click', () => themeModal.classList.add('open'));
     themeOptions.forEach((option) => option.addEventListener('click', () => { setTheme(option.dataset.themeOption); showToast('已切换为「' + option.querySelector('strong').textContent + '」'); }));
     document.getElementById('theme-close').addEventListener('click', closeTheme);
