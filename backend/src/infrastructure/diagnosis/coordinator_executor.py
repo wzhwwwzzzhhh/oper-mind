@@ -76,7 +76,10 @@ def _event_data(event: dict[str, Any], service_id: str | None = None) -> dict[st
     duration = event.get("duration_ms")
     if isinstance(duration, int) and not isinstance(duration, bool):
         data["duration_ms"] = duration
-    if service_id is not None:
+    role = event.get("role")
+    if role in {"db", "server", "log"}:
+        data["role"] = role
+    if service_id is not None and role == "db":
         data["service_id"] = service_id
     return data
 

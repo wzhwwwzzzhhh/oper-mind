@@ -112,7 +112,7 @@ class ToolGateway:
     返回脱敏输出与结构化审计记录。网关不感知具体服务语义。
     """
 
-    def __init__(self, registry: ToolRegistry, timeout_seconds: float = 10.0) -> None:
+    def __init__(self, registry: ToolRegistry, timeout_seconds: float = 3.0) -> None:
         self._registry = registry
         self._timeout_seconds = timeout_seconds
         # 复用单线程池承载限时执行；工具执行为同步阻塞，交由 future 计时。
