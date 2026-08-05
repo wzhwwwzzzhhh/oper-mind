@@ -1,53 +1,203 @@
-# 虚拟环境
+# OperMind Git 忽略规则
+# 原则：提交源码、测试、迁移、文档和可复现的示例；不提交本机环境、依赖、缓存、产物、凭据和个人材料。
+
+# Python 虚拟环境与缓存
 .venv/
-
-# Python 缓存
+venv/
+ENV/
+env/
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.pyre/
+.ruff_cache/
+.pyright/
+.pytype/
+.hypothesis/
+.pyre_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
 
-# 环境变量
+# Node / 前端依赖、构建产物与缓存（适用于任意子目录）
+**/node_modules/
+**/dist/
+**/build/
+**/coverage/
+**/.vite/
+**/.turbo/
+**/.cache/
+**/.parcel-cache/
+**/.eslintcache
+**/.stylelintcache
+**/.next/
+**/.nuxt/
+**/.svelte-kit/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# 环境变量、本地配置与凭据
 .env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+.envrc
+.envrc.local
+!.envrc.example
+*.local.yaml
+*.local.yml
+*.local.json
+*.local.toml
+*.local.ini
+*.local.conf
+*.secret.toml
+*.secret.ini
+*.secret
+*.secret.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+credentials*.json
+service-account*.json
+/config/config.local.yaml
 
-# IDE
+# 本地应用数据与数据库文件
+*.sqlite3
+*.sqlite
+*.db
+*.sqlite3-wal
+*.sqlite3-shm
+*.sqlite3-journal
+*.db-wal
+*.db-shm
+*.db-journal
+/data/*.sqlite3
+/data/*.sqlite
+/data/*.db
+
+# IDE、操作系统与编辑器临时文件
 .idea/
 .vscode/
-
-# OS
 .DS_Store
 Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*~
 
-# 测试数据
-data/__pycache__/
-data/*.sqlite3
+# AI 编程工具的本机配置与临时状态
+# 项目级规则、可复用技能和命令可以显式加入仓库；权限、MCP 和个人设置默认不提交。
+/.claude/*
+!/.claude/skills/
+!/.claude/skills/**
+!/.claude/commands/
+!/.claude/commands/**
+!/.claude/agents/
+!/.claude/agents/**
+/.claude/settings.json
+!/.claude/settings.example.json
+/.claude/settings.local.json
+/.claude/*.local.json
+/.claude/*.local.jsonc
+/.claude/*.local.yaml
+/.claude/*.local.yml
+/.claude/*.local.toml
+/.codex/*
+!/.codex/skills/
+!/.codex/skills/**
+!/.codex/agents/
+!/.codex/agents/**
+!/.codex/commands/
+!/.codex/commands/**
+/.codex/config.toml
+!/.codex/config.example.toml
+/.opencode/*
+!/.opencode/skills/
+!/.opencode/skills/**
+!/.opencode/agents/
+!/.opencode/agents/**
+!/.opencode/commands/
+!/.opencode/commands/**
+opencode.local.json
+opencode.local.jsonc
+opencode.local.yaml
+opencode.local.yml
+opencode.local.toml
+claude.local.json
+claude.local.jsonc
+codex.local.json
+codex.local.jsonc
+/.mcp.local.json
+/.mcp.local.jsonc
+/.codex-tasks/*-output.txt
+/.tmp_*
+.direnv/
 
-# 本地配置文件（包含敏感信息）
-config/config.local.yaml
+# 临时目录与本地工具状态
+**/.temp/
+**/.tmp/
+**/tmp/
+.cache/
+.local/
 
-# 评测/实验产出（可复现，不进代码库；只进库的是 harness 本身）
+# 容器、基础设施和云工具本地产物
+.terraform/
+**/.terraform/
+*.tfstate
+*.tfstate.*
+.serverless/
+.aws-sam/
+.chalice/
+docker-compose.override.local.yml
+docker-compose.override.local.yaml
+compose.override.local.yml
+compose.override.local.yaml
+
+# 本地证书、密钥和签名产物
+*.crt
+*.cer
+*.der
+*.csr
+*.pub
+*.asc
+*.gpg
+*.age
+*.token
+
+# 本地进程与崩溃诊断产物
+*.pid
+*.pid.lock
+*.dump
+*.core
+hs_err_pid*.log
+
+# 评测、实验和本地临时环境
 /experiments/
-# 前端构建产物与依赖
-src/frontend/node_modules/
-src/frontend/dist/
-src/frontend/*.log
-
-# 报告前端（旧前端迁移至此）
-report/node_modules/
-report/dist/
-report/*.log
-
-# 临时环境
 .m7-qa-venv/
 
 # 旧目录残留
-newproject/
-# Work 1 PostgreSQL 受控靶场运行时产物
-/demo/orders-slow-query/.env
+/newproject/
+
+# PostgreSQL 受控靶场运行时产物
 /demo/orders-slow-query/runtime/
 
-# Playwright MCP 截图/日志产物
+# 浏览器自动化截图、日志与运行目录
 .playwright-mcp/
 *.playwright-mcp/
-
-# Playwright CLI 产物
 .playwright-cli/
+
+# 个人报告、模板和其他本机材料（项目文档请放入 docs/）
+/report/
