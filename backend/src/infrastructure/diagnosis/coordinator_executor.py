@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 from datetime import datetime, timezone
+from inspect import signature
 from typing import Any
 
 from src.application.contracts import (
@@ -26,9 +27,12 @@ class CoordinatorDiagnosisExecutor(DiagnosisExecutor):
     def __init__(self, coordinator_factory: Callable[[], CoordinatorAgent]) -> None:
         self._coordinator_factory = coordinator_factory
 
-    def stream(self, query: str) -> Iterator[DiagnosisExecutionEvent | DiagnosisExecutionResult]:
+    def stream(self, query: str, service_id: str | None = None) -> Iterator[DiagnosisExecutionEvent | DiagnosisExecutionResult]:
         """转发受控事件，并将执行错误转换为安全应用错误。"""
-        coordinator = self._coordinator_factory()
+        if len(signature(self._coordinator_factory).parameters) == 0:
+            coordinator = self._coordinator_factory()
+        else:
+            coordinator = self._coordinator_factory(service_id)
         for item in coordinator.route_stream(query):
             kind = item["kind"]
             if kind == "trace":
@@ -39,7 +43,7 @@ class CoordinatorDiagnosisExecutor(DiagnosisExecutor):
                         type=event_type,
                         node=_safe_node(event.get("node")),
                         occurred_at=_parse_timestamp(event.get("timestamp")),
-                        data=_event_data(event),
+                        data=_event_data(event, service_id),
                     )
             elif kind == "complete":
                 yield DiagnosisExecutionResult(
@@ -58,7 +62,7 @@ def _event_type(value: dict[str, Any]) -> RunEventType | None:
         return None
 
 
-def _event_data(event: dict[str, Any]) -> dict[str, Any]:
+def _event_data(event: dict[str, Any], service_id: str | None = None) -> dict[str, Any]:
     """仅为工具事件构造安全 data；其余事件保持空 data，维持既有行为。"""
     if str(event.get("type")) != "tool_invoked":
         return {}
@@ -72,6 +76,11 @@ def _event_data(event: dict[str, Any]) -> dict[str, Any]:
     duration = event.get("duration_ms")
     if isinstance(duration, int) and not isinstance(duration, bool):
         data["duration_ms"] = duration
+    role = event.get("role")
+    if role in {"db", "server", "log"}:
+        data["role"] = role
+    if service_id is not None and role == "db":
+        data["service_id"] = service_id
     return data
 
 

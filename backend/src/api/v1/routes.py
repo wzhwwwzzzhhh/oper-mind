@@ -100,6 +100,7 @@ APPLICATION_ERROR_STATUS = {
     "ACTION_PROPOSAL_EXPIRED": 409,
     "SERVICE_NOT_FOUND": 404,
     "SERVICE_CENTER_UNAVAILABLE": 503,
+    "SERVICE_CONTEXT_REQUIRED": 409,
 }
 
 
@@ -347,6 +348,7 @@ def create_session(
                 title=payload.title,
                 environment_id=payload.environment_id,
                 incident_id=payload.incident_id,
+                service_id=payload.service_id,
             )
         )
     except ApplicationError as error:

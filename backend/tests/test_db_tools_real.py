@@ -81,7 +81,7 @@ def test_mock模式保留原有Explain结果() -> None:
     """激活场景时仍使用确定性 mock 数据。"""
     set_active_scenario("S1")
 
-    result = ExplainTool().execute("SELECT * FROM orders WHERE status = 'PENDING'")
+    result = ExplainTool("postgres-production").execute("SELECT * FROM orders WHERE status = 'PENDING'")
 
     assert "全表扫描" in result
 
@@ -89,7 +89,7 @@ def test_mock模式保留原有Explain结果() -> None:
 def test真实模式无DSN返回未配置() -> None:
     """真实模式没有 DSN 时不创建连接且返回诚实降级。"""
     with patch("src.tools.db_tools.load_service_dsn", return_value=None):
-        result = ShowIndexTool().execute("orders")
+        result = ShowIndexTool("postgres-production").execute("orders")
 
     assert result == "数据库未配置，无法查询"
 
@@ -102,7 +102,7 @@ def test连接失败返回不可用且不泄露异常() -> None:
     with patch("src.tools.db_tools.load_service_dsn", return_value="postgresql://u:p@host/db"), patch(
         "src.tools.db_tools.create_read_only_postgres_engine", return_value=engine
     ):
-        result = ShowIndexTool().execute("orders")
+        result = ShowIndexTool("postgres-production").execute("orders")
 
     assert result == "数据库不可用"
     assert "password" not in result
@@ -123,7 +123,7 @@ def test只读初始化失败会释放连接池() -> None:
     with patch("src.tools.db_tools.load_service_dsn", return_value="dsn"), patch(
         "src.tools.db_tools.create_read_only_postgres_engine", return_value=engine
     ):
-        result = ShowIndexTool().execute("orders")
+        result = ShowIndexTool("postgres-production").execute("orders")
 
     assert result == "数据库不可用"
     assert engine.disposed
@@ -133,9 +133,9 @@ def test三个工具无DSN均返回未配置() -> None:
     """三个真实工具在未配置 DSN 时统一诚实降级。"""
     with patch("src.tools.db_tools.load_service_dsn", return_value=None):
         results = (
-            ExplainTool().execute("SELECT 1"),
-            ShowIndexTool().execute("orders"),
-            ShowCreateTableTool().execute("orders"),
+            ExplainTool("postgres-production").execute("SELECT 1"),
+            ShowIndexTool("postgres-production").execute("orders"),
+            ShowCreateTableTool("postgres-production").execute("orders"),
         )
 
     assert results == ("数据库未配置，无法查询",) * 3
@@ -148,9 +148,9 @@ def test三个工具连接失败均返回不可用() -> None:
         "src.tools.db_tools.create_read_only_postgres_engine", return_value=engine
     ):
         results = (
-            ExplainTool().execute("SELECT 1"),
-            ShowIndexTool().execute("orders"),
-            ShowCreateTableTool().execute("orders"),
+            ExplainTool("postgres-production").execute("SELECT 1"),
+            ShowIndexTool("postgres-production").execute("orders"),
+            ShowCreateTableTool("postgres-production").execute("orders"),
         )
 
     assert results == ("数据库不可用",) * 3
@@ -159,7 +159,7 @@ def test三个工具连接失败均返回不可用() -> None:
 def test_explain拒绝非SELECT且不触库() -> None:
     """非 SELECT 输入在创建连接前被拒绝。"""
     with patch("src.tools.db_tools.create_read_only_postgres_engine") as create_engine:
-        result = ExplainTool().execute("DELETE FROM orders")
+        result = ExplainTool("postgres-production").execute("DELETE FROM orders")
 
     assert result == "只支持分析 SELECT 查询，已拒绝"
     create_engine.assert_not_called()
@@ -168,7 +168,7 @@ def test_explain拒绝非SELECT且不触库() -> None:
 def test_explain拒绝多语句SELECT且不触库() -> None:
     """SELECT 后拼接其他语句时不进入数据库。"""
     with patch("src.tools.db_tools.create_read_only_postgres_engine") as create_engine:
-        result = ExplainTool().execute("SELECT 1; DROP TABLE users")
+        result = ExplainTool("postgres-production").execute("SELECT 1; DROP TABLE users")
 
     assert result == "只支持分析 SELECT 查询，已拒绝"
     create_engine.assert_not_called()
@@ -186,7 +186,7 @@ def test_explain格式化有限计划字段且不回显原SQL() -> None:
     with patch("src.tools.db_tools.load_service_dsn", return_value="dsn"), patch(
         "src.tools.db_tools.create_read_only_postgres_engine", return_value=FakeEngine(connection=connection)
     ):
-        result = ExplainTool().execute("SELECT password FROM orders")
+        result = ExplainTool("postgres-production").execute("SELECT password FROM orders")
 
     assert "Seq Scan" in result
     assert "orders" in result
@@ -197,7 +197,7 @@ def test_explain格式化有限计划字段且不回显原SQL() -> None:
 def test非法表名被拒绝且不触库() -> None:
     """空格和分号等表名输入不会进入数据库查询。"""
     with patch("src.tools.db_tools.create_read_only_postgres_engine") as create_engine:
-        result = ShowIndexTool().execute("orders; DROP TABLE users")
+        result = ShowIndexTool("postgres-production").execute("orders; DROP TABLE users")
 
     assert result == "表名格式非法，已拒绝"
     create_engine.assert_not_called()
@@ -214,7 +214,7 @@ def test_show_index格式化真实索引并使用参数化查询() -> None:
     with patch("src.tools.db_tools.load_service_dsn", return_value="dsn"), patch(
         "src.tools.db_tools.create_read_only_postgres_engine", return_value=FakeEngine(connection=connection)
     ):
-        result = ShowIndexTool().execute("orders")
+        result = ShowIndexTool("postgres-production").execute("orders")
 
     assert "orders_pkey" in result
     assert "CREATE UNIQUE INDEX" in result
@@ -229,7 +229,7 @@ def test_show_index表不存在返回明确文案() -> None:
     with patch("src.tools.db_tools.load_service_dsn", return_value="dsn"), patch(
         "src.tools.db_tools.create_read_only_postgres_engine", return_value=FakeEngine(connection=connection)
     ):
-        result = ShowIndexTool().execute("missing_table")
+        result = ShowIndexTool("postgres-production").execute("missing_table")
 
     assert result == "表 'missing_table' 不存在"
 
@@ -261,7 +261,7 @@ def test_show_create_table格式化列与约束() -> None:
     with patch("src.tools.db_tools.load_service_dsn", return_value="dsn"), patch(
         "src.tools.db_tools.create_read_only_postgres_engine", return_value=FakeEngine(connection=connection)
     ):
-        result = ShowCreateTableTool().execute("orders")
+        result = ShowCreateTableTool("postgres-production").execute("orders")
 
     assert "CREATE TABLE public.orders" in result
     assert "id integer" in result
@@ -275,7 +275,7 @@ def test_show_create_table格式化列与约束() -> None:
 def test_gateway脱敏真实工具输出中的DSN() -> None:
     """网关脱敏规则不让连接串密码进入工具输出。"""
     registry = ToolRegistry()
-    registry.register(ShowIndexTool())
+    registry.register(ShowIndexTool("postgres-production"))
     gateway = ToolGateway(registry)
     connection = FakeConnection(
         [FakeResult([{"exists": 1}]), FakeResult([{"indexname": "idx", "indexdef": "CREATE INDEX idx ON public.orders (password=secret)"}])]

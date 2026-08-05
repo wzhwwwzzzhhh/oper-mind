@@ -192,6 +192,7 @@ class CreateSessionRequest(ApiV1Model):
     title: str = Field(min_length=1, max_length=200)
     environment_id: UUID | None = None
     incident_id: UUID | None = None
+    service_id: str | None = Field(default=None, min_length=1, max_length=64)
 
     @field_validator("title")
     @classmethod
@@ -348,6 +349,7 @@ class DiagnosisRunResource(ApiV1Model):
     session_id: UUID
     trace_id: UUID
     input_message_id: UUID
+    service_id: str | None = Field(default=None, min_length=1, max_length=64)
     status: Literal["queued", "running", "succeeded", "failed", "cancelled"]
     result: DiagnosisResultResource | None = None
     error: RunErrorResource | None = None

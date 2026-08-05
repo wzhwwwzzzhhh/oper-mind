@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
+from inspect import signature
 from typing import TypeVar
 
 from pydantic import BaseModel, ConfigDict
@@ -31,6 +32,8 @@ from src.application.errors import (
     RunNotFoundError,
     SessionArchivedError,
     SessionNotFoundError,
+    ServiceNotFoundError,
+    ServiceContextRequiredError,
 )
 from src.domain.actions import ActionMode
 from src.domain.diagnosis import MessageRole, RunEventType, RunStatus, SessionStatus
@@ -41,6 +44,7 @@ from src.domain.records import (
     RunIdempotencyKeyData,
     SessionData,
 )
+from src.domain.services import ServiceRegistry
 from src.infrastructure.persistence.database import SessionFactory
 from src.infrastructure.persistence.repositories import (
     SqlAlchemyDiagnosisResultRepository,
@@ -69,15 +73,21 @@ class AcceptedRun(BaseModel):
 class SessionApplicationService:
     """Session 创建与逻辑归档用例。"""
 
-    def __init__(self, session_factory: SessionFactory) -> None:
+    def __init__(self, session_factory: SessionFactory, registry: ServiceRegistry | None = None) -> None:
         self._session_factory = session_factory
+        self._registry = registry
 
     def create_session(self, command: CreateSessionCommand) -> SessionData:
         """创建 active Session 并在短事务中提交。"""
+        if command.service_id is not None and (
+            self._registry is None or self._registry.get_connector(command.service_id) is None
+        ):
+            raise ServiceNotFoundError()
         session_data = SessionData(
             title=command.title,
             environment_id=command.environment_id,
             incident_id=command.incident_id,
+            service_id=command.service_id,
         )
 
         def operation(session: Session) -> SessionData:
@@ -153,6 +163,31 @@ class RunApplicationService:
         except IntegrityError as error:
             return self._load_idempotency_after_conflict(command, fingerprint, error)
 
+    def _load_idempotency_after_conflict(
+        self,
+        command: CreateRunCommand,
+        fingerprint: str,
+        original_error: IntegrityError,
+    ) -> AcceptedRun:
+        """处理唯一键竞争后的幂等重读。"""
+
+        def operation(session: Session) -> AcceptedRun:
+            key = SqlAlchemyRunIdempotencyKeyRepository(session).get_by_scope(
+                command.session_id,
+                RUN_CREATE_ENDPOINT,
+                command.idempotency_key,
+            )
+            if key is None:
+                raise original_error
+            if key.request_fingerprint != fingerprint:
+                raise IdempotencyKeyReusedError()
+            run = SqlAlchemyDiagnosisRunRepository(session).get_by_id(key.run_id)
+            if run is None:
+                raise RunNotFoundError()
+            return AcceptedRun(run=run, replayed=True)
+
+        return _in_transaction(self._session_factory, operation)
+
     def execute_run(self, run_id: UUID) -> DiagnosisRunData:
         """使用已持久化输入消息执行 Run，并把任何可处理异常收敛为安全终态。"""
         try:
@@ -161,7 +196,8 @@ class RunApplicationService:
                 return running
 
             execution_result: DiagnosisExecutionResult | None = None
-            for item in self._executor.stream(query or ""):
+            current_run = self._load_run(run_id)
+            for item in _stream_with_context(self._executor, query or "", current_run.service_id):
                 if isinstance(item, DiagnosisExecutionEvent):
                     self._append_event(
                         run_id,
@@ -196,6 +232,8 @@ class RunApplicationService:
             raise SessionNotFoundError()
         if session_data.status == SessionStatus.ARCHIVED:
             raise SessionArchivedError()
+        if session_data.service_id is None and _requires_database_context(command.query):
+            raise ServiceContextRequiredError()
 
         existing = idempotency_repository.get_by_scope(
             command.session_id,
@@ -219,6 +257,7 @@ class RunApplicationService:
         )
         run = DiagnosisRunData(
             session_id=command.session_id,
+            service_id=session_data.service_id,
             input_message_id=input_message.id,
             status=RunStatus.QUEUED,
             next_event_sequence=2,
@@ -250,30 +289,16 @@ class RunApplicationService:
         _touch_session(session_repository, session_data, now)
         return AcceptedRun(run=run, replayed=False)
 
-    def _load_idempotency_after_conflict(
-        self,
-        command: CreateRunCommand,
-        fingerprint: str,
-        original_error: IntegrityError,
-    ) -> AcceptedRun:
-        """处理唯一键竞争后的幂等重读。"""
-
-        def operation(session: Session) -> AcceptedRun:
-            key = SqlAlchemyRunIdempotencyKeyRepository(session).get_by_scope(
-                command.session_id,
-                RUN_CREATE_ENDPOINT,
-                command.idempotency_key,
-            )
-            if key is None:
-                raise original_error
-            if key.request_fingerprint != fingerprint:
-                raise IdempotencyKeyReusedError()
-            run = SqlAlchemyDiagnosisRunRepository(session).get_by_id(key.run_id)
-            if run is None:
-                raise RunNotFoundError()
-            return AcceptedRun(run=run, replayed=True)
-
-        return _in_transaction(self._session_factory, operation)
+    def _load_run(self, run_id: UUID) -> DiagnosisRunData:
+        """读取执行所需的不可变 Run 上下文。"""
+        session = self._session_factory()
+        try:
+            value = SqlAlchemyDiagnosisRunRepository(session).get_by_id(run_id)
+        finally:
+            session.close()
+        if value is None:
+            raise RunNotFoundError()
+        return value
 
     def _claim_run(self, run_id: UUID) -> tuple[DiagnosisRunData, str | None, bool]:
         """在短事务中认领 queued Run，并验证其持久化输入消息。"""
@@ -438,6 +463,30 @@ def _in_transaction(session_factory: SessionFactory, operation: Callable[[Sessio
         session.close()
 
 
+def _stream_with_context(
+    executor: DiagnosisExecutor,
+    query: str,
+    service_id: str | None,
+) -> Iterator[DiagnosisExecutionEvent | DiagnosisExecutionResult]:
+    """把服务上下文传给新执行器，同时允许旧测试端口继续只接收 query。"""
+    stream = executor.stream
+    if len(signature(stream).parameters) >= 2:
+        return stream(query, service_id)
+    return stream(query)
+
+
+def _requires_database_context(query: str) -> bool:
+    """识别需要数据库服务上下文的明确调查问题。"""
+    lowered = query.lower()
+    return any(
+        keyword in lowered
+        for keyword in (
+            "select", "sql", "explain", "索引", "慢查询", "数据库", "postgres",
+            "查询", "表", "连接池", "pg_stat", "schema",
+        )
+    )
+
+
 def _query_fingerprint(query: str) -> str:
     """计算已规范化 query 的稳定 SHA-256 语义指纹。"""
     return sha256(query.strip().encode("utf-8")).hexdigest()
@@ -466,6 +515,9 @@ def _safe_event_data(event: DiagnosisExecutionEvent) -> dict[str, object]:
     mode = event.data.get("mode")
     if mode in {"mock", "target"}:
         data["mode"] = mode
+    service_id = event.data.get("service_id")
+    if isinstance(service_id, str) and service_id in {"postgres-production", "postgres-staging"}:
+        data["service_id"] = service_id
     return data
 
 

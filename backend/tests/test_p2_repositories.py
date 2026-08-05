@@ -127,6 +127,7 @@ def _add_run_graph(session: Session, created_at: datetime) -> tuple[SessionData,
         session_id=session_data.id,
         trace_id=_uuid(103),
         input_message_id=message_data.id,
+        service_id="postgres-staging",
         status=RunStatus.QUEUED,
         created_at=created_at,
     )
