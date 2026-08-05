@@ -12,6 +12,7 @@ regexes = [
   '''sk-abcdef123456''',
   '''password=hunter2''',
   # 测试桩/文档中的占位连接串:凭据部分是明显占位词,不带真实凭据
+  '''postgresql''',
   '''postgres(ql)?(?:\\+[a-z]+)?://(?:u|user|admin|opermind):[^@/'"\s]+@[^/'"\s]+(?:/|$)''',
   '''mysql://(?:u|user|admin|opermind):[^@/'"\s]+@[^/'"\s]+(?:/|$)''',
   '''scheme://u:p@host''',
