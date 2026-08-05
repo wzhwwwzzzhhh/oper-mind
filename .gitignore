@@ -153,6 +153,10 @@ codex.local.jsonc
 .cache/
 .local/
 
+# 开发 worktree 基地（约定在仓库外；此处仅作文档标记，防止误建在仓库内）
+# 实际基地目录：D:/market-handsome/oper-mind-worktrees/（仓库外，git 不跟踪）
+/oper-mind-worktrees/
+
 # 容器、基础设施和云工具本地产物
 .terraform/
 **/.terraform/
