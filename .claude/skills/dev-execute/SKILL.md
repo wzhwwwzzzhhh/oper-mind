@@ -11,8 +11,9 @@ description: Use when implementing a confirmed workpack plan against an OperMind
 
 ## 前置要求
 - `docs/workpack/<阶段>-<切片>/plan.md` 必须存在且已被用户确认；无确认回 `dev-plan`。
-- 当前分支必须是该工作包专用分支，且分支名与 `plan.md` 记录一致；否则停止并回 `dev-plan`。
-- 若工作区在开工前已有其他改动，必须存在隔离清单；混合文件只能提交已核对的代码块，不能整文件盲目暂存。
+- **工作区必须是本工作包专用 worktree**（`D:/market-handsome/oper-mind-worktrees/<切片>`，见 `dev-plan` Phase 2），
+  且 worktree 所在分支名与 `plan.md` 记录一致；否则停止并回 `dev-plan`。不在主仓库工作区开发。
+- 若 worktree 内开工前已有其他改动，必须存在隔离清单；混合文件只能提交已核对的代码块，不能整文件盲目暂存。
 - 基线：`docs/产品定义.md`、`docs/路线图.md`、`docs/开发规范.md`、当前 PRD。
 
 ## 执行流程
@@ -44,12 +45,15 @@ description: Use when implementing a confirmed workpack plan against an OperMind
 5. 非本技能环境无法派子代理时 → 如实写 `tooling_blocked` 并交用户，不得冒充 PASS。
 
 ### Phase 5 提交（审查 PASS 后）
-1. 只暂存**本工作包**改动的文件；禁止无检查 `git add .`，不提交凭据/`.env`/`config.local.yaml`/`sk-` 内容。
-2. 对混合文件逐段核对；必要时先生成补丁再应用，提交前检查 `git diff --cached` 只包含本工作包。
-3. `git diff --check` 必须干净。
-4. 提交信息 `git commit -m "<类型>: <中文描述>"`，一个切片一个提交；不直推 `main`。
-5. 每切片完成后更新 `docs/workpack/<阶段>-<切片>/evidence.md`（AC 证据随提交推进）。
-6. 记入 `evidence.md` 的验证记录：相关后端 pytest、前端 typecheck/test/build（如适用）、`git diff --check`。
+1. **合前拉 main（关键，避免"PR 后又矛盾"）**：提交前先 `git fetch origin main && git merge origin/main`（或 rebase），
+   把 main 最新改动合入本 worktree 分支并**在本地解掉冲突**；解冲突后重跑相关测试确认仍绿，再继续。
+   不得把冲突留到 push/PR 后才暴露。
+2. 只暂存**本工作包**改动的文件；禁止无检查 `git add .`，不提交凭据/`.env`/`config.local.yaml`/`sk-` 内容。
+3. 对混合文件逐段核对；必要时先生成补丁再应用，提交前检查 `git diff --cached` 只包含本工作包。
+4. `git diff --check` 必须干净。
+5. 提交信息 `git commit -m "<类型>: <中文描述>"`，一个切片一个提交；不直推 `main`。
+6. 每切片完成后更新 `docs/workpack/<阶段>-<切片>/evidence.md`（AC 证据随提交推进）。
+7. 记入 `evidence.md` 的验证记录：相关后端 pytest、前端 typecheck/test/build（如适用）、`git diff --check`。
 
 ## 关键纪律
 1. **证据先于断言**：任何"完成"声明必须有测试输出 / 命令结果支撑。
@@ -63,6 +67,8 @@ description: Use when implementing a confirmed workpack plan against an OperMind
 |---|---|
 | 没跑测试就宣称完成 | 先补正测试输出再断言 |
 | 跳过子代理审查或伪造 PASS | 派 readonly 子代理，FAIL 即回改 |
+| 在主仓库工作区开发 | 回 dev-plan：用 worktree 到开发基地隔离开发 |
+| 提交前没合 main 就 push | 先 `git fetch origin main && git merge origin/main` 本地解冲突 |
 | `git add .` 全量暂存 | 只暂存工作包文件 |
 | 混合文件未经核对直接暂存 | 先审阅 staged diff，必要时按代码块隔离 |
 | 不映射 AC 就加行为 | 每行为对应 PRD 需求/AC，不能映射即范围外 |
@@ -70,7 +76,8 @@ description: Use when implementing a confirmed workpack plan against an OperMind
 
 ## 红灯（STOP）
 - 无用户确认的 `plan.md`
-- 当前分支不是工作包专用分支，或混合工作区没有逐文件/逐代码块隔离清单
+- 不在本工作包专用 worktree 里开发，或混合工作区没有逐文件/逐代码块隔离清单
+- 提交前未把 origin/main 合入本分支解冲突（把冲突留到 PR）
 - 凭据 / DSN / 原始 SQL / CoT 进日志、Trace、响应、截图或文档
 - 新增未经确认的公开接口、迁移、Connector、真实外部访问或高风险动作
 - P0/P1 未修复或越界

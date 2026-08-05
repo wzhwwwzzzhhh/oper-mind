@@ -46,3 +46,13 @@
 - 不直推 `main`；提交信息使用 `<类型>: <中文描述>`。
 - 一个工作包只包含 1–3 个紧密切片，完成后集中 Test → Review → Commit；不要擅自提交，除非用户明确要求。
 - 不回退或覆盖用户/其他 Agent 已有改动；发现冲突时先停下说明，不使用破坏性 `git reset --hard` 或 `git checkout --`。
+
+### 工作区约定（多 Agent 并发隔离）
+
+- 本仓库根目录是**管理/审阅/建 PR** 的工作区，可能被其他 Agent 占用；**不在这里直接开发**。
+- 每个开发工作包在**独立 worktree** 里进行，全部放在仓库外固定开发基地：`D:/market-handsome/oper-mind-worktrees/`。
+- 建 worktree（在主仓库根执行）：`git worktree add "D:/market-handsome/oper-mind-worktrees/<切片>" -b <类型>/<切片> main`，
+  然后 `cd` 进 worktree 开发（`<切片>` 与 `docs/workpack/<阶段>-<切片>/` 同名）。
+- **push / 建 PR 前先 `git fetch origin main && git merge origin/main`（或 rebase）**，在本地解掉冲突再推，避免"PR 后又矛盾"。
+- **PR 合并后必须清理**：`git worktree remove "D:/market-handsome/oper-mind-worktrees/<切片>"` + `git branch -d <类型>/<切片>` + `git worktree prune`。
+- worktree 是全新 checkout：`.venv`、`node_modules` 不会带过去，需在 worktree 内重建（后端 venv、前端 `npm install`）。

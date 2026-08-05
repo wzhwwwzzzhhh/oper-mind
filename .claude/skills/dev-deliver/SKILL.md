@@ -22,12 +22,14 @@ description: Use when delivering a completed, reviewed workpack — pushing the 
 
 ### Phase 6 push → PR → 合并
 1. `git remote get-url origin`、`gh auth status`、`gh repo view` 预检全部通过；任一失败即 STOP。
-2. `git push -u origin <分支>`，不得 force push。
-3. 用 `gh pr create --base main` 建 PR；body 必须含范围、AC 映射、review 结论、验证证据、相关 PRD/Design 路径和未执行项。
-4. 用 `gh pr view <number> --json baseRefName,headRefName,files,statusCheckRollup` 核对 base、head 和文件范围；不符合即 STOP。
-5. 等待 GitHub CI / checks；不过则修复（回 `dev-execute`）或说明，不强行合并。
-6. 只有用户明确要求合并且 checks 全绿后，才执行 squash merge；不得自动批准自己的 PR 或绕过 required review。
-7. 记录 PR URL、CI 结果、合并 commit；随后执行 `git switch main`、`git pull --ff-only origin main`。
+2. **合前拉 main（关键）**：push 前先 `git fetch origin main && git merge origin/main`（或 rebase），
+   在本地解掉冲突并重跑相关测试；确保 PR 不会"合后又矛盾"。若 main 有新提交而本地未合入，不得 push。
+3. `git push -u origin <分支>`，不得 force push。
+4. 用 `gh pr create --base main` 建 PR；body 必须含范围、AC 映射、review 结论、验证证据、相关 PRD/Design 路径和未执行项。
+5. 用 `gh pr view <number> --json baseRefName,headRefName,files,statusCheckRollup` 核对 base、head 和文件范围；不符合即 STOP。
+6. 等待 GitHub CI / checks；不过则修复（回 `dev-execute`）或说明，不强行合并。
+7. 只有用户明确要求合并且 checks 全绿后，才执行 squash merge；不得自动批准自己的 PR 或绕过 required review。
+8. 记录 PR URL、CI 结果、合并 commit；随后执行 `git switch main`、`git pull --ff-only origin main`。
 
 ### Phase 7 收尾归档
 1. **收尾文档不能直接改本地 `main`**：`docs/prd/README.md`、`docs/workpack/README.md` 和归档移动必须在功能分支上完成，并纳入同一个 PR；合并后发现遗漏必须另开 follow-up 分支/PR。
@@ -35,6 +37,8 @@ description: Use when delivering a completed, reviewed workpack — pushing the 
 3. 归档工作包：`git mv docs/workpack/<阶段>-<切片>/ docs/workpack/归档/<阶段>-<切片>/`（保留 plan/review/evidence，只读不删）。
 4. 若存在明确后续事项，在工作包移交记录中写明（回到 roadmap / dev-plan）。
 5. 更新 `docs/workpack/README.md` 索引，并在 PR diff 中复核收尾文件仍属于本工作包。
+6. **清理 worktree（PR 合并后必须）**：`git worktree remove "D:/market-handsome/oper-mind-worktrees/<切片>"` + `git branch -d <类型>/<切片>`，
+   再 `git worktree prune`；避免 worktree 越积越多、占用磁盘和污染 `git worktree list`。
 
 ## 产物
 - PR（含 URL）、合并提交、本地 main 已拉回
@@ -57,6 +61,8 @@ description: Use when delivering a completed, reviewed workpack — pushing the 
 | 工作包不归档 | 移到 docs/workpack/归档/ |
 | PR 混入范围外文件 | 检查 PR diff 只含工作包文件 |
 | 合并后直接在 main 补文档 | 回到功能分支，另开 follow-up PR |
+| push 前没合 main | 先 `git fetch origin main && git merge origin/main` 本地解冲突 |
+| 合完不删 worktree/分支 | `git worktree remove <切片>` + `git branch -d <分支>` + `git worktree prune` |
 
 ## 红灯（STOP）
 - review ≠ PASS 或 evidence 不完整
@@ -65,5 +71,7 @@ description: Use when delivering a completed, reviewed workpack — pushing the 
 - remote、base、head 或 PR 文件范围未核对
 - 合并后需要直接写 main 的收尾改动
 - 未经确认的闸门项（未建 PR 就动 main、绕过 CI 合并、强推）
+- push 前未把 origin/main 合入本分支解冲突
+- PR 合并后未清理 worktree / 分支（`git worktree list` 仍有残留）
 
 **发现任一红灯 ⇒ 停止交付，回到交付链条前一步。**
