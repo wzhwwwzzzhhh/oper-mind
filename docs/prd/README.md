@@ -20,7 +20,7 @@
 | 阶段 | 主题 | PRD | 状态 |
 |---|---|---|---|
 | P4.2 | 会话 DBAgent 工具接真实 PostgreSQL | `session/P4.2-db-agent-real.md` | 完成 |
-| P4.3 | 会话服务上下文贯通与服务选择 | `session/P4.3-service-context.md` | 已确认 · 待 P4.2 |
+| P4.3 | 会话服务上下文贯通与服务选择 | `session/P4.3-service-context.md` | 已确认 |
 | P4.3 | 模型设置页读取真实生效配置 | `model/P4.3-model-settings-real.md` | 完成 |
 | P4.4 | 服务中心多服务实例接入 | `service-center/P4.4-service-instances.md` | 完成 |
 | P4 | 服务中心快照变真（已交付，非本目录 PRD） | — | 完成 |
