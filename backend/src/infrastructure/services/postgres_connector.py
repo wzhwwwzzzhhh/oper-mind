@@ -4,8 +4,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import create_engine, text
-from sqlalchemy.engine import Engine, make_url
+from sqlalchemy import text
+from sqlalchemy.engine import Engine
 
 from src.domain.services import (
     DatabaseSignal,
@@ -19,6 +19,7 @@ from src.domain.services import (
     ServiceSnapshotData,
     ServiceSourceStatus,
 )
+from src.infrastructure.services.postgres_engine import create_read_only_postgres_engine
 
 class PostgresServiceConnector:
     """只读 PostgreSQL 服务快照 Connector，实现 ServiceConnector 协议。"""
@@ -52,26 +53,21 @@ class PostgresServiceConnector:
         if self._dsn is None:
             return self._not_configured(observed)
 
+        engine = self._engine
+        owns_engine = engine is None
         try:
-            engine = self._engine or self._create_engine()
+            engine = engine or self._create_engine()
             return self._read_healthy(engine, observed)
         except Exception:
             return self._unavailable(observed)
+        finally:
+            if owns_engine and engine is not None:
+                engine.dispose()
 
     def _create_engine(self) -> Engine:
         """创建强制使用 psycopg 驱动且带三秒超时的 PostgreSQL Engine。"""
         assert self._dsn is not None
-        url = make_url(self._dsn)
-        if url.get_backend_name() != "postgresql":
-            raise ValueError("PostgreSQL 服务 DSN 必须使用 PostgreSQL URL。")
-        return create_engine(
-            url.set(drivername="postgresql+psycopg"),
-            pool_pre_ping=True,
-            connect_args={
-                "connect_timeout": 3,
-                "options": "-c statement_timeout=3000",
-            },
-        )
+        return create_read_only_postgres_engine(self._dsn)
 
     def _read_healthy(self, engine: Engine, observed: datetime) -> ServiceSnapshotData:
         """在只读事务中读取连通性与有限数据库指标。"""

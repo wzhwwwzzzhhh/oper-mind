@@ -56,6 +56,7 @@ class FakeEngine:
     def __init__(self, connection: FakeConnection | None = None, error: Exception | None = None) -> None:
         self._connection = connection
         self._error = error
+        self.disposed = False
 
     def connect(self) -> FakeConnection:
         """返回连接或抛出预设异常。"""
@@ -63,6 +64,10 @@ class FakeEngine:
             raise self._error
         assert self._connection is not None
         return self._connection
+
+    def dispose(self) -> None:
+        """模拟释放 Engine 及其连接池。"""
+        self.disposed = True
 
 def test_无凭据返回未配置快照() -> None:
     """无 DSN 时不创建连接且返回固定未配置状态。"""
@@ -93,9 +98,10 @@ def test_超时返回不可用快照() -> None:
 
 def test_生产连接强制使用_psycopg驱动() -> None:
     """生产创建 Engine 时把 PostgreSQL URL 固定到 psycopg 驱动。"""
+    fake_engine = FakeEngine(error=TimeoutError("timed out"))
     with patch(
-        "src.infrastructure.services.postgres_connector.create_engine",
-        return_value=FakeEngine(error=TimeoutError("timed out")),
+        "src.infrastructure.services.postgres_engine.create_engine",
+        return_value=fake_engine,
     ) as create_engine:
         snapshot = PostgresServiceConnector("postgresql://u:p@h/db").health_snapshot()
 
@@ -104,6 +110,7 @@ def test_生产连接强制使用_psycopg驱动() -> None:
     engine_url = create_engine.call_args.args[0]
     assert make_url(engine_url).drivername == "postgresql+psycopg"
     assert create_engine.call_args.kwargs["connect_args"]["connect_timeout"] == 3
+    assert fake_engine.disposed
 
 def test_正常连接填充有限指标() -> None:
     """SELECT 1 成功并返回指标时生成健康快照。"""
