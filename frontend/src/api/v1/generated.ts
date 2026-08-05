@@ -44,86 +44,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/diagnose": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Diagnose
-         * @description 执行同步诊断；默认仅返回最终报告以控制响应体大小。
-         */
-        post: operations["diagnose_diagnose_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/diagnose/stream": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Diagnose Stream
-         * @description 以 SSE 增量推送路由、Agent 与质量保障节点事件。
-         */
-        get: operations["diagnose_stream_diagnose_stream_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/memory/stats": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Memory Stats
-         * @description 保留旧接口，避免在前端切换期间破坏已有调用。
-         */
-        get: operations["memory_stats_memory_stats_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/memory/clear": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Clear Memory
-         * @description 保留旧接口，避免把未实现的清理动作伪装为成功。
-         */
-        post: operations["clear_memory_memory_clear_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/services": {
         parameters: {
             query?: never;
@@ -136,6 +56,26 @@ export interface paths {
          * @description 读取代码内注册服务及其当前有限快照。
          */
         get: operations["list_services_api_v1_services_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/model/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Model Config
+         * @description 读取当前生效模型配置的脱敏视图。
+         */
+        get: operations["get_model_config_api_v1_model_config_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -690,40 +630,6 @@ export interface components {
             has_more: unknown;
         };
         /**
-         * DiagnoseRequest
-         * @description 同步诊断请求。
-         */
-        DiagnoseRequest: {
-            /**
-             * Query
-             * @description 待诊断的运维问题
-             */
-            query: string;
-            /**
-             * Show Thinking
-             * @description 是否返回诊断链路
-             * @default false
-             */
-            show_thinking: boolean;
-        };
-        /**
-         * DiagnoseResponse
-         * @description 同步诊断响应。
-         */
-        DiagnoseResponse: {
-            /** Result */
-            result: string;
-            /** Thinking */
-            thinking?: string[] | null;
-            /** Trace */
-            trace?: components["schemas"]["TraceEvent"][] | null;
-            /**
-             * Strategy
-             * @default
-             */
-            strategy: string;
-        };
-        /**
          * DiagnosisResultResource
          * @description 成功 Run 的已校验结构化结果。
          */
@@ -791,30 +697,6 @@ export interface components {
             finished_at?: unknown;
         };
         /**
-         * ErrorDetail
-         * @description 参数校验失败时的单条字段错误。
-         */
-        ErrorDetail: {
-            /** Location */
-            location: (string | number)[];
-            /** Message */
-            message: string;
-            /** Error Type */
-            error_type: string;
-        };
-        /**
-         * ErrorResponse
-         * @description 统一错误响应。
-         */
-        ErrorResponse: {
-            /** Code */
-            code: string;
-            /** Message */
-            message: string;
-            /** Details */
-            details?: components["schemas"]["ErrorDetail"][] | null;
-        };
-        /**
          * EvidenceResource
          * @description 经安全审查的结构化证据。
          */
@@ -873,16 +755,6 @@ export interface components {
         };
         JsonValue: unknown;
         /**
-         * MemoryResponse
-         * @description 保留的记忆接口响应。
-         */
-        MemoryResponse: {
-            /** Status */
-            status?: string | null;
-            /** Message */
-            message: string;
-        };
-        /**
          * MessageListResponse
          * @description 会话消息列表响应。
          */
@@ -909,6 +781,38 @@ export interface components {
             content: unknown;
             /** Created At */
             created_at: unknown;
+        };
+        /**
+         * ModelConfigResource
+         * @description 模型配置的安全视图，不包含 API Key 或完整连接 URL。
+         */
+        ModelConfigResource: {
+            /** Mode */
+            mode: unknown;
+            diagnostic_model: unknown;
+            judge_model?: unknown;
+        };
+        /**
+         * ModelConfigResponse
+         * @description 模型配置读取响应。
+         */
+        ModelConfigResponse: {
+            config: unknown;
+            meta: unknown;
+        };
+        /**
+         * ModelEndpointResource
+         * @description 单个模型端点的非敏感配置事实。
+         */
+        ModelEndpointResource: {
+            /** Provider */
+            provider: unknown;
+            /** Base Url Host */
+            base_url_host: unknown;
+            /** Model */
+            model: unknown;
+            /** Status */
+            status: unknown;
         };
         /**
          * RecommendationResource
@@ -1219,26 +1123,6 @@ export interface components {
          */
         SessionStatus: "active" | "archived";
         /**
-         * TraceEvent
-         * @description 诊断编排中的单条可视化事件。
-         */
-        TraceEvent: {
-            /**
-             * Type
-             * @enum {string}
-             */
-            type: "route_decided" | "agent_start" | "agent_done" | "conflict_checked" | "debate_round" | "report" | "reflection";
-            /** Node */
-            node: string;
-            /** Detail */
-            detail: string;
-            /**
-             * Timestamp
-             * @description UTC ISO 8601 时间戳
-             */
-            timestamp: string;
-        };
-        /**
          * UpdateSessionRequest
          * @description 更新会话标题或逻辑归档状态的请求。
          */
@@ -1310,119 +1194,6 @@ export interface operations {
             };
         };
     };
-    diagnose_diagnose_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DiagnoseRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DiagnoseResponse"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    diagnose_stream_diagnose_stream_get: {
-        parameters: {
-            query: {
-                query: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    memory_stats_memory_stats_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MemoryResponse"];
-                };
-            };
-        };
-    };
-    clear_memory_memory_clear_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MemoryResponse"];
-                };
-            };
-        };
-    };
     list_services_api_v1_services_get: {
         parameters: {
             query?: never;
@@ -1439,6 +1210,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ServiceListResponse"];
+                };
+            };
+        };
+    };
+    get_model_config_api_v1_model_config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelConfigResponse"];
                 };
             };
         };

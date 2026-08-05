@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import type { ReactElement } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+
+import { get_model_config_query } from '../../api/v1/queries'
 
 type PolicyKey = 'coordinator' | 'db' | 'server' | 'log' | 'debate' | 'reflection' | 'report'
 type ProviderKey = 'ollama' | 'deepseek' | 'openai' | 'gateway'
@@ -76,9 +79,10 @@ function read_local<T>(key: string, fallback: T): T {
   }
 }
 
-/** 模型服务页：静态 Provider/模型示例 + localStorage 本地策略，不连接后端。 */
+/** 模型服务页：读取后端真实配置，本地策略仍只属于 UI 偏好。 */
 export function ModelSettingsPage(): ReactElement {
   const navigate = useNavigate()
+  const model_config_query = useQuery({ ...get_model_config_query() })
   const [policy, set_policy] = useState<Record<PolicyKey, boolean>>(() => ({ ...default_policy, ...read_local('opermind:model-policy', {}) }))
   const [current_model, set_current_model] = useState(() => read_local('opermind:model-current', 'deepseek-reasoner'))
   const [modal_open, set_modal_open] = useState(false)
@@ -95,32 +99,38 @@ export function ModelSettingsPage(): ReactElement {
 
   const current = models.find((item) => item.id === current_model) ?? models[0]
   const enabled_count = Object.values(policy).filter(Boolean).length
+  const config = model_config_query.data?.data.config
+  const diagnostic = config?.diagnostic_model
+  const judge = config?.judge_model
 
   return (
     <div className="model-page">
       <div className="model-breadcrumb"><button onClick={() => navigate('/workbench')} type="button">会话工作台</button><span>/</span><strong>模型服务</strong></div>
 
       <section className="model-page-head">
-        <div><div className="model-eyebrow">工作台配置</div><h1>模型服务</h1><p>管理模型 Provider、可用模型和 OperMind 的调用策略。当前页面只保存本地偏好，不代表任何 Provider 已真实连接。</p></div>
-        <div className="model-head-actions"><button className="model-button" onClick={() => show_toast('当前页面没有真实连接检查接口。')} type="button">检查全部连接</button><button className="model-button primary" onClick={() => set_modal_open(true)} type="button">＋ 添加模型服务</button></div>
+        <div><div className="model-eyebrow">工作台配置</div><h1>模型服务</h1><p>展示后端当前生效配置。Provider 编辑、凭据管理和连接测试尚未启用。</p></div>
+        <div className="model-head-actions"><button className="model-button" disabled onClick={() => show_toast('连接测试能力尚未启用。')} type="button">检查全部连接</button><button className="model-button primary" disabled onClick={() => set_modal_open(true)} type="button">＋ 添加模型服务</button></div>
       </section>
 
+      {model_config_query.isPending && <div className="model-inline-state">正在读取当前生效配置…</div>}
+      {model_config_query.isError && <div className="model-inline-state error">暂时无法读取模型配置，请稍后重试。</div>}
+
       <section className="model-summary">
-        <article><small>当前生效模型</small><strong>{current.name}</strong><span>本地偏好 · {current.provider}</span></article>
-        <article><small>模型服务</small><strong>4 <em>个示例</em></strong><span>没有 Provider 后端接口</span></article>
-        <article><small>可用模型</small><strong>6 <em>个示例</em></strong><span>{enabled_count} 个 Agent 策略开启</span></article>
-        <article><small>最近调用</small><strong className="muted-value">未连接</strong><span>页面不读取真实调用记录</span></article>
+        <article><small>诊断模型</small><strong>{diagnostic?.model ?? '未配置'}</strong><span>{diagnostic ? `${diagnostic.provider} · ${config?.mode === 'mock' ? 'Mock 模式' : '真实模式'}` : '后端未返回配置'}</span></article>
+        <article><small>裁判模型</small><strong>{judge?.model ?? '未配置'}</strong><span>{judge ? judge.provider : '未配置独立裁判模型'}</span></article>
+        <article><small>本地偏好</small><strong>{current.name}</strong><span>仅影响当前页面，不改变后端配置</span></article>
+        <article><small>Agent 策略</small><strong>{enabled_count} <em>项开启</em></strong><span>仅保存本地 UI 偏好</span></article>
       </section>
 
       <section className="model-section" id="providers">
-        <div className="model-section-head"><div><h2>模型服务示例</h2><p>Provider 仅用于展示配置形态，连接状态不会由本页伪造。</p></div><button className="model-link" onClick={() => show_toast('Provider 配置接口尚未接入。')} type="button">了解 Provider →</button></div>
-        <div className="model-provider-list">{providers.map((provider) => <article className="model-provider" key={provider.key}><div className={`provider-logo provider-${provider.key}`}>{provider.short}</div><div className="provider-main"><strong>{provider.name}</strong><span>{provider.endpoint}</span><div className="provider-tags">{provider.tags.map((tag) => <i key={tag}>{tag}</i>)}</div></div><div className="provider-meta"><small>当前状态</small><b className={`provider-state ${provider.status_class}`}>{provider.status}</b><span>{provider.note}</span></div><div className="provider-actions"><button className="model-link" onClick={() => show_toast(`${provider.name} 详情仅为静态展示。`)} type="button">查看详情</button><button aria-label={`${provider.name} 更多操作`} className="more-button" onClick={() => show_toast('编辑、测试连接和移除能力暂未接入。')} type="button">···</button></div></article>)}</div>
+        <div className="model-section-head"><div><h2>当前生效配置</h2><p>以下信息来自后端配置读取，不代表已执行连接测试。</p></div><button className="model-link" disabled type="button">模型发现未启用 →</button></div>
+        <div className="model-provider-list">{model_config_query.isSuccess && [diagnostic, judge].map((item, index) => <article className="model-provider" key={item?.model ?? `unconfigured-${index}`}><div className="provider-logo provider-gateway">{index === 0 ? 'D' : 'J'}</div><div className="provider-main"><strong>{index === 0 ? '诊断模型' : '裁判模型'}</strong><span>{item ? `${item.provider} · ${item.base_url_host}` : '未配置'}</span><div className="provider-tags"><i>{config?.mode === 'mock' ? 'Mock 模式' : '真实模式'}</i><i>{item?.model ?? '未配置模型'}</i></div></div><div className="provider-meta"><small>配置状态</small><b className={`provider-state ${item?.status === 'configured' ? 'sample' : 'muted'}`}>{item?.status === 'configured' ? '已配置' : '未配置'}</b><span>{item?.status === 'configured' ? '当前生效配置' : '后端没有该模型配置'}</span></div><div className="provider-actions"><button className="model-link" disabled type="button">查看详情</button><button aria-label={`${index === 0 ? '诊断模型' : '裁判模型'} 更多操作`} className="more-button" disabled type="button">···</button></div></article>)}</div>
       </section>
 
-      <section className="model-section" id="models">
-        <div className="model-section-head"><div><h2>可用模型示例</h2><p>选择一个本地偏好作为页面当前生效模型，不会写入后端。</p></div><button className="model-link" onClick={() => show_toast('模型列表来自静态模板。')} type="button">刷新模型列表 →</button></div>
+      {model_config_query.isSuccess && <section className="model-section" id="models">
+        <div className="model-section-head"><div><h2>本地页面偏好</h2><p>选择仅用于页面展示的本地偏好，不会写入或改变后端生效配置。</p></div><button className="model-link" disabled type="button">刷新模型列表未启用 →</button></div>
         <div className="model-grid">{models.map((item) => <article className={`model-card${current_model === item.id ? ' selected' : ''}`} key={item.id}><div className="model-card-head"><div><strong>{item.name}</strong><small>{item.provider}</small></div>{current_model === item.id && <span className="default-mark">当前偏好</span>}</div><p>{item.description}</p><div className="model-tags">{item.tags.map((tag) => <i key={tag}>{tag}</i>)}</div><button className="model-card-action" onClick={() => { set_current_model(item.id); show_toast(`已将 ${item.name} 设为本地偏好。`) }} type="button">{current_model === item.id ? '当前选择' : '设为当前偏好'}</button></article>)}</div>
-      </section>
+      </section>}
 
       <section className="model-section" id="policy">
         <div className="model-section-head"><div><h2>Agent 调用策略</h2><p>对应当前项目 Coordinator、领域 Agent 和质量保障组件；开关仅保存到本地。</p></div><button className="model-link" onClick={() => { set_policy({ ...default_policy }); show_toast('Agent 策略已恢复默认。') }} type="button">恢复默认 →</button></div>

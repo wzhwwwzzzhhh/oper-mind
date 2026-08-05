@@ -39,7 +39,7 @@ function availability_state(availability: unknown): 'ok' | 'attention' | 'muted'
 function availability_text(availability: unknown): string {
   if (availability === 'healthy') return '正常'
   if (availability === 'unhealthy') return '需关注'
-  if (availability === 'not_configured') return '未接入'
+  if (availability === 'not_configured') return '未配置'
   return String(availability ?? '—')
 }
 
@@ -88,7 +88,7 @@ export function ServiceCenterPage(): ReactElement {
         <div className="context-stat">
           <small>服务状态</small>
           <strong>{services.length} 个服务</strong>
-          <span>{services.length} 个已接入</span>
+          <span>{services.filter((service) => resource_optional_string(resource_value(service, 'snapshot'), 'availability') !== 'not_configured').length} 个已配置</span>
         </div>
         <div className="context-stat">
           <small>默认权限</small>
@@ -141,7 +141,7 @@ export function ServiceCenterPage(): ReactElement {
                     <div className={`service-logo ${logo_class(kind)}`}>{info.short}</div>
                     <div className="service-name">
                       <strong>{title}</strong>
-                      <span>{info.label} · 已接入</span>
+                      <span>{info.label} · {availability === 'not_configured' ? '未配置' : '已接入'}</span>
                     </div>
                   </div>
                   <div className="type">

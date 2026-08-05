@@ -268,6 +268,18 @@ function error_response(request: Request, code: string, message: string, status:
 }
 
 export const api_v1_handlers = [
+  http.get('/api/v1/model/config', ({ request }) => response(request, {
+    config: {
+      mode: 'mock',
+      diagnostic_model: {
+        provider: 'mock.example',
+        base_url_host: 'mock.example',
+        model: 'diagnostic-model',
+        status: 'configured',
+      },
+      judge_model: null,
+    },
+  })),
   http.get('/api/v1/services', ({ request }) => response(request, { items: [order_service] })),
   http.get('/api/v1/services/order-service', ({ request }) => response(request, { service: order_service })),
   http.get('/api/v1/services/order-service/activities', ({ request }) =>

@@ -14,6 +14,7 @@ import {
 } from './client'
 
 export const api_v1_query_keys = {
+  model_config: () => ['api-v1', 'model-config'] as const,
   services: () => ['api-v1', 'services'] as const,
   service: (service_id: string) => ['api-v1', 'service', service_id] as const,
   service_activities: (service_id: string, query: ListServiceActivitiesQuery) =>
@@ -26,6 +27,13 @@ export const api_v1_query_keys = {
     ['api-v1', 'session-runs', session_id, query] as const,
   run: (run_id: string) => ['api-v1', 'run', run_id] as const,
   run_events: (run_id: string, query: ListRunEventsQuery) => ['api-v1', 'run-events', run_id, query] as const,
+}
+
+export function get_model_config_query() {
+  return queryOptions({
+    queryKey: api_v1_query_keys.model_config(),
+    queryFn: ({ signal }) => api_v1_client.get_model_config({ signal }),
+  })
 }
 
 export function list_services_query() {

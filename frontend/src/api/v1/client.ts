@@ -26,6 +26,21 @@ export type ServiceResponse = components['schemas']['ServiceResponse']
 export type ServiceListResponse = components['schemas']['ServiceListResponse']
 export type ServiceActivityResource = components['schemas']['ServiceActivityResource']
 export type ServiceActivityListResponse = components['schemas']['ServiceActivityListResponse']
+export interface ModelEndpointResource {
+  provider: string
+  base_url_host: string
+  model: string
+  status: 'configured' | 'not_configured'
+}
+
+export interface ModelConfigResponse {
+  config: {
+    mode: 'mock' | 'real'
+    diagnostic_model: ModelEndpointResource
+    judge_model: ModelEndpointResource | null
+  }
+  meta: components['schemas']['ResponseMeta']
+}
 
 export type ListSessionsQuery = NonNullable<
   operations['list_sessions_api_v1_sessions_get']['parameters']['query']
@@ -118,6 +133,7 @@ export class ApiClientError extends Error {
 }
 
 export interface ApiV1Client {
+  get_model_config(options?: ApiRequestOptions): Promise<ApiResponse<ModelConfigResponse>>
   list_services(options?: ApiRequestOptions): Promise<ApiResponse<ServiceListResponse>>
   get_service(service_id: string, options?: ApiRequestOptions): Promise<ApiResponse<ServiceResponse>>
   list_service_activities(
@@ -361,6 +377,14 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
   const base_url = options.base_url ?? ''
 
   return {
+    get_model_config: (request_options) =>
+      request_json<ModelConfigResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        '/api/v1/model/config',
+        request_options,
+      ),
     list_services: (request_options) =>
       request_json<ServiceListResponse>(
         fetch_impl ?? globalThis.fetch,

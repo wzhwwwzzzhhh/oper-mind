@@ -464,21 +464,35 @@ describe('App', () => {
     expect(screen.queryByText('99.98%')).not.toBeInTheDocument()
   })
 
-  it('模型服务页使用静态 Provider 展示并把 Agent 开关保存到 localStorage', async () => {
+  it('模型服务页展示后端真实配置并保留本地 Agent 偏好', async () => {
     open_path('/models')
     render(<App />)
 
     expect(await screen.findByRole('heading', { name: '模型服务' })).toBeInTheDocument()
-    expect(screen.getByText('示例配置')).toBeInTheDocument()
-    expect(screen.getByText('未连接')).toBeInTheDocument()
+    expect((await screen.findAllByText('diagnostic-model')).length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Mock 模式').length).toBeGreaterThan(0)
+    expect(screen.getByText('未配置独立裁判模型')).toBeInTheDocument()
     const coordinator_toggle = screen.getByRole('button', { name: 'Coordinator 策略开关' })
     fireEvent.click(coordinator_toggle)
     expect(JSON.parse(window.localStorage.getItem('opermind:model-policy') ?? '{}')).toMatchObject({ coordinator: false })
 
-    fireEvent.click(screen.getByRole('button', { name: '＋ 添加模型服务' }))
-    expect(screen.getByRole('dialog', { name: '添加模型服务' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '继续配置' }))
-    expect(await screen.findByRole('status')).toHaveTextContent('已进入')
+    expect(screen.getByRole('button', { name: '＋ 添加模型服务' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '检查全部连接' })).toBeDisabled()
+  })
+
+  it('模型配置接口失败时显示错误且不回退静态 Provider', async () => {
+    server.use(
+      http.get('/api/v1/model/config', ({ request }) => response(request, {
+        error: { code: 'INTERNAL_ERROR', message: '服务内部错误，请稍后重试', details: null },
+      }, 500)),
+    )
+    open_path('/models')
+    render(<App />)
+
+    expect(await screen.findByText('暂时无法读取模型配置，请稍后重试。')).toBeInTheDocument()
+    expect(screen.queryByText('diagnostic-model')).not.toBeInTheDocument()
+    expect(screen.queryByText('示例配置')).not.toBeInTheDocument()
+    expect(screen.queryByText('本地页面偏好')).not.toBeInTheDocument()
   })
 
   it('服务中心列表展示真实服务目录，不伪装成实时监控', async () => {
@@ -489,6 +503,34 @@ describe('App', () => {
     expect(await screen.findByText('订单服务靶场')).toBeInTheDocument()
     expect(screen.getByText('服务目录')).toBeInTheDocument()
     expect(screen.getByText((content) => content.includes('仅展示当前工作空间授权范围内的信息'))).toBeInTheDocument()
+  })
+
+  it('服务中心列表展示多个实例并标记未配置实例', async () => {
+    const staging_service = {
+      ...api_v1_contract_fixtures.order_service,
+      id: 'postgres-staging',
+      title: '预发布 PostgreSQL 主库',
+      kind: 'postgres',
+      snapshot: {
+        ...api_v1_contract_fixtures.order_service.snapshot,
+        availability: 'not_configured',
+        mode: 'disabled',
+        performance_signal: 'not_configured',
+        server_metrics: { source_status: 'not_configured' },
+        database: { source_status: 'not_configured', signal: 'not_configured' },
+      },
+    }
+    server.use(
+      http.get('/api/v1/services', ({ request }) =>
+        response(request, { items: [api_v1_contract_fixtures.order_service, staging_service] }),
+      ),
+    )
+    open_path('/services')
+    render(<App />)
+
+    expect(await screen.findByText('预发布 PostgreSQL 主库')).toBeInTheDocument()
+    expect(screen.getByText('未配置')).toBeInTheDocument()
+    expect(screen.getByText('1 个已配置')).toBeInTheDocument()
   })
 
 })
