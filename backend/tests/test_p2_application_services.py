@@ -221,15 +221,15 @@ def test_run执行成功在无事务区间调用执行器并写入安全终态(p
         ConservativeResultAssembler(),
     )
     accepted = run_service.accept_run(
-        CreateRunCommand(session_id=session_data.id, query="检查数据库", idempotency_key=uuid4())
+        CreateRunCommand(session_id=session_data.id, query="执行诊断", idempotency_key=uuid4())
     )
     run_id_holder["run_id"] = accepted.run.id
 
     completed = run_service.execute_run(accepted.run.id)
     assert completed.status == RunStatus.SUCCEEDED
-    assert executor.calls == ["检查数据库"]
+    assert executor.calls == ["执行诊断"]
     assert run_service.execute_run(accepted.run.id).status == RunStatus.SUCCEEDED
-    assert executor.calls == ["检查数据库"]
+    assert executor.calls == ["执行诊断"]
 
     events = _load_events(persistence_runtime, accepted.run.id)
     assert [event.sequence for event in events] == [1, 2, 3, 4, 5]

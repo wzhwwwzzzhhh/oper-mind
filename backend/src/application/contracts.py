@@ -26,6 +26,7 @@ class CreateSessionCommand(ApplicationCommand):
     title: str = Field(min_length=1, max_length=200)
     environment_id: UUID | None = None
     incident_id: UUID | None = None
+    service_id: str | None = Field(default=None, min_length=1, max_length=64)
 
     @field_validator("title")
     @classmethod
@@ -123,7 +124,7 @@ class DiagnosisExecutionError(Exception):
 class DiagnosisExecutor(Protocol):
     """在无数据库事务状态运行的诊断执行端口。"""
 
-    def stream(self, query: str) -> Iterator[DiagnosisExecutionEvent | DiagnosisExecutionResult]:
+    def stream(self, query: str, service_id: str | None = None) -> Iterator[DiagnosisExecutionEvent | DiagnosisExecutionResult]:
         """输出安全事件，最后输出一次完成结果或抛出安全执行错误。"""
 
 

@@ -618,6 +618,8 @@ export interface components {
             environment_id?: string | null;
             /** Incident Id */
             incident_id?: string | null;
+            /** Service Id */
+            service_id?: string | null;
         };
         /**
          * CursorPage
@@ -685,6 +687,8 @@ export interface components {
             trace_id: unknown;
             /** Input Message Id */
             input_message_id: unknown;
+            /** Service Id */
+            service_id?: unknown;
             /** Status */
             status: unknown;
             result?: unknown;

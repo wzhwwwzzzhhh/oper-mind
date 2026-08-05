@@ -13,11 +13,11 @@ from src.scenarios.db_diagnosis import SYSTEM_PROMPT, TOOL_CALLING_EXAMPLE
 class DBAgent(BaseAgent):
     """数据库诊断 Agent：慢 SQL 分析、索引优化"""
 
-    def __init__(self, llm: LLMClient, max_steps: int = 10, enable_long_term_memory: bool = True):
+    def __init__(self, llm: LLMClient, service_id: str | None = None, max_steps: int = 10, enable_long_term_memory: bool = True):
         tools = ToolRegistry()
-        tools.register(ExplainTool())
-        tools.register(ShowIndexTool())
-        tools.register(ShowCreateTableTool())
+        tools.register(ExplainTool(service_id))
+        tools.register(ShowIndexTool(service_id))
+        tools.register(ShowCreateTableTool(service_id))
 
         system_prompt = SYSTEM_PROMPT + "\n\n" + TOOL_CALLING_EXAMPLE
 

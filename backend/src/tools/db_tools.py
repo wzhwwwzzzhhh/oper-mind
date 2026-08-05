@@ -17,9 +17,11 @@ from src.infrastructure.services.postgres_engine import create_read_only_postgre
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
-def _real_connection():
+def _real_connection(service_id: str | None):
     """按当前配置创建一次短生命周期只读连接；未配置时返回 None。"""
-    dsn = load_service_dsn("postgres-production")
+    if not service_id:
+        return None
+    dsn = load_service_dsn(service_id)
     if not dsn:
         return None
     engine = create_read_only_postgres_engine(dsn)
@@ -113,7 +115,8 @@ def _explain_mock(sql: str) -> str:
 class ExplainTool(Tool):
     """执行 EXPLAIN 分析 SQL。"""
 
-    def __init__(self) -> None:
+    def __init__(self, service_id: str | None = None) -> None:
+        self._service_id = service_id
         super().__init__(
             name="explain_sql",
             description="执行 EXPLAIN 分析 SQL 的执行计划，返回访问类型、扫描行数、索引使用情况",
@@ -136,9 +139,9 @@ class ExplainTool(Tool):
         ):
             return "只支持分析 SELECT 查询，已拒绝"
         try:
-            resource = _real_connection()
+            resource = _real_connection(self._service_id)
             if resource is None:
-                return "数据库未配置，无法查询"
+                return "数据库未选择目标服务" if self._service_id is None else "数据库未配置，无法查询"
             connection, engine = resource
             try:
                 result = connection.execute(text(f"EXPLAIN (FORMAT JSON) {sql}"))
@@ -153,7 +156,8 @@ class ExplainTool(Tool):
 class ShowIndexTool(Tool):
     """查询 PostgreSQL 表的索引信息。"""
 
-    def __init__(self) -> None:
+    def __init__(self, service_id: str | None = None) -> None:
+        self._service_id = service_id
         super().__init__(
             name="show_index",
             description="查询指定表的 PostgreSQL 索引名称与定义",
@@ -182,9 +186,9 @@ class ShowIndexTool(Tool):
         if not _is_identifier(table):
             return "表名格式非法，已拒绝"
         try:
-            resource = _real_connection()
+            resource = _real_connection(self._service_id)
             if resource is None:
-                return "数据库未配置，无法查询"
+                return "数据库未选择目标服务" if self._service_id is None else "数据库未配置，无法查询"
             connection, engine = resource
             try:
                 if not _table_exists(connection, table):
@@ -211,7 +215,8 @@ class ShowIndexTool(Tool):
 class ShowCreateTableTool(Tool):
     """查询 PostgreSQL 表的建表语句。"""
 
-    def __init__(self) -> None:
+    def __init__(self, service_id: str | None = None) -> None:
+        self._service_id = service_id
         super().__init__(
             name="show_create_table",
             description="查看 PostgreSQL 表的建表语句，包含字段、约束与索引",
@@ -233,9 +238,9 @@ class ShowCreateTableTool(Tool):
         if not _is_identifier(table):
             return "表名格式非法，已拒绝"
         try:
-            resource = _real_connection()
+            resource = _real_connection(self._service_id)
             if resource is None:
-                return "数据库未配置，无法查询"
+                return "数据库未选择目标服务" if self._service_id is None else "数据库未配置，无法查询"
             connection, engine = resource
             try:
                 if not _table_exists(connection, table):
