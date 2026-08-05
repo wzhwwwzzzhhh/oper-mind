@@ -19,7 +19,7 @@
 
 | 阶段 | 主题 | PRD | 状态 |
 |---|---|---|---|
-| P4.2 | 会话 DBAgent 工具接真实 PostgreSQL | `session/P4.2-db-agent-real.md` | 已确认 |
+| P4.2 | 会话 DBAgent 工具接真实 PostgreSQL | `session/P4.2-db-agent-real.md` | 完成 |
 | P4.3 | 会话服务上下文贯通与服务选择 | `session/P4.3-service-context.md` | 已确认 · 待 P4.2 |
 | P4.3 | 模型设置页读取真实生效配置 | `model/P4.3-model-settings-real.md` | 已确认 |
 | P4.4 | 服务中心多服务实例接入 | `service-center/P4.4-service-instances.md` | 已确认 |
@@ -31,5 +31,5 @@
 - 实现方式自定，但必须满足 PRD 的非功能需求、安全边界与降级策略。
 
 ## 阶段总览（参考 `docs/路线图.md`）
-- P0 清理 ✅ / P1 大脑上线 ✅ / P2 工具网关 ✅ / P3 前端重构 ✅ / P4 服务中心变真 ✅
-- P4.2（进行中）会话 DBAgent 接真库 → P4.3（已确认）服务上下文贯通与服务选择 → P5 受控动作闭环变真 → P6+ 更多服务/模型/知识库
+- P0 清理 ✅ / P1 大脑上线 ✅ / P2 工具网关 ✅ / P3 前端重构 ✅ / P4 服务中心变真 ✅ / P4.2 会话 DBAgent 接真库 ✅
+- P4.3（已确认）服务上下文贯通与服务选择 → P5 受控动作闭环变真 → P6+ 更多服务/模型/知识库
