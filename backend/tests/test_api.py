@@ -72,6 +72,19 @@ def test_健康检查不暴露密钥(api_client: TestClient) -> None:
     assert "api_key" not in body
 
 
+def test_服务列表返回多个实例且不暴露凭据(api_client: TestClient) -> None:
+    """正式服务列表返回固定 PostgreSQL 实例，响应不携带配置敏感信息。"""
+    response = api_client.get("/api/v1/services")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [item["id"] for item in body["items"]] == ["postgres-production", "postgres-staging"]
+    serialized = response.text
+    assert "OPERMIND_SERVICE_" not in serialized
+    assert "postgresql://" not in serialized
+    assert "password" not in serialized
+
+
 def test_内核流式执行异常返回安全错误(monkeypatch: pytest.MonkeyPatch) -> None:
     """图执行异常时，内核流式接口只暴露安全错误码和通用提示。"""
     coordinator = _build_mock_coordinator()

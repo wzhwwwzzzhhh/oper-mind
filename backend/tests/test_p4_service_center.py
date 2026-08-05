@@ -7,6 +7,7 @@ from contextlib import AbstractContextManager
 from typing import Any
 
 from src.api.v1.resources import service_resource
+from src.api.v1.dependencies import build_v1_services_for_runtime
 from src.application.service_center import ServiceCenterApplicationService
 from src.domain.services import ServiceAvailability, ServiceRegistry
 from src.infrastructure.services.postgres_connector import PostgresServiceConnector
@@ -113,3 +114,39 @@ def test_get_service可以映射() -> None:
 
     assert resource.id == "postgres-production"
     assert resource.snapshot.availability == ServiceAvailability.NOT_CONFIGURED.value
+
+
+def test_多实例服务中心各自返回实例定义() -> None:
+    """两个 PostgreSQL 实例可以同时注册并保留各自身份。"""
+    services = ServiceCenterApplicationService(
+        _unused_session_factory,
+        ServiceRegistry(
+            (
+                PostgresServiceConnector(None, instance_id="postgres-production", title="生产 PostgreSQL 主库"),
+                PostgresServiceConnector(None, instance_id="postgres-staging", title="预发布 PostgreSQL 主库"),
+            )
+        ),
+    )
+
+    views = services.list_services()
+
+    assert [view.definition.id for view in views] == ["postgres-production", "postgres-staging"]
+    assert [view.snapshot.availability for view in views] == [
+        ServiceAvailability.NOT_CONFIGURED,
+        ServiceAvailability.NOT_CONFIGURED,
+    ]
+
+
+def test_默认装配为每个实例读取各自环境变量(monkeypatch: Any) -> None:
+    """默认 v1 装配不会把一个实例的 DSN 复用到另一个实例。"""
+    monkeypatch.setenv("OPERMIND_SERVICE_POSTGRES_PRODUCTION_DSN", "production-secret")
+    monkeypatch.setenv("OPERMIND_SERVICE_POSTGRES_STAGING_DSN", "staging-secret")
+
+    class Runtime:
+        session_factory = _unused_session_factory
+
+    services = build_v1_services_for_runtime(Runtime(), lambda: object())
+    connectors = services.service_center._registry.list_connectors()  # type: ignore[union-attr]
+
+    assert [connector.definition().id for connector in connectors] == ["postgres-production", "postgres-staging"]
+    assert [connector._dsn for connector in connectors] == ["production-secret", "staging-secret"]  # type: ignore[attr-defined]

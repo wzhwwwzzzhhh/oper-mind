@@ -88,7 +88,7 @@ def test_mock模式保留原有Explain结果() -> None:
 
 def test真实模式无DSN返回未配置() -> None:
     """真实模式没有 DSN 时不创建连接且返回诚实降级。"""
-    with patch("src.tools.db_tools.load_service_settings", return_value=type("Settings", (), {"pg_dsn": None})()):
+    with patch("src.tools.db_tools.load_service_dsn", return_value=None):
         result = ShowIndexTool().execute("orders")
 
     assert result == "数据库未配置，无法查询"
@@ -99,7 +99,7 @@ def test连接失败返回不可用且不泄露异常() -> None:
     engine = FakeEngine(
         error=OperationalError("connect", {}, RuntimeError("postgresql://u:password@host/db")),
     )
-    with patch("src.tools.db_tools.load_service_settings", return_value=type("Settings", (), {"pg_dsn": "postgresql://u:p@host/db"})()), patch(
+    with patch("src.tools.db_tools.load_service_dsn", return_value="postgresql://u:p@host/db"), patch(
         "src.tools.db_tools.create_read_only_postgres_engine", return_value=engine
     ):
         result = ShowIndexTool().execute("orders")
@@ -120,7 +120,7 @@ def test只读初始化失败会释放连接池() -> None:
 
     connection.execute = fail_read_only  # type: ignore[method-assign]
     engine = FakeEngine(connection=connection)
-    with patch("src.tools.db_tools.load_service_settings", return_value=type("Settings", (), {"pg_dsn": "dsn"})()), patch(
+    with patch("src.tools.db_tools.load_service_dsn", return_value="dsn"), patch(
         "src.tools.db_tools.create_read_only_postgres_engine", return_value=engine
     ):
         result = ShowIndexTool().execute("orders")
@@ -131,7 +131,7 @@ def test只读初始化失败会释放连接池() -> None:
 
 def test三个工具无DSN均返回未配置() -> None:
     """三个真实工具在未配置 DSN 时统一诚实降级。"""
-    with patch("src.tools.db_tools.load_service_settings", return_value=type("Settings", (), {"pg_dsn": None})()):
+    with patch("src.tools.db_tools.load_service_dsn", return_value=None):
         results = (
             ExplainTool().execute("SELECT 1"),
             ShowIndexTool().execute("orders"),
@@ -144,7 +144,7 @@ def test三个工具无DSN均返回未配置() -> None:
 def test三个工具连接失败均返回不可用() -> None:
     """三个真实工具在连接失败时均不抛异常或暴露底层错误。"""
     engine = FakeEngine(error=TimeoutError("postgresql://u:password@host/db"))
-    with patch("src.tools.db_tools.load_service_settings", return_value=type("Settings", (), {"pg_dsn": "dsn"})()), patch(
+    with patch("src.tools.db_tools.load_service_dsn", return_value="dsn"), patch(
         "src.tools.db_tools.create_read_only_postgres_engine", return_value=engine
     ):
         results = (
@@ -183,7 +183,7 @@ def test_explain格式化有限计划字段且不回显原SQL() -> None:
             )
         ]
     )
-    with patch("src.tools.db_tools.load_service_settings", return_value=type("Settings", (), {"pg_dsn": "dsn"})()), patch(
+    with patch("src.tools.db_tools.load_service_dsn", return_value="dsn"), patch(
         "src.tools.db_tools.create_read_only_postgres_engine", return_value=FakeEngine(connection=connection)
     ):
         result = ExplainTool().execute("SELECT password FROM orders")
@@ -211,7 +211,7 @@ def test_show_index格式化真实索引并使用参数化查询() -> None:
             FakeResult([{"indexname": "orders_pkey", "indexdef": "CREATE UNIQUE INDEX orders_pkey ON public.orders USING btree (id)"}]),
         ]
     )
-    with patch("src.tools.db_tools.load_service_settings", return_value=type("Settings", (), {"pg_dsn": "dsn"})()), patch(
+    with patch("src.tools.db_tools.load_service_dsn", return_value="dsn"), patch(
         "src.tools.db_tools.create_read_only_postgres_engine", return_value=FakeEngine(connection=connection)
     ):
         result = ShowIndexTool().execute("orders")
@@ -226,7 +226,7 @@ def test_show_index格式化真实索引并使用参数化查询() -> None:
 def test_show_index表不存在返回明确文案() -> None:
     """系统目录找不到表时返回不存在文案。"""
     connection = FakeConnection([FakeResult([])])
-    with patch("src.tools.db_tools.load_service_settings", return_value=type("Settings", (), {"pg_dsn": "dsn"})()), patch(
+    with patch("src.tools.db_tools.load_service_dsn", return_value="dsn"), patch(
         "src.tools.db_tools.create_read_only_postgres_engine", return_value=FakeEngine(connection=connection)
     ):
         result = ShowIndexTool().execute("missing_table")
@@ -258,7 +258,7 @@ def test_show_create_table格式化列与约束() -> None:
             FakeResult([{"indexdef": "CREATE INDEX orders_status_idx ON public.orders USING btree (status)"}]),
         ]
     )
-    with patch("src.tools.db_tools.load_service_settings", return_value=type("Settings", (), {"pg_dsn": "dsn"})()), patch(
+    with patch("src.tools.db_tools.load_service_dsn", return_value="dsn"), patch(
         "src.tools.db_tools.create_read_only_postgres_engine", return_value=FakeEngine(connection=connection)
     ):
         result = ShowCreateTableTool().execute("orders")
@@ -280,7 +280,7 @@ def test_gateway脱敏真实工具输出中的DSN() -> None:
     connection = FakeConnection(
         [FakeResult([{"exists": 1}]), FakeResult([{"indexname": "idx", "indexdef": "CREATE INDEX idx ON public.orders (password=secret)"}])]
     )
-    with patch("src.tools.db_tools.load_service_settings", return_value=type("Settings", (), {"pg_dsn": "dsn"})()), patch(
+    with patch("src.tools.db_tools.load_service_dsn", return_value="dsn"), patch(
         "src.tools.db_tools.create_read_only_postgres_engine", return_value=FakeEngine(connection=connection)
     ):
         result = gateway.invoke("show_index", '{"table": "orders"}')

@@ -14,7 +14,7 @@ from fastapi import Request
 from src.application.action_services import ActionApplicationService
 from src.application.services import RunApplicationService, SessionApplicationService
 from src.application.service_center import ServiceCenterApplicationService
-from src.config import load_persistence_settings, load_service_settings
+from src.config import load_persistence_settings, load_service_dsn
 from src.domain.services import ServiceRegistry
 from src.infrastructure.diagnosis.coordinator_executor import CoordinatorDiagnosisExecutor
 from src.infrastructure.diagnosis.result_assembler import KernelReportResultAssembler
@@ -54,6 +54,10 @@ def build_v1_services_for_runtime(
     """
     session_factory = runtime.session_factory
     action_service = ActionApplicationService(session_factory, executor=None)
+    postgres_instances = (
+        ("postgres-production", "生产 PostgreSQL 主库"),
+        ("postgres-staging", "预发布 PostgreSQL 主库"),
+    )
     return V1Services(
         session_factory=session_factory,
         session_service=SessionApplicationService(session_factory),
@@ -67,7 +71,16 @@ def build_v1_services_for_runtime(
         action_service=action_service,
         service_center=ServiceCenterApplicationService(
             session_factory,
-            ServiceRegistry((PostgresServiceConnector(load_service_settings().pg_dsn),)),
+            ServiceRegistry(
+                tuple(
+                    PostgresServiceConnector(
+                        load_service_dsn(instance_id),
+                        instance_id=instance_id,
+                        title=title,
+                    )
+                    for instance_id, title in postgres_instances
+                )
+            ),
         ),
     )
 

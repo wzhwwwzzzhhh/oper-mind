@@ -31,6 +31,30 @@ class ResponseMeta(ApiV1Model):
     trace_id: UUID | None = None
 
 
+class ModelEndpointResource(ApiV1Model):
+    """单个模型端点的非敏感配置事实。"""
+
+    provider: str
+    base_url_host: str
+    model: str
+    status: Literal["configured", "not_configured"]
+
+
+class ModelConfigResource(ApiV1Model):
+    """模型配置的安全视图，不包含 API Key 或完整连接 URL。"""
+
+    mode: Literal["mock", "real"]
+    diagnostic_model: ModelEndpointResource
+    judge_model: ModelEndpointResource | None = None
+
+
+class ModelConfigResponse(ApiV1Model):
+    """模型配置读取响应。"""
+
+    config: ModelConfigResource
+    meta: ResponseMeta
+
+
 class CursorPage(ApiV1Model):
     """固定排序列表的 cursor 分页信息。"""
 

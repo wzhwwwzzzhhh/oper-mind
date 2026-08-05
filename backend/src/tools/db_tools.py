@@ -9,7 +9,7 @@ from typing import Any
 from sqlalchemy import text
 
 from data.scenarios import get_active_scenario
-from src.config import load_service_settings
+from src.config import load_service_dsn
 from src.core.tool_registry import Tool
 from src.infrastructure.services.postgres_engine import create_read_only_postgres_engine
 
@@ -19,7 +19,7 @@ _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 def _real_connection():
     """按当前配置创建一次短生命周期只读连接；未配置时返回 None。"""
-    dsn = load_service_settings().pg_dsn
+    dsn = load_service_dsn("postgres-production")
     if not dsn:
         return None
     engine = create_read_only_postgres_engine(dsn)

@@ -117,3 +117,12 @@ def load_service_settings() -> ServiceSettings:
     if not isinstance(dsn, str) or not dsn.strip():
         return ServiceSettings(pg_dsn=None)
     return ServiceSettings(pg_dsn=dsn)
+
+
+def load_service_dsn(instance_id: str) -> str | None:
+    """读取指定服务实例的命名空间 DSN；缺省时返回 None。"""
+    env_name = f"OPERMIND_SERVICE_{instance_id.upper().replace('-', '_')}_DSN"
+    dsn = os.environ.get(env_name)
+    if isinstance(dsn, str) and dsn.strip():
+        return dsn
+    return None

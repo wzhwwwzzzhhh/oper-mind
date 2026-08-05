@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import os
 from typing import Annotated, TypeVar
 from uuid import UUID
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, Query, Request, Response
 from fastapi.responses import StreamingResponse
@@ -43,6 +45,9 @@ from src.api.v1.schemas import (
     DiagnosisRunListResponse,
     DiagnosisRunResource,
     MessageListResponse,
+    ModelConfigResponse,
+    ModelConfigResource,
+    ModelEndpointResource,
     ResponseMeta,
     RunEventEnvelope,
     RunEventListResponse,
@@ -75,6 +80,7 @@ from src.infrastructure.persistence.repositories import (
     SqlAlchemyRunEventRepository,
     SqlAlchemySessionRepository,
 )
+from src.config import load_config
 
 
 CursorT = TypeVar("CursorT", SessionCursor, MessageCursor, DiagnosisRunCursor, RunEventCursor, ActionEventCursor)
@@ -151,6 +157,61 @@ def _action_service(services: V1Services):
     return services.action_service
 
 
+def _model_endpoint_resource(config: object) -> ModelEndpointResource | None:
+    """把模型配置收敛为不含凭据的主机和模型名。"""
+    if not isinstance(config, dict):
+        return None
+    base_url = config.get("base_url")
+    model = config.get("model")
+    api_key = config.get("api_key")
+    if not all(isinstance(value, str) and value.strip() for value in (api_key, base_url, model)):
+        return None
+    if any(value.lower().startswith("your-") for value in (api_key, base_url, model)):
+        return None
+    parsed = urlparse(base_url)
+    host = parsed.hostname
+    if not host:
+        return None
+    return ModelEndpointResource(
+        provider=host,
+        base_url_host=host,
+        model=model,
+        status="configured",
+    )
+
+
+def _model_config_resource() -> ModelConfigResource:
+    """读取当前生效配置并构建安全模型配置资源。"""
+    try:
+        config = load_config()
+    except ValueError:
+        return ModelConfigResource(
+            mode="mock" if os.environ.get("OPERMIND_API_KEY") == "mock" else "real",
+            diagnostic_model=ModelEndpointResource(
+                provider="未配置",
+                base_url_host="未配置",
+                model="未配置",
+                status="not_configured",
+            ),
+            judge_model=None,
+        )
+    diagnostic = _model_endpoint_resource(config.get("llm"))
+    if diagnostic is None:
+        diagnostic = ModelEndpointResource(
+            provider="未配置",
+            base_url_host="未配置",
+            model="未配置",
+            status="not_configured",
+        )
+    judge = _model_endpoint_resource(config.get("judge_llm"))
+    api_key = config.get("llm", {}).get("api_key") if isinstance(config.get("llm"), dict) else None
+    return ModelConfigResource(
+        mode="mock" if api_key == "mock" else "real",
+        diagnostic_model=diagnostic,
+        judge_model=judge,
+    )
+
+
 def _load_session(services: V1Services, session_id: UUID) -> SessionData:
     session = services.session_factory()
     try:
@@ -199,6 +260,14 @@ def list_services(
     meta = response_meta(request)
     apply_headers(response, meta)
     return ServiceListResponse(items=[service_resource(item) for item in items], meta=meta)
+
+
+@router.get("/model/config", response_model=ModelConfigResponse)
+def get_model_config(request: Request, response: Response) -> ModelConfigResponse:
+    """读取当前生效模型配置的脱敏视图。"""
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return ModelConfigResponse(config=_model_config_resource(), meta=meta)
 
 
 @router.get("/services/{service_id}/activities", response_model=ServiceActivityListResponse)

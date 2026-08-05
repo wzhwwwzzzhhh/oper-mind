@@ -24,16 +24,24 @@ from src.infrastructure.services.postgres_engine import create_read_only_postgre
 class PostgresServiceConnector:
     """只读 PostgreSQL 服务快照 Connector，实现 ServiceConnector 协议。"""
 
-    def __init__(self, dsn: str | None, engine: Engine | None = None) -> None:
+    def __init__(
+        self,
+        dsn: str | None,
+        engine: Engine | None = None,
+        instance_id: str = "postgres-production",
+        title: str = "生产 PostgreSQL 主库",
+    ) -> None:
         self._dsn = dsn
+        self._instance_id = instance_id
+        self._title = title
         # engine 注入点：测试传假 engine；生产传 create_engine(dsn)。
         self._engine = engine
 
     def definition(self) -> ServiceDefinitionData:
         """返回 PostgreSQL 服务的静态身份与只读调查边界。"""
         return ServiceDefinitionData(
-            id="postgres-production",
-            title="生产 PostgreSQL 主库",
+            id=self._instance_id,
+            title=self._title,
             kind="postgres",
             supported_investigations=(
                 ServiceInvestigationData(

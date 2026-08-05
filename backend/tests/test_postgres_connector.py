@@ -10,7 +10,8 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.exc import OperationalError
 from unittest.mock import patch
 
-from src.domain.services import ServiceAvailability, ServiceSourceStatus
+from src.domain.services import ServiceAvailability, ServiceRegistry, ServiceSourceStatus
+from src.config import load_service_dsn
 from src.infrastructure.services.postgres_connector import PostgresServiceConnector
 
 class FakeResult:
@@ -161,3 +162,38 @@ def test_definition_包含完整静态服务信息() -> None:
     assert definition.supported_investigations
     assert definition.action_boundary
     assert definition.session_title
+
+
+def test_connector_definition使用实例身份() -> None:
+    """不同实例的定义只改变服务身份，不改变只读能力声明。"""
+    definition = PostgresServiceConnector(
+        None,
+        instance_id="postgres-staging",
+        title="预发布 PostgreSQL 主库",
+    ).definition()
+
+    assert definition.id == "postgres-staging"
+    assert definition.title == "预发布 PostgreSQL 主库"
+    assert definition.kind == "postgres"
+
+
+def test_实例凭据环境变量互不串扰(monkeypatch: Any) -> None:
+    """每个实例仅读取自身命名空间的 DSN。"""
+    monkeypatch.setenv("OPERMIND_SERVICE_POSTGRES_PRODUCTION_DSN", "production-secret")
+    monkeypatch.setenv("OPERMIND_SERVICE_POSTGRES_STAGING_DSN", "staging-secret")
+
+    assert load_service_dsn("postgres-production") == "production-secret"
+    assert load_service_dsn("postgres-staging") == "staging-secret"
+
+
+def test_注册表拒绝重复实例_id() -> None:
+    """重复服务 ID 不能覆盖已注册 Connector。"""
+    first = PostgresServiceConnector(None, instance_id="postgres-staging")
+    second = PostgresServiceConnector(None, instance_id="postgres-staging")
+
+    try:
+        ServiceRegistry((first, second))
+    except ValueError as error:
+        assert "唯一" in str(error)
+    else:
+        raise AssertionError("重复服务 ID 应被拒绝")
