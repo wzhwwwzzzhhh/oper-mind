@@ -26,6 +26,30 @@ export type ServiceResponse = components['schemas']['ServiceResponse']
 export type ServiceListResponse = components['schemas']['ServiceListResponse']
 export type ServiceActivityResource = components['schemas']['ServiceActivityResource']
 export type ServiceActivityListResponse = components['schemas']['ServiceActivityListResponse']
+export interface MonitorSampleResource {
+  id: string | null
+  service_id: string
+  observed_at: string
+  availability: 'healthy' | 'unhealthy' | 'unavailable' | 'not_configured'
+  p50_ms: number | null
+  p95_ms: number | null
+  slow_query_count: number | null
+  timeout_count: number | null
+  performance_signal: string
+  source_status: 'available' | 'unavailable' | 'not_configured'
+}
+
+export interface MonitorHistoryResponse {
+  service_id: string
+  status: 'available' | 'not_sampled' | 'not_configured' | 'unavailable'
+  source: 'scheduled_sampling'
+  sample_interval_seconds: number
+  retention_hours: number
+  from: string
+  to: string
+  samples: MonitorSampleResource[]
+  meta: components['schemas']['ResponseMeta']
+}
 export interface ModelEndpointResource {
   provider: string
   base_url_host: string
@@ -136,6 +160,11 @@ export interface ApiV1Client {
   get_model_config(options?: ApiRequestOptions): Promise<ApiResponse<ModelConfigResponse>>
   list_services(options?: ApiRequestOptions): Promise<ApiResponse<ServiceListResponse>>
   get_service(service_id: string, options?: ApiRequestOptions): Promise<ApiResponse<ServiceResponse>>
+  get_service_monitor_history(
+    service_id: string,
+    query?: { from?: string; to?: string; hours?: number },
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<MonitorHistoryResponse>>
   list_service_activities(
     service_id: string,
     query?: ListServiceActivitiesQuery,
@@ -399,6 +428,14 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
         request_id_factory,
         base_url,
         `/api/v1/services/${encodeURIComponent(service_id)}`,
+        request_options,
+      ),
+    get_service_monitor_history: (service_id, query = {}, request_options) =>
+      request_json<MonitorHistoryResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        append_query(`/api/v1/services/${encodeURIComponent(service_id)}/monitor/history`, query),
         request_options,
       ),
     list_service_activities: (service_id, query = {}, request_options) =>

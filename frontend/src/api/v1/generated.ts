@@ -144,6 +144,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/services/{service_id}/monitor/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Service Monitor History
+         * @description 读取静态服务的定时采样历史，不触发目标连接。
+         */
+        get: operations["get_service_monitor_history_api_v1_services__service_id__monitor_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions": {
         parameters: {
             query?: never;
@@ -815,6 +835,55 @@ export interface components {
             status: unknown;
         };
         /**
+         * MonitorHistoryResponse
+         * @description 历史趋势查询响应。
+         */
+        MonitorHistoryResponse: {
+            /** Service Id */
+            service_id: unknown;
+            /** Status */
+            status: unknown;
+            /** Source */
+            source: unknown;
+            /** Sample Interval Seconds */
+            sample_interval_seconds: unknown;
+            /** Retention Hours */
+            retention_hours: unknown;
+            /** From */
+            from: unknown;
+            /** To */
+            to: unknown;
+            /** Samples */
+            samples: unknown;
+            meta: unknown;
+        };
+        /**
+         * MonitorSampleResource
+         * @description 历史监控样本的安全标量资源。
+         */
+        MonitorSampleResource: {
+            /** Id */
+            id?: unknown;
+            /** Service Id */
+            service_id: unknown;
+            /** Observed At */
+            observed_at: unknown;
+            /** Availability */
+            availability: unknown;
+            /** P50 Ms */
+            p50_ms?: unknown;
+            /** P95 Ms */
+            p95_ms?: unknown;
+            /** Slow Query Count */
+            slow_query_count?: unknown;
+            /** Timeout Count */
+            timeout_count?: unknown;
+            /** Performance Signal */
+            performance_signal: unknown;
+            /** Source Status */
+            source_status: unknown;
+        };
+        /**
          * RecommendationResource
          * @description 诊断建议。
          */
@@ -1317,6 +1386,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ServiceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_service_monitor_history_api_v1_services__service_id__monitor_history_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                hours?: number | null;
+            };
+            header?: never;
+            path: {
+                service_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonitorHistoryResponse"];
                 };
             };
             /** @description Validation Error */
