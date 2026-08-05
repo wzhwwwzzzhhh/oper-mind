@@ -20,14 +20,14 @@ docs/workpack/
 
 | 阶段 | 切片 | plan.md | review | evidence | 状态 |
 |---|---|---|---|---|---|
-| P4.3 | model-settings-real | ✅ | ✅ PASS | ✅ | 已实现待交付 |
 | P4.4 | service-instances | ✅ 待审阅 | — | — | 待用户确认 |
 
 ## 已归档
 
 | 阶段 | 切片 | PR | 完成日期 |
 |---|---|---|---|
-| P4.2 | db-agent-real | — | 2026-08-05 |
+| P4.2 | db-agent-real | #1 | 2026-08-05 |
+| P4.3 | model-settings-real | — | 2026-08-05 |
 
 ## 规则
 - `plan.md` 必须经用户确认后才进入 `dev-execute`；`review.md` 必须 PASS 才能进入 `dev-deliver`。
