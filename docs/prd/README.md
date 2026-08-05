@@ -1,0 +1,35 @@
+# PRD 索引（docs/prd/）
+
+> 本目录是**需求唯一事实来源**。执行 AI 围绕这里的 PRD 干活，Claude（PM）按 PRD 在大阶段验收。
+> 写作规范见 `项目根/.claude/skills/prd-writing/SKILL.md`。
+> 产品事实只以 `docs/产品定义.md`、`docs/路线图.md`、`docs/开发规范.md` 为准。
+
+## 域结构（域 + 阶段两级）
+
+| 域 | 文件夹 | 主题 |
+|---|---|---|
+| 会话工作台 | `session/` | 会话/消息/Run/SSE/Trace/调查发起 |
+| 服务中心 | `service-center/` | 服务接入/连接状态/监控入口/服务上下文 |
+| 服务监控 | `monitor/` | 快照/历史趋势/告警 |
+| 模型设置 | `model/` | Provider/调用策略/API Key |
+| 审批与受控动作 | `approval/` | 提案/人工审批/白名单执行/Verify |
+| 知识库 | `knowledge/` | Markdown 检索/RAG/文档知识 |
+
+## 当前进展
+
+| 阶段 | 主题 | PRD | 状态 |
+|---|---|---|---|
+| P4.2 | 会话 DBAgent 工具接真实 PostgreSQL | `session/P4.2-db-agent-real.md` | 已确认 |
+| P4.3 | 会话服务上下文贯通与服务选择 | `session/P4.3-service-context.md` | 已确认 · 待 P4.2 |
+| P4.3 | 模型设置页读取真实生效配置 | `model/P4.3-model-settings-real.md` | 已确认 |
+| P4.4 | 服务中心多服务实例接入 | `service-center/P4.4-service-instances.md` | 已确认 |
+| P4 | 服务中心快照变真（已交付，非本目录 PRD） | — | 完成 |
+
+## 执行 AI 如何使用
+- 拿到 PRD 后：只实现「范围」内能力，逐条过「验收标准」，达到「完成定义」。
+- 不改「不做什么」清单里的东西；边界外需求回 PRD，不擅自扩展。
+- 实现方式自定，但必须满足 PRD 的非功能需求、安全边界与降级策略。
+
+## 阶段总览（参考 `docs/路线图.md`）
+- P0 清理 ✅ / P1 大脑上线 ✅ / P2 工具网关 ✅ / P3 前端重构 ✅ / P4 服务中心变真 ✅
+- P4.2（进行中）会话 DBAgent 接真库 → P4.3（已确认）服务上下文贯通与服务选择 → P5 受控动作闭环变真 → P6+ 更多服务/模型/知识库

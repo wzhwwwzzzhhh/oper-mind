@@ -55,3 +55,11 @@
 
 ## 完成后
 **不要 commit。** 停下告诉我"包6完成"，我审 diff + 跑测试后自己提交。
+
+## 交差前自审清单（必须在完成报告里逐条回答）
+跑完 `npm run typecheck` / `npm run test` / `npm run build` 后，逐条自审并写进完成报告：
+1. `git status --short` 完整输出 —— 确认只出现本任务允许的文件（新建 ServiceDetailPage.tsx、service-detail.css；修改 ServiceCenterPage.tsx、App.tsx、main.tsx、App.test.tsx）。
+2. `npm run test` 最终通过数 —— 确认没有为了通过而删/改已有测试断言。**不许为了绿而改测试。**
+3. typecheck / build 是否绿。
+4. 明确说明：本页没有硬编码任何设计稿里的示例指标（如"99.98% 可用性""慢查询 3 条"）。后端无数据时显示空态/"—"。
+5. 列出一个"我改了什么"的简短清单（每个文件的改动点）。
