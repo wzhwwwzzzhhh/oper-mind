@@ -90,3 +90,10 @@ class ServiceCenterUnavailableError(ApplicationError):
 
     code = "SERVICE_CENTER_UNAVAILABLE"
     message = "服务中心当前不可用，请稍后重试。"
+
+
+class ServiceContextRequiredError(ApplicationError):
+    """数据库调查必须先绑定目标服务。"""
+
+    code = "SERVICE_CONTEXT_REQUIRED"
+    message = "数据库调查需要先选择目标服务。"

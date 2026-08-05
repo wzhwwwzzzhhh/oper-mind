@@ -349,6 +349,10 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
   const [recovery_error, set_recovery_error] = useState<unknown>()
   const automatic_recovery_attempts = useRef(new Set<string>())
   const session_query = useQuery({ ...get_session_query(session_id), enabled: Boolean(session_id) })
+  const services_query = useQuery({
+    ...list_services_query(),
+    enabled: Boolean(session_query.data && resource_optional_string((session_query.data as ApiResponse<SessionResponse>).data.session, 'service_id')),
+  })
   const runs_query_key = api_v1_query_keys.session_runs(session_id, { limit: API_V1_DEFAULT_PAGE_SIZE })
   const messages_query_key = api_v1_query_keys.session_messages(session_id, { limit: API_V1_DEFAULT_PAGE_SIZE })
   const runs_query = useInfiniteQuery({
@@ -528,10 +532,21 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
 
   const session = (session_query.data as ApiResponse<SessionResponse>).data.session
   const session_status = resource_string(session, 'status', 'unknown')
+  const session_service_id = resource_optional_string(session, 'service_id')
+  const session_service = session_service_id
+    ? read_items(services_query.data?.data).find((service) => resource_optional_string(service, 'id') === session_service_id)
+    : undefined
+  const session_service_title = resource_optional_string(session_service, 'title') ?? session_service_id ?? ''
   const can_send = session_status === 'active'
   const has_idempotency_key_conflict = is_idempotency_key_conflict(recovery_error)
   return (
     <div className="chat-inner">
+      {session_service_id && (
+        <div aria-label="本次调查目标服务" className="session-service-context">
+          <span>调查目标服务</span>
+          <strong>{session_service_title}</strong>
+        </div>
+      )}
       {session_status === 'archived' && (
         <Alert className="archive-notice" description="会话已归档，仅可阅读历史内容；重新激活和编辑尚未实现。" title="已归档会话" showIcon type="info" />
       )}
@@ -617,8 +632,15 @@ function ConversationHome(): ReactElement {
   const storage = session_storage()
   const pending_prompt = useRef<string | null>(null)
   const [query, set_query] = useState('')
+  const [selected_service_id, set_selected_service_id] = useState('')
   const services_query = useQuery({ ...list_services_query() })
-  const service_count = services_query.data ? read_items(services_query.data.data).length : 3
+  const service_resources = services_query.data ? read_items(services_query.data.data) : []
+  const services = service_resources.flatMap((service) => {
+    const id = resource_optional_string(service, 'id')
+    const title = resource_optional_string(service, 'title')
+    return id && title ? [{ id, title }] : []
+  })
+  const service_count = service_resources.length
   const create_session = useMutation({
     ...create_session_mutation(),
     onSuccess: async (response) => {
@@ -638,11 +660,17 @@ function ConversationHome(): ReactElement {
   })
   const submit_prompt = (prompt: string): void => {
     pending_prompt.current = prompt
-    create_session.mutate({ title: prompt.slice(0, 40) })
+    create_session.mutate({ title: prompt.slice(0, 40), service_id: selected_service_id || undefined })
   }
   return (
     <div className="chat-inner">
-      <WelcomePanel on_prompt={submit_prompt} service_count={service_count} />
+      <WelcomePanel
+        on_prompt={submit_prompt}
+        on_service_change={set_selected_service_id}
+        selected_service_id={selected_service_id}
+        service_count={service_count}
+        services={services}
+      />
       <Composer
         disabled={create_session.isPending}
         onChange={set_query}

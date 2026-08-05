@@ -10,7 +10,9 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
-ORDER_SERVICE_ID = "order-service"
+POSTGRES_PRODUCTION_SERVICE_ID = "postgres-production"
+POSTGRES_STAGING_SERVICE_ID = "postgres-staging"
+REGISTERED_SERVICE_IDS = frozenset({POSTGRES_PRODUCTION_SERVICE_ID, POSTGRES_STAGING_SERVICE_ID})
 ORDERS_SLOW_QUERY_INTENT_ID = "orders_slow_query.v1"
 ORDERS_SLOW_QUERY_DEFAULT_QUERY = "订单服务变慢，帮我排查慢查询。"
 ORDER_SERVICE_SESSION_TITLE = "订单服务慢查询调查"
@@ -185,3 +187,7 @@ class ServiceRegistry:
     def get_connector(self, service_id: str) -> ServiceConnector | None:
         """按静态服务键读取 Connector，不解析 URL 或连接配置。"""
         return self._connectors.get(service_id)
+
+    def service_ids(self) -> frozenset[str]:
+        """返回当前静态注册表中的合法服务键。"""
+        return frozenset(self._connectors)

@@ -70,6 +70,43 @@
   background: var(--success);
 }
 
+.service-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 16px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.service-selector select {
+  min-width: 190px;
+  padding: 7px 28px 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  background: var(--surface);
+  font: inherit;
+}
+
+.session-service-context {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  margin-bottom: 18px;
+  padding: 7px 10px;
+  border-left: 3px solid var(--accent);
+  color: var(--text-secondary);
+  background: var(--surface-soft);
+  font-size: 12px;
+}
+
+.session-service-context strong {
+  color: var(--text);
+  font-weight: 650;
+}
+
 .quick-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

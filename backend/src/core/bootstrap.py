@@ -39,13 +39,13 @@ def build_llm() -> LLMClient:
     return llm
 
 
-def build_coordinator(llm: LLMClient, enable_long_term_memory: bool = False) -> CoordinatorAgent:
+def build_coordinator(llm: LLMClient, service_id: str | None = None, enable_long_term_memory: bool = False) -> CoordinatorAgent:
     """用共享 LLM 现造一套内核（领域 Agent + 质量组件 + 协调器）。
 
     领域 Agent 持有 short_term/thinking 等实例级可变状态，因此必须每 Run 新造
     一套以隔离并发。默认关闭文件型长期记忆，避免多 Run 并发写同一 memory.json。
     """
-    db_agent = DBAgent(llm=llm, enable_long_term_memory=enable_long_term_memory)
+    db_agent = DBAgent(llm=llm, service_id=service_id, enable_long_term_memory=enable_long_term_memory)
     server_agent = ServerAgent(llm=llm, enable_long_term_memory=enable_long_term_memory)
     log_agent = LogAgent(llm=llm, enable_long_term_memory=enable_long_term_memory)
 

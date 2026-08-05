@@ -129,6 +129,25 @@ describe('v1 API 客户端', () => {
     expect(result.diagnostics).toMatchObject({ status: 202, request_id: 'post-request-id' })
   })
 
+  it('创建普通会话时携带选定的 service_id', async () => {
+    const requests: Request[] = []
+    const client = create_api_v1_client({
+      fetch_impl: async (input, init) => {
+        requests.push(new Request(input, init))
+        return HttpResponse.json(
+          { session: { id: 'session-1', service_id: 'postgres-staging' }, meta: { request_id: 'session-request-id' } },
+          { status: 201, headers: { 'Content-Type': 'application/json', 'X-Request-Id': 'session-request-id' } },
+        )
+      },
+      request_id_factory: () => 'session-request-id',
+    })
+
+    await client.create_session({ title: '预发布调查', service_id: 'postgres-staging' })
+
+    expect(requests).toHaveLength(1)
+    await expect(requests[0]?.json()).resolves.toEqual({ title: '预发布调查', service_id: 'postgres-staging' })
+  })
+
   it('将网络中断明确标记为 transport 错误', async () => {
     const client = create_api_v1_client({
       fetch_impl: async () => Promise.reject(new TypeError('network unavailable')),
