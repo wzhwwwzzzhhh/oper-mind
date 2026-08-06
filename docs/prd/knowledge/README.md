@@ -4,4 +4,4 @@
 
 | PRD | 主题 | 状态 |
 |---|---|---|
-| [P6-knowledge-retrieval.md](P6-knowledge-retrieval.md) | 知识库——目录内 Markdown 确定性检索 | 草稿 |
+| [P6-knowledge-retrieval.md](P6-knowledge-retrieval.md) | 知识库——目录内 Markdown 确定性检索 | 已确认 |

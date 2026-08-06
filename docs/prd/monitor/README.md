@@ -4,4 +4,4 @@
 
 | PRD | 主题 | 状态 |
 |---|---|---|
-| [P5-monitor-trends.md](P5-monitor-trends.md) | 服务监控历史趋势与页面内告警 | 草稿 |
+| [P5-monitor-trends.md](P5-monitor-trends.md) | 服务监控历史趋势与页面内告警 | 已确认 |
