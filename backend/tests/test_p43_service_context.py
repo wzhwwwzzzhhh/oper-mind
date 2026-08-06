@@ -37,6 +37,8 @@ def test_明确数据库调查需要服务上下文() -> None:
     """受理层能识别未绑定会话不能直接发起的数据库调查。"""
     assert _requires_database_context("请检查 orders 表的索引") is True
     assert _requires_database_context("请检查接口 5xx 日志") is False
+    assert _requires_database_context("请查看日志表中的错误记录") is False
+    assert _requires_database_context("请检查数据库日志中的慢查询") is True
 
 
 def test_工具事件携带绑定服务且仍只保留安全摘要() -> None:
@@ -58,11 +60,28 @@ def test_执行器把服务上下文传给每次新建内核() -> None:
 
     class Coordinator:
         def route_stream(self, _query: str) -> Iterator[dict[str, Any]]:
+            yield {
+                "kind": "trace",
+                "event": {
+                    "type": "tool_invoked",
+                    "node": "tool",
+                    "role": "db",
+                    "detail": "只读工具完成",
+                    "status": "ok",
+                },
+            }
             yield {"kind": "complete", "result": "完成", "strategy": "direct", "trace": []}
 
     def factory(service_id: str | None) -> Coordinator:
         seen.append(service_id)
         return Coordinator()
 
-    list(CoordinatorDiagnosisExecutor(factory).stream("检查", "postgres-staging"))
+    events = list(CoordinatorDiagnosisExecutor(factory).stream("检查", "postgres-staging"))
     assert seen == ["postgres-staging"]
+    assert events[0].data == {
+        "summary": "只读工具完成",
+        "status": "ok",
+        "role": "db",
+        "service_id": "postgres-staging",
+    }
+    assert all("order-service" not in str(getattr(event, "data", event)) for event in events)

@@ -13,7 +13,7 @@ const service_session_id = '44444444-4444-4444-8444-444444444444'
 const service_run_id = '44444444-4444-4444-8444-444444444445'
 
 const order_service = {
-  id: 'order-service',
+  id: 'postgres-production',
   title: '订单服务靶场',
   kind: 'postgres_orders_demo',
   supported_investigations: [{
@@ -46,7 +46,7 @@ const service_session = {
   status: 'active',
   environment_id: null,
   incident_id: null,
-  service_id: 'order-service',
+  service_id: 'postgres-production',
   created_at: '2026-07-31T03:01:00.000Z',
   updated_at: '2026-07-31T03:01:00.000Z',
   archived_at: null,
@@ -67,7 +67,7 @@ const service_activity = {
 }
 
 const service_monitor_history = {
-  service_id: 'order-service',
+  service_id: 'postgres-production',
   status: 'available',
   source: 'scheduled_sampling',
   sample_interval_seconds: 300,
@@ -75,8 +75,8 @@ const service_monitor_history = {
   from: '2026-07-31T02:00:00.000Z',
   to: '2026-07-31T03:00:00.000Z',
   samples: [
-    { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1', service_id: 'order-service', observed_at: '2026-07-31T02:00:00.000Z', availability: 'healthy', p50_ms: 82, p95_ms: 210, slow_query_count: 0, timeout_count: 0, performance_signal: 'no_slow_query_detected', source_status: 'available' },
-    { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2', service_id: 'order-service', observed_at: '2026-07-31T02:05:00.000Z', availability: 'unhealthy', p50_ms: 120, p95_ms: 340, slow_query_count: 3, timeout_count: 1, performance_signal: 'slow_query_detected', source_status: 'available' },
+    { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1', service_id: 'postgres-production', observed_at: '2026-07-31T02:00:00.000Z', availability: 'healthy', p50_ms: 82, p95_ms: 210, slow_query_count: 0, timeout_count: 0, performance_signal: 'no_slow_query_detected', source_status: 'available' },
+    { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2', service_id: 'postgres-production', observed_at: '2026-07-31T02:05:00.000Z', availability: 'unhealthy', p50_ms: 120, p95_ms: 340, slow_query_count: 3, timeout_count: 1, performance_signal: 'slow_query_detected', source_status: 'available' },
   ],
 }
 
@@ -335,6 +335,11 @@ export const api_v1_handlers = [
     },
   })),
   http.get('/api/v1/services', ({ request }) => response(request, { items: [order_service] })),
+  http.get('/api/v1/services/postgres-production', ({ request }) => response(request, { service: order_service })),
+  http.get('/api/v1/services/postgres-production/monitor/history', ({ request }) => response(request, service_monitor_history)),
+  http.get('/api/v1/services/postgres-production/activities', ({ request }) =>
+    response(request, { items: [service_activity], page: { next_cursor: null, has_more: false } }),
+  ),
   http.get('/api/v1/services/order-service', ({ request }) => response(request, { service: order_service })),
   http.get('/api/v1/services/order-service/monitor/history', ({ request }) => response(request, service_monitor_history)),
   http.get('/api/v1/services/redis-production', ({ request }) => response(request, { service: redis_service })),
@@ -342,10 +347,7 @@ export const api_v1_handlers = [
   http.get('/api/v1/services/redis-production/activities', ({ request }) =>
     response(request, { items: [], page: { next_cursor: null, has_more: false } }),
   ),
-  http.get('/api/v1/services/order-service/activities', ({ request }) =>
-    response(request, { items: [service_activity], page: { next_cursor: null, has_more: false } }),
-  ),
-  http.post('/api/v1/services/order-service/sessions', ({ request }) =>
+  http.post('/api/v1/services/postgres-production/sessions', ({ request }) =>
     response(request, { session: service_session }, 201),
   ),
   http.get(/\/api\/v1\/sessions$/, ({ request }) => {
