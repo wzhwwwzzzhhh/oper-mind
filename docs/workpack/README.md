@@ -29,6 +29,7 @@ docs/workpack/
 |---|---|---|---|
 | P4.2 | db-agent-real | #1 | 2026-08-05 |
 | P4.3 | model-settings-real | #2 | 2026-08-05 |
+| P4.3 | service-context | #19 | 2026-08-06 |
 | P4.4 | service-instances | — | 2026-08-05 |
 | P6 | redis-service-monitor | #18 | 2026-08-06 |
 
