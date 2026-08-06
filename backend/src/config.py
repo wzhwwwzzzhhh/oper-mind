@@ -23,6 +23,7 @@ _ENV_TO_CONFIG_KEY = {
     "OPERMIND_MONITOR_SAMPLE_INTERVAL_SECONDS": ("monitoring", "sample_interval_seconds"),
     "OPERMIND_MONITOR_RETENTION_HOURS": ("monitoring", "retention_hours"),
     "OPERMIND_MONITOR_QUERY_MAX_HOURS": ("monitoring", "query_max_hours"),
+    "OPERMIND_HOST_METRICS_CACHE_SECONDS": ("host_metrics", "cache_seconds"),
     "OPERMIND_KNOWLEDGE_DIR": ("knowledge", "directory"),
 }
 
@@ -184,3 +185,24 @@ def load_monitor_settings() -> MonitorSettings:
     if values["query_max_hours"] > values["retention_hours"]:
         raise ValueError("monitoring.query_max_hours 不能超过 retention_hours。")
     return MonitorSettings(**values)
+
+
+@dataclass(frozen=True)
+class HostMetricsSettings:
+    """主机指标采集缓存配置。"""
+
+    cache_seconds: int = 10
+
+
+def load_host_metrics_settings() -> HostMetricsSettings:
+    """读取并校验主机指标缓存配置，环境变量优先于 YAML。"""
+    config = _apply_env_overrides(_load_yaml_config())
+    host_metrics = config.get("host_metrics") or {}
+    raw_value = host_metrics.get("cache_seconds", 10)
+    try:
+        value = int(raw_value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("host_metrics.cache_seconds 必须是整数。") from exc
+    if not 0 <= value <= 600:
+        raise ValueError("host_metrics.cache_seconds 必须在 0 到 600 范围内。")
+    return HostMetricsSettings(cache_seconds=value)

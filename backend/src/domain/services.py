@@ -9,6 +9,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from src.domain.host_metrics import HostMetricsData
+
 
 POSTGRES_PRODUCTION_SERVICE_ID = "postgres-production"
 POSTGRES_STAGING_SERVICE_ID = "postgres-staging"
@@ -140,10 +142,15 @@ class ServiceSnapshotData(ServiceDomainModel):
 
 
 class ServiceViewData(ServiceDomainModel):
-    """服务中心列表和详情共用的动态服务视图。"""
+    """服务中心列表和详情共用的动态服务视图。
+
+    携带服务所在后端主机的主机指标（必选，恒存在）；采集失败时 `source_status` 为 unavailable，
+    不伪造数值。
+    """
 
     definition: ServiceDefinitionData
     snapshot: ServiceSnapshotData
+    host_metrics: HostMetricsData
 
 
 class ServiceActivityData(ServiceDomainModel):

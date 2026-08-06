@@ -396,6 +396,10 @@ class ServiceMonitorSampleRecord(Base):
         CheckConstraint("memory_bytes IS NULL OR memory_bytes >= 0", name="monitor_sample_memory_bytes_nonnegative"),
         CheckConstraint("client_connections IS NULL OR client_connections >= 0", name="monitor_sample_client_connections_nonnegative"),
         CheckConstraint("slowlog_count IS NULL OR slowlog_count >= 0", name="monitor_sample_slowlog_count_nonnegative"),
+        CheckConstraint("host_cpu_percent IS NULL OR host_cpu_percent >= 0", name="monitor_sample_host_cpu_nonnegative"),
+        CheckConstraint("host_memory_percent IS NULL OR host_memory_percent >= 0", name="monitor_sample_host_memory_percent_nonnegative"),
+        CheckConstraint("host_memory_bytes IS NULL OR host_memory_bytes >= 0", name="monitor_sample_host_memory_bytes_nonnegative"),
+        CheckConstraint("host_disk_used_percent IS NULL OR host_disk_used_percent >= 0", name="monitor_sample_host_disk_nonnegative"),
         Index("ix_service_monitor_samples_service_observed_at", "service_id", "observed_at"),
         Index("ix_service_monitor_samples_observed_at", "observed_at"),
     )
@@ -411,5 +415,9 @@ class ServiceMonitorSampleRecord(Base):
     memory_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     client_connections: Mapped[int | None] = mapped_column(Integer, nullable=True)
     slowlog_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    host_cpu_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
+    host_memory_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
+    host_memory_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    host_disk_used_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
     performance_signal: Mapped[str] = mapped_column(String(40), nullable=False)
     source_status: Mapped[str] = mapped_column(String(24), nullable=False)

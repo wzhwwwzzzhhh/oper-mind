@@ -156,8 +156,50 @@ class ServiceSnapshotResource(ApiV1Model):
     database: ServiceDatabaseResource
 
 
+class HostMetricsResource(ApiV1Model):
+    """服务所在后端主机的脱敏主机指标。
+
+    与快照并列的兄弟字段：主机指标属于「后端所在主机 · 单主机采集」，而非服务数据库本身。
+    不可用/未采集时标量为 null，不使用 0 代替缺失。
+    """
+
+    mode: Literal["mock", "target"]
+    source_status: Literal["available", "unavailable"]
+    observed_at: datetime
+    cpu_percent: float | None = Field(default=None, ge=0.0)
+    cpu_count: int | None = Field(default=None, ge=1)
+    load_avg_1m: float | None = Field(default=None, ge=0.0)
+    memory_total_bytes: int | None = Field(default=None, ge=0)
+    memory_used_bytes: int | None = Field(default=None, ge=0)
+    memory_percent: float | None = Field(default=None, ge=0.0)
+    disk_used_percent: float | None = Field(default=None, ge=0.0)
+    disk_top_partitions: list[HostDiskPartitionResource]
+    network_connections: int | None = Field(default=None, ge=0)
+    network_established: int | None = Field(default=None, ge=0)
+    network_time_wait: int | None = Field(default=None, ge=0)
+    abnormal_processes: list[HostProcessResource]
+
+
+class HostDiskPartitionResource(ApiV1Model):
+    """单个挂载点的脱敏使用信息。"""
+
+    mount: str = Field(min_length=1, max_length=200)
+    percent: float | None = Field(default=None, ge=0.0)
+    used_bytes: int | None = Field(default=None, ge=0)
+    total_bytes: int | None = Field(default=None, ge=0)
+
+
+class HostProcessResource(ApiV1Model):
+    """异常进程的脱敏展示信息，不含命令行或凭据。"""
+
+    name: str = Field(min_length=1, max_length=200)
+    pid: int = Field(ge=1)
+    cpu_percent: float | None = Field(default=None, ge=0.0)
+    memory_percent: float | None = Field(default=None, ge=0.0)
+
+
 class ServiceResource(ApiV1Model):
-    """静态注册服务与其当前安全快照。"""
+    """静态注册服务与其当前安全快照、共享主机指标。"""
 
     id: str = Field(min_length=1, max_length=64)
     title: str
@@ -165,6 +207,7 @@ class ServiceResource(ApiV1Model):
     supported_investigations: list[ServiceInvestigationResource]
     action_boundary: str
     snapshot: ServiceSnapshotResource
+    host_metrics: HostMetricsResource
 
 
 class ServiceActivityResource(ApiV1Model):
@@ -427,6 +470,11 @@ class MonitorSampleResource(ApiV1Model):
     memory_bytes: int | None = Field(default=None, ge=0)
     client_connections: int | None = Field(default=None, ge=0)
     slowlog_count: int | None = Field(default=None, ge=0)
+    # P6 主机指标历史标量；不可用/未采样为 null，不用 0 代替缺失。
+    host_cpu_percent: float | None = Field(default=None, ge=0.0)
+    host_memory_percent: float | None = Field(default=None, ge=0.0)
+    host_memory_bytes: int | None = Field(default=None, ge=0)
+    host_disk_used_percent: float | None = Field(default=None, ge=0.0)
     performance_signal: Literal[
         "slow_query_detected", "no_slow_query_detected", "insufficient_data", "unavailable", "not_configured"
     ]

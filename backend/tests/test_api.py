@@ -87,6 +87,10 @@ def test_服务列表返回多个实例且不暴露凭据(api_client: TestClient
     redis_item = next(item for item in body["items"] if item["id"] == "redis-production")
     assert redis_item["kind"] == "redis"
     assert redis_item["snapshot"]["availability"] == "not_configured"
+    # P6：服务响应恒携带主机指标对象（诚实状态），不暴露敏感信息
+    assert all("host_metrics" in item for item in body["items"])
+    assert redis_item["host_metrics"]["source_status"] in {"available", "unavailable"}
+    assert redis_item["host_metrics"]["mode"] in {"mock", "target"}
     serialized = response.text
     assert "OPERMIND_SERVICE_" not in serialized
     assert "postgresql://" not in serialized
