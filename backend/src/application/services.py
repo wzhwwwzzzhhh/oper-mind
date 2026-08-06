@@ -478,7 +478,13 @@ def _stream_with_context(
 def _requires_database_context(query: str) -> bool:
     """识别需要数据库服务上下文的明确调查问题。"""
     lowered = query.lower()
-    return any(keyword in lowered for keyword in ("select", "sql", "explain", "索引", "慢查询", "数据库", "postgres"))
+    return any(
+        keyword in lowered
+        for keyword in (
+            "select", "sql", "explain", "索引", "慢查询", "数据库", "postgres",
+            "查询", "表", "连接池", "pg_stat", "schema",
+        )
+    )
 
 
 def _query_fingerprint(query: str) -> str:

@@ -82,6 +82,16 @@ def build_v1_services_for_runtime(
             for instance_id, title in postgres_instances
         )
     )
+    registry = ServiceRegistry(
+        tuple(
+            PostgresServiceConnector(
+                load_service_dsn(instance_id),
+                instance_id=instance_id,
+                title=title,
+            )
+            for instance_id, title in postgres_instances
+        )
+    )
     return V1Services(
         session_factory=session_factory,
         session_service=SessionApplicationService(session_factory, registry=registry),

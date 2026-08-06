@@ -22,6 +22,7 @@ class TraceRecord(TypedDict):
     timestamp: str
     status: NotRequired[str]        # 仅 tool_invoked 事件携带
     duration_ms: NotRequired[int]   # 仅 tool_invoked 事件携带
+    role: NotRequired[str]          # 仅领域工具事件携带
 
 
 class TraceStreamItem(TypedDict):

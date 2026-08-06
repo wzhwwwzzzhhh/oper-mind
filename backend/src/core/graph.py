@@ -93,7 +93,7 @@ def _extract_json(text: str) -> dict | None:
         return None
 
 
-def _tool_traces(agent) -> list[dict]:
+def _tool_traces(agent, role: str | None = None) -> list[dict]:
     """把一个 Agent 本次 run 的工具调用审计记录转成 trace 事件字典。"""
     getter = getattr(agent, "get_tool_invocations", None)
     records = getter() if callable(getter) else []
@@ -103,6 +103,7 @@ def _tool_traces(agent) -> list[dict]:
             "detail": r.detail,
             "status": r.status,
             "duration_ms": r.duration_ms,
+            **({"role": role} if role is not None else {}),
         }
         for r in records
     ]
@@ -180,7 +181,7 @@ def build_diagnosis_graph(
             agent = agents[target]
             result = agent.run(query)
             thinking = agent.get_thinking() if hasattr(agent, "get_thinking") else []
-            trace = trace + _tool_traces(agent)
+            trace = trace + _tool_traces(agent, target)
 
         trace = trace + [{"node": "direct", "detail": f"目标 Agent={target}"}]
         return {
@@ -210,7 +211,7 @@ def build_diagnosis_graph(
             res = agent.run(sub_query)
             results[name] = res
             thinking_map[name] = agent.get_thinking() if hasattr(agent, "get_thinking") else []
-            trace = trace + _tool_traces(agent)
+            trace = trace + _tool_traces(agent, name)
             context += f"\n[{name}] {res[:200]}"
             trace = trace + [{"node": "chain", "detail": f"逐层:{name}"}]
 
@@ -226,7 +227,7 @@ def build_diagnosis_graph(
             agent = agents[name]
             res = agent.run(query)
             think = agent.get_thinking() if hasattr(agent, "get_thinking") else []
-            tools = _tool_traces(agent)   # 线程内取，防止 run 后状态被覆盖
+            tools = _tool_traces(agent, name)   # 线程内取，防止 run 后状态被覆盖
             return name, res, think, tools
 
         results, thinking_map = {}, {}
