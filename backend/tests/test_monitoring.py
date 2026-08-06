@@ -34,7 +34,7 @@ def _snapshot(
     availability: ServiceAvailability = ServiceAvailability.HEALTHY,
     source_status: ServiceSourceStatus = ServiceSourceStatus.AVAILABLE,
 ) -> ServiceSnapshotData:
-    observed_at = datetime(2026, 8, 5, 12, 0, tzinfo=timezone.utc)
+    observed_at = datetime.now(timezone.utc)
     return ServiceSnapshotData(
         observed_at=observed_at,
         mode=ServiceMode.TARGET,
@@ -133,7 +133,7 @@ def test_采样器持久化redis专用标量而pg语义字段为null() -> None:
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine, expire_on_commit=False)
     snapshot = ServiceSnapshotData(
-        observed_at=datetime(2026, 8, 5, 12, 0, tzinfo=timezone.utc),
+        observed_at=datetime.now(timezone.utc),
         mode=ServiceMode.TARGET,
         availability=ServiceAvailability.HEALTHY,
         performance_signal=PerformanceSignal.SLOW_QUERY_DETECTED,
