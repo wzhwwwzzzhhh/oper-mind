@@ -65,5 +65,5 @@
 
 ## 前置设计
 
-- 设计文档：[P5监控历史趋势与页面告警Design.md](../../P5监控历史趋势与页面告警Design.md)
+- 设计文档：[P5监控历史趋势与页面告警Design.md](../../design/monitor/P5监控历史趋势与页面告警Design.md)
 - 设计状态：已完成 Design → Review → 用户确认。

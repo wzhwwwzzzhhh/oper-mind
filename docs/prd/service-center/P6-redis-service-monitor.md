@@ -20,8 +20,8 @@ updated: 2026-08-06
 本 PRD 按 P4.4 Design 已确认的「MySQL/Redis 框架预留，后续按同一模式复制」方向，把 Redis 作为第二类服务类型接入，并纳入 P5 历史监控。
 
 关联：
-- `docs/P4.4服务中心接入与凭据Design.md`（凭据方案 A = 环境变量命名空间化、框架预留 Redis/MySQL、能力驱动）
-- `docs/P5监控历史趋势与页面告警Design.md`（采样器/样本表/历史 API/前端趋势，已确认）
+- `docs/design/service-center/P4.4服务中心接入与凭据Design.md`（凭据方案 A = 环境变量命名空间化、框架预留 Redis/MySQL、能力驱动）
+- `docs/design/monitor/P5监控历史趋势与页面告警Design.md`（采样器/样本表/历史 API/前端趋势，已确认）
 - `docs/prd/monitor/P5-monitor-trends.md`（P5 监控 PRD）
 - `docs/开发规范.md` §3（服务与 Connector）、§4（凭据）、§5（监控诚实性）
 

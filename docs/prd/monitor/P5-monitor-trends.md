@@ -24,7 +24,7 @@ P4 已让服务中心快照连真实 PostgreSQL（`PostgresServiceConnector`）�
 本 PRD 的数据来源、采样机制、保留窗口与告警范围，正属于产品定义 §6 留待确认的"监控数据来源、轮询/推送策略、历史保留与告警范围"。
 
 关联：`docs/路线图.md`（第四阶段"历史监控、趋势和告警"；第二阶段服务中心"基础当前状态 / 监控入口"）、
-`docs/P4服务中心变真Design.md`（Section 1 明确"不做完整历史监控趋势（缺接口，P5 才做）"；Section 4 定义 `ServiceSnapshotData` 字段）、
+`docs/design/service-center/P4服务中心变真Design.md`（Section 1 明确"不做完整历史监控趋势（缺接口，P5 才做）"；Section 4 定义 `ServiceSnapshotData` 字段）、
 `docs/产品定义.md` §5.5 与 `docs/开发规范.md` §5（监控诚实性）、
 `docs/prd/service-center/P4.4-service-instances.md`（多服务实例注册与命名空间 DSN，采样对象来源）。
 

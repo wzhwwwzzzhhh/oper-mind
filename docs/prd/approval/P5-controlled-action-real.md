@@ -32,8 +32,8 @@ updated: 2026-08-06
 经人工审批 → 白名单执行 → 独立 Verify 全链路，且**只连受控靶场（演示库），不连生产**。
 
 关联：`docs/路线图.md`（第四阶段"将确有价值的风险动作接入提案→人工审批→白名单执行→Verify"）、
-`docs/P4.2DBAgent真库Design.md`（只读工具与只读引擎，本 PRD 前置）、
-`docs/P4服务中心变真Design.md` 与 `docs/P4.4服务中心接入与凭据Design.md`（DSN 命名空间、只读边界）、
+`docs/design/session/P4.2DBAgent真库Design.md`（只读工具与只读引擎，本 PRD 前置）、
+`docs/design/service-center/P4服务中心变真Design.md` 与 `docs/design/service-center/P4.4服务中心接入与凭据Design.md`（DSN 命名空间、只读边界）、
 `docs/产品定义.md`（会话主入口、受控 Connector/Tool、高风险动作人工审批）、
 `docs/开发规范.md`（高风险动作必须服务器提案、人工审批、严格白名单执行、独立 Verify；禁止自动批准、通用执行器）。
 
