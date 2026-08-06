@@ -20,6 +20,7 @@ docs/workpack/
 
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
+| P6 | log-source-real | 待用户确认计划 | [plan](P6-log-source-real/plan.md) | 待执行 | 待执行 |
 | P5 | monitor-trends | 待用户确认计划 | [plan](P5-monitor-trends/plan.md) | 待执行 | 待执行 |
 | P5 | controlled-action-real | 已实现，待交付 | [plan](P5-controlled-action-real/plan.md) | [review](P5-controlled-action-real/review.md) | [evidence](P5-controlled-action-real/evidence.md) |
 

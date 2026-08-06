@@ -1,6 +1,6 @@
 ---
 title: 日志真实源接入
-status: 已确认
+status: 进行中
 domain: session
 phase: P6
 issue: 21
