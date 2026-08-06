@@ -1,7 +1,7 @@
 # 任务 P4：服务中心变真（接真实 PostgreSQL 只读服务）
 
 ## 背景（只读）
-Design 文档：`docs/P4服务中心变真Design.md`（已确认）。
+Design 文档：`docs/design/service-center/P4服务中心变真Design.md`（已确认）。
 当前 `ServiceRegistry(())` 是空的，`GET /services` 返回空列表，前端服务中心/详情页显示空态。
 本任务实现第一个真实 `PostgresServiceConnector`，装配进 registry，让服务快照变真。
 

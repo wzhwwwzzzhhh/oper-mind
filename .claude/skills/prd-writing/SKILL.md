@@ -41,8 +41,14 @@ docs/prd/
 |---|---|---|---|
 | 草稿 | PRD 首次写入 | PM（prd-writing） | frontmatter + README |
 | 已确认 | 用户确认 PRD 方向/决策 | PM（prd-reviewing + 用户确认后） | frontmatter + README |
-| 进行中 | 执行 AI 开始开发（dev-plan 建 workpack） | 执行 AI | frontmatter + README |
+| 进行中 | 用户确认 dev-plan 计划后（dev-plan Phase 3 唯一推进点） | 执行 AI（dev-plan Phase 3） | frontmatter + README |
 | 完成 | 工作包交付归档（dev-deliver Phase 7） | 执行 AI | frontmatter + README |
+
+**GitHub Issue 协作（已确认 PRD 建 issue）**：PRD 推进为「已确认」后，PM（prd-reviewing 审查 PASS + 用户确认方向后）用 `gh issue create` 建一个 issue：
+- **title**：PRD 标题；**body**：PRD 内容 + 关联 Design 路径（已有则写，没有则写"开发前需先经 arch-design 出 Design"）+ 关联 PRD 路径。
+- **labels**：域标签（session / service-center / monitor / approval / knowledge）+ 阶段标签（p4/p5/p6）。
+- 建 issue 后，把 issue 编号写回 PRD 文件 frontmatter `issue: <number>`（双写：frontmatter + README）。
+- **协作边界**：issue 是协作入口，放需求层（"做成什么样"）；朋友看 issue 开工，从 issue → PRD → Design → workpack 一路链下去。issue 状态与 PRD 状态保持一致（已确认=open，完成=closed），但中间过程（进行中/切片）留在 workpack，不在 issue 里建第二套状态机。
 
 **关键**：任何一次状态推进都必须**同时更新 frontmatter 和 README 两处**，缺一即视为未完成状态登记。dev-deliver 收尾时尤其要确认 PRD frontmatter 也标了 `status: 完成`，不能只改 README。
 
@@ -55,6 +61,7 @@ title: <一句话需求标题>
 status: 草稿
 domain: <所属域>
 phase: <所属阶段，如 P4.2>
+issue: <已确认后回填 GitHub issue 编号，如 1；未建前留空>
 updated: <YYYY-MM-DD>
 ---
 
@@ -107,6 +114,10 @@ updated: <YYYY-MM-DD>
 
 ## 开放问题（无则留空）
 - <待用户/设计确认的问题>
+
+## GitHub Issue（已确认后回填）
+- issue：<#编号，指向本 PRD 的 GitHub issue，协作入口>
+- 状态同步：issue 状态与 PRD 状态一致（已确认=open，完成=closed）；中间过程留在 workpack。
 ```
 
 ## 关键纪律

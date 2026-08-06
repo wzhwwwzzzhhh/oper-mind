@@ -1,6 +1,6 @@
 ---
 name: prd-reviewing
-description: Use when reviewing or implementing against a written PRD (Product Requirements Document) for correctness, testability, boundary clarity, engineering feasibility, implementation drift, and alignment with the OperMind product north star. Trigger on "审查PRD", "PRD对不对", "review PRD", "检查需求", "自审PRD", "按PRD开发", "对照PRD", "PRD验收", or any change touching docs/prd/.
+description: Use when reviewing a written PRD (Product Requirements Document) for correctness, testability, boundary clarity, engineering feasibility, implementation drift, and alignment with the OperMind product north star. Trigger on "审查PRD", "PRD对不对", "review PRD", "检查需求", "自审PRD", "对照PRD", "PRD验收", or any change touching docs/prd/. For development planning, use dev-plan instead.
 ---
 
 # PRD 审查（OperMind 项目专属）
@@ -46,6 +46,7 @@ description: Use when reviewing or implementing against a written PRD (Product R
 - [ ] 是否与既有 PRD / Design / 产品文档冲突？
 - [ ] 是否引述关联文档路径（执行 AI 能回溯决策）？
 - [ ] 是否与本域 `README.md` 登记一致（PRD 已在域索引中）？
+- [ ] PRD 推进「已确认」后是否已建 GitHub issue（frontmatter `issue` 编号存在，issue 状态与 PRD 状态一致）？
 
 ### F. 实现 vs 需求
 - [ ] 功能需求是否在"行为 / 输出"层面描述，而非"怎么做"（新建类 / 改文件 / 具体查询）？
@@ -65,6 +66,8 @@ description: Use when reviewing or implementing against a written PRD (Product R
 ## 审查后动作
 - 自审出 FAIL → 修改 PRD 直到 PASS，再交用户。
 - 自审 PASS → 仍交用户做轻量方向确认（用户只需看 背景 / 目标 / 范围 是否符合大方向）。
+- 用户确认方向后 → 把 PRD 状态推进为「已确认」：**双写** PRD 文件顶部 frontmatter `status: 已确认` 与 `docs/prd/README.md`（及所在域 README）索引，两处必须一致，缺一即未完成登记（对齐 `prd-writing` 状态推进责任矩阵）。
+- **建 GitHub issue（协作入口）** → 用 `gh issue create` 建 issue（title=PRD 标题，body=PRD 内容 + 关联 Design 路径 + 关联 PRD 路径，labels=域+阶段），把 issue 编号写回 frontmatter `issue` 字段（双写）。issue 放需求层，协作方从 issue 开工。
 
 ## 常见错误（审查者自己别犯）
 | 错误 | 修正 |
@@ -83,49 +86,3 @@ description: Use when reviewing or implementing against a written PRD (Product R
 - 与大方向（产品定义 / 路线图）明显冲突却未注明需先设计
 
 **发现任一红灯 ⇒ FAIL，必须修改后才能交付。**
-
-## 工程实施守门（实现任务自动启用）
-
-用户要求按 PRD 开发、修改正式产品代码、验收阶段成果，或任务涉及 `docs/prd/` 时，不只做文档审查，还要持续检查实现是否漂移。将 `docs/prd/README.md`、当前有效 PRD、`docs/产品定义.md`、`docs/路线图.md`、`docs/开发规范.md` 作为基线；Design 只能作为已确认技术决策的补充，不能悄悄改写产品范围。
-
-### 开工前：建立工作包边界
-1. 确认唯一当前 PRD：域、阶段、状态、范围和关联 Design；若找不到匹配 PRD，或需求明显超出 PRD，先停在需求层，不直接写代码。
-2. 输出「本工作包只做」和「明确不做」两张清单，并把每项实现意图映射到 PRD 的功能需求或 AC 编号。
-3. 标记工程闸门：新服务类型、Connector、真实连接、凭据、公开 API、数据库迁移、监控、权限、审批/执行能力、破坏性改动，必须先有 Design → Review → 用户确认；未确认就 STOP。
-4. 识别正式产品边界：会话工作台是主入口，服务中心是正式模块；不得把 demo、靶场、mock、旧技术切片或报告页升级成产品主线。
-
-### 实施中：持续防漂移
-- 每新增或修改一个行为，都回答「对应哪条 PRD 需求/AC？」；无法映射的改动视为范围外改动，暂停并回到 PRD。
-- 不因实现方便而扩大权限、连接范围、数据暴露、API 契约或持久化；默认只读、最小权限、限时、参数校验、脱敏、审计摘要和诚实降级。
-- 不把 mock 描述成真实执行/实时监控，不把一次快照伪装成历史监控，不把未启用能力写成已支持。
-- 发现 PRD、Design、产品定义、路线图或代码现状冲突时，先列出冲突和影响，不用代码“顺手修正”产品决策。
-
-### 收工前：需求—证据闭环
-逐条建立以下证据表并给出 PASS/FAIL：
-
-| PRD 条目 | 代码/接口/测试证据 | 结果 | 备注 |
-|---|---|---|---|
-| ACx / 非功能 / 边界 | 文件、测试名、命令或截图路径 | PASS/FAIL | 降级、安全、回归 |
-
-同时检查：
-- 是否出现 PRD「不做什么」中的实现；
-- 是否新增未经确认的公开接口、迁移、Connector、真实外部访问或高风险动作；
-- 是否修改了超出工作包的文件；
-- 相关后端测试、前端 `typecheck`/`test`/`build`（如适用）、`git diff --check` 是否通过；
-- 凭据、DSN、原始 SQL、原始异常和 CoT 是否进入日志、Trace、响应、截图或文档。
-
-### 工程审查输出
-```
-# PRD 工程守门：<PRD 标题>
-结论：PASS / PASS WITH FOLLOW-UPS / FAIL
-当前基线：<域>/<阶段>；PRD：<路径>；Design：<路径或无>
-本次范围：<只做什么>
-阻塞项：
-- [阻塞] <需求映射、越界、未确认工程闸门或安全问题>
-漂移风险：
-- [风险] <当前实现可能把技术切片固化成产品边界的地方>
-证据：<AC/测试/文件映射>
-下一步：<继续实现、补 PRD/Design，或等待用户确认>
-```
-
-**规则：只要存在阻塞项，不得以“代码已经能跑”作为通过理由；必须先修改 PRD/Design 或取得用户确认。**
