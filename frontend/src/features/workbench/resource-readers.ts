@@ -15,6 +15,10 @@ export function read_items(value: unknown): unknown[] {
   return Array.isArray(record?.items) ? record.items : []
 }
 
+export function read_array(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : []
+}
+
 export function read_page(value: unknown): { has_more: boolean; next_cursor?: string } {
   const page = read_record(read_record(value)?.page)
   return {

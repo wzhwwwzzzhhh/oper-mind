@@ -1,6 +1,6 @@
 ---
 title: Redis 服务接入与只读监控
-status: 已确认
+status: 完成
 domain: service-center
 phase: P6
 updated: 2026-08-06

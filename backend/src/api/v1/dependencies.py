@@ -22,6 +22,7 @@ from src.infrastructure.diagnosis.result_assembler import KernelReportResultAsse
 from src.infrastructure.diagnosis.postgres_missing_index import PostgresMissingIndexCollector
 from src.infrastructure.persistence.database import PersistenceRuntime, SessionFactory, create_persistence_runtime
 from src.infrastructure.services.postgres_connector import PostgresServiceConnector
+from src.infrastructure.services.redis_connector import RedisServiceConnector
 from src.infrastructure.actions.postgres_target_executor import PostgresTargetActionExecutor
 from src.infrastructure.monitoring.sampler import MonitorSampler
 
@@ -72,6 +73,9 @@ def build_v1_services_for_runtime(
         ("postgres-staging", "预发布 PostgreSQL 主库"),
         ("postgres-target", "受控 PostgreSQL 靶场"),
     )
+    redis_instances = (
+        ("redis-production", "生产 Redis 缓存"),
+    )
     registry = ServiceRegistry(
         tuple(
             PostgresServiceConnector(
@@ -80,6 +84,14 @@ def build_v1_services_for_runtime(
                 title=title,
             )
             for instance_id, title in postgres_instances
+        )
+        + tuple(
+            RedisServiceConnector(
+                load_service_dsn(instance_id),
+                instance_id=instance_id,
+                title=title,
+            )
+            for instance_id, title in redis_instances
         )
     )
     return V1Services(

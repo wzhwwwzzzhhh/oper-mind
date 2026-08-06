@@ -203,6 +203,9 @@ def service_resource(value: ServiceViewData) -> ServiceResource:
                 p95_ms=snapshot.server_metrics.p95_ms,
                 slow_query_count=snapshot.server_metrics.slow_query_count,
                 timeout_count=snapshot.server_metrics.timeout_count,
+                memory_bytes=snapshot.server_metrics.memory_bytes,
+                client_connections=snapshot.server_metrics.client_connections,
+                slowlog_count=snapshot.server_metrics.slowlog_count,
             ),
             database=ServiceDatabaseResource(
                 source_status=snapshot.database.source_status.value,

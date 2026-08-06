@@ -882,6 +882,12 @@ export interface components {
             slow_query_count?: unknown;
             /** Timeout Count */
             timeout_count?: unknown;
+            /** Memory Bytes */
+            memory_bytes?: unknown;
+            /** Client Connections */
+            client_connections?: unknown;
+            /** Slowlog Count */
+            slowlog_count?: unknown;
             /** Performance Signal */
             performance_signal: unknown;
             /** Source Status */
@@ -1116,6 +1122,9 @@ export interface components {
         /**
          * ServiceServerMetricsResource
          * @description 服务详情可展示的有限指标标量。
+         *
+         *     PG 语义字段（p50_ms / p95_ms / slow_query_count / timeout_count）对 Redis 实例为 null，
+         *     Redis 专用标量（memory_bytes / client_connections / slowlog_count）对 PG 实例为 null。
          */
         ServiceServerMetricsResource: {
             /** Source Status */
@@ -1130,6 +1139,12 @@ export interface components {
             slow_query_count?: unknown;
             /** Timeout Count */
             timeout_count?: unknown;
+            /** Memory Bytes */
+            memory_bytes?: unknown;
+            /** Client Connections */
+            client_connections?: unknown;
+            /** Slowlog Count */
+            slowlog_count?: unknown;
         };
         /**
          * ServiceSnapshotResource

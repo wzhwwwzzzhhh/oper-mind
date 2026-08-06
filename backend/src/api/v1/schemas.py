@@ -108,7 +108,11 @@ class ServiceInvestigationResource(ApiV1Model):
 
 
 class ServiceServerMetricsResource(ApiV1Model):
-    """服务详情可展示的有限指标标量。"""
+    """服务详情可展示的有限指标标量。
+
+    PG 语义字段（p50_ms / p95_ms / slow_query_count / timeout_count）对 Redis 实例为 null，
+    Redis 专用标量（memory_bytes / client_connections / slowlog_count）对 PG 实例为 null。
+    """
 
     source_status: Literal["available", "unavailable", "not_configured"]
     window_size: int | None = Field(default=None, ge=0)
@@ -116,6 +120,9 @@ class ServiceServerMetricsResource(ApiV1Model):
     p95_ms: float | None = Field(default=None, ge=0.0)
     slow_query_count: int | None = Field(default=None, ge=0)
     timeout_count: int | None = Field(default=None, ge=0)
+    memory_bytes: int | None = Field(default=None, ge=0)
+    client_connections: int | None = Field(default=None, ge=0)
+    slowlog_count: int | None = Field(default=None, ge=0)
 
 
 class ServiceDatabaseResource(ApiV1Model):
@@ -417,6 +424,9 @@ class MonitorSampleResource(ApiV1Model):
     p95_ms: float | None = Field(default=None, ge=0.0)
     slow_query_count: int | None = Field(default=None, ge=0)
     timeout_count: int | None = Field(default=None, ge=0)
+    memory_bytes: int | None = Field(default=None, ge=0)
+    client_connections: int | None = Field(default=None, ge=0)
+    slowlog_count: int | None = Field(default=None, ge=0)
     performance_signal: Literal[
         "slow_query_detected", "no_slow_query_detected", "insufficient_data", "unavailable", "not_configured"
     ]

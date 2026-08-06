@@ -6,6 +6,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { api_v1_client } from '../../api/v1/client'
 import { get_service_monitor_history_query, get_service_query, list_service_activities_query } from '../../api/v1/queries'
 import {
+  read_array,
   read_items,
   read_record,
   resource_optional_string,
@@ -49,6 +50,16 @@ function signal_label(value: unknown): string {
 
 function display_number(value: unknown, suffix = ''): string {
   return typeof value === 'number' && Number.isFinite(value) ? `${value}${suffix}` : '—'
+}
+
+function display_bytes(value: unknown): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '—'
+  if (value >= 1048576) return `${(value / 1048576).toFixed(1)} MB`
+  return `${value} B`
+}
+
+function is_redis_kind(kind: unknown): boolean {
+  return String(kind ?? '').toLowerCase().includes('redis')
 }
 
 function display_time(value: unknown): string {
@@ -96,7 +107,7 @@ export function ServiceDetailPage(): ReactElement {
 
   const service_response = service_query.data ? read_record(service_query.data.data) : undefined
   const service = read_record(resource_value(service_response, 'service'))
-  const investigations = read_items(resource_value(service, 'supported_investigations'))
+  const investigations = read_array(resource_value(service, 'supported_investigations'))
 
   const create_investigation = useMutation({
     mutationFn: () => api_v1_client.create_service_session(id, {}),
@@ -119,6 +130,7 @@ export function ServiceDetailPage(): ReactElement {
   const server_metrics = read_record(resource_value(snapshot, 'server_metrics'))
   const database = read_record(resource_value(snapshot, 'database'))
   const kind = kind_label(resource_value(service, 'kind'))
+  const is_redis = is_redis_kind(resource_value(service, 'kind'))
   const availability = resource_value(snapshot, 'availability')
   const activities = activities_query.data ? read_items(activities_query.data.data) : []
 
@@ -159,7 +171,7 @@ export function ServiceDetailPage(): ReactElement {
         </div>
         <div className="svc-detail-actions">
           <button className="svc-detail-button" onClick={() => { void service_query.refetch(); void activities_query.refetch(); void monitor_query.refetch(); set_notice('已请求刷新服务快照。') }} type="button">重新检查</button>
-          <button className="svc-detail-button primary" disabled={create_investigation.isPending} onClick={() => create_investigation.mutate()} type="button">{create_investigation.isPending ? '创建中…' : '发起调查'}</button>
+          <button className="svc-detail-button primary" disabled={investigations.length === 0 || create_investigation.isPending} onClick={() => create_investigation.mutate()} type="button">{create_investigation.isPending ? '创建中…' : investigations.length === 0 ? '调查未启用' : '发起调查'}</button>
         </div>
       </section>
 
@@ -183,9 +195,19 @@ export function ServiceDetailPage(): ReactElement {
         <div className="svc-detail-section-head"><div><h2>当前健康概览</h2><p>只展示服务 API 返回的有限指标，缺失数据以“—”表示。</p></div></div>
         <div className="svc-detail-metrics">
           <article className="svc-detail-metric"><span>服务可用性</span><strong>{status_label(availability)}</strong><small>{snapshot ? `来源：${source_label(resource_value(snapshot, 'availability'))}` : '暂无快照'}</small></article>
-          <article className="svc-detail-metric"><span>P50 延迟</span><strong>{display_number(resource_value(server_metrics, 'p50_ms'), ' ms')}</strong><small>最近观测窗口</small></article>
-          <article className="svc-detail-metric"><span>P95 延迟</span><strong>{display_number(resource_value(server_metrics, 'p95_ms'), ' ms')}</strong><small>最近观测窗口</small></article>
-          <article className="svc-detail-metric"><span>慢查询</span><strong>{display_number(resource_value(server_metrics, 'slow_query_count'), ' 条')}</strong><small>超时 {display_number(resource_value(server_metrics, 'timeout_count'), ' 次')}</small></article>
+          {is_redis ? (
+            <>
+              <article className="svc-detail-metric"><span>内存占用</span><strong>{display_bytes(resource_value(server_metrics, 'memory_bytes'))}</strong><small>used_memory</small></article>
+              <article className="svc-detail-metric"><span>客户端连接</span><strong>{display_number(resource_value(server_metrics, 'client_connections'), ' 个')}</strong><small>CLIENT LIST</small></article>
+              <article className="svc-detail-metric"><span>慢日志</span><strong>{display_number(resource_value(server_metrics, 'slowlog_count'), ' 条')}</strong><small>SLOWLOG LEN</small></article>
+            </>
+          ) : (
+            <>
+              <article className="svc-detail-metric"><span>P50 延迟</span><strong>{display_number(resource_value(server_metrics, 'p50_ms'), ' ms')}</strong><small>最近观测窗口</small></article>
+              <article className="svc-detail-metric"><span>P95 延迟</span><strong>{display_number(resource_value(server_metrics, 'p95_ms'), ' ms')}</strong><small>最近观测窗口</small></article>
+              <article className="svc-detail-metric"><span>慢查询</span><strong>{display_number(resource_value(server_metrics, 'slow_query_count'), ' 条')}</strong><small>超时 {display_number(resource_value(server_metrics, 'timeout_count'), ' 次')}</small></article>
+            </>
+          )}
         </div>
       </section>
 
@@ -197,9 +219,13 @@ export function ServiceDetailPage(): ReactElement {
           {monitor_query.isSuccess && (() => {
             const history = monitor_query.data.data
             const samples = Array.isArray(history.samples) ? history.samples : []
-            const anomalies = samples.filter((item, index) => (item.slow_query_count ?? 0) > 0 || (item.timeout_count ?? 0) > 0 || (index > 0 && item.availability !== samples[index - 1].availability))
+            const anomalies = samples.filter((item, index) =>
+              is_redis
+                ? (item.slowlog_count ?? 0) > 0 || (index > 0 && item.availability !== samples[index - 1].availability)
+                : (item.slow_query_count ?? 0) > 0 || (item.timeout_count ?? 0) > 0 || (index > 0 && item.availability !== samples[index - 1].availability),
+            )
             if (samples.length === 0) return <div className="svc-detail-chart-empty"><span>⌁</span><strong>暂无历史采样</strong><p>{monitor_status_label(history.status)}，不会绘制假趋势线。</p></div>
-             return <div className="svc-detail-chart"><div className="svc-detail-chart-legend"><span>p95 延迟</span><span>慢查询 / 超时</span></div><div className="svc-detail-chart-track">{samples.map((item) => <div className={`svc-detail-chart-point ${anomalies.includes(item) ? 'anomaly' : ''}`} key={item.id ?? item.observed_at} title={`${display_time(item.observed_at)} · ${monitor_value(item.p95_ms, ' ms')}`}><i style={{ height: `${Math.min(100, Math.max(8, (item.p95_ms ?? 0) / 4))}%` }} /></div>)}</div><div className="svc-detail-chart-axis"><span>{display_time(samples[0].observed_at)}</span><span>{display_time(samples[samples.length - 1].observed_at)}</span></div>{anomalies.length > 0 && <div className="svc-detail-anomalies"><strong>采样点异常</strong>{anomalies.slice(-5).map((item) => <span key={item.id ?? item.observed_at}>{display_time(item.observed_at)} · {(item.slow_query_count ?? 0) > 0 ? `慢查询 ${item.slow_query_count}` : ''}{(item.timeout_count ?? 0) > 0 ? ` 超时 ${item.timeout_count}` : ''}</span>)}</div>}</div>
+             return <div className="svc-detail-chart"><div className="svc-detail-chart-legend"><span>{is_redis ? '内存占用' : 'p95 延迟'}</span><span>{is_redis ? '慢日志' : '慢查询 / 超时'}</span></div><div className="svc-detail-chart-track">{samples.map((item) => { const bar = is_redis ? Math.min(100, Math.max(8, (item.memory_bytes ?? 0) / 131072)) : Math.min(100, Math.max(8, (item.p95_ms ?? 0) / 4)); return <div className={`svc-detail-chart-point ${anomalies.includes(item) ? 'anomaly' : ''}`} key={item.id ?? item.observed_at} title={`${display_time(item.observed_at)} · ${is_redis ? display_bytes(item.memory_bytes) : monitor_value(item.p95_ms, ' ms')}`}><i style={{ height: `${bar}%` }} /></div> })}</div><div className="svc-detail-chart-axis"><span>{display_time(samples[0].observed_at)}</span><span>{display_time(samples[samples.length - 1].observed_at)}</span></div>{anomalies.length > 0 && <div className="svc-detail-anomalies"><strong>采样点异常</strong>{anomalies.slice(-5).map((item) => <span key={item.id ?? item.observed_at}>{display_time(item.observed_at)} · {is_redis ? `慢日志 ${item.slowlog_count}` : `${(item.slow_query_count ?? 0) > 0 ? `慢查询 ${item.slow_query_count}` : ''}${(item.timeout_count ?? 0) > 0 ? ` 超时 ${item.timeout_count}` : ''}`}</span>)}</div>}</div>
           })()}
         </section>
         <section className="svc-detail-card">

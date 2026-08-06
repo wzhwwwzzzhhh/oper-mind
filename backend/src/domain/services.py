@@ -91,7 +91,11 @@ class ServiceDefinitionData(ServiceDomainModel):
 
 
 class ServiceServerMetricsData(ServiceDomainModel):
-    """从固定服务指标端点读取的有限脱敏标量。"""
+    """从固定服务指标端点读取的有限脱敏标量。
+
+    PG 语义字段（p50_ms / p95_ms / slow_query_count / timeout_count）对 Redis 实例置 null，
+    Redis 专用标量（memory_bytes / client_connections / slowlog_count）对 PG 实例置 null。
+    """
 
     source_status: ServiceSourceStatus
     window_size: int | None = Field(default=None, ge=0)
@@ -99,6 +103,9 @@ class ServiceServerMetricsData(ServiceDomainModel):
     p95_ms: float | None = Field(default=None, ge=0.0)
     slow_query_count: int | None = Field(default=None, ge=0)
     timeout_count: int | None = Field(default=None, ge=0)
+    memory_bytes: int | None = Field(default=None, ge=0)
+    client_connections: int | None = Field(default=None, ge=0)
+    slowlog_count: int | None = Field(default=None, ge=0)
 
 
 class ServiceDatabaseStateData(ServiceDomainModel):

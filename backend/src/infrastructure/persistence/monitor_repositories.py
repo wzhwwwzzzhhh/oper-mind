@@ -28,6 +28,9 @@ class SqlAlchemyMonitorSampleRepository:
                 p95_ms=sample.p95_ms,
                 slow_query_count=sample.slow_query_count,
                 timeout_count=sample.timeout_count,
+                memory_bytes=sample.memory_bytes,
+                client_connections=sample.client_connections,
+                slowlog_count=sample.slowlog_count,
                 performance_signal=sample.performance_signal.value,
                 source_status=sample.source_status.value,
             )
@@ -72,6 +75,9 @@ def _to_data(row: ServiceMonitorSampleRecord) -> ServiceMonitorSampleData:
         p95_ms=row.p95_ms,
         slow_query_count=row.slow_query_count,
         timeout_count=row.timeout_count,
+        memory_bytes=row.memory_bytes,
+        client_connections=row.client_connections,
+        slowlog_count=row.slowlog_count,
         performance_signal=PerformanceSignal(row.performance_signal),
         source_status=ServiceSourceStatus(row.source_status),
     )

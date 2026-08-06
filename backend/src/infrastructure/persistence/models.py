@@ -390,6 +390,9 @@ class ServiceMonitorSampleRecord(Base):
         CheckConstraint("p95_ms IS NULL OR p95_ms >= 0", name="monitor_sample_p95_nonnegative"),
         CheckConstraint("slow_query_count IS NULL OR slow_query_count >= 0", name="monitor_sample_slow_count_nonnegative"),
         CheckConstraint("timeout_count IS NULL OR timeout_count >= 0", name="monitor_sample_timeout_count_nonnegative"),
+        CheckConstraint("memory_bytes IS NULL OR memory_bytes >= 0", name="monitor_sample_memory_bytes_nonnegative"),
+        CheckConstraint("client_connections IS NULL OR client_connections >= 0", name="monitor_sample_client_connections_nonnegative"),
+        CheckConstraint("slowlog_count IS NULL OR slowlog_count >= 0", name="monitor_sample_slowlog_count_nonnegative"),
         Index("ix_service_monitor_samples_service_observed_at", "service_id", "observed_at"),
         Index("ix_service_monitor_samples_observed_at", "observed_at"),
     )
@@ -402,5 +405,8 @@ class ServiceMonitorSampleRecord(Base):
     p95_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
     slow_query_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     timeout_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    memory_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    client_connections: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    slowlog_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     performance_signal: Mapped[str] = mapped_column(String(40), nullable=False)
     source_status: Mapped[str] = mapped_column(String(24), nullable=False)
