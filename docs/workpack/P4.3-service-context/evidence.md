@@ -13,6 +13,6 @@
 | AC7 | `db_tools.py` 无 DSN 返回“数据库未配置”；`test_db_tools_real.py` | PASS | 无 DSN 不抛异常 |
 | AC8 | `db_tools.py` 连接/超时统一返回“数据库不可用” | PASS | 不暴露底层异常 |
 | AC9 | 执行器把 service_id 传入 Coordinator；DB 工具事件携带绑定服务；`test_p43_service_context.py` 断言 Trace 无 `order-service` | PASS | 不再固定订单演示内容 |
-| AC10 | 后端全量 `115 passed`；前端 `56 passed`、`typecheck`、`build`；`git diff --check` 干净 | PASS | 相关回归全绿 |
+| AC10 | 后端全量 `132 passed`（含 P6 Redis 回归与迁移 upgrade/downgrade）；前端 `59 passed`、`typecheck`、`build`；`git diff --check` 干净 | PASS | 相关回归全绿 |
 | AC11 | `SERVICE_CONTEXT_REQUIRED` 受理守卫；`ShowIndexTool(service_id=None)` 返回“数据库未选择目标服务”；日志/服务器语义不误判 | PASS | 未绑定 DB 调查不创建 Run；日志交叉用例已补 |
 | AC12 | `SessionWorkspace` 展示服务器返回的真实 service_id/title；未绑定不展示；`App.test.tsx` 集成断言 | PASS | fixture 使用 `postgres-production` 真实服务 |
