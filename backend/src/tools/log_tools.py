@@ -95,6 +95,7 @@ class SearchLogsTool(Tool):
         """保留既有 mock 检索行为与文案。"""
         logs = active_or_default().logs
         results = [log for log in logs if keyword.lower() in log.lower()]
+        self._last_summary = f"mock 场景检索命中 {len(results)} 条"
         if not results:
             return f"未找到包含 '{keyword}' 的日志"
         return f"找到 {len(results)} 条相关日志:\n" + "\n".join(results[:_MOCK_RESULT_LIMIT])
@@ -144,6 +145,7 @@ class AggregateErrorsTool(Tool):
     def _mock_aggregate(self) -> str:
         """保留既有 mock 聚合行为与文案。"""
         errors = [log for log in active_or_default().logs if "[ERROR]" in log]
+        self._last_summary = f"mock 场景聚合 {len(errors)} 条错误"
         error_types = Counter()
         for log in errors:
             # 提取错误类型
@@ -216,6 +218,7 @@ class QuerySlowLogTool(Tool):
     def _mock_slow_query(self, limit: int) -> str:
         """保留既有 mock 慢查询行为与文案。"""
         slow_queries = active_or_default().slow_queries
+        self._last_summary = f"mock 场景慢查询 {len(slow_queries)} 条"
         if not slow_queries:
             return "未发现慢查询（当前场景 DB 执行正常）"
         result = f"慢查询日志 (Top {limit}):\n"

@@ -6,7 +6,7 @@
 安全约束：
 - `log_dir` 为 None（环境变量未配置）→ `not_configured`；目录缺失/不可读 → `unavailable`，均不暴露异常详情。
 - 遍历有解析根前缀校验（符号链接/解析到目录外一律拒绝）与凭据/隐藏文件排除。
-- 读取有界（单文件限长、扫描行数/返回条数上限）；检索关键字防路径逃逸。
+- 读取有界（单行限长截断、扫描行数/返回条数上限）；检索关键字防路径逃逸。
 - 跨层数据走 Pydantic 结构化模型，禁止隐式字典协议。
 """
 
@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 
 # ---- 常量：有界扫描与安全防护（对齐知识检索工具集） ----
 _LOG_SUFFIXES = (".log", ".txt")
-_MAX_FILE_CHARS = 256 * 1024  # 单文件读取上限
+_MAX_LINE_CHARS = 8192  # 单行日志上限（超长行截断，防超大单行撑爆内存）
 _MAX_LINES_SCANNED = 50_000  # 单次检索扫描行数上限
 _MAX_SEARCH_RESULTS = 50  # 检索返回条目上限
 _MAX_ERROR_TYPES = 20  # 错误聚合类型上限
@@ -145,7 +145,10 @@ class LogSourceConnector:
                         for raw in handle:
                             if len(lines) >= _MAX_LINES_SCANNED:
                                 break
-                            lines.append((path.name, raw.rstrip("\n")))
+                            line = raw.rstrip("\n")
+                            if len(line) > _MAX_LINE_CHARS:
+                                line = line[:_MAX_LINE_CHARS] + "…(超长行已截断)"
+                            lines.append((path.name, line))
                 except OSError:
                     # 单文件读取失败跳过，不拖垮整体
                     continue

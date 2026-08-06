@@ -20,7 +20,14 @@
 | 切片 | 提交 | 验证 |
 |---|---|---|
 | S1 | `21f9b0e` feat: 增加日志真实源只读 Connector 与配置 | `pytest tests/test_log_source.py -q` → **16 passed, 1 skipped**（符号链接用例因 Windows 无权限跳过） |
-| S2 | 待提交 | `pytest tests/test_log_tools_real.py -q` → **15 passed**；AC7 回归 **28 passed** |
+| S2 | `f1cec9a` feat: 日志工具真实分支与 LogAgent 服务上下文贯通 | `pytest tests/test_log_tools_real.py -q` → **15 passed**；AC7 回归 **28 passed** |
+| Review fix | `(待提交)` 修复 review P2/P3 | 修复后复跑：`test_log_source` + `test_log_tools_real` + `test_log_event_service_id` → **37 passed, 1 skipped** |
+
+## 独立审查
+
+- 审查结论：**PASS**（无 P0/P1），详见 `review.md`。
+- 审查 P2 两项已修复：①单行超长日志截断（`_MAX_LINE_CHARS=8192`，消除死代码 `_MAX_FILE_CHARS`）；②mock 分支回写 `_last_summary`（Trace 脱敏摘要，不改工具输出文案）。
+- 已知限制（P3，保留为已确认设计行为）：日志行时间戳按本地 naive 时间与 `datetime.now()` 比较，跨时区部署的相对时间窗口可能有偏差；mock 回归精确锁定 S1，S2–S4 因 mock 分支与基线逐字一致而风险低。
 
 ## 验证记录
 
