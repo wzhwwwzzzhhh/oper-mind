@@ -23,6 +23,7 @@ _ENV_TO_CONFIG_KEY = {
     "OPERMIND_MONITOR_SAMPLE_INTERVAL_SECONDS": ("monitoring", "sample_interval_seconds"),
     "OPERMIND_MONITOR_RETENTION_HOURS": ("monitoring", "retention_hours"),
     "OPERMIND_MONITOR_QUERY_MAX_HOURS": ("monitoring", "query_max_hours"),
+    "OPERMIND_KNOWLEDGE_DIR": ("knowledge", "directory"),
 }
 
 
@@ -129,6 +130,23 @@ def load_service_dsn(instance_id: str) -> str | None:
     if isinstance(dsn, str) and dsn.strip():
         return dsn
     return None
+
+
+@dataclass(frozen=True)
+class KnowledgeSettings:
+    """受管知识目录配置；未配置时不启用知识检索。"""
+
+    directory: str | None
+
+
+def load_knowledge_settings() -> KnowledgeSettings:
+    """读取受管知识目录；环境变量优先于 YAML，未配置返回 None。"""
+    config = _apply_env_overrides(_load_yaml_config())
+    knowledge = config.get("knowledge") or {}
+    directory = knowledge.get("directory")
+    if not isinstance(directory, str) or not directory.strip():
+        return KnowledgeSettings(directory=None)
+    return KnowledgeSettings(directory=directory.strip())
 
 
 def load_action_mode() -> str:

@@ -9,10 +9,11 @@ from src.core.coordinator import CoordinatorAgent
 from src.agents.db_agent import DBAgent
 from src.agents.server_agent import ServerAgent
 from src.agents.log_agent import LogAgent
+from src.agents.knowledge_agent import KnowledgeAgent
 from src.agents.report_agent import ReportAgent
 from src.core.debate import DebateArena
 from src.core.reflection import ReflectionEngine
-from src.config import load_config
+from src.config import load_config, load_knowledge_settings
 from data.scenarios import set_active_scenario, clear_active_scenario
 
 
@@ -48,6 +49,12 @@ def build_coordinator(llm: LLMClient, service_id: str | None = None, enable_long
     db_agent = DBAgent(llm=llm, service_id=service_id, enable_long_term_memory=enable_long_term_memory)
     server_agent = ServerAgent(llm=llm, enable_long_term_memory=enable_long_term_memory)
     log_agent = LogAgent(llm=llm, enable_long_term_memory=enable_long_term_memory)
+    knowledge_settings = load_knowledge_settings()
+    knowledge_agent = KnowledgeAgent(
+        llm=llm,
+        knowledge_dir=knowledge_settings.directory,
+        enable_long_term_memory=enable_long_term_memory,
+    )
 
     debate = DebateArena(llm=llm)
     reflection = ReflectionEngine(llm=llm)
@@ -62,6 +69,7 @@ def build_coordinator(llm: LLMClient, service_id: str | None = None, enable_long
     coordinator.register_agent("db", db_agent)
     coordinator.register_agent("server", server_agent)
     coordinator.register_agent("log", log_agent)
+    coordinator.register_agent("knowledge", knowledge_agent)
     return coordinator
 
 

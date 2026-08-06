@@ -43,6 +43,7 @@ MAX_REVISION = 2   # Reflection 回退修订上限,防止死循环
 _SQL_KW = ["select", "from", "where", "join", "explain", "sql", "索引", "慢查询", "慢sql"]
 _SERVER_KW = ["cpu", "内存", "磁盘", "进程", "负载", "服务器", "线程", "network", "网络"]
 _LOG_KW = ["日志", "错误", "异常", "报错", "log", "timeout", "超时"]
+_KNOWLEDGE_KW = ["知识库", "知识", "文档", "sop", "手册", "howto", "操作指引", "检索知识", "排障记录"]
 # 全面体检 → 并行;模糊卡慢 → 链式逐层排查
 _PARALLEL_KW = ["体检", "全面", "整体", "健康", "大促", "巡检", "上线前"]
 _CHAIN_KW = ["很慢", "卡", "故障", "排查", "定位", "慢", "不稳定"]
@@ -54,7 +55,8 @@ def _keyword_strategy(user_input: str) -> str:
     is_sql = any(k in text for k in _SQL_KW)
     is_server = any(k in text for k in _SERVER_KW)
     is_log = any(k in text for k in _LOG_KW)
-    hits = sum([is_sql, is_server, is_log])
+    is_knowledge = any(k in text for k in _KNOWLEDGE_KW)
+    hits = sum([is_sql, is_server, is_log, is_knowledge])
 
     if any(k in text for k in _PARALLEL_KW):
         return "parallel"
@@ -64,7 +66,7 @@ def _keyword_strategy(user_input: str) -> str:
 
 
 def _keyword_target(user_input: str) -> str | None:
-    """关键词识别 direct 模式的目标 Agent"""
+    """关键词识别 direct 模式的目标 Agent（db/server/log/knowledge 依次判定）。"""
     text = user_input.lower()
     if any(k in text for k in _SQL_KW):
         return "db"
@@ -72,6 +74,8 @@ def _keyword_target(user_input: str) -> str | None:
         return "server"
     if any(k in text for k in _LOG_KW):
         return "log"
+    if any(k in text for k in _KNOWLEDGE_KW):
+        return "knowledge"
     return None
 
 
@@ -140,14 +144,14 @@ def build_diagnosis_graph(
         if not _is_mock(llm):
             prompt = f"""你是运维诊断调度器。分析用户问题,决定路由策略。
 
-- direct:问题明确指向单个领域(SQL/数据库、CPU/服务器、日志)
+- direct:问题明确指向单个领域(SQL/数据库、CPU/服务器、日志、知识库文档)
 - chain:问题模糊,需要逐层排查(先服务器,再数据库,再日志)
 - parallel:需要全面体检多个维度
 
-领域取值:db(数据库/SQL)、server(服务器/CPU/内存)、log(日志)。
+领域取值:db(数据库/SQL)、server(服务器/CPU/内存)、log(日志)、knowledge(知识库文档检索)。
 用户问题:{query}
 
-只返回 JSON,不要解释,格式:{{"strategy": "direct|chain|parallel", "target": "db|server|log|null"}}"""
+只返回 JSON,不要解释,格式:{{"strategy": "direct|chain|parallel", "target": "db|server|log|knowledge|null"}}"""
             resp = llm.chat([{"role": "user", "content": prompt}], temperature=0.0)
             parsed = _extract_json(resp.get("content", "")) if "error" not in resp else None
             if parsed:
