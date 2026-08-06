@@ -171,7 +171,16 @@ class ToolGateway:
             return _finish("error", json.dumps({"error": msg}, ensure_ascii=False), msg)
 
         # 关 5 + 6：脱敏 + 留痕（在 _finish 内统一完成）
-        return _finish("ok", output, f"调用 {name} 成功")
+        # detail 支持工具可选脱敏审计摘要：工具定义 audit_summary() 则用之，
+        # 否则维持中性文案；对既有工具零影响、向后兼容。摘要同样过脱敏兜底。
+        detail = f"调用 {name} 成功"
+        audit_summary = getattr(tool, "audit_summary", None)
+        if callable(audit_summary):
+            try:
+                detail = str(audit_summary())
+            except Exception:
+                detail = f"调用 {name} 成功"
+        return _finish("ok", output, detail)
 
     def shutdown(self) -> None:
         """释放内部线程池。"""
