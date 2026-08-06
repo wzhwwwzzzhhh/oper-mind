@@ -28,3 +28,4 @@ psycopg[binary]==3.3.4  # PostgreSQL 应用数据库驱动；本地测试仍使�
 
 # ===== 真实诊断数据源（后续接入 MySQL 时启用） =====
 # pymysql>=1.1.0
+redis==8.1.0  # Redis 只读服务 Connector（P6）
