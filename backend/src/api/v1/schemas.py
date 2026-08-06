@@ -406,6 +406,37 @@ class ServiceActivityListResponse(ApiV1Model):
     meta: ResponseMeta
 
 
+class MonitorSampleResource(ApiV1Model):
+    """历史监控样本的安全标量资源。"""
+
+    id: UUID | None = None
+    service_id: str = Field(min_length=1, max_length=64)
+    observed_at: datetime
+    availability: Literal["healthy", "unhealthy", "unavailable", "not_configured"]
+    p50_ms: float | None = Field(default=None, ge=0.0)
+    p95_ms: float | None = Field(default=None, ge=0.0)
+    slow_query_count: int | None = Field(default=None, ge=0)
+    timeout_count: int | None = Field(default=None, ge=0)
+    performance_signal: Literal[
+        "slow_query_detected", "no_slow_query_detected", "insufficient_data", "unavailable", "not_configured"
+    ]
+    source_status: Literal["available", "unavailable", "not_configured"]
+
+
+class MonitorHistoryResponse(ApiV1Model):
+    """历史趋势查询响应。"""
+
+    service_id: str
+    status: Literal["available", "not_sampled", "not_configured", "unavailable"]
+    source: Literal["scheduled_sampling"]
+    sample_interval_seconds: int = Field(ge=30)
+    retention_hours: int = Field(ge=1)
+    from_: datetime = Field(alias="from")
+    to: datetime
+    samples: list[MonitorSampleResource]
+    meta: ResponseMeta
+
+
 class SessionResponse(ApiV1Model):
     """单个会话响应。"""
 

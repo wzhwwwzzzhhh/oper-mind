@@ -6,6 +6,7 @@ Run 主脊执行，Trace 只展示安全摘要，不暴露 CoT。
 """
 
 import logging
+from contextlib import asynccontextmanager
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI, HTTPException, Request
@@ -23,10 +24,30 @@ from src.core.bootstrap import build_coordinator, build_llm
 
 LOGGER = logging.getLogger(__name__)
 
+@asynccontextmanager
+async def _lifespan(application: FastAPI):
+    """管理单进程历史监控采样任务的生命周期。"""
+    sampler = getattr(application.state.v1_services, "monitor_sampler", None)
+    task = None
+    if sampler is not None:
+        import asyncio
+        task = asyncio.create_task(sampler.run_forever())
+    try:
+        yield
+    finally:
+        if task is not None:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+
 app = FastAPI(
     title="OperMind — 会话式多 Agent 运维诊断系统",
     description="在会话中提出运维问题，多 Agent 协作调查并给出安全结论",
     version="1.1.0",
+    lifespan=_lifespan,
 )
 
 # 共享 LLM 客户端（多 Run 间无可变状态，可安全复用）。

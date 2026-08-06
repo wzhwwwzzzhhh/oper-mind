@@ -66,6 +66,20 @@ const service_activity = {
   verification_status: 'verified',
 }
 
+const service_monitor_history = {
+  service_id: 'order-service',
+  status: 'available',
+  source: 'scheduled_sampling',
+  sample_interval_seconds: 300,
+  retention_hours: 24,
+  from: '2026-07-31T02:00:00.000Z',
+  to: '2026-07-31T03:00:00.000Z',
+  samples: [
+    { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1', service_id: 'order-service', observed_at: '2026-07-31T02:00:00.000Z', availability: 'healthy', p50_ms: 82, p95_ms: 210, slow_query_count: 0, timeout_count: 0, performance_signal: 'no_slow_query_detected', source_status: 'available' },
+    { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2', service_id: 'order-service', observed_at: '2026-07-31T02:05:00.000Z', availability: 'unhealthy', p50_ms: 120, p95_ms: 340, slow_query_count: 3, timeout_count: 1, performance_signal: 'slow_query_detected', source_status: 'available' },
+  ],
+}
+
 const session = {
   id: session_id,
   title: 'Nginx 5xx 排查',
@@ -282,6 +296,7 @@ export const api_v1_handlers = [
   })),
   http.get('/api/v1/services', ({ request }) => response(request, { items: [order_service] })),
   http.get('/api/v1/services/order-service', ({ request }) => response(request, { service: order_service })),
+  http.get('/api/v1/services/order-service/monitor/history', ({ request }) => response(request, service_monitor_history)),
   http.get('/api/v1/services/order-service/activities', ({ request }) =>
     response(request, { items: [service_activity], page: { next_cursor: null, has_more: false } }),
   ),
@@ -377,4 +392,4 @@ export const api_v1_contract_scenarios = {
   network_interruption: http.get(/\/api\/v1\/sessions$/, () => HttpResponse.error()),
 }
 
-export const api_v1_contract_fixtures = { accepted_run_id, archived_session_id, cancelled_run_id, empty_result_run_id, failed_run_id, order_service, protocol_error_run_id, run_events, run_id, service_activity, service_run_id, service_session, service_session_id, session_id, trace_id }
+export const api_v1_contract_fixtures = { accepted_run_id, archived_session_id, cancelled_run_id, empty_result_run_id, failed_run_id, order_service, protocol_error_run_id, run_events, run_id, service_activity, service_monitor_history, service_run_id, service_session, service_session_id, session_id, trace_id }

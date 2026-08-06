@@ -36,6 +36,7 @@ BUSINESS_TABLES = {
     "action_verifications",
     "action_events",
     "action_idempotency_keys",
+    "service_monitor_samples",
 }
 EXPECTED_TABLES = BUSINESS_TABLES | {"alembic_version"}
 

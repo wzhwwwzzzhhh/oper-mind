@@ -20,6 +20,9 @@ _ENV_TO_CONFIG_KEY = {
     "OPERMIND_JUDGE_MODEL": ("judge_llm", "model"),
     "OPERMIND_APP_DATABASE_URL": ("persistence", "database_url"),
     "OPERMIND_PG_DSN": ("services", "pg_dsn"),
+    "OPERMIND_MONITOR_SAMPLE_INTERVAL_SECONDS": ("monitoring", "sample_interval_seconds"),
+    "OPERMIND_MONITOR_RETENTION_HOURS": ("monitoring", "retention_hours"),
+    "OPERMIND_MONITOR_QUERY_MAX_HOURS": ("monitoring", "query_max_hours"),
 }
 
 
@@ -126,3 +129,35 @@ def load_service_dsn(instance_id: str) -> str | None:
     if isinstance(dsn, str) and dsn.strip():
         return dsn
     return None
+
+
+@dataclass(frozen=True)
+class MonitorSettings:
+    """历史监控采样与查询窗口配置。"""
+
+    sample_interval_seconds: int = 300
+    retention_hours: int = 24
+    query_max_hours: int = 24
+
+
+def load_monitor_settings() -> MonitorSettings:
+    """读取并校验历史监控配置，环境变量优先于 YAML。"""
+    config = _apply_env_overrides(_load_yaml_config())
+    monitoring = config.get("monitoring") or {}
+    values: dict[str, int] = {}
+    for field_name, lower, upper, default in (
+        ("sample_interval_seconds", 30, 86400, 300),
+        ("retention_hours", 1, 168, 24),
+        ("query_max_hours", 1, 168, 24),
+    ):
+        raw_value = monitoring.get(field_name, default)
+        try:
+            value = int(raw_value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"monitoring.{field_name} 必须是整数。") from exc
+        if not lower <= value <= upper:
+            raise ValueError(f"monitoring.{field_name} 必须在 {lower} 到 {upper} 范围内。")
+        values[field_name] = value
+    if values["query_max_hours"] > values["retention_hours"]:
+        raise ValueError("monitoring.query_max_hours 不能超过 retention_hours。")
+    return MonitorSettings(**values)
