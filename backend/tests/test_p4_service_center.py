@@ -148,5 +148,5 @@ def test_默认装配为每个实例读取各自环境变量(monkeypatch: Any) -
     services = build_v1_services_for_runtime(Runtime(), lambda: object())
     connectors = services.service_center._registry.list_connectors()  # type: ignore[union-attr]
 
-    assert [connector.definition().id for connector in connectors] == ["postgres-production", "postgres-staging"]
-    assert [connector._dsn for connector in connectors] == ["production-secret", "staging-secret"]  # type: ignore[attr-defined]
+    assert [connector.definition().id for connector in connectors] == ["postgres-production", "postgres-staging", "postgres-target"]
+    assert [connector._dsn for connector in connectors] == ["production-secret", "staging-secret", None]  # type: ignore[attr-defined]

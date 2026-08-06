@@ -453,14 +453,16 @@ describe('App', () => {
     await waitFor(() => expect(request_paths).toContain('/api/v1/services/order-service/sessions'))
   })
 
-  it('服务详情读取真实快照，缺失历史趋势时展示诚实空态', async () => {
+  it('服务详情读取真实快照和历史趋势，并标记异常采样点', async () => {
     open_path('/services/order-service')
     render(<App />)
 
     expect(await screen.findByRole('heading', { name: '订单服务靶场' })).toBeInTheDocument()
     expect(screen.getByText('82 ms')).toBeInTheDocument()
     expect(screen.getByText('210 ms')).toBeInTheDocument()
-    expect(screen.getByText('暂无趋势数据')).toBeInTheDocument()
+    expect(screen.getByText('定时采样 · 每 5 分钟 · 保留最近 24 小时 · 历史记录')).toBeInTheDocument()
+    expect(screen.getByText('采样点异常')).toBeInTheDocument()
+    expect(screen.getByText(/慢查询 3/)).toBeInTheDocument()
     expect(screen.queryByText('99.98%')).not.toBeInTheDocument()
   })
 
