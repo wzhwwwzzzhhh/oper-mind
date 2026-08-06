@@ -3,6 +3,7 @@ title: 跨服务联合调查——会话多服务 + 多 Run 聚合
 status: 已确认
 domain: session
 phase: P6
+issue: 27
 updated: 2026-08-06
 ---
 

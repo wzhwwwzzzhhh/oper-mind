@@ -44,10 +44,11 @@ docs/prd/
 | 进行中 | 用户确认 dev-plan 计划后（dev-plan Phase 3 唯一推进点） | 执行 AI（dev-plan Phase 3） | frontmatter + README |
 | 完成 | 工作包交付归档（dev-deliver Phase 7） | 执行 AI | frontmatter + README |
 
-**GitHub Issue 协作（已确认 PRD 建 issue）**：PRD 推进为「已确认」后，PM（prd-reviewing 审查 PASS + 用户确认方向后）用 `gh issue create` 建一个 issue：
-- **title**：PRD 标题；**body**：PRD 内容 + 关联 Design 路径（已有则写，没有则写"开发前需先经 arch-design 出 Design"）+ 关联 PRD 路径。
+**GitHub Issue 协作（已确认 PRD 建 issue）**：PRD 推进为「已确认」（prd-reviewing 审查 PASS + 用户确认方向后）时，先 `gh issue create` 建 issue 拿编号，再在同一次「已确认」双写提交里把编号写回 frontmatter + README——**不为 issue 号单独发 sync 提交**：
+- **title**：PRD 标题；**body**：**PRD 全文**（去掉 YAML frontmatter，从 `# 标题 · PRD` 起的正文逐字复制）+ 顶部一行"关联 PRD：`<路径>`（status/domain/phase/issue）"；已有 Design 则再补一行关联 Design 路径，没有则写"开发前需先经 arch-design 出 Design"。
 - **labels**：域标签（session / service-center / monitor / approval / knowledge）+ 阶段标签（p4/p5/p6）。
-- 建 issue 后，把 issue 编号写回 PRD 文件 frontmatter `issue: <number>`（双写：frontmatter + README）。
+- **写回**：建 issue 后把编号写回 PRD frontmatter `issue: <number>`，随「已确认」的双写一起提交；若 PRD 已先上 main、issue 是历史补建，编号回填留在工作区，随该 PRD **下一次状态变更**的提交一并进 main，不单独 push。
+- **权威与快照**：repo 内 PRD 是唯一权威（版本化、可评审、双写）；issue body 只是创建时的**全文快照**，不承诺与 PRD 逐字同步——PRD 后续变更以 repo 为准，issue 内需要更新时走 comment / 标签，不重写 body。
 - **协作边界**：issue 是协作入口，放需求层（"做成什么样"）；朋友看 issue 开工，从 issue → PRD → Design → workpack 一路链下去。issue 状态与 PRD 状态保持一致（已确认=open，完成=closed），但中间过程（进行中/切片）留在 workpack，不在 issue 里建第二套状态机。
 
 **关键**：任何一次状态推进都必须**同时更新 frontmatter 和 README 两处**，缺一即视为未完成状态登记。dev-deliver 收尾时尤其要确认 PRD frontmatter 也标了 `status: 完成`，不能只改 README。
