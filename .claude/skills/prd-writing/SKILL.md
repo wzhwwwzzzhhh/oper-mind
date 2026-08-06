@@ -33,7 +33,18 @@ docs/prd/
 ```
 - 每个域一个文件夹 + 一个 README 索引（列出该域所有 PRD、状态、关联阶段）。
 - PRD 文件名：`{阶段}-{功能kebab}.md`，如 `P4.2-db-agent-real.md`。
-- 状态推进：草稿 → 已确认 → 进行中 → 完成，记在 PRD 顶部 frontmatter 或 README。
+- **状态双写一致（硬规则）**：PRD 状态流 `草稿 → 已确认 → 进行中 → 完成` 必须同时记录在 **PRD 文件顶部 frontmatter `status`** 和 **`docs/prd/README.md` 索引表**（及所在域 README）两处，两处必须一致，不得只改一处。
+
+## 状态推进责任矩阵（谁在哪个阶段推进哪个状态）
+
+| 状态 | 何时推进 | 谁推进 | 更新位置 |
+|---|---|---|---|
+| 草稿 | PRD 首次写入 | PM（prd-writing） | frontmatter + README |
+| 已确认 | 用户确认 PRD 方向/决策 | PM（prd-reviewing + 用户确认后） | frontmatter + README |
+| 进行中 | 执行 AI 开始开发（dev-plan 建 workpack） | 执行 AI | frontmatter + README |
+| 完成 | 工作包交付归档（dev-deliver Phase 7） | 执行 AI | frontmatter + README |
+
+**关键**：任何一次状态推进都必须**同时更新 frontmatter 和 README 两处**，缺一即视为未完成状态登记。dev-deliver 收尾时尤其要确认 PRD frontmatter 也标了 `status: 完成`，不能只改 README。
 
 ## PRD 模板（必须遵循）
 每份 PRD 含以下小节，顺序固定。缺哪节补哪节，没有的内容明确写"无"。
@@ -114,3 +125,4 @@ updated: <YYYY-MM-DD>
 | 漏写边界，导致执行 AI 自由发挥 | 补"不做什么"与降级策略 |
 | 与既有 Design/PRD 脱节 | 背景里引述关联文档，保持单一事实来源 |
 | PRD 写进实现细节 | 剥离到执行阶段，PRD 只留"做成什么样" |
+| 状态只改 frontmatter 或只改 README | frontmatter 与 README 双写一致，一处状态变更两处同步 |
