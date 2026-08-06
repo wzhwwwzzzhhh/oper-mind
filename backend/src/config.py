@@ -131,6 +131,11 @@ def load_service_dsn(instance_id: str) -> str | None:
     return None
 
 
+def load_action_mode() -> str:
+    """根据受控靶场 DSN 是否配置选择动作模式；默认保持 mock 空态。"""
+    return "target" if load_service_dsn("postgres-target") is not None else "mock"
+
+
 @dataclass(frozen=True)
 class MonitorSettings:
     """历史监控采样与查询窗口配置。"""

@@ -14,12 +14,15 @@ from fastapi import Request
 from src.application.action_services import ActionApplicationService
 from src.application.services import RunApplicationService, SessionApplicationService
 from src.application.service_center import ServiceCenterApplicationService
-from src.config import load_monitor_settings, load_persistence_settings, load_service_dsn
+from src.config import load_action_mode, load_monitor_settings, load_persistence_settings, load_service_dsn
+from src.application.action_execution import ControlledActionExecutor
 from src.domain.services import ServiceRegistry
 from src.infrastructure.diagnosis.coordinator_executor import CoordinatorDiagnosisExecutor
 from src.infrastructure.diagnosis.result_assembler import KernelReportResultAssembler
+from src.infrastructure.diagnosis.postgres_missing_index import PostgresMissingIndexCollector
 from src.infrastructure.persistence.database import PersistenceRuntime, SessionFactory, create_persistence_runtime
 from src.infrastructure.services.postgres_connector import PostgresServiceConnector
+from src.infrastructure.actions.postgres_target_executor import PostgresTargetActionExecutor
 from src.infrastructure.monitoring.sampler import MonitorSampler
 
 
@@ -57,10 +60,17 @@ def build_v1_services_for_runtime(
     """
     session_factory = runtime.session_factory
     monitor_settings = load_monitor_settings()
-    action_service = ActionApplicationService(session_factory, executor=None)
+    action_mode = load_action_mode()
+    action_executor: ControlledActionExecutor | None = (
+        PostgresTargetActionExecutor(load_service_dsn("postgres-target"))
+        if action_mode == "target"
+        else None
+    )
+    action_service = ActionApplicationService(session_factory, executor=action_executor)
     postgres_instances = (
         ("postgres-production", "生产 PostgreSQL 主库"),
         ("postgres-staging", "预发布 PostgreSQL 主库"),
+        ("postgres-target", "受控 PostgreSQL 靶场"),
     )
     registry = ServiceRegistry(
         tuple(
@@ -77,10 +87,13 @@ def build_v1_services_for_runtime(
         session_service=SessionApplicationService(session_factory, registry=registry),
         run_service=RunApplicationService(
             session_factory,
-            CoordinatorDiagnosisExecutor(coordinator_factory),
+            CoordinatorDiagnosisExecutor(
+                coordinator_factory,
+                missing_index_collector=PostgresMissingIndexCollector(load_service_dsn("postgres-target")),
+            ),
             KernelReportResultAssembler(),
             action_service=action_service,
-            action_mode=None,
+            action_mode=action_mode,
         ),
         action_service=action_service,
         service_center=ServiceCenterApplicationService(
