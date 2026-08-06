@@ -22,7 +22,7 @@ def upgrade() -> None:
             batch_op.drop_constraint("session_service_id_valid", type_="check")
             batch_op.create_check_constraint(
                 "session_service_id_valid",
-                "service_id IS NULL OR service_id IN ('postgres-production', 'postgres-staging')",
+                "service_id IS NULL OR service_id IN ('postgres-production', 'postgres-staging', 'postgres-target')",
             )
     finally:
         if connection.dialect.name == "sqlite":
@@ -38,7 +38,7 @@ def downgrade() -> None:
     if connection.scalar(
         sa.text(
             "SELECT COUNT(*) FROM sessions "
-            "WHERE service_id IN ('postgres-production', 'postgres-staging')"
+            "WHERE service_id IN ('postgres-production', 'postgres-staging', 'postgres-target')"
         )
     ):
         raise RuntimeError("无法回滚：sessions 中仍存在 P4.3 服务上下文数据。")

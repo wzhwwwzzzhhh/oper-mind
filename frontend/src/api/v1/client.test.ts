@@ -235,13 +235,13 @@ describe('v1 API 客户端', () => {
       request_id_factory: () => 'service-request-id',
     })
 
-    const service = await client.get_service('order-service')
-    const activities = await client.list_service_activities('order-service', { limit: 20 })
-    const created = await client.create_service_session('order-service')
+    const service = await client.get_service('postgres-production')
+    const activities = await client.list_service_activities('postgres-production', { limit: 20 })
+    const created = await client.create_service_session('postgres-production')
 
-    expect((service.data.service as { id?: unknown }).id).toBe('order-service')
+    expect((service.data.service as { id?: unknown }).id).toBe('postgres-production')
     expect(activities.data.items).toHaveLength(1)
-    expect((created.data.session as { service_id?: unknown }).service_id).toBe('order-service')
+    expect((created.data.session as { service_id?: unknown }).service_id).toBe('postgres-production')
     expect(requests.map((request) => request.method)).toEqual(['GET', 'GET', 'POST'])
     expect(requests[2]?.headers.get('Content-Type')).toBeNull()
   })

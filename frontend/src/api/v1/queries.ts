@@ -13,7 +13,7 @@ import {
   type ListServiceActivitiesQuery,
 } from './client'
 
-  export const api_v1_query_keys = {
+export const api_v1_query_keys = {
   model_config: () => ['api-v1', 'model-config'] as const,
   services: () => ['api-v1', 'services'] as const,
   service: (service_id: string) => ['api-v1', 'service', service_id] as const,

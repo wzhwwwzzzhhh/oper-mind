@@ -450,11 +450,18 @@ describe('App', () => {
     const investigate = await screen.findByRole('button', { name: '发起调查' })
     fireEvent.click(investigate)
 
-    await waitFor(() => expect(request_paths).toContain('/api/v1/services/order-service/sessions'))
+    await waitFor(() => expect(request_paths).toContain('/api/v1/services/postgres-production/sessions'))
+  })
+
+  it('会话页展示服务端返回的真实调查目标服务', async () => {
+    open_path(`/workbench/sessions/${api_v1_contract_fixtures.service_session_id}`)
+    render(<App />)
+
+    expect(await screen.findByLabelText('本次调查目标服务')).toHaveTextContent('订单服务靶场')
   })
 
   it('服务详情读取真实快照和历史趋势，并标记异常采样点', async () => {
-    open_path('/services/order-service')
+    open_path('/services/postgres-production')
     render(<App />)
 
     expect(await screen.findByRole('heading', { name: '订单服务靶场' })).toBeInTheDocument()

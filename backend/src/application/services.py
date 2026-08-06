@@ -44,7 +44,7 @@ from src.domain.records import (
     RunIdempotencyKeyData,
     SessionData,
 )
-from src.domain.services import ServiceRegistry
+from src.domain.services import REGISTERED_SERVICE_IDS, ServiceRegistry
 from src.infrastructure.persistence.database import SessionFactory
 from src.infrastructure.persistence.repositories import (
     SqlAlchemyDiagnosisResultRepository,
@@ -478,12 +478,15 @@ def _stream_with_context(
 def _requires_database_context(query: str) -> bool:
     """识别需要数据库服务上下文的明确调查问题。"""
     lowered = query.lower()
+    database_keywords = (
+        "select", "sql", "explain", "索引", "慢查询", "数据库", "postgres",
+        "连接池", "pg_stat", "schema",
+    )
+    if any(keyword in lowered for keyword in ("日志", "log", "错误", "异常", "报错", "超时")):
+        return any(keyword in lowered for keyword in database_keywords)
     return any(
         keyword in lowered
-        for keyword in (
-            "select", "sql", "explain", "索引", "慢查询", "数据库", "postgres",
-            "查询", "表", "连接池", "pg_stat", "schema",
-        )
+        for keyword in database_keywords + ("查询", "表")
     )
 
 
@@ -516,7 +519,7 @@ def _safe_event_data(event: DiagnosisExecutionEvent) -> dict[str, object]:
     if mode in {"mock", "target"}:
         data["mode"] = mode
     service_id = event.data.get("service_id")
-    if isinstance(service_id, str) and service_id in {"postgres-production", "postgres-staging"}:
+    if isinstance(service_id, str) and service_id in REGISTERED_SERVICE_IDS:
         data["service_id"] = service_id
     return data
 

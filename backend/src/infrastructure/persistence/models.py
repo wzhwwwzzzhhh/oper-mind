@@ -10,6 +10,7 @@ from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, ForeignKey, In
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.domain.diagnosis import MessageRole, RunEventType, RunStatus, SessionStatus
+from src.domain.services import REGISTERED_SERVICE_IDS
 from src.infrastructure.persistence.database import Base
 
 
@@ -28,7 +29,9 @@ class SessionRecord(Base):
             name="session_status_valid",
         ),
         CheckConstraint(
-            "service_id IS NULL OR service_id IN ('postgres-production', 'postgres-staging')",
+            "service_id IS NULL OR service_id IN ("
+            + ", ".join(repr(service_id) for service_id in sorted(REGISTERED_SERVICE_IDS))
+            + ")",
             name="session_service_id_valid",
         ),
         Index("ix_sessions_updated_at_id", "updated_at", "id"),
