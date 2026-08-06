@@ -141,7 +141,7 @@ def test_凭据文件不在检索范围(knowledge_dir: Path) -> None:
     """.env 和 *.local.yaml 等凭据文件不得进入检索候选。"""
     _write(knowledge_dir, ".env", "OPERMIND_PG_DSN=postgresql://user:secret@host/db\n")
     _write(knowledge_dir, "config.local.yaml", "database_url: postgresql://user:secret@host/db\n")
-    _write(knowledge_dir, "secret.md", "# 密钥文档\nOPERMIND_API_KEY=sk-1234567890abcdef\n")
+    _write(knowledge_dir, "secret.md", "# 密钥文档\nOPERMIND_API_KEY=sk-abcdef123456\n")
     tool = SearchKnowledgeTool(directory=str(knowledge_dir))
 
     result = tool.execute("OPERMIND_API_KEY")
