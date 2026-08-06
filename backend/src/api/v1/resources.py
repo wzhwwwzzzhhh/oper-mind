@@ -31,6 +31,7 @@ from src.domain.actions import (
 from src.domain.diagnosis import RunStatus
 from src.domain.records import DiagnosisResultData, DiagnosisRunData, MessageData, RunEventData, SessionData
 from src.domain.services import ServiceActivityData, ServiceViewData
+from src.domain.monitoring import MonitorHistoryData
 
 
 def session_resource(value: SessionData) -> SessionResource:
@@ -225,3 +226,17 @@ def service_activity_resource(value: ServiceActivityData) -> ServiceActivityReso
         proposal_status=value.proposal_status,
         verification_status=value.verification_status,
     )
+
+
+def monitor_history_resource(value: MonitorHistoryData) -> dict[str, object]:
+    """将历史监控领域模型映射为已脱敏 API 字段。"""
+    return {
+        "service_id": value.service_id,
+        "status": value.status.value,
+        "source": value.source,
+        "sample_interval_seconds": value.sample_interval_seconds,
+        "retention_hours": value.retention_hours,
+        "from": value.from_at,
+        "to": value.to_at,
+        "samples": [sample.model_dump() for sample in value.samples],
+    }

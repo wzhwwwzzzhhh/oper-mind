@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime
 from typing import Annotated, TypeVar
 from uuid import UUID
 from urllib.parse import urlparse
@@ -27,6 +28,7 @@ from src.api.v1.resources import (
     action_execution_resource,
     action_proposal_resource,
     message_resource,
+    monitor_history_resource,
     run_event_resource,
     run_resource,
     service_activity_resource,
@@ -48,6 +50,7 @@ from src.api.v1.schemas import (
     ModelConfigResponse,
     ModelConfigResource,
     ModelEndpointResource,
+    MonitorHistoryResponse,
     ResponseMeta,
     RunEventEnvelope,
     RunEventListResponse,
@@ -64,6 +67,7 @@ from src.api.v1.sse import parse_event_sequence, replay_run_events
 from src.application.action_services import DecideActionProposalCommand, RequestActionExecutionCommand
 from src.application.contracts import CreateRunCommand, CreateSessionCommand, UpdateSessionCommand
 from src.application.service_center import CreateServiceSessionCommand, ServiceCenterApplicationService
+from src.application.monitoring import MonitorHistoryApplicationService
 from src.application.errors import (
     ActionProposalInvalidStateError,
     ApplicationError,
@@ -80,7 +84,7 @@ from src.infrastructure.persistence.repositories import (
     SqlAlchemyRunEventRepository,
     SqlAlchemySessionRepository,
 )
-from src.config import load_config
+from src.config import load_config, load_monitor_settings
 
 
 CursorT = TypeVar("CursorT", SessionCursor, MessageCursor, DiagnosisRunCursor, RunEventCursor, ActionEventCursor)
@@ -148,6 +152,20 @@ def _service_center(services: V1Services) -> ServiceCenterApplicationService:
     if services.service_center is None:
         raise ServiceCenterUnavailableError()
     return services.service_center
+
+
+def _monitor_history(services: V1Services) -> MonitorHistoryApplicationService:
+    """读取已装配的静态服务注册表，构造历史查询用例。"""
+    if services.service_registry is None:
+        raise ServiceCenterUnavailableError()
+    settings = load_monitor_settings()
+    return MonitorHistoryApplicationService(
+        session_factory=services.session_factory,
+        registry=services.service_registry,
+        sample_interval_seconds=settings.sample_interval_seconds,
+        retention_hours=settings.retention_hours,
+        query_max_hours=settings.query_max_hours,
+    )
 
 
 def _action_service(services: V1Services):
@@ -331,6 +349,33 @@ def get_service(
     meta = response_meta(request)
     apply_headers(response, meta)
     return ServiceResponse(service=service_resource(value), meta=meta)
+
+
+@router.get("/services/{service_id}/monitor/history", response_model=MonitorHistoryResponse)
+def get_service_monitor_history(
+    service_id: str,
+    request: Request,
+    response: Response,
+    from_: datetime | None = Query(default=None, alias="from"),
+    to: datetime | None = None,
+    hours: int | None = Query(default=None, ge=1),
+    services: V1Services = Depends(get_v1_services),
+) -> MonitorHistoryResponse:
+    """读取静态服务的定时采样历史，不触发目标连接。"""
+    try:
+        value = _monitor_history(services).get_history(service_id, from_at=from_, to_at=to, hours=hours)
+    except ValueError as error:
+        code = str(error)
+        if code == "SERVICE_NOT_FOUND":
+            raise ApiV1Error(404, code, "已注册服务不存在") from error
+        if code in {"WINDOW_CONFLICT", "WINDOW_INVALID", "WINDOW_TOO_LARGE"}:
+            raise ApiV1Error(422, "VALIDATION_ERROR", "请求时间窗口不合法") from error
+        raise ApiV1Error(500, "INTERNAL_ERROR", "服务内部错误，请稍后重试") from error
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    payload = monitor_history_resource(value)
+    payload["meta"] = meta
+    return MonitorHistoryResponse.model_validate(payload)
 
 
 @router.post("/sessions", response_model=SessionResponse, status_code=201)
