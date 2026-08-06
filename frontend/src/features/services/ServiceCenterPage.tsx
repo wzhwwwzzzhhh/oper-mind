@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useRef } from 'react'
 import type { ReactElement } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { api_v1_client } from '../../api/v1/client'
 import { list_services_query } from '../../api/v1/queries'
 import {
+  read_array,
   read_items,
   read_record,
   resource_optional_string,
@@ -47,16 +49,24 @@ function availability_text(availability: unknown): string {
 export function ServiceCenterPage(): ReactElement {
   const navigate = useNavigate()
   const query_client = useQueryClient()
+  const pending_intent = useRef<string | null>(null)
   const services_query = useQuery({ ...list_services_query() })
   const services = services_query.data ? read_items(services_query.data.data) : []
 
   const create_investigation = useMutation({
-    mutationFn: (service_id: string) => api_v1_client.create_service_session(service_id, {}),
+    mutationFn: ({ service_id, intent }: { service_id: string; intent: string | null }) => {
+      pending_intent.current = intent
+      return api_v1_client.create_service_session(service_id, {})
+    },
     onSuccess: async (response) => {
       const session = read_record(response.data.session)
       const session_id = resource_optional_string(session, 'id')
       await query_client.invalidateQueries({ queryKey: ['api-v1', 'sessions'] })
-      if (session_id) navigate(`/workbench/sessions/${encodeURIComponent(session_id)}?intent=orders_slow_query.v1`)
+      const intent = pending_intent.current
+      pending_intent.current = null
+      if (session_id) {
+        navigate(`/workbench/sessions/${encodeURIComponent(session_id)}${intent ? `?intent=${encodeURIComponent(intent)}` : ''}`)
+      }
     },
   })
 
@@ -135,6 +145,9 @@ export function ServiceCenterPage(): ReactElement {
               const snapshot = resource_value(service, 'snapshot')
               const availability = resource_optional_string(snapshot, 'availability')
               const state = availability_state(availability)
+              const investigations = read_array(resource_value(service, 'supported_investigations'))
+              const first_investigation = read_record(investigations[0])
+              const intent = resource_optional_string(first_investigation, 'id') ?? null
               return (
                 <article className="service-row" key={service_id ?? title}>
                   <div className="service-main">
@@ -161,11 +174,12 @@ export function ServiceCenterPage(): ReactElement {
                         <button onClick={() => navigate(`/services/${encodeURIComponent(service_id)}`)} type="button">查看详情</button>
                         <button
                           className="investigate"
-                          disabled={create_investigation.isPending}
-                          onClick={() => create_investigation.mutate(service_id)}
+                          disabled={create_investigation.isPending || intent === null}
+                          onClick={() => create_investigation.mutate({ service_id, intent })}
+                          title={intent === null ? '调查能力未启用' : undefined}
                           type="button"
                         >
-                          发起调查
+                          {intent === null ? '未启用' : '发起调查'}
                         </button>
                       </>
                     )}

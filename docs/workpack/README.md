@@ -22,6 +22,7 @@ docs/workpack/
 |---|---|---|---|---|---|
 | P5 | monitor-trends | 待用户确认计划 | [plan](P5-monitor-trends/plan.md) | 待执行 | 待执行 |
 | P5 | controlled-action-real | 已实现，待交付 | [plan](P5-controlled-action-real/plan.md) | [review](P5-controlled-action-real/review.md) | [evidence](P5-controlled-action-real/evidence.md) |
+| P6 | redis-service-monitor | 待 Review | [plan](P6-redis-service-monitor/plan.md) | [review](P6-redis-service-monitor/review.md) | [evidence](P6-redis-service-monitor/evidence.md) |
 
 ## 已归档
 
