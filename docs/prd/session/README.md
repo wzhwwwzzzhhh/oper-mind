@@ -6,5 +6,5 @@
 | PRD | 主题 | 状态 |
 |---|---|---|
 | [P4.2-db-agent-real.md](P4.2-db-agent-real.md) | 会话 DBAgent 工具接真实 PostgreSQL | 完成 |
-| [P4.3-service-context.md](P4.3-service-context.md) | 会话服务上下文贯通与服务选择 | 已确认 |
+| [P4.3-service-context.md](P4.3-service-context.md) | 会话服务上下文贯通与服务选择 | 完成 |
 | [P6-cross-service-investigation.md](P6-cross-service-investigation.md) | 跨服务联合调查——会话多服务 + 多 Run 聚合 | 已确认 |
