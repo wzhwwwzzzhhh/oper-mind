@@ -80,3 +80,45 @@ def test_未注册服务不会探测外部资源() -> None:
         assert str(error) == "SERVICE_NOT_FOUND"
     else:
         raise AssertionError("未注册服务必须被拒绝")
+
+
+def test_redis样本经历史查询返回专用标量且pg字段为null() -> None:
+    """Redis 历史样本携带专用标量返回，PG 语义字段保持 null。"""
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine, expire_on_commit=False)
+    now = datetime(2026, 8, 5, 12, tzinfo=timezone.utc)
+    sample = ServiceMonitorSampleData(
+        service_id="redis-production",
+        observed_at=now,
+        availability=ServiceAvailability.HEALTHY,
+        memory_bytes=2048,
+        client_connections=4,
+        slowlog_count=1,
+        performance_signal=PerformanceSignal.SLOW_QUERY_DETECTED,
+        source_status=ServiceSourceStatus.AVAILABLE,
+    )
+    with session_factory() as session:
+        SqlAlchemyMonitorSampleRepository(session).add(sample)
+        session.commit()
+
+    service = MonitorHistoryApplicationService(
+        session_factory=session_factory,
+        registry=_Registry(("redis-production",)),
+        sample_interval_seconds=300,
+        retention_hours=24,
+        query_max_hours=24,
+    )
+
+    result = service.get_history("redis-production", from_at=now - timedelta(hours=1), to_at=now + timedelta(minutes=1))
+
+    assert result.status.value == "available"
+    assert len(result.samples) == 1
+    item = result.samples[0]
+    assert item.memory_bytes == 2048
+    assert item.client_connections == 4
+    assert item.slowlog_count == 1
+    assert item.p50_ms is None
+    assert item.p95_ms is None
+    assert item.slow_query_count is None
+    assert item.timeout_count is None
