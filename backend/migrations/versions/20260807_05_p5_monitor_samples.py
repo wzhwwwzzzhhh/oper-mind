@@ -7,7 +7,7 @@ import sqlalchemy as sa
 
 
 revision = "20260807_05_p5_monitor_samples"
-down_revision = "20260806_04_p43_service_context"
+down_revision = "20260802_04_p2_tool_invoked"
 branch_labels = None
 depends_on = None
 
