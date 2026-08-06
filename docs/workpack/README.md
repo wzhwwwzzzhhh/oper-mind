@@ -20,7 +20,6 @@ docs/workpack/
 
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
-| P6 | knowledge-retrieval | 待用户确认计划 | [plan](P6-knowledge-retrieval/plan.md) | 待执行 | 待执行 |
 | P5 | monitor-trends | 待用户确认计划 | [plan](P5-monitor-trends/plan.md) | 待执行 | 待执行 |
 | P5 | controlled-action-real | 已实现，待交付 | [plan](P5-controlled-action-real/plan.md) | [review](P5-controlled-action-real/review.md) | [evidence](P5-controlled-action-real/evidence.md) |
 
@@ -33,6 +32,7 @@ docs/workpack/
 | P4.3 | service-context | #19 | 2026-08-06 |
 | P4.4 | service-instances | — | 2026-08-05 |
 | P6 | redis-service-monitor | #18 | 2026-08-06 |
+| P6 | knowledge-retrieval | #24 | 2026-08-06 |
 
 ## 规则
 - `plan.md` 必须经用户确认后才进入 `dev-execute`；`review.md` 必须 PASS 才能进入 `dev-deliver`。
