@@ -25,7 +25,7 @@
 | P4.4 | 服务中心多服务实例接入 | `service-center/P4.4-service-instances.md` | 完成 |
 | P5 | 服务监控历史趋势与页面内告警 | `monitor/P5-monitor-trends.md` | 已确认 |
 | P5 | 受控动作闭环变真——联合索引重建 | `approval/P5-controlled-action-real.md` | 完成 |
-| P6 | 知识库——目录内 Markdown 确定性检索 | `knowledge/P6-knowledge-retrieval.md` | 草稿 |
+| P6 | 知识库——目录内 Markdown 确定性检索 | `knowledge/P6-knowledge-retrieval.md` | 已确认 |
 | P4 | 服务中心快照变真（已交付，非本目录 PRD） | — | 完成 |
 
 ## 执行 AI 如何使用
