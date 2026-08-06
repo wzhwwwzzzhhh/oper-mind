@@ -21,7 +21,7 @@
 |---|---|---|
 | S1 | `21f9b0e` feat: 增加日志真实源只读 Connector 与配置 | `pytest tests/test_log_source.py -q` → **16 passed, 1 skipped**（符号链接用例因 Windows 无权限跳过） |
 | S2 | `f1cec9a` feat: 日志工具真实分支与 LogAgent 服务上下文贯通 | `pytest tests/test_log_tools_real.py -q` → **15 passed**；AC7 回归 **28 passed** |
-| Review fix | `(待提交)` 修复 review P2/P3 | 修复后复跑：`test_log_source` + `test_log_tools_real` + `test_log_event_service_id` → **37 passed, 1 skipped** |
+| Review fix | `a12c94a` fix: 日志源单行限长与 mock 摘要，回填独立审查 | 修复后复跑：`test_log_source` + `test_log_tools_real` + `test_log_event_service_id` → **37 passed, 1 skipped** |
 
 ## 独立审查
 
