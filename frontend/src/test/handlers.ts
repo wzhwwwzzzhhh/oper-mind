@@ -80,6 +80,46 @@ const service_monitor_history = {
   ],
 }
 
+const redis_service = {
+  id: 'redis-production',
+  title: '生产 Redis 缓存',
+  kind: 'redis',
+  supported_investigations: [],
+  action_boundary: '只读监控，不执行任何写入、配置变更或键空间访问。',
+  snapshot: {
+    observed_at: '2026-08-06T03:00:00.000Z',
+    mode: 'target',
+    availability: 'healthy',
+    performance_signal: 'no_slow_query_detected',
+    server_metrics: {
+      source_status: 'available',
+      window_size: null,
+      p50_ms: null,
+      p95_ms: null,
+      slow_query_count: null,
+      timeout_count: null,
+      memory_bytes: 8388608,
+      client_connections: 12,
+      slowlog_count: 0,
+    },
+    database: { source_status: 'available', signal: 'no_slow_query_detected' },
+  },
+}
+
+const redis_monitor_history = {
+  service_id: 'redis-production',
+  status: 'available',
+  source: 'scheduled_sampling',
+  sample_interval_seconds: 300,
+  retention_hours: 24,
+  from: '2026-08-06T02:00:00.000Z',
+  to: '2026-08-06T03:00:00.000Z',
+  samples: [
+    { id: 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1', service_id: 'redis-production', observed_at: '2026-08-06T02:00:00.000Z', availability: 'healthy', p50_ms: null, p95_ms: null, slow_query_count: null, timeout_count: null, memory_bytes: 8388608, client_connections: 12, slowlog_count: 0, performance_signal: 'no_slow_query_detected', source_status: 'available' },
+    { id: 'dddddddd-dddd-4ddd-8ddd-ddddddddddd2', service_id: 'redis-production', observed_at: '2026-08-06T02:05:00.000Z', availability: 'healthy', p50_ms: null, p95_ms: null, slow_query_count: null, timeout_count: null, memory_bytes: 12582912, client_connections: 15, slowlog_count: 3, performance_signal: 'slow_query_detected', source_status: 'available' },
+  ],
+}
+
 const session = {
   id: session_id,
   title: 'Nginx 5xx 排查',
@@ -300,6 +340,13 @@ export const api_v1_handlers = [
   http.get('/api/v1/services/postgres-production/activities', ({ request }) =>
     response(request, { items: [service_activity], page: { next_cursor: null, has_more: false } }),
   ),
+  http.get('/api/v1/services/order-service', ({ request }) => response(request, { service: order_service })),
+  http.get('/api/v1/services/order-service/monitor/history', ({ request }) => response(request, service_monitor_history)),
+  http.get('/api/v1/services/redis-production', ({ request }) => response(request, { service: redis_service })),
+  http.get('/api/v1/services/redis-production/monitor/history', ({ request }) => response(request, redis_monitor_history)),
+  http.get('/api/v1/services/redis-production/activities', ({ request }) =>
+    response(request, { items: [], page: { next_cursor: null, has_more: false } }),
+  ),
   http.post('/api/v1/services/postgres-production/sessions', ({ request }) =>
     response(request, { session: service_session }, 201),
   ),
@@ -392,4 +439,4 @@ export const api_v1_contract_scenarios = {
   network_interruption: http.get(/\/api\/v1\/sessions$/, () => HttpResponse.error()),
 }
 
-export const api_v1_contract_fixtures = { accepted_run_id, archived_session_id, cancelled_run_id, empty_result_run_id, failed_run_id, order_service, protocol_error_run_id, run_events, run_id, service_activity, service_monitor_history, service_run_id, service_session, service_session_id, session_id, trace_id }
+export const api_v1_contract_fixtures = { accepted_run_id, archived_session_id, cancelled_run_id, empty_result_run_id, failed_run_id, order_service, protocol_error_run_id, redis_monitor_history, redis_service, run_events, run_id, service_activity, service_monitor_history, service_run_id, service_session, service_session_id, session_id, trace_id }

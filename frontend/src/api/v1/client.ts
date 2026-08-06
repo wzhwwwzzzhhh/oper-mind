@@ -35,6 +35,9 @@ export interface MonitorSampleResource {
   p95_ms: number | null
   slow_query_count: number | null
   timeout_count: number | null
+  memory_bytes: number | null
+  client_connections: number | null
+  slowlog_count: number | null
   performance_signal: string
   source_status: 'available' | 'unavailable' | 'not_configured'
 }

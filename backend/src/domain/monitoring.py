@@ -42,6 +42,9 @@ class ServiceMonitorSampleData(MonitorDomainModel):
     p95_ms: float | None = Field(default=None, ge=0.0)
     slow_query_count: int | None = Field(default=None, ge=0)
     timeout_count: int | None = Field(default=None, ge=0)
+    memory_bytes: int | None = Field(default=None, ge=0)
+    client_connections: int | None = Field(default=None, ge=0)
+    slowlog_count: int | None = Field(default=None, ge=0)
     performance_signal: PerformanceSignal
     source_status: ServiceSourceStatus
 
@@ -65,6 +68,9 @@ class ServiceMonitorSampleData(MonitorDomainModel):
             p95_ms=metrics.p95_ms,
             slow_query_count=metrics.slow_query_count,
             timeout_count=metrics.timeout_count,
+            memory_bytes=metrics.memory_bytes,
+            client_connections=metrics.client_connections,
+            slowlog_count=metrics.slowlog_count,
             performance_signal=snapshot.performance_signal,
             source_status=metrics.source_status,
         )

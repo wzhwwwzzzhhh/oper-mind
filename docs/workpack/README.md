@@ -30,6 +30,7 @@ docs/workpack/
 | P4.2 | db-agent-real | #1 | 2026-08-05 |
 | P4.3 | model-settings-real | #2 | 2026-08-05 |
 | P4.4 | service-instances | — | 2026-08-05 |
+| P6 | redis-service-monitor | #18 | 2026-08-06 |
 
 ## 规则
 - `plan.md` 必须经用户确认后才进入 `dev-execute`；`review.md` 必须 PASS 才能进入 `dev-deliver`。

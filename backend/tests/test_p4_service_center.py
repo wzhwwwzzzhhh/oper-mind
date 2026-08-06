@@ -141,6 +141,7 @@ def test_默认装配为每个实例读取各自环境变量(monkeypatch: Any) -
     """默认 v1 装配不会把一个实例的 DSN 复用到另一个实例。"""
     monkeypatch.setenv("OPERMIND_SERVICE_POSTGRES_PRODUCTION_DSN", "production-secret")
     monkeypatch.setenv("OPERMIND_SERVICE_POSTGRES_STAGING_DSN", "staging-secret")
+    monkeypatch.delenv("OPERMIND_SERVICE_REDIS_PRODUCTION_DSN", raising=False)
 
     class Runtime:
         session_factory = _unused_session_factory
@@ -148,5 +149,10 @@ def test_默认装配为每个实例读取各自环境变量(monkeypatch: Any) -
     services = build_v1_services_for_runtime(Runtime(), lambda: object())
     connectors = services.service_center._registry.list_connectors()  # type: ignore[union-attr]
 
-    assert [connector.definition().id for connector in connectors] == ["postgres-production", "postgres-staging", "postgres-target"]
-    assert [connector._dsn for connector in connectors] == ["production-secret", "staging-secret", None]  # type: ignore[attr-defined]
+    assert [connector.definition().id for connector in connectors] == [
+        "postgres-production",
+        "postgres-staging",
+        "postgres-target",
+        "redis-production",
+    ]
+    assert [connector._dsn for connector in connectors] == ["production-secret", "staging-secret", None, None]  # type: ignore[attr-defined]

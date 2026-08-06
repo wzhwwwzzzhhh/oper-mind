@@ -542,4 +542,59 @@ describe('App', () => {
     expect(screen.getByText('1 个已配置')).toBeInTheDocument()
   })
 
+  it('服务中心列表展示 Redis 实例并对无调查服务诚实标注未启用', async () => {
+    server.use(
+      http.get('/api/v1/services', ({ request }) =>
+        response(request, { items: [api_v1_contract_fixtures.order_service, api_v1_contract_fixtures.redis_service] }),
+      ),
+    )
+    open_path('/services')
+    render(<App />)
+
+    expect(await screen.findByText('生产 Redis 缓存')).toBeInTheDocument()
+    expect(screen.getByText('Redis · 已接入')).toBeInTheDocument()
+    const redis_investigate = screen.getByRole('button', { name: '未启用' })
+    expect(redis_investigate).toBeDisabled()
+    expect(screen.getByRole('button', { name: '发起调查' })).toBeEnabled()
+  })
+
+  it('Redis 服务详情展示专用指标且不冒充数据库延迟', async () => {
+    open_path('/services/redis-production')
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: '生产 Redis 缓存' })).toBeInTheDocument()
+    expect(screen.getAllByText('内存占用').length).toBeGreaterThan(0)
+    expect(screen.getByText('8.0 MB')).toBeInTheDocument()
+    expect(screen.getByText('客户端连接')).toBeInTheDocument()
+    expect(screen.getByText('12 个')).toBeInTheDocument()
+    expect(screen.getByText('定时采样 · 每 5 分钟 · 保留最近 24 小时 · 历史记录')).toBeInTheDocument()
+    expect(screen.getByText('采样点异常')).toBeInTheDocument()
+    expect(screen.getByText(/慢日志 3/)).toBeInTheDocument()
+    expect(screen.queryByText('P50 延迟')).not.toBeInTheDocument()
+    expect(screen.queryByText('P95 延迟')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '调查未启用' })).toBeDisabled()
+  })
+
+  it('Redis 未配置实例详情显示未配置且指标为空', async () => {
+    const not_configured_redis = {
+      ...api_v1_contract_fixtures.redis_service,
+      snapshot: {
+        ...api_v1_contract_fixtures.redis_service.snapshot,
+        availability: 'not_configured',
+        mode: 'disabled',
+        performance_signal: 'not_configured',
+        server_metrics: { source_status: 'not_configured' },
+        database: { source_status: 'not_configured', signal: 'not_configured' },
+      },
+    }
+    server.use(
+      http.get('/api/v1/services/redis-production', ({ request }) => response(request, { service: not_configured_redis })),
+    )
+    open_path('/services/redis-production')
+    render(<App />)
+
+    expect((await screen.findAllByText('未配置')).length).toBeGreaterThan(0)
+    expect(screen.getByText('服务状态：未配置')).toBeInTheDocument()
+  })
+
 })
