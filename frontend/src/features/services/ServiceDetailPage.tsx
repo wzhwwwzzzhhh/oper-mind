@@ -4,7 +4,7 @@ import type { ReactElement } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { api_v1_client } from '../../api/v1/client'
-import { get_service_query, list_service_activities_query } from '../../api/v1/queries'
+import { get_service_monitor_history_query, get_service_query, list_service_activities_query } from '../../api/v1/queries'
 import {
   read_items,
   read_record,
@@ -72,6 +72,17 @@ function activity_state(value: unknown): string {
   return '—'
 }
 
+function monitor_status_label(value: unknown): string {
+  if (value === 'available') return '有历史样本'
+  if (value === 'not_configured') return '未配置'
+  if (value === 'unavailable') return '采样不可用'
+  return '暂无历史采样'
+}
+
+function monitor_value(value: unknown, suffix = ''): string {
+  return typeof value === 'number' && Number.isFinite(value) ? `${value}${suffix}` : '—'
+}
+
 /** 单服务详情页：只展示后端真实服务快照，缺失数据保持诚实空态。 */
 export function ServiceDetailPage(): ReactElement {
   const navigate = useNavigate()
@@ -80,6 +91,7 @@ export function ServiceDetailPage(): ReactElement {
   const id = service_id ?? ''
   const service_query = useQuery({ ...get_service_query(id), enabled: Boolean(id) })
   const activities_query = useQuery({ ...list_service_activities_query(id), enabled: Boolean(id) })
+  const monitor_query = useQuery({ ...get_service_monitor_history_query(id), enabled: Boolean(id) })
   const [notice, set_notice] = useState<string | null>(null)
 
   const service_response = service_query.data ? read_record(service_query.data.data) : undefined
@@ -146,7 +158,7 @@ export function ServiceDetailPage(): ReactElement {
           </div>
         </div>
         <div className="svc-detail-actions">
-          <button className="svc-detail-button" onClick={() => { void service_query.refetch(); void activities_query.refetch(); set_notice('已请求刷新服务快照。') }} type="button">重新检查</button>
+          <button className="svc-detail-button" onClick={() => { void service_query.refetch(); void activities_query.refetch(); void monitor_query.refetch(); set_notice('已请求刷新服务快照。') }} type="button">重新检查</button>
           <button className="svc-detail-button primary" disabled={create_investigation.isPending} onClick={() => create_investigation.mutate()} type="button">{create_investigation.isPending ? '创建中…' : '发起调查'}</button>
         </div>
       </section>
@@ -179,8 +191,16 @@ export function ServiceDetailPage(): ReactElement {
 
       <div className="svc-detail-two-col">
         <section className="svc-detail-card">
-          <div className="svc-detail-card-head"><div><h3>运行趋势</h3><p>当前接口未提供历史趋势数据。</p></div></div>
-          <div className="svc-detail-chart-empty"><span>⌁</span><strong>暂无趋势数据</strong><p>后续接入历史监控接口后，这里展示延迟、慢查询和可用性趋势。</p></div>
+          <div className="svc-detail-card-head"><div><h3>运行趋势</h3><p>定时采样 · 每 5 分钟 · 保留最近 24 小时 · 历史记录</p></div></div>
+          {monitor_query.isPending && <div className="svc-detail-chart-empty"><strong>正在读取历史采样…</strong></div>}
+          {monitor_query.isError && <div className="svc-detail-chart-empty"><strong>暂时无法读取历史采样</strong><p>接口不可用时不展示示例趋势。</p></div>}
+          {monitor_query.isSuccess && (() => {
+            const history = monitor_query.data.data
+            const samples = Array.isArray(history.samples) ? history.samples : []
+            const anomalies = samples.filter((item, index) => (item.slow_query_count ?? 0) > 0 || (item.timeout_count ?? 0) > 0 || (index > 0 && item.availability !== samples[index - 1].availability))
+            if (samples.length === 0) return <div className="svc-detail-chart-empty"><span>⌁</span><strong>暂无历史采样</strong><p>{monitor_status_label(history.status)}，不会绘制假趋势线。</p></div>
+             return <div className="svc-detail-chart"><div className="svc-detail-chart-legend"><span>p95 延迟</span><span>慢查询 / 超时</span></div><div className="svc-detail-chart-track">{samples.map((item) => <div className={`svc-detail-chart-point ${anomalies.includes(item) ? 'anomaly' : ''}`} key={item.id ?? item.observed_at} title={`${display_time(item.observed_at)} · ${monitor_value(item.p95_ms, ' ms')}`}><i style={{ height: `${Math.min(100, Math.max(8, (item.p95_ms ?? 0) / 4))}%` }} /></div>)}</div><div className="svc-detail-chart-axis"><span>{display_time(samples[0].observed_at)}</span><span>{display_time(samples[samples.length - 1].observed_at)}</span></div>{anomalies.length > 0 && <div className="svc-detail-anomalies"><strong>采样点异常</strong>{anomalies.slice(-5).map((item) => <span key={item.id ?? item.observed_at}>{display_time(item.observed_at)} · {(item.slow_query_count ?? 0) > 0 ? `慢查询 ${item.slow_query_count}` : ''}{(item.timeout_count ?? 0) > 0 ? ` 超时 ${item.timeout_count}` : ''}</span>)}</div>}</div>
+          })()}
         </section>
         <section className="svc-detail-card">
           <div className="svc-detail-card-head"><div><h3>当前关注</h3><p>由当前快照和活动摘要形成。</p></div></div>

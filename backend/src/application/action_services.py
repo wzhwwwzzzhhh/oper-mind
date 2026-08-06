@@ -43,6 +43,7 @@ from src.domain.actions import (
     ActionProposalStatus,
     ActionVerificationData,
     ActionVerificationStatus,
+    action_digest,
 )
 from src.domain.diagnosis import RunStatus
 from src.domain.records import DiagnosisResultData, DiagnosisRunData, RepositoryPage
@@ -60,6 +61,17 @@ from src.infrastructure.persistence.database import SessionFactory
 TransactionT = TypeVar("TransactionT")
 ACTION_IDEMPOTENCY_RETENTION = timedelta(hours=24)
 ActionDecision = Literal["approve", "reject"]
+COMPOUND_INDEX_ACTION_ID = "postgres.orders_compound_index_rebuild.v1"
+TARGET_SERVICE_ID = "postgres-target"
+TARGET_SCHEMA = "public"
+TARGET_TABLE = "orders"
+TARGET_COLUMNS = ("customer_id", "created_at")
+TARGET_INDEX_NAME = "idx_orders_customer_created_at"
+COMPOUND_INDEX_VERIFICATION_PLAN = [
+    "确认受控靶场目标表存在",
+    "确认固定联合索引存在且有效",
+    "只读执行计划确认固定索引可用",
+]
 
 
 class DecideActionProposalCommand(BaseModel):
@@ -114,13 +126,51 @@ class ActionApplicationService:
         result: DiagnosisResultData,
         mode: Literal["mock", "target"] | None,
     ) -> ActionProposalData | None:
-        """与成功 Result 同事务生成 Proposal，避免建议与执行权漂移。
-
-        当前尚无已注册的具体动作模板，因此始终不生成提案；审批闭环骨架
-        保留待用。后续按服务类型和动作模板完成 Design/Review/用户确认后，
-        在此依据结构化 Result 生成对应的受控提案。
-        """
-        return None
+        """仅根据已持久化的固定缺索引事实生成不可编辑提案。"""
+        if mode != "target":
+            return None
+        signal = _missing_index_signal(result)
+        if signal is None:
+            return None
+        evidence_ids = _evidence_ids(result, signal)
+        root_cause_id = _root_cause_id(result, evidence_ids, signal)
+        if root_cause_id is None or len(evidence_ids) < 3:
+            return None
+        target = {
+            "service_id": TARGET_SERVICE_ID,
+            "schema": TARGET_SCHEMA,
+            "table": TARGET_TABLE,
+            "columns": ",".join(TARGET_COLUMNS),
+            "index_name": TARGET_INDEX_NAME,
+        }
+        proposal = ActionProposalData(
+            source_run_id=run.id,
+            action_id=COMPOUND_INDEX_ACTION_ID,
+            action_digest=action_digest(
+                action_id=COMPOUND_INDEX_ACTION_ID,
+                source_run_id=run.id,
+                root_cause_id=root_cause_id,
+                evidence_ids=evidence_ids,
+                target=target,
+                verification_plan=COMPOUND_INDEX_VERIFICATION_PLAN,
+            ),
+            mode="target",
+            title="重建受控靶场联合索引",
+            description="只对受控靶场固定目标执行代码内联合索引动作。",
+            target=target,
+            root_cause_id=root_cause_id,
+            evidence_ids=evidence_ids,
+            risk_summary="这是受控靶场结构变更；生产和预发布实例不会执行。",
+            verification_plan=COMPOUND_INDEX_VERIFICATION_PLAN,
+        )
+        SqlAlchemyActionProposalRepository(session).add(proposal)
+        self._append_event_in_transaction(
+            session,
+            proposal.id,
+            ActionEventType.PROPOSAL_CREATED,
+            {"action_id": proposal.action_id, "status": proposal.status.value, "mode": proposal.mode, "summary": "已生成受控靶场固定动作提案。"},
+        )
+        return proposal
 
     def get_by_run(self, run_id: UUID) -> ActionProposalDetail | None:
         """按来源 Run 读取提案快照；无提案并非错误。"""
@@ -734,6 +784,75 @@ def _safe_action_event_data(data: dict[str, object]) -> dict[str, object]:
     if isinstance(summary, str) and 0 < len(summary) <= 500:
         safe["summary"] = summary
     return safe
+
+
+def _missing_index_signal(result: DiagnosisResultData) -> dict[str, object] | None:
+    """读取并严格匹配结果中的固定缺索引信号。"""
+    for root_cause in result.root_causes:
+        raw = root_cause.get("missing_index")
+        if not isinstance(raw, dict):
+            continue
+        if (
+            raw.get("service_id") == TARGET_SERVICE_ID
+            and raw.get("schema") == TARGET_SCHEMA
+            and raw.get("table") == TARGET_TABLE
+            and raw.get("columns") == list(TARGET_COLUMNS)
+            and raw.get("index_name") == TARGET_INDEX_NAME
+        ):
+            return raw
+    return None
+
+
+def _evidence_ids(result: DiagnosisResultData, signal: dict[str, object]) -> list[UUID]:
+    """只读取拥有匹配信号的根因所引用的合法证据 ID。"""
+    evidence_by_id = {
+        item.get("id"): item for item in result.evidence if isinstance(item.get("id"), str)
+    }
+    for root_cause in result.root_causes:
+        if root_cause.get("missing_index") != signal:
+            continue
+        raw_ids = root_cause.get("evidence_ids")
+        if not isinstance(raw_ids, list):
+            return []
+        ids: list[UUID] = []
+        for raw_id in raw_ids:
+            if not isinstance(raw_id, str) or raw_id not in evidence_by_id:
+                return []
+            try:
+                ids.append(UUID(raw_id))
+            except ValueError:
+                return []
+        return ids[:8]
+    return []
+
+
+def _root_cause_id(
+    result: DiagnosisResultData,
+    evidence_ids: list[UUID],
+    signal: dict[str, object],
+) -> UUID | None:
+    """读取绑定缺索引信号与证据的根因 UUID。"""
+    allowed_evidence = set(evidence_ids)
+    for item in result.root_causes:
+        if item.get("missing_index") != signal:
+            continue
+        raw_evidence_ids = item.get("evidence_ids")
+        if not isinstance(raw_evidence_ids, list):
+            continue
+        try:
+            linked = {UUID(value) for value in raw_evidence_ids if isinstance(value, str)}
+        except ValueError:
+            continue
+        if not linked or not linked.issubset(allowed_evidence):
+            continue
+        raw_id = item.get("id")
+        if not isinstance(raw_id, str):
+            continue
+        try:
+            return UUID(raw_id)
+        except ValueError:
+            continue
+    return None
 
 
 def _fingerprint(payload: object) -> str:

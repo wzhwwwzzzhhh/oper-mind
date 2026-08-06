@@ -44,6 +44,18 @@ class EvidenceFact(EvidenceModel):
         return value
 
 
+class MissingIndexSignal(EvidenceModel):
+    """由只读数据库事实收敛出的缺索引信号。"""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    service_id: str = Field(min_length=1, max_length=64)
+    schema_name: str = Field(alias="schema", min_length=1, max_length=63)
+    table: str = Field(min_length=1, max_length=63)
+    columns: tuple[str, ...] = Field(min_length=1, max_length=8)
+    index_name: str = Field(min_length=1, max_length=63)
+
+
 class RootCauseFact(EvidenceModel):
     """由确定性规则得出的根因或高风险线索。"""
 
@@ -52,6 +64,7 @@ class RootCauseFact(EvidenceModel):
     summary: str = Field(min_length=1, max_length=500)
     confidence: float = Field(ge=0.0, le=1.0)
     evidence_ids: list[UUID] = Field(default_factory=list)
+    missing_index: MissingIndexSignal | None = None
 
 
 class RiskFact(EvidenceModel):
@@ -80,5 +93,6 @@ class EvidenceInvestigationResult(EvidenceModel):
     confidence: float = Field(ge=0.0, le=1.0)
     root_causes: list[RootCauseFact] = Field(default_factory=list)
     evidence: list[EvidenceFact] = Field(default_factory=list)
+    missing_index: MissingIndexSignal | None = None
     risks: list[RiskFact] = Field(default_factory=list)
     agent_summary: list[AgentInvestigationSummary] = Field(default_factory=list)

@@ -186,6 +186,7 @@ def test_alembic_upgrade_head_仅创建迁移版本元数据(tmp_path: Path) -> 
             "action_verifications",
             "action_events",
             "action_idempotency_keys",
+            "service_monitor_samples",
         }
     finally:
         engine.dispose()

@@ -15,6 +15,7 @@ from src.application.contracts import (
 )
 from src.core.coordinator import CoordinatorAgent
 from src.domain.diagnosis import RunEventType
+from src.infrastructure.diagnosis.postgres_missing_index import PostgresMissingIndexCollector
 
 
 class CoordinatorDiagnosisExecutor(DiagnosisExecutor):
@@ -24,8 +25,13 @@ class CoordinatorDiagnosisExecutor(DiagnosisExecutor):
     不复用单例，避免 short_term/thinking 等实例级可变状态跨 Run 相互踩踏。
     """
 
-    def __init__(self, coordinator_factory: Callable[[], CoordinatorAgent]) -> None:
+    def __init__(
+        self,
+        coordinator_factory: Callable[[], CoordinatorAgent],
+        missing_index_collector: PostgresMissingIndexCollector | None = None,
+    ) -> None:
         self._coordinator_factory = coordinator_factory
+        self._missing_index_collector = missing_index_collector
 
     def stream(self, query: str, service_id: str | None = None) -> Iterator[DiagnosisExecutionEvent | DiagnosisExecutionResult]:
         """转发受控事件，并将执行错误转换为安全应用错误。"""
@@ -49,6 +55,11 @@ class CoordinatorDiagnosisExecutor(DiagnosisExecutor):
                 yield DiagnosisExecutionResult(
                     strategy=_safe_strategy(item.get("strategy")),
                     report=_safe_report(item.get("result")),
+                    evidence_investigation=(
+                        self._missing_index_collector.collect(service_id, query)
+                        if self._missing_index_collector is not None
+                        else None
+                    ),
                 )
             else:
                 raise DiagnosisExecutionError(code=item["code"], message=item["message"])

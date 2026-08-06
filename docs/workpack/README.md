@@ -18,7 +18,10 @@ docs/workpack/
 
 ## 活跃工作包
 
-（暂无 —— 当前无进行中的工作包）
+| 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
+|---|---|---|---|---|---|
+| P5 | monitor-trends | 待用户确认计划 | [plan](P5-monitor-trends/plan.md) | 待执行 | 待执行 |
+| P5 | controlled-action-real | 已实现，待交付 | [plan](P5-controlled-action-real/plan.md) | [review](P5-controlled-action-real/review.md) | [evidence](P5-controlled-action-real/evidence.md) |
 
 ## 已归档
 

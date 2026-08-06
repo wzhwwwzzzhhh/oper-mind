@@ -63,19 +63,23 @@ docs/workpack/
 - <按切片规划提交信息，<类型>: <中文描述>>
 ```
 
-### Phase 2 切分支
+### Phase 2 切分支（worktree 化，多 Agent 并发的硬闸门）
 - **这是进入 `dev-execute` 的硬闸门**：没有本工作包专用分支，不得开发、测试后提交或进入交付。
-- 默认基于 `main` 拉分支：`<类型>/<切片>`；若用户明确指定其他基线，必须记录基线和理由。
-- 建分支前先 `git status --short --branch`。工作区干净时直接建分支。
-- 工作区已有改动时，不得用 `stash`、`reset`、`checkout`、`clean` 覆盖或清理；先列出既有改动清单。
-- 若已有改动属于本工作包：在当前状态创建专用分支，保留改动，随后逐文件核对。
-- 若已有改动混合了其他任务：必须建立「隔离提交清单」，逐文件或逐代码块核对；不得使用 `git add .`，不得把混合文件未经核对直接提交。
-- 分支创建结果必须写入 `plan.md`。
+- **每个工作包在独立 worktree 里开发**，与主仓库工作区彻底隔离：
+  - 开发基地目录：仓库外固定位置 `D:/market-handsome/oper-mind-worktrees/`（仓库外，git 不跟踪、不会污染仓库）。
+  - 建 worktree 命令（在主仓库根执行）：`git worktree add "D:/market-handsome/oper-mind-worktrees/<切片>" -b <类型>/<切片> main`
+  - 基线默认 `main`；用户明确指定其他基线时记录基线和理由。
+  - 进入 worktree 开发：`cd "D:/market-handsome/oper-mind-worktrees/<切片>"`（后续命令都在 worktree 内执行）。
+- **worktree 是全新 checkout**：仓库根的 `.venv`、`node_modules` 不会带过去，需在 worktree 内重建（后端 venv、前端 `npm install`）。
+- 主仓库工作区可能被其他 Agent / PM 占用：**绝不在主仓库工作区直接开发**；只在那里管理分支、建 worktree、跑 PR 相关操作。
+- 建 worktree 前先 `git worktree list`，确认该切片没有已存在的 worktree/分支，避免重复建。
+- 若历史遗留的改动已在主仓库工作区且属于本工作包：在当前状态创建专用分支保留改动，再逐文件核对后**迁移进 worktree 或提交**；若混合了其他任务，必须建立「隔离提交清单」，逐文件或逐代码块核对，不得使用 `git add .`。
+- 分支创建结果（worktree 路径 + 分支名 + 基线）必须写入 `plan.md`。
 
 ### Phase 3 停审阅点
 - 将计划交用户确认：范围、切片、改动面、验证方法。
 - **用户确认后才进入 `dev-execute`。** 未经确认不写业务代码。
-- 若 Phase 2 未完成，必须停在这里；“当前分支看起来能用”不等于专用分支已建立。
+- 若 Phase 2 未完成，必须停在这里；"当前分支看起来能用"不等于专用 worktree 已建立。
 
 ## 关键纪律
 1. 计划是执行契约：切片、改动面、验证方法必须落在 `plan.md`，不留高档模糊项。
@@ -85,7 +89,7 @@ docs/workpack/
 5. 不阻塞式改动：不修改工作包外的文件。
 
 ## 常见错误
-| 错误 | 修正 |
+| 常见错误 | 修正 |
 |---|---|
 | 没有唯一 PRD 就写代码 | 先定位 PRD，找不到即 STOP |
 | 计划没停审阅点直接开发 | Phase 3 必须等用户确认 |
@@ -93,6 +97,8 @@ docs/workpack/
 | 改动面含糊（"相关文件"） | 写真实文件路径与改动类型 |
 | 闸门项未确认就推进 | 回 Phase 0 要求 Design→Review→用户确认 |
 | 未创建专用分支就开发 | 先建立工作包分支，并把分支名写入 plan.md |
+| 在主仓库工作区直接开发 | 用 `git worktree add` 到开发基地，隔离开发；主工作区只做管理 |
+| 重复建同一切片的 worktree | 建前先 `git worktree list` 确认无已存在 worktree/分支 |
 | 混合工作区未经核对就提交 | 建立隔离清单，逐文件/逐代码块审阅 staged diff |
 
 ## 红灯（STOP）

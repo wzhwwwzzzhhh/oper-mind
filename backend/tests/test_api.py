@@ -78,7 +78,7 @@ def test_服务列表返回多个实例且不暴露凭据(api_client: TestClient
 
     assert response.status_code == 200
     body = response.json()
-    assert [item["id"] for item in body["items"]] == ["postgres-production", "postgres-staging"]
+    assert [item["id"] for item in body["items"]] == ["postgres-production", "postgres-staging", "postgres-target"]
     serialized = response.text
     assert "OPERMIND_SERVICE_" not in serialized
     assert "postgresql://" not in serialized
