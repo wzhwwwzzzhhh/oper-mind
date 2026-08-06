@@ -766,6 +766,45 @@ export interface components {
             model: string;
         };
         /**
+         * HostMetricsResource
+         * @description 服务所在后端主机的脱敏主机指标。
+         *
+         *     与快照并列的兄弟字段：主机指标属于「后端所在主机 · 单主机采集」，而非服务数据库本身。
+         *     不可用/未采集时标量为 null，不使用 0 代替缺失。
+         */
+        HostMetricsResource: {
+            /** Mode */
+            mode: unknown;
+            /** Source Status */
+            source_status: unknown;
+            /** Observed At */
+            observed_at: unknown;
+            /** Cpu Percent */
+            cpu_percent?: unknown;
+            /** Cpu Count */
+            cpu_count?: unknown;
+            /** Load Avg 1M */
+            load_avg_1m?: unknown;
+            /** Memory Total Bytes */
+            memory_total_bytes?: unknown;
+            /** Memory Used Bytes */
+            memory_used_bytes?: unknown;
+            /** Memory Percent */
+            memory_percent?: unknown;
+            /** Disk Used Percent */
+            disk_used_percent?: unknown;
+            /** Disk Top Partitions */
+            disk_top_partitions: unknown;
+            /** Network Connections */
+            network_connections?: unknown;
+            /** Network Established */
+            network_established?: unknown;
+            /** Network Time Wait */
+            network_time_wait?: unknown;
+            /** Abnormal Processes */
+            abnormal_processes: unknown;
+        };
+        /**
          * ImpactResource
          * @description 影响范围。
          */
@@ -888,6 +927,14 @@ export interface components {
             client_connections?: unknown;
             /** Slowlog Count */
             slowlog_count?: unknown;
+            /** Host Cpu Percent */
+            host_cpu_percent?: unknown;
+            /** Host Memory Percent */
+            host_memory_percent?: unknown;
+            /** Host Memory Bytes */
+            host_memory_bytes?: unknown;
+            /** Host Disk Used Percent */
+            host_disk_used_percent?: unknown;
             /** Performance Signal */
             performance_signal: unknown;
             /** Source Status */
@@ -1096,7 +1143,7 @@ export interface components {
         };
         /**
          * ServiceResource
-         * @description 静态注册服务与其当前安全快照。
+         * @description 静态注册服务与其当前安全快照、共享主机指标。
          */
         ServiceResource: {
             /** Id */
@@ -1110,6 +1157,7 @@ export interface components {
             /** Action Boundary */
             action_boundary: unknown;
             snapshot: unknown;
+            host_metrics: unknown;
         };
         /**
          * ServiceResponse

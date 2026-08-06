@@ -38,6 +38,10 @@ export interface MonitorSampleResource {
   memory_bytes: number | null
   client_connections: number | null
   slowlog_count: number | null
+  host_cpu_percent: number | null
+  host_memory_percent: number | null
+  host_memory_bytes: number | null
+  host_disk_used_percent: number | null
   performance_signal: string
   source_status: 'available' | 'unavailable' | 'not_configured'
 }

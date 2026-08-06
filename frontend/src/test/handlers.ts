@@ -38,6 +38,29 @@ const order_service = {
     },
     database: { source_status: 'available', signal: 'missing_index_seq_scan_detected' },
   },
+  host_metrics: {
+    mode: 'mock',
+    source_status: 'available',
+    observed_at: '2026-07-31T03:00:00.000Z',
+    cpu_percent: 92,
+    cpu_count: 4,
+    load_avg_1m: 3.8,
+    memory_total_bytes: 17179869184,
+    memory_used_bytes: 13958643712,
+    memory_percent: 81,
+    disk_used_percent: 70,
+    disk_top_partitions: [
+      { mount: '/', percent: 62, used_bytes: 123480309760, total_bytes: 198642237440 },
+      { mount: '/data', percent: 70, used_bytes: 384412467200, total_bytes: 549755813888 },
+    ],
+    network_connections: 1024,
+    network_established: 512,
+    network_time_wait: 256,
+    abnormal_processes: [
+      { name: 'mysqld', pid: 1234, cpu_percent: 85, memory_percent: null },
+      { name: 'java', pid: 5678, cpu_percent: null, memory_percent: 45 },
+    ],
+  },
 }
 
 const service_session = {
@@ -75,8 +98,8 @@ const service_monitor_history = {
   from: '2026-07-31T02:00:00.000Z',
   to: '2026-07-31T03:00:00.000Z',
   samples: [
-    { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1', service_id: 'postgres-production', observed_at: '2026-07-31T02:00:00.000Z', availability: 'healthy', p50_ms: 82, p95_ms: 210, slow_query_count: 0, timeout_count: 0, performance_signal: 'no_slow_query_detected', source_status: 'available' },
-    { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2', service_id: 'postgres-production', observed_at: '2026-07-31T02:05:00.000Z', availability: 'unhealthy', p50_ms: 120, p95_ms: 340, slow_query_count: 3, timeout_count: 1, performance_signal: 'slow_query_detected', source_status: 'available' },
+    { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1', service_id: 'postgres-production', observed_at: '2026-07-31T02:00:00.000Z', availability: 'healthy', p50_ms: 82, p95_ms: 210, slow_query_count: 0, timeout_count: 0, performance_signal: 'no_slow_query_detected', source_status: 'available', host_cpu_percent: 60, host_memory_percent: 75, host_memory_bytes: 12884901888, host_disk_used_percent: 62 },
+    { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2', service_id: 'postgres-production', observed_at: '2026-07-31T02:05:00.000Z', availability: 'unhealthy', p50_ms: 120, p95_ms: 340, slow_query_count: 3, timeout_count: 1, performance_signal: 'slow_query_detected', source_status: 'available', host_cpu_percent: 92, host_memory_percent: 81, host_memory_bytes: 13958643712, host_disk_used_percent: 70 },
   ],
 }
 
@@ -103,6 +126,23 @@ const redis_service = {
       slowlog_count: 0,
     },
     database: { source_status: 'available', signal: 'no_slow_query_detected' },
+  },
+  host_metrics: {
+    mode: 'target',
+    source_status: 'available',
+    observed_at: '2026-08-06T03:00:00.000Z',
+    cpu_percent: 35,
+    cpu_count: 4,
+    load_avg_1m: 1.1,
+    memory_total_bytes: 17179869184,
+    memory_used_bytes: 6442450944,
+    memory_percent: 38,
+    disk_used_percent: 55,
+    disk_top_partitions: [{ mount: 'C:\\', percent: 55, used_bytes: 109521666048, total_bytes: 198642237440 }],
+    network_connections: 210,
+    network_established: 180,
+    network_time_wait: 20,
+    abnormal_processes: [],
   },
 }
 
