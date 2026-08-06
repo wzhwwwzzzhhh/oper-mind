@@ -1,9 +1,9 @@
 ---
 title: 受控动作闭环变真——联合索引重建
-status: 草稿
+status: 已确认
 domain: approval
 phase: P5
-updated: 2026-08-05
+updated: 2026-08-06
 ---
 
 # 受控动作闭环变真——联合索引重建 · PRD

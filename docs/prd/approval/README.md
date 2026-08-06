@@ -4,4 +4,4 @@
 
 | PRD | 主题 | 状态 |
 |---|---|---|
-| [P5-controlled-action-real.md](P5-controlled-action-real.md) | 受控动作闭环变真——联合索引重建 | 草稿 |
+| [P5-controlled-action-real.md](P5-controlled-action-real.md) | 受控动作闭环变真——联合索引重建 | 已确认 |
