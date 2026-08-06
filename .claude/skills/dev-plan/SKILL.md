@@ -21,9 +21,9 @@ description: Use when starting development against a written OperMind PRD — se
 ## 执行流程
 
 ### Phase 0 输入确认（必须）
-1. 定位唯一当前 PRD：域、阶段、状态、范围。找不到匹配 PRD，或需求明显超出 PRD → 停在需求层，不写代码。
+1. 定位唯一当前 PRD：域、阶段、状态、范围。找不到匹配 PRD，或需求明显超出 PRD → 停在需求层，不写代码。**PRD 状态必须是「已确认」（或本工作包已建的「进行中」）才能建 workpack**；草稿 PRD 先回 `prd-reviewing`，推进为「已确认」后再来。**读 PRD frontmatter 的 `issue` 字段**（协作入口，对应 GitHub issue）；issue 与 PRD 状态应一致，不一致先核对。
 2. 输出「本工作包只做」和「明确不做」两张清单，逐项映射到 PRD 的功能需求或 AC 编号。
-3. 检查工程闸门：新服务类型、Connector、真实连接、凭据、公开 API、数据库迁移、监控、权限、审批/执行能力、破坏性改动 → 必须已有 Design → Review → 用户确认；未确认就 STOP。
+3. 检查工程闸门：新服务类型、Connector、真实连接、凭据、公开 API、数据库迁移、监控、权限、审批/执行能力、破坏性改动 → 必须已有 Design（`arch-design` 产出）→ Review（`arch-review` 审查 PASS）→ 用户确认；未确认就 STOP。Design 只能作为已确认技术决策的补充，不能悄悄改写产品范围（若某 Design 隐含扩 PRD 范围，先停下把冲突交用户，不据此开发）。
 
 ### Phase 1 写开发文档
 目录：
@@ -62,6 +62,7 @@ docs/workpack/
 ## 提交计划
 - <按切片规划提交信息，<类型>: <中文描述>>
 ```
+写完 `plan.md` 后，把本工作包登记到 `docs/workpack/README.md` 活跃表（阶段 / 切片 / 状态=待用户确认计划 / 计划 / Review / 证据 链接）；登记是硬步骤，不登记不得进入 Phase 2 切分支。
 
 ### Phase 2 切分支（worktree 化，多 Agent 并发的硬闸门）
 - **这是进入 `dev-execute` 的硬闸门**：没有本工作包专用分支，不得开发、测试后提交或进入交付。
@@ -79,6 +80,8 @@ docs/workpack/
 ### Phase 3 停审阅点
 - 将计划交用户确认：范围、切片、改动面、验证方法。
 - **用户确认后才进入 `dev-execute`。** 未经确认不写业务代码。
+- 用户确认计划后，**推进 PRD 状态为「进行中」**：双写 PRD 文件顶部 frontmatter `status: 进行中` 与 `docs/prd/README.md`（及所在域 README）索引，两处一致；这是「已确认 → 进行中」的唯一推进点（对齐 `prd-writing` 状态矩阵）。
+- **同步 issue**：用 `gh issue edit <编号> --add-label in-progress` 把关联 issue 标为进行中（编号来自 PRD frontmatter `issue` 字段）；若 PRD 已有关联 Design，在 issue 评论补一条指向 Design 路径，方便协作方从 issue 直达设计。
 - 若 Phase 2 未完成，必须停在这里；"当前分支看起来能用"不等于专用 worktree 已建立。
 
 ## 关键纪律
@@ -104,6 +107,7 @@ docs/workpack/
 ## 红灯（STOP）
 - 找不到匹配 PRD 或需求明显超范围
 - 涉及新服务/Connector/凭据/迁移/权限/写操作等却无已确认 Design
+- 关联 issue 与 PRD 状态不一致（PRD 已确认/进行中但 issue 未对应 open/in-progress）
 - 计划缺少「明确不做」清单
 - 改动面覆盖工作包外文件
 - 切片无独立验证方法

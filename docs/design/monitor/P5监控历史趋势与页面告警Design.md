@@ -1,6 +1,6 @@
 # P5 监控历史趋势与页面告警 Design
 
-> 状态：已确认，可按工作包计划实施。
+> 状态：已确认
 > 更新：2026-08-05
 > 关联：`docs/prd/monitor/P5-monitor-trends.md`、`docs/产品定义.md` §5.5/§6、`docs/开发规范.md` §5。
 

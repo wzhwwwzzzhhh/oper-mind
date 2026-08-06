@@ -3,7 +3,7 @@
 ## 基线与确认
 
 - PRD：`docs/prd/approval/P5-controlled-action-real.md`
-- Design：`docs/P5受控动作联合索引Design.md`
+- Design：`docs/design/approval/P5受控动作联合索引Design.md`
 - Design 状态：已获用户确认，2026-08-05
 - 当前工作区已有 P4.3 服务上下文相关改动；本工作包不回退、不覆盖、不纳入这些既有改动。
 

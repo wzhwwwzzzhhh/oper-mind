@@ -1,6 +1,6 @@
 # P5 受控动作联合索引 Design
 
-> 状态：已完成 Review，并获用户确认
+> 状态：已确认
 >
 > 关联 PRD：`docs/prd/approval/P5-controlled-action-real.md`
 >
@@ -148,5 +148,5 @@ Verify 只返回布尔/枚举事实和脱敏摘要。通过则返回 `verified`�
 ## 8. Review 记录
 
 - PRD：`docs/prd/approval/P5-controlled-action-real.md`
-- 本 Design：`docs/P5受控动作联合索引Design.md`
+- 本 Design：`docs/design/approval/P5受控动作联合索引Design.md`
 - 当前状态：待用户确认后创建 workpack 并实施。
