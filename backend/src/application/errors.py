@@ -97,3 +97,24 @@ class ServiceContextRequiredError(ApplicationError):
 
     code = "SERVICE_CONTEXT_REQUIRED"
     message = "数据库调查需要先选择目标服务。"
+
+
+class ProviderNotFoundError(ApplicationError):
+    """指定模型 Provider 不存在。"""
+
+    code = "PROVIDER_NOT_FOUND"
+    message = "模型 Provider 不存在。"
+
+
+class SecretKeyNotConfiguredError(ApplicationError):
+    """加密主密钥未配置，禁止保存 API Key。"""
+
+    code = "SECRET_KEY_NOT_CONFIGURED"
+    message = "加密主密钥未配置，请设置 OPERMIND_SECRET_KEY。"
+
+
+class ProviderIdempotencyReusedError(ApplicationError):
+    """同一个幂等键被不同 Provider 创建请求语义重用。"""
+
+    code = "PROVIDER_IDEMPOTENCY_REUSED"
+    message = "幂等键已用于不同的 Provider 创建请求。"

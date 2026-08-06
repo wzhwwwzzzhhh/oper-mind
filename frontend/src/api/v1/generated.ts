@@ -73,11 +73,99 @@ export interface paths {
         };
         /**
          * Get Model Config
-         * @description 读取当前生效模型配置的脱敏视图。
+         * @description 读取当前生效模型配置的脱敏视图（DB 激活 Provider 优先，env/YAML 兜底）。
          */
         get: operations["get_model_config_api_v1_model_config_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/model/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Model Providers
+         * @description 列出已配置的模型 Provider 安全视图，不含 API Key 明文。
+         */
+        get: operations["list_model_providers_api_v1_model_providers_get"];
+        put?: never;
+        /**
+         * Create Model Provider
+         * @description 新增模型 Provider；API Key 加密后落库，同幂等键同载荷重放。
+         */
+        post: operations["create_model_provider_api_v1_model_providers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/model/providers/{provider_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Model Provider
+         * @description 编辑 Provider；api_key 不传=保留，空串=清空。
+         */
+        put: operations["update_model_provider_api_v1_model_providers__provider_id__put"];
+        post?: never;
+        /**
+         * Delete Model Provider
+         * @description 删除 Provider；不存在返回 404。
+         */
+        delete: operations["delete_model_provider_api_v1_model_providers__provider_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/model/providers/{provider_id}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Activate Model Provider
+         * @description 激活 Provider 为指定端点生效配置（单事务原子替换）。
+         */
+        post: operations["activate_model_provider_api_v1_model_providers__provider_id__activate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/model/providers/{provider_id}/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Model Provider
+         * @description 受控、限时验证 Provider 连通；只发最小只读请求，失败返回脱敏原因。
+         */
+        post: operations["verify_model_provider_api_v1_model_providers__provider_id__verify_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -606,6 +694,17 @@ export interface components {
             created_at: unknown;
         };
         /**
+         * ActivateModelProviderRequest
+         * @description 激活 Provider 为指定端点生效配置。
+         */
+        ActivateModelProviderRequest: {
+            /**
+             * Endpoint
+             * @enum {string}
+             */
+            endpoint: "diagnostic" | "judge";
+        };
+        /**
          * AgentSummaryResource
          * @description Agent 运行摘要。
          */
@@ -618,6 +717,20 @@ export interface components {
             summary: unknown;
             /** Duration Ms */
             duration_ms?: unknown;
+        };
+        /**
+         * CreateModelProviderRequest
+         * @description 新增 Provider 请求。
+         */
+        CreateModelProviderRequest: {
+            /** Name */
+            name: string;
+            /** Base Url */
+            base_url: string;
+            /** Model */
+            model: string;
+            /** Api Key */
+            api_key?: string | null;
         };
         /**
          * CreateRunRequest
@@ -837,6 +950,53 @@ export interface components {
             model: unknown;
             /** Status */
             status: unknown;
+        };
+        /**
+         * ModelProviderListResponse
+         * @description Provider 列表响应。
+         */
+        ModelProviderListResponse: {
+            /** Items */
+            items: unknown;
+            meta: unknown;
+        };
+        /**
+         * ModelProviderResource
+         * @description 单个 Provider 配置的安全视图；不含 API Key 明文。
+         */
+        ModelProviderResource: {
+            /** Id */
+            id: unknown;
+            /** Name */
+            name: unknown;
+            /** Base Url */
+            base_url: unknown;
+            /** Model */
+            model: unknown;
+            /** Has Api Key */
+            has_api_key: unknown;
+            /** Masked Tail */
+            masked_tail?: unknown;
+            /** Active Endpoint */
+            active_endpoint?: unknown;
+            /** Verify Status */
+            verify_status: unknown;
+            /** Last Verified At */
+            last_verified_at?: unknown;
+            /** Verify Error Code */
+            verify_error_code?: unknown;
+            /** Created At */
+            created_at?: unknown;
+            /** Updated At */
+            updated_at?: unknown;
+        };
+        /**
+         * ModelProviderResponse
+         * @description 单个 Provider 响应。
+         */
+        ModelProviderResponse: {
+            provider: unknown;
+            meta: unknown;
         };
         /**
          * MonitorHistoryResponse
@@ -1211,6 +1371,20 @@ export interface components {
          */
         SessionStatus: "active" | "archived";
         /**
+         * UpdateModelProviderRequest
+         * @description 编辑 Provider 请求；api_key 不传=不改，空串=清空。
+         */
+        UpdateModelProviderRequest: {
+            /** Name */
+            name: string;
+            /** Base Url */
+            base_url: string;
+            /** Model */
+            model: string;
+            /** Api Key */
+            api_key?: string | null;
+        };
+        /**
          * UpdateSessionRequest
          * @description 更新会话标题或逻辑归档状态的请求。
          */
@@ -1318,6 +1492,191 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ModelConfigResponse"];
+                };
+            };
+        };
+    };
+    list_model_providers_api_v1_model_providers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelProviderListResponse"];
+                };
+            };
+        };
+    };
+    create_model_provider_api_v1_model_providers_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateModelProviderRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelProviderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_model_provider_api_v1_model_providers__provider_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateModelProviderRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelProviderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_model_provider_api_v1_model_providers__provider_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    activate_model_provider_api_v1_model_providers__provider_id__activate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActivateModelProviderRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelProviderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_model_provider_api_v1_model_providers__provider_id__verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelProviderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

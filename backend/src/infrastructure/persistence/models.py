@@ -10,6 +10,7 @@ from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, ForeignKey, In
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.domain.diagnosis import MessageRole, RunEventType, RunStatus, SessionStatus
+from src.domain.model_provider import VerifyStatus
 from src.domain.services import REGISTERED_SERVICE_IDS
 from src.infrastructure.persistence.database import Base
 
@@ -413,3 +414,65 @@ class ServiceMonitorSampleRecord(Base):
     slowlog_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     performance_signal: Mapped[str] = mapped_column(String(40), nullable=False)
     source_status: Mapped[str] = mapped_column(String(24), nullable=False)
+
+
+class ModelProviderRecord(Base):
+    """P6 模型 Provider 配置；API Key 仅存密文，绝不存明文。"""
+
+    __tablename__ = "model_providers"
+    __table_args__ = (
+        CheckConstraint(
+            "active_endpoint IS NULL OR active_endpoint IN ('diagnostic', 'judge')",
+            name="model_provider_active_endpoint_valid",
+        ),
+        CheckConstraint(
+            "verify_status IN ('unknown', 'ok', 'failed', 'timeout')",
+            name="model_provider_verify_status_valid",
+        ),
+        CheckConstraint(
+            "(api_key_encrypted IS NULL) = (api_key_nonce IS NULL)",
+            name="model_provider_api_key_pair",
+        ),
+        # 一端点至多一个激活：SQLite/PostgreSQL 唯一约束允许多个 NULL，仅限一个 diagnostic 与一个 judge。
+        UniqueConstraint("active_endpoint", name="uq_model_providers_active_endpoint"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    name: Mapped[str] = mapped_column(String(80), nullable=False)
+    base_url: Mapped[str] = mapped_column(String(500), nullable=False)
+    model: Mapped[str] = mapped_column(String(120), nullable=False)
+    api_key_encrypted: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    api_key_nonce: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    active_endpoint: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    verify_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=VerifyStatus.UNKNOWN.value
+    )
+    last_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    verify_error_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now
+    )
+
+
+class ModelProviderIdempotencyKeyRecord(Base):
+    """Provider 创建的幂等键记录，防止重复提交创建重复 Provider。"""
+
+    __tablename__ = "model_provider_idempotency_keys"
+    __table_args__ = (
+        CheckConstraint(
+            "expires_at > created_at",
+            name="model_provider_idem_expiry_after_created",
+        ),
+        Index("ix_model_provider_idem_expires_at", "expires_at"),
+    )
+
+    idempotency_key: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True)
+    provider_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("model_providers.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)

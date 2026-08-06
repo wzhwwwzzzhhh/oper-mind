@@ -29,6 +29,7 @@ from src.api.v1.resources import (
     action_proposal_resource,
     message_resource,
     monitor_history_resource,
+    provider_resource,
     run_event_resource,
     run_resource,
     service_activity_resource,
@@ -41,6 +42,8 @@ from src.api.v1.schemas import (
     ActionExecutionRequest,
     ActionExecutionResponse,
     ActionProposalResponse,
+    ActivateModelProviderRequest,
+    CreateModelProviderRequest,
     CreateRunRequest,
     CreateSessionRequest,
     CursorPage,
@@ -50,6 +53,8 @@ from src.api.v1.schemas import (
     ModelConfigResponse,
     ModelConfigResource,
     ModelEndpointResource,
+    ModelProviderListResponse,
+    ModelProviderResponse,
     MonitorHistoryResponse,
     ResponseMeta,
     RunEventEnvelope,
@@ -61,11 +66,19 @@ from src.api.v1.schemas import (
     ServiceResponse,
     SessionListResponse,
     SessionResponse,
+    UpdateModelProviderRequest,
     UpdateSessionRequest,
 )
 from src.api.v1.sse import parse_event_sequence, replay_run_events
 from src.application.action_services import DecideActionProposalCommand, RequestActionExecutionCommand
 from src.application.contracts import CreateRunCommand, CreateSessionCommand, UpdateSessionCommand
+from src.application.model_providers import (
+    ActivateModelProviderCommand,
+    CreateModelProviderCommand,
+    ModelProviderApplicationService,
+    UpdateModelProviderCommand,
+    provider_create_fingerprint,
+)
 from src.application.service_center import CreateServiceSessionCommand, ServiceCenterApplicationService
 from src.application.monitoring import MonitorHistoryApplicationService
 from src.application.errors import (
@@ -76,6 +89,7 @@ from src.application.errors import (
     SessionNotFoundError,
 )
 from src.domain.diagnosis import SessionStatus
+from src.domain.model_provider import ProviderEndpoint
 from src.domain.records import DiagnosisRunData, SessionData
 from src.infrastructure.persistence.repositories import (
     SqlAlchemyDiagnosisResultRepository,
@@ -84,7 +98,12 @@ from src.infrastructure.persistence.repositories import (
     SqlAlchemyRunEventRepository,
     SqlAlchemySessionRepository,
 )
-from src.config import load_config, load_monitor_settings
+from src.infrastructure.secrets import (
+    SecretKeyNotConfiguredError as SecretsSecretKeyNotConfiguredError,
+    SecretKeyTooShortError,
+    load_secret_key,
+)
+from src.config import load_monitor_settings
 
 
 CursorT = TypeVar("CursorT", SessionCursor, MessageCursor, DiagnosisRunCursor, RunEventCursor, ActionEventCursor)
@@ -105,6 +124,9 @@ APPLICATION_ERROR_STATUS = {
     "SERVICE_NOT_FOUND": 404,
     "SERVICE_CENTER_UNAVAILABLE": 503,
     "SERVICE_CONTEXT_REQUIRED": 409,
+    "PROVIDER_NOT_FOUND": 404,
+    "SECRET_KEY_NOT_CONFIGURED": 409,
+    "PROVIDER_IDEMPOTENCY_REUSED": 409,
 }
 
 
@@ -199,21 +221,9 @@ def _model_endpoint_resource(config: object) -> ModelEndpointResource | None:
     )
 
 
-def _model_config_resource() -> ModelConfigResource:
-    """读取当前生效配置并构建安全模型配置资源。"""
-    try:
-        config = load_config()
-    except ValueError:
-        return ModelConfigResource(
-            mode="mock" if os.environ.get("OPERMIND_API_KEY") == "mock" else "real",
-            diagnostic_model=ModelEndpointResource(
-                provider="未配置",
-                base_url_host="未配置",
-                model="未配置",
-                status="not_configured",
-            ),
-            judge_model=None,
-        )
+def _model_config_resource(provider_service: ModelProviderApplicationService) -> ModelConfigResource:
+    """读取当前生效配置并构建安全模型配置资源（DB 激活 Provider 优先，env/YAML 兜底）。"""
+    config = provider_service.effective_config()
     diagnostic = _model_endpoint_resource(config.get("llm"))
     if diagnostic is None:
         diagnostic = ModelEndpointResource(
@@ -224,11 +234,21 @@ def _model_config_resource() -> ModelConfigResource:
         )
     judge = _model_endpoint_resource(config.get("judge_llm"))
     api_key = config.get("llm", {}).get("api_key") if isinstance(config.get("llm"), dict) else None
+    mode = "mock" if (api_key or os.environ.get("OPERMIND_API_KEY")) == "mock" else "real"
     return ModelConfigResource(
-        mode="mock" if api_key == "mock" else "real",
+        mode=mode,
         diagnostic_model=diagnostic,
         judge_model=judge,
     )
+
+
+def _model_provider_service(services: V1Services) -> ModelProviderApplicationService:
+    """装配 Provider 应用服务；主密钥未配置时允许只读与无 Key 元数据保存。"""
+    try:
+        secret_key = load_secret_key()
+    except (SecretsSecretKeyNotConfiguredError, SecretKeyTooShortError):
+        secret_key = None
+    return ModelProviderApplicationService(services.session_factory, secret_key)
 
 
 def _load_session(services: V1Services, session_id: UUID) -> SessionData:
@@ -282,11 +302,142 @@ def list_services(
 
 
 @router.get("/model/config", response_model=ModelConfigResponse)
-def get_model_config(request: Request, response: Response) -> ModelConfigResponse:
-    """读取当前生效模型配置的脱敏视图。"""
+def get_model_config(
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> ModelConfigResponse:
+    """读取当前生效模型配置的脱敏视图（DB 激活 Provider 优先，env/YAML 兜底）。"""
     meta = response_meta(request)
     apply_headers(response, meta)
-    return ModelConfigResponse(config=_model_config_resource(), meta=meta)
+    return ModelConfigResponse(config=_model_config_resource(_model_provider_service(services)), meta=meta)
+
+
+@router.get("/model/providers", response_model=ModelProviderListResponse)
+def list_model_providers(
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> ModelProviderListResponse:
+    """列出已配置的模型 Provider 安全视图，不含 API Key 明文。"""
+    try:
+        items = _model_provider_service(services).list()
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return ModelProviderListResponse(items=[provider_resource(item) for item in items], meta=meta)
+
+
+@router.post("/model/providers", response_model=ModelProviderResponse, status_code=201)
+def create_model_provider(
+    payload: CreateModelProviderRequest,
+    request: Request,
+    response: Response,
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key")],
+    services: V1Services = Depends(get_v1_services),
+) -> ModelProviderResponse:
+    """新增模型 Provider；API Key 加密后落库，同幂等键同载荷重放。"""
+    try:
+        created = _model_provider_service(services).create(
+            CreateModelProviderCommand(
+                name=payload.name,
+                base_url=payload.base_url,
+                model=payload.model,
+                api_key=payload.api_key,
+                idempotency_key=parse_idempotency_key(idempotency_key),
+                request_fingerprint=provider_create_fingerprint(
+                    payload.name, payload.base_url, payload.model, payload.api_key
+                ),
+            )
+        )
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return ModelProviderResponse(provider=provider_resource(created), meta=meta)
+
+
+@router.put("/model/providers/{provider_id}", response_model=ModelProviderResponse)
+def update_model_provider(
+    provider_id: UUID,
+    payload: UpdateModelProviderRequest,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> ModelProviderResponse:
+    """编辑 Provider；api_key 不传=保留，空串=清空。"""
+    try:
+        updated = _model_provider_service(services).update(
+            UpdateModelProviderCommand(
+                provider_id=provider_id,
+                name=payload.name,
+                base_url=payload.base_url,
+                model=payload.model,
+                api_key=payload.api_key,
+            )
+        )
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return ModelProviderResponse(provider=provider_resource(updated), meta=meta)
+
+
+@router.post("/model/providers/{provider_id}/activate", response_model=ModelProviderResponse)
+def activate_model_provider(
+    provider_id: UUID,
+    payload: ActivateModelProviderRequest,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> ModelProviderResponse:
+    """激活 Provider 为指定端点生效配置（单事务原子替换）。"""
+    try:
+        activated = _model_provider_service(services).activate(
+            ActivateModelProviderCommand(
+                provider_id=provider_id,
+                endpoint=ProviderEndpoint(payload.endpoint),
+            )
+        )
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return ModelProviderResponse(provider=provider_resource(activated), meta=meta)
+
+
+@router.post("/model/providers/{provider_id}/verify", response_model=ModelProviderResponse)
+def verify_model_provider(
+    provider_id: UUID,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> ModelProviderResponse:
+    """受控、限时验证 Provider 连通；只发最小只读请求，失败返回脱敏原因。"""
+    try:
+        verified = _model_provider_service(services).verify(provider_id)
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return ModelProviderResponse(provider=provider_resource(verified), meta=meta)
+
+
+@router.delete("/model/providers/{provider_id}", status_code=204)
+def delete_model_provider(
+    provider_id: UUID,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> Response:
+    """删除 Provider；不存在返回 404。"""
+    try:
+        _model_provider_service(services).delete(provider_id)
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    return Response(status_code=204, headers={"X-Request-Id": str(meta.request_id)})
 
 
 @router.get("/services/{service_id}/activities", response_model=ServiceActivityListResponse)
