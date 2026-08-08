@@ -1,10 +1,10 @@
 ---
 title: 服务主机指标监控
-status: 进行中
+status: 完成
 domain: monitor
 phase: P6
 issue: 23
-updated: 2026-08-06
+updated: 2026-08-08
 ---
 
 # 服务主机指标监控 · PRD
@@ -76,7 +76,7 @@ Server 工具目前提供 CPU/内存/磁盘/进程/网络的**单次快照**（`
 - [ ] AC4: 不可用/未采样时主机指标标量应为 null，不用 0 代替缺失。
 - [ ] AC5: mock 模式下（`set_active_scenario("S1")`），主机指标返回原 mock 结果，与改动前一致。
 - [ ] AC6: 主机指标输出经网关脱敏；无凭据/DSN/原始异常进日志、Trace、结果、前端。
-- [ ] AC7: 回归 —— `test_monitoring.py`、`test_monitor_history_api.py`、`test_host_metrics.py`、`test_server_tools.py` 相关全绿；前端 `typecheck`/`test`/`build` 通过。
+- [x] AC7: 回归 —— `test_monitoring.py`、`test_monitor_history_api.py`、`test_host_metrics.py`、`test_server_tools.py` 相关全绿；前端 `typecheck`/`test`/`build` 通过。
 
 ## 边界与约束
 - 安全边界：只读本机指标；不经网关不输出；脱敏硬约束。
