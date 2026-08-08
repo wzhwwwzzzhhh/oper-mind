@@ -739,6 +739,8 @@ export interface components {
         CreateRunRequest: {
             /** Query */
             query: string;
+            /** Service Id */
+            service_id?: string | null;
         };
         /**
          * CreateSessionRequest
@@ -753,6 +755,8 @@ export interface components {
             incident_id?: string | null;
             /** Service Id */
             service_id?: string | null;
+            /** Service Ids */
+            service_ids?: string[] | null;
         };
         /**
          * CursorPage
@@ -1397,6 +1401,8 @@ export interface components {
             incident_id?: unknown;
             /** Service Id */
             service_id?: unknown;
+            /** Service Ids */
+            service_ids?: unknown;
             /** Created At */
             created_at: unknown;
             /** Updated At */

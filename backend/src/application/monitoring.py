@@ -47,11 +47,16 @@ class MonitorHistoryApplicationService:
         if not samples:
             status = MonitorHistoryStatus.NOT_SAMPLED
         elif all(sample.source_status is ServiceSourceStatus.NOT_CONFIGURED for sample in samples):
+            # 未配置服务不产生有效历史数据：如实返回空序列 + 未配置状态，避免把空标量画成"看似有数据"的趋势。
             status = MonitorHistoryStatus.NOT_CONFIGURED
-        elif all(sample.source_status is ServiceSourceStatus.UNAVAILABLE for sample in samples):
-            status = MonitorHistoryStatus.UNAVAILABLE
-        else:
+            samples = ()
+        elif any(sample.source_status is ServiceSourceStatus.AVAILABLE for sample in samples):
             status = MonitorHistoryStatus.AVAILABLE
+            # 过滤未配置的空标量样本，只返回真实采样点。
+            samples = tuple(sample for sample in samples if sample.source_status is not ServiceSourceStatus.NOT_CONFIGURED)
+        else:
+            status = MonitorHistoryStatus.UNAVAILABLE
+            samples = tuple(sample for sample in samples if sample.source_status is not ServiceSourceStatus.NOT_CONFIGURED)
         return MonitorHistoryData(
             service_id=service_id,
             status=status,

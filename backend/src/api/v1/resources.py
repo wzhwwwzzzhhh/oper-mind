@@ -49,6 +49,7 @@ def session_resource(value: SessionData) -> SessionResource:
         environment_id=value.environment_id,
         incident_id=value.incident_id,
         service_id=value.service_id,
+        service_ids=list(value.service_ids),
         created_at=value.created_at,
         updated_at=value.updated_at,
         archived_at=value.archived_at,

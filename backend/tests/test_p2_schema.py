@@ -25,6 +25,7 @@ PROJECT_ROOT = BACKEND_ROOT.parent
 ALEMBIC_INI = BACKEND_ROOT / "alembic.ini"
 BUSINESS_TABLES = {
     "sessions",
+    "session_services",
     "messages",
     "diagnosis_runs",
     "run_events",

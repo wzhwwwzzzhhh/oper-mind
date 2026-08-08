@@ -123,15 +123,16 @@ export function list_run_events_query(run_id: string, query: ListRunEventsQuery 
 export interface CreateRunMutationVariables {
   idempotency_key: string
   query: CreateRunRequest['query']
+  service_id?: CreateRunRequest['service_id']
   session_id: string
 }
 
 export function create_run_mutation() {
   return mutationOptions({
-    mutationFn: ({ session_id, query, idempotency_key }: CreateRunMutationVariables) =>
+    mutationFn: ({ session_id, query, service_id, idempotency_key }: CreateRunMutationVariables) =>
       api_v1_client.create_run(
         session_id,
-        { query },
+        { query, service_id },
         { idempotency_key } satisfies CreateRunOptions,
       ),
   })
@@ -140,12 +141,13 @@ export function create_run_mutation() {
 export interface CreateSessionMutationVariables {
   title: CreateSessionRequest['title']
   service_id?: CreateSessionRequest['service_id']
+  service_ids?: CreateSessionRequest['service_ids']
 }
 
 export function create_session_mutation() {
   return mutationOptions({
-    mutationFn: ({ title, service_id }: CreateSessionMutationVariables) =>
-      api_v1_client.create_session({ title, service_id }),
+    mutationFn: ({ title, service_id, service_ids }: CreateSessionMutationVariables) =>
+      api_v1_client.create_session({ title, service_id, service_ids }),
   })
 }
 

@@ -4,8 +4,8 @@ interface WelcomePanelProps {
   on_prompt: (prompt: string) => void
   service_count?: number
   services?: Array<{ id: string; title: string }>
-  selected_service_id?: string
-  on_service_change?: (service_id: string) => void
+  selected_service_ids?: string[]
+  on_service_change?: (service_ids: string[]) => void
 }
 
 const QUICK_PROMPTS: Array<{ title: string; note: string; prompt: string }> = [
@@ -31,7 +31,7 @@ const QUICK_PROMPTS: Array<{ title: string; note: string; prompt: string }> = [
   },
 ]
 
-export function WelcomePanel({ on_prompt, service_count = 3, services = [], selected_service_id = '', on_service_change }: WelcomePanelProps): ReactElement {
+export function WelcomePanel({ on_prompt, service_count = 3, services = [], selected_service_ids = [], on_service_change }: WelcomePanelProps): ReactElement {
   return (
     <section className="welcome">
       <div className="welcome-mark">O</div>
@@ -41,13 +41,24 @@ export function WelcomePanel({ on_prompt, service_count = 3, services = [], sele
         <span className="state-dot" />
         <span>{service_count} 个服务在线 · 默认只读调查</span>
       </div>
-      <label className="service-selector">
+      <fieldset className="service-selector">
         <span>调查目标服务</span>
-        <select aria-label="调查目标服务" onChange={(event) => on_service_change?.(event.target.value)} value={selected_service_id}>
-          <option value="">暂不选择服务</option>
-          {services.map((service) => <option key={service.id} value={service.id}>{service.title}</option>)}
-        </select>
-      </label>
+        <div aria-label="调查目标服务" className="service-checkboxes">
+          {services.map((service) => (
+            <label key={service.id}>
+              <input
+                checked={selected_service_ids.includes(service.id)}
+                onChange={(event) => on_service_change?.(event.target.checked
+                  ? [...selected_service_ids, service.id]
+                  : selected_service_ids.filter((id) => id !== service.id))}
+                type="checkbox"
+              />
+              {service.title}
+            </label>
+          ))}
+          {services.length === 0 && <span>暂不选择服务</span>}
+        </div>
+      </fieldset>
       <div className="quick-grid">
         {QUICK_PROMPTS.map((item) => (
           <button className="quick-card" key={item.title} onClick={() => on_prompt(item.prompt)} type="button">

@@ -55,6 +55,25 @@ class SessionRecord(Base):
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class SessionServiceRecord(Base):
+    """会话关联的已注册服务；保留创建顺序供多服务调查使用。"""
+
+    __tablename__ = "session_services"
+    __table_args__ = (
+        CheckConstraint(
+            "service_id IN (" + ", ".join(repr(service_id) for service_id in sorted(REGISTERED_SERVICE_IDS)) + ")",
+            name="session_services_service_id_valid",
+        ),
+        Index("ix_session_services_service_id", "service_id"),
+    )
+
+    session_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("sessions.id", ondelete="RESTRICT"), primary_key=True
+    )
+    service_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+
 class MessageRecord(Base):
     """会话中的用户、助手或系统消息。"""
 

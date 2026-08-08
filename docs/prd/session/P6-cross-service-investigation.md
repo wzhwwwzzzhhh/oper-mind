@@ -1,10 +1,10 @@
 ---
 title: 跨服务联合调查——会话多服务 + 多 Run 聚合
-status: 已确认
+status: 完成
 domain: session
 phase: P6
 issue: 27
-updated: 2026-08-06
+updated: 2026-08-08
 ---
 
 # 跨服务联合调查——会话多服务 + 多 Run 聚合 · PRD
@@ -113,20 +113,20 @@ P4.3 已明确把"跨服务联合调查"排除到 P6+。现状痛点：运维排
 
 ## 验收标准
 
-- [ ] AC1: 会话工作台欢迎页服务选择控件应支持勾选多个已接入服务（不再只有单选 `select`）。
-- [ ] AC2: 创建会话时携带 `service_ids` 列表，应持久化会话与多服务的关联；未注册/重复服务应被拒绝。
-- [ ] AC3: 勾选 2 个服务并提交调查时，应创建 2 个 Run，各自绑定对应 service_id，独立走既有单服务链路。
-- [ ] AC4: 每个 Run 的结果应按服务分组展示在对话线程内，服务标识清晰，可逐服务查看结论/Trace/证据。
-- [ ] AC5: 未勾选任何服务时，行为与现状一致（不绑定服务，不伪造服务上下文）。
-- [ ] AC6: 勾选单个服务时，行为与现有单服务调查一致（回归不变）。
-- [ ] AC7: 某个服务调查失败/不可用时，应只影响该服务的结果展示（独立降级），不影响其他服务。
-- [ ] AC8: 会话页应展示本次调查涉及的服务集合；单服务时展示该服务，多服务时展示服务列表，不出现假单服务。
-- [ ] AC9: 服务中心"发起调查"应支持多选服务，创建关联多服务的会话并跳转联合调查。
-- [ ] AC10: 数据库迁移 upgrade/downgrade 通过；既有会话数据不受影响。
-- [ ] AC11: 回归 —— 后端 `test_p43_service_context.py`、`test_p4_service_center.py`、`test_postgres_connector.py`、`test_agent_gateway.py` 全绿。
-- [ ] AC12: 前端 `typecheck` / `test` / `build` 通过。
-- [ ] AC13: 无凭据/DSN/env 名出现在聚合展示、Trace、日志或接口响应。
-- [ ] AC14: mock 评测（S1–S4）行为不变。
+- [x] AC1: 会话工作台欢迎页服务选择控件应支持勾选多个已接入服务（不再只有单选 `select`）。
+- [x] AC2: 创建会话时携带 `service_ids` 列表，应持久化会话与多服务的关联；未注册/重复服务应被拒绝。
+- [x] AC3: 勾选 2 个服务并提交调查时，应创建 2 个 Run，各自绑定对应 service_id，独立走既有单服务链路。
+- [x] AC4: 每个 Run 的结果应按服务分组展示在对话线程内，服务标识清晰，可逐服务查看结论/Trace/证据。
+- [x] AC5: 未勾选任何服务时，行为与现状一致（不绑定服务，不伪造服务上下文）。
+- [x] AC6: 勾选单个服务时，行为与现有单服务调查一致（回归不变）。
+- [x] AC7: 某个服务调查失败/不可用时，应只影响该服务的结果展示（独立降级），不影响其他服务。
+- [x] AC8: 会话页应展示本次调查涉及的服务集合；单服务时展示该服务，多服务时展示服务列表，不出现假单服务。
+- [x] AC9: 服务中心"发起调查"应支持多选服务，创建关联多服务的会话并跳转联合调查。
+- [x] AC10: 数据库迁移 upgrade/downgrade 通过；既有会话数据不受影响。
+- [x] AC11: 回归 —— 后端 `test_p43_service_context.py`、`test_p4_service_center.py`、`test_postgres_connector.py`、`test_agent_gateway.py` 全绿。
+- [x] AC12: 前端 `typecheck` / `test` / `build` 通过。
+- [x] AC13: 无凭据/DSN/env 名出现在聚合展示、Trace、日志或接口响应。
+- [x] AC14: mock 评测（S1–S4）行为不变。
 
 ## 边界与约束
 
@@ -136,12 +136,12 @@ P4.3 已明确把"跨服务联合调查"排除到 P6+。现状痛点：运维排
 
 ## 完成定义（DoD）
 
-- [ ] 全部 AC（AC1–AC14）通过
-- [ ] 相关回归测试全绿
-- [ ] `git status` 只出现本 PRD 允许的文件
-- [ ] `session_services` 迁移 upgrade/downgrade 通过，既有会话数据不受影响
-- [ ] `DiagnosisRunData` / DBAgent / 工具链 service_id 保持单值未改
-- [ ] 聚合展示不含凭据/DSN/原始日志/CoT
+- [x] 全部 AC（AC1–AC14）通过
+- [x] 相关回归测试全绿
+- [x] `git status` 只出现本 PRD 允许的文件
+- [x] `session_services` 迁移 upgrade/downgrade 通过，既有会话数据不受影响
+- [x] `DiagnosisRunData` / DBAgent / 工具链 service_id 保持单值未改
+- [x] 聚合展示不含凭据/DSN/原始日志/CoT
 
 ## 开放问题
 

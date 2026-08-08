@@ -175,6 +175,7 @@ def test_alembic_upgrade_head_仅创建迁移版本元数据(tmp_path: Path) -> 
         assert set(inspect_engine(engine).get_table_names()) == {
             "alembic_version",
             "sessions",
+            "session_services",
             "messages",
             "diagnosis_runs",
             "run_events",
