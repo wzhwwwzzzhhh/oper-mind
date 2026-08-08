@@ -49,8 +49,7 @@ describe('project_conversation_turns', () => {
       kind: 'turn',
       turn: {
         input: { content: '请检查网关错误。' },
-        investigation: { id: RUN_ID, status: 'succeeded' },
-        output: { content: '已确认网关连接池异常。' },
+        investigations: [{ investigation: { id: RUN_ID, status: 'succeeded' }, output: { content: '已确认网关连接池异常。' } }],
       },
     })
   })
@@ -74,7 +73,40 @@ describe('project_conversation_turns', () => {
     expect(projection.issues).toContain('RUN_INPUT_MESSAGE_DUPLICATED：一条用户消息关联了多个调查，当前只读视图不会自行选择。')
     expect(projection.timeline[0]).toMatchObject({
       kind: 'turn',
-      turn: { input: { id: INPUT_ID }, investigation: undefined },
+      turn: { input: { id: INPUT_ID }, investigations: [{ investigation: { id: RUN_ID } }] },
     })
+  })
+
+  it('合并时间相邻的相同问题，并保留每个服务的独立调查', () => {
+    const second_input = '99999999-9999-4999-8999-999999999991'
+    const second_run = '99999999-9999-4999-8999-999999999992'
+    const projection = project_conversation_turns([
+      user_message(),
+      { ...user_message(), id: second_input, created_at: '2026-07-29T01:00:02.000Z' },
+    ], [
+      { ...run(), service_id: 'postgres-production' },
+      { ...run(), id: second_run, input_message_id: second_input, service_id: 'postgres-staging' },
+    ], SESSION_ID)
+    expect(projection.issues).toEqual([])
+    expect(projection.timeline).toHaveLength(1)
+    expect(projection.timeline[0]).toMatchObject({
+      kind: 'turn',
+      turn: { investigations: [{ investigation: { service_id: 'postgres-production' } }, { investigation: { service_id: 'postgres-staging' } }] },
+    })
+  })
+
+  it('不合并缺少服务或重复同一服务的相邻问题', () => {
+    const second_input = '99999999-9999-4999-8999-999999999993'
+    const second_run = '99999999-9999-4999-8999-999999999994'
+    const inputs = [user_message(), { ...user_message(), id: second_input, created_at: '2026-07-29T01:00:02.000Z' }]
+
+    const service_less = project_conversation_turns(inputs, [run(), { ...run(), id: second_run, input_message_id: second_input }], SESSION_ID)
+    const repeated_service = project_conversation_turns(inputs, [
+      { ...run(), service_id: 'redis-production' },
+      { ...run(), id: second_run, input_message_id: second_input, service_id: 'redis-production' },
+    ], SESSION_ID)
+
+    expect(service_less.timeline).toHaveLength(2)
+    expect(repeated_service.timeline).toHaveLength(2)
   })
 })

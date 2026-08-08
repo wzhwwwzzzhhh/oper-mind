@@ -51,6 +51,7 @@ class SessionData(TimestampedRecord):
     environment_id: UUID | None = None
     incident_id: UUID | None = None
     service_id: str | None = Field(default=None, max_length=64)
+    service_ids: tuple[str, ...] = ()
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
     archived_at: datetime | None = None

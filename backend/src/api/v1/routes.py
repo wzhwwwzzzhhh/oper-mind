@@ -545,6 +545,7 @@ def create_session(
                 environment_id=payload.environment_id,
                 incident_id=payload.incident_id,
                 service_id=payload.service_id,
+                service_ids=tuple(payload.service_ids) if payload.service_ids is not None else None,
             )
         )
     except ApplicationError as error:
@@ -715,6 +716,7 @@ def create_run(
                 session_id=session_id,
                 query=payload.query,
                 idempotency_key=parse_idempotency_key(idempotency_key),
+                service_id=payload.service_id,
             )
         )
     except ApplicationError as error:

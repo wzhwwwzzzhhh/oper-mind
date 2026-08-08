@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import type { ReactElement } from 'react'
 import { useNavigate } from 'react-router-dom'
 
@@ -50,6 +50,7 @@ export function ServiceCenterPage(): ReactElement {
   const navigate = useNavigate()
   const query_client = useQueryClient()
   const pending_intent = useRef<string | null>(null)
+  const [selected_service_ids, set_selected_service_ids] = useState<string[]>([])
   const services_query = useQuery({ ...list_services_query() })
   const services = services_query.data ? read_items(services_query.data.data) : []
 
@@ -67,6 +68,17 @@ export function ServiceCenterPage(): ReactElement {
       if (session_id) {
         navigate(`/workbench/sessions/${encodeURIComponent(session_id)}${intent ? `?intent=${encodeURIComponent(intent)}` : ''}`)
       }
+    },
+  })
+  const create_batch_investigation = useMutation({
+    mutationFn: (service_ids: string[]) => api_v1_client.create_session({
+      service_ids,
+      title: '联合服务调查',
+    }),
+    onSuccess: async (response) => {
+      const session_id = resource_optional_string(read_record(response.data.session), 'id')
+      await query_client.invalidateQueries({ queryKey: ['api-v1', 'sessions'] })
+      if (session_id) navigate(`/workbench/sessions/${encodeURIComponent(session_id)}`)
     },
   })
 
@@ -115,7 +127,17 @@ export function ServiceCenterPage(): ReactElement {
       <section className="section">
         <div className="section-head">
           <h2>服务目录</h2>
-          <span>仅展示当前工作空间授权范围内的信息</span>
+          <div className="service-batch-actions">
+            <span>仅展示当前工作空间授权范围内的信息</span>
+            <button
+              className="btn"
+              disabled={selected_service_ids.length === 0 || create_batch_investigation.isPending}
+              onClick={() => create_batch_investigation.mutate(selected_service_ids)}
+              type="button"
+            >
+              联合发起调查 ({selected_service_ids.length})
+            </button>
+          </div>
         </div>
 
         {services_query.isPending && <div className="svc-empty">正在读取服务中心…</div>}
@@ -131,6 +153,7 @@ export function ServiceCenterPage(): ReactElement {
         {services.length > 0 && (
           <div className="catalog">
             <div className="catalog-head">
+              <span>选择</span>
               <span>服务</span>
               <span>类型 / 环境</span>
               <span>状态</span>
@@ -150,6 +173,18 @@ export function ServiceCenterPage(): ReactElement {
               const intent = resource_optional_string(first_investigation, 'id') ?? null
               return (
                 <article className="service-row" key={service_id ?? title}>
+                  <div>
+                    {service_id && (
+                      <input
+                        aria-label={`选择 ${title}`}
+                        checked={selected_service_ids.includes(service_id)}
+                        onChange={(event) => set_selected_service_ids((current) => event.target.checked
+                          ? [...current, service_id]
+                          : current.filter((id) => id !== service_id))}
+                        type="checkbox"
+                      />
+                    )}
+                  </div>
                   <div className="service-main">
                     <div className={`service-logo ${logo_class(kind)}`}>{info.short}</div>
                     <div className="service-name">

@@ -453,6 +453,36 @@ describe('App', () => {
     await waitFor(() => expect(request_paths).toContain('/api/v1/services/postgres-production/sessions'))
   })
 
+  it('服务中心将多选服务创建为联合调查会话，且保留单服务快捷入口', async () => {
+    let create_body: unknown
+    server.use(
+      http.post('/api/v1/sessions', async ({ request }) => {
+        create_body = await request.json()
+        return response(request, {
+          session: {
+            id: api_v1_contract_fixtures.session_id, title: '联合服务调查', status: 'active',
+            service_id: null, service_ids: ['postgres-production', 'redis-production'],
+            created_at: '2026-07-28T09:00:00.000Z', updated_at: '2026-07-28T09:00:00.000Z', archived_at: null,
+          },
+        }, 201)
+      }),
+      http.get('/api/v1/services', ({ request }) => response(request, {
+        items: [api_v1_contract_fixtures.order_service, api_v1_contract_fixtures.redis_service],
+      })),
+    )
+    open_path('/services')
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('checkbox', { name: '选择 订单服务靶场' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: '选择 生产 Redis 缓存' }))
+    expect(screen.getByRole('button', { name: '发起调查' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: '联合发起调查 (2)' }))
+
+    await waitFor(() => expect(create_body).toEqual({
+      title: '联合服务调查', service_ids: ['postgres-production', 'redis-production'],
+    }))
+  })
+
   it('会话页展示服务端返回的真实调查目标服务', async () => {
     open_path(`/workbench/sessions/${api_v1_contract_fixtures.service_session_id}`)
     render(<App />)

@@ -129,7 +129,7 @@ describe('v1 API 客户端', () => {
     expect(result.diagnostics).toMatchObject({ status: 202, request_id: 'post-request-id' })
   })
 
-  it('创建普通会话时携带选定的 service_id', async () => {
+  it('创建普通会话时携带选定的 service_ids', async () => {
     const requests: Request[] = []
     const client = create_api_v1_client({
       fetch_impl: async (input, init) => {
@@ -142,10 +142,10 @@ describe('v1 API 客户端', () => {
       request_id_factory: () => 'session-request-id',
     })
 
-    await client.create_session({ title: '预发布调查', service_id: 'postgres-staging' })
+    await client.create_session({ title: '预发布调查', service_ids: ['postgres-production', 'postgres-staging'] })
 
     expect(requests).toHaveLength(1)
-    await expect(requests[0]?.json()).resolves.toEqual({ title: '预发布调查', service_id: 'postgres-staging' })
+    await expect(requests[0]?.json()).resolves.toEqual({ title: '预发布调查', service_ids: ['postgres-production', 'postgres-staging'] })
   })
 
   it('将网络中断明确标记为 transport 错误', async () => {
