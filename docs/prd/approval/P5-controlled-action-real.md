@@ -3,6 +3,7 @@ title: 受控动作闭环变真——联合索引重建
 status: 已确认
 domain: approval
 phase: P5
+issue: 30
 updated: 2026-08-06
 ---
 

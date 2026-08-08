@@ -67,7 +67,7 @@ description: Use when reviewing a written PRD (Product Requirements Document) fo
 - 自审出 FAIL → 修改 PRD 直到 PASS，再交用户。
 - 自审 PASS → 仍交用户做轻量方向确认（用户只需看 背景 / 目标 / 范围 是否符合大方向）。
 - 用户确认方向后 → 把 PRD 状态推进为「已确认」：**双写** PRD 文件顶部 frontmatter `status: 已确认` 与 `docs/prd/README.md`（及所在域 README）索引，两处必须一致，缺一即未完成登记（对齐 `prd-writing` 状态推进责任矩阵）。
-- **建 GitHub issue（协作入口）** → 用 `gh issue create` 建 issue（title=PRD 标题，body=PRD 内容 + 关联 Design 路径 + 关联 PRD 路径，labels=域+阶段），把 issue 编号写回 frontmatter `issue` 字段（双写）。issue 放需求层，协作方从 issue 开工。
+- **建 GitHub issue（协作入口）** → 用 `gh issue create` 建 issue（title=PRD 标题，body=**PRD 全文**（去 frontmatter）+ 顶部关联 PRD 路径（+ 已有 Design 路径），labels=域+阶段），把 issue 编号写回 frontmatter `issue` 字段，**随本次「已确认」双写一起提交，不单独发 sync**。issue body 是创建时的全文快照，后续以 repo 内 PRD 为准。issue 放需求层，协作方从 issue 开工。
 
 ## 常见错误（审查者自己别犯）
 | 错误 | 修正 |
