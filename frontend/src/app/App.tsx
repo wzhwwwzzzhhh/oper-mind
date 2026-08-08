@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'rea
 
 import { ServiceCenterPage } from '../features/services/ServiceCenterPage'
 import { ServiceDetailPage } from '../features/services/ServiceDetailPage'
+import { KnowledgePage } from '../features/knowledge/KnowledgePage'
 import { ModelSettingsPage } from '../features/models/ModelSettingsPage'
 import { GlobalNav } from '../features/shell/GlobalNav'
 import { ServiceContextNav } from '../features/shell/ServiceContextNav'
@@ -20,7 +21,8 @@ function ProductShell(): ReactElement {
   const location = useLocation()
   const is_services = location.pathname.startsWith('/services')
   const is_models = location.pathname.startsWith('/models')
-  const is_operations = is_services || is_models
+  const is_knowledge = location.pathname.startsWith('/knowledge')
+  const is_operations = is_services || is_models || is_knowledge
 
   const show_toast = (message: string): void => {
     set_toast(message)
@@ -59,6 +61,7 @@ export function App(): ReactElement {
               <Route element={<ServiceDetailPage />} path=":service_id" />
             </Route>
             <Route element={<ModelSettingsPage />} path="/models" />
+            <Route element={<KnowledgePage />} path="/knowledge" />
             <Route path="/workbench">
               <Route element={<WorkbenchPage />} index />
               <Route element={<WorkbenchPage />} path="sessions/:session_id" />

@@ -508,6 +508,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/knowledge/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Knowledge Documents
+         * @description 列出受管知识目录内的 Markdown 文档清单（标题 + 相对路径）。
+         */
+        get: operations["list_knowledge_documents_api_v1_knowledge_documents_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/knowledge/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Knowledge
+         * @description 在受管知识目录内按关键词确定性检索 Markdown 文档。
+         */
+        get: operations["search_knowledge_api_v1_knowledge_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/knowledge/documents/{document_path}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Knowledge Document
+         * @description 按受管目录内相对路径返回 Markdown 文档正文（脱敏后）。
+         */
+        get: operations["get_knowledge_document_api_v1_knowledge_documents__document_path__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -934,6 +994,78 @@ export interface components {
             affected_scope?: unknown;
         };
         JsonValue: unknown;
+        /**
+         * KnowledgeDocumentDetailResource
+         * @description 知识库文档详情：标题 + 相对路径 + 脱敏正文。
+         */
+        KnowledgeDocumentDetailResource: {
+            /** Title */
+            title: unknown;
+            /** Relative Path */
+            relative_path: unknown;
+            /** Content */
+            content: unknown;
+        };
+        /**
+         * KnowledgeDocumentResource
+         * @description 知识库文档清单条目：标题 + 受管目录内相对 posix 路径。
+         */
+        KnowledgeDocumentResource: {
+            /** Title */
+            title: unknown;
+            /** Relative Path */
+            relative_path: unknown;
+        };
+        /**
+         * KnowledgeDocumentResponse
+         * @description 知识库文档详情响应（诚实状态：not_configured/ok）。
+         */
+        KnowledgeDocumentResponse: {
+            /** Status */
+            status: unknown;
+            document?: unknown;
+            meta: unknown;
+        };
+        /**
+         * KnowledgeListResponse
+         * @description 知识库文档列表响应（诚实状态：not_configured/empty/ok）。
+         */
+        KnowledgeListResponse: {
+            /** Status */
+            status: unknown;
+            /** Items */
+            items: unknown;
+            meta: unknown;
+        };
+        /**
+         * KnowledgeSearchHitResource
+         * @description 知识库检索命中项：标题 + 相对路径 + 命中片段。
+         */
+        KnowledgeSearchHitResource: {
+            /** Title */
+            title: unknown;
+            /** Relative Path */
+            relative_path: unknown;
+            /** Snippet Count */
+            snippet_count: unknown;
+            /** Title Hit */
+            title_hit: unknown;
+            /** Snippets */
+            snippets: unknown;
+        };
+        /**
+         * KnowledgeSearchResponse
+         * @description 知识库检索响应（诚实状态：not_configured/empty/no_match/ok）。
+         */
+        KnowledgeSearchResponse: {
+            /** Status */
+            status: unknown;
+            /** Query */
+            query: unknown;
+            /** Items */
+            items: unknown;
+            meta: unknown;
+        };
         /**
          * MessageListResponse
          * @description 会话消息列表响应。
@@ -2389,6 +2521,89 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_knowledge_documents_api_v1_knowledge_documents_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeListResponse"];
+                };
+            };
+        };
+    };
+    search_knowledge_api_v1_knowledge_search_get: {
+        parameters: {
+            query: {
+                query: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeSearchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_knowledge_document_api_v1_knowledge_documents__document_path__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_path: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeDocumentResponse"];
                 };
             };
             /** @description Validation Error */
