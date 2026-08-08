@@ -15,7 +15,13 @@ from src.application.action_services import ActionApplicationService
 from src.application.model_providers import resolve_model_config
 from src.application.services import RunApplicationService, SessionApplicationService
 from src.application.service_center import ServiceCenterApplicationService
-from src.config import load_action_mode, load_monitor_settings, load_persistence_settings, load_service_dsn
+from src.config import (
+    load_action_mode,
+    load_host_metrics_settings,
+    load_monitor_settings,
+    load_persistence_settings,
+    load_service_dsn,
+)
 from src.application.action_execution import ControlledActionExecutor
 from src.core.bootstrap import build_coordinator, build_llm_from_config
 from src.domain.services import ServiceRegistry
@@ -31,6 +37,7 @@ from src.infrastructure.secrets import (
 from src.infrastructure.services.postgres_connector import PostgresServiceConnector
 from src.infrastructure.services.redis_connector import RedisServiceConnector
 from src.infrastructure.actions.postgres_target_executor import PostgresTargetActionExecutor
+from src.infrastructure.monitoring.host_metrics import PsutilHostMetricsCollector
 from src.infrastructure.monitoring.sampler import MonitorSampler
 
 
@@ -90,6 +97,7 @@ def build_v1_services_for_runtime(
     """
     session_factory = runtime.session_factory
     monitor_settings = load_monitor_settings()
+    host_metrics_settings = load_host_metrics_settings()
     action_mode = load_action_mode()
     action_executor: ControlledActionExecutor | None = (
         PostgresTargetActionExecutor(load_service_dsn("postgres-target"))
@@ -97,6 +105,8 @@ def build_v1_services_for_runtime(
         else None
     )
     action_service = ActionApplicationService(session_factory, executor=action_executor)
+    # 单一后端主机采集器：服务快照与历史采样共享同一实例（采样器为 TTL 缓存保温）。
+    host_collector = PsutilHostMetricsCollector(cache_seconds=host_metrics_settings.cache_seconds)
     postgres_instances = (
         ("postgres-production", "生产 PostgreSQL 主库"),
         ("postgres-staging", "预发布 PostgreSQL 主库"),
@@ -140,12 +150,14 @@ def build_v1_services_for_runtime(
         service_center=ServiceCenterApplicationService(
             session_factory,
             registry,
+            host_metrics_collector=host_collector,
         ),
         monitor_sampler=MonitorSampler(
             session_factory=session_factory,
             connectors=registry.list_connectors(),
             retention_hours=monitor_settings.retention_hours,
             sample_interval_seconds=monitor_settings.sample_interval_seconds,
+            host_collector=host_collector,
         ),
         service_registry=registry,
     )

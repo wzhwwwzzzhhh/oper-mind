@@ -31,6 +31,10 @@ class SqlAlchemyMonitorSampleRepository:
                 memory_bytes=sample.memory_bytes,
                 client_connections=sample.client_connections,
                 slowlog_count=sample.slowlog_count,
+                host_cpu_percent=sample.host_cpu_percent,
+                host_memory_percent=sample.host_memory_percent,
+                host_memory_bytes=sample.host_memory_bytes,
+                host_disk_used_percent=sample.host_disk_used_percent,
                 performance_signal=sample.performance_signal.value,
                 source_status=sample.source_status.value,
             )
@@ -78,6 +82,10 @@ def _to_data(row: ServiceMonitorSampleRecord) -> ServiceMonitorSampleData:
         memory_bytes=row.memory_bytes,
         client_connections=row.client_connections,
         slowlog_count=row.slowlog_count,
+        host_cpu_percent=row.host_cpu_percent,
+        host_memory_percent=row.host_memory_percent,
+        host_memory_bytes=row.host_memory_bytes,
+        host_disk_used_percent=row.host_disk_used_percent,
         performance_signal=PerformanceSignal(row.performance_signal),
         source_status=ServiceSourceStatus(row.source_status),
     )

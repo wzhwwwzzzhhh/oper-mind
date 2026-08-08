@@ -45,6 +45,11 @@ class ServiceMonitorSampleData(MonitorDomainModel):
     memory_bytes: int | None = Field(default=None, ge=0)
     client_connections: int | None = Field(default=None, ge=0)
     slowlog_count: int | None = Field(default=None, ge=0)
+    # P6 主机指标历史标量：每轮采样一次写入各服务样本；失败/未采样为 null，不用 0 代替缺失。
+    host_cpu_percent: float | None = Field(default=None, ge=0.0)
+    host_memory_percent: float | None = Field(default=None, ge=0.0)
+    host_memory_bytes: int | None = Field(default=None, ge=0)
+    host_disk_used_percent: float | None = Field(default=None, ge=0.0)
     performance_signal: PerformanceSignal
     source_status: ServiceSourceStatus
 

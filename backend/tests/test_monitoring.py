@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import subprocess
 import sys
@@ -11,6 +12,12 @@ from pathlib import Path
 from sqlalchemy import create_engine, inspect, select
 from sqlalchemy.orm import sessionmaker
 
+from src.domain.host_metrics import (
+    HostMetricsCollector,
+    HostMetricsData,
+    HostMetricsMode,
+    HostMetricsSourceStatus,
+)
 from src.domain.services import (
     DatabaseSignal,
     PerformanceSignal,
@@ -224,6 +231,164 @@ def test_p6_redis标量迁移升降级(tmp_path: Path) -> None:
         assert "memory_bytes" not in columns
         assert "client_connections" not in columns
         assert "slowlog_count" not in columns
+    finally:
+        engine.dispose()
+
+    result = _run_alembic(database_path, ["upgrade", "head"])
+    assert result.returncode == 0, result.stderr
+
+
+class _FakeHostCollector:
+    """确定性主机采集器，用于采样器附加主机字段测试。"""
+
+    def __init__(self, data: HostMetricsData | None = None, error: Exception | None = None) -> None:
+        self._data = data
+        self._error = error
+
+    def collect(self) -> HostMetricsData:
+        if self._error:
+            raise self._error
+        assert self._data is not None
+        return self._data
+
+
+def _host_metrics() -> HostMetricsData:
+    """构造一个 available 的主机指标样例。"""
+    return HostMetricsData(
+        mode=HostMetricsMode.TARGET,
+        source_status=HostMetricsSourceStatus.AVAILABLE,
+        observed_at=datetime(2026, 8, 5, 12, 0, tzinfo=timezone.utc),
+        cpu_percent=42.5,
+        memory_percent=61.0,
+        memory_used_bytes=10 * 1024**3,
+        disk_used_percent=70.0,
+    )
+
+
+def test_采样器附加主机标量到每个样本() -> None:
+    """AC3：采样器每轮一次采集主机指标并写入各服务样本。"""
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine, expire_on_commit=False)
+    sampler = MonitorSampler(
+        session_factory=session_factory,
+        connectors=(
+            _Connector("a", _snapshot()),
+            _Connector("b", _snapshot()),
+        ),
+        retention_hours=24,
+        host_collector=_FakeHostCollector(_host_metrics()),
+    )
+
+    results = sampler.sample_once()
+
+    assert [result.host_cpu_percent for result in results] == [42.5, 42.5]
+    assert [result.host_memory_percent for result in results] == [61.0, 61.0]
+    assert [result.host_memory_bytes for result in results] == [10 * 1024**3, 10 * 1024**3]
+    assert [result.host_disk_used_percent for result in results] == [70.0, 70.0]
+    with session_factory() as session:
+        records = list(session.scalars(select(ServiceMonitorSampleRecord).order_by(ServiceMonitorSampleRecord.service_id)))
+    assert len(records) == 2
+    assert all(record.host_cpu_percent == 42.5 for record in records)
+    assert all(record.host_disk_used_percent == 70.0 for record in records)
+
+
+def test_主机采集失败只置null不改服务状态() -> None:
+    """硬约束：主机失败仅主机字段为 null，服务 availability/source_status 不受影响。"""
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine, expire_on_commit=False)
+    sampler = MonitorSampler(
+        session_factory=session_factory,
+        connectors=(_Connector("healthy", _snapshot()),),
+        retention_hours=24,
+        host_collector=_FakeHostCollector(error=TimeoutError("主机采集超时")),
+    )
+
+    results = sampler.sample_once()
+
+    assert results[0].availability is ServiceAvailability.HEALTHY
+    assert results[0].source_status is ServiceSourceStatus.AVAILABLE
+    assert results[0].host_cpu_percent is None
+    assert results[0].host_memory_percent is None
+    assert results[0].host_disk_used_percent is None
+    with session_factory() as session:
+        record = session.scalar(select(ServiceMonitorSampleRecord))
+    assert record is not None
+    assert record.availability == "healthy"
+    assert record.source_status == "available"
+    assert record.host_cpu_percent is None
+
+
+def test_主机采集器未装配时主机字段为null() -> None:
+    """未注入 host_collector 时样本主机字段保持 null（既有行为不变）。"""
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine, expire_on_commit=False)
+    sampler = MonitorSampler(
+        session_factory=session_factory,
+        connectors=(_Connector("a", _snapshot()),),
+        retention_hours=24,
+    )
+
+    results = sampler.sample_once()
+
+    assert results[0].host_cpu_percent is None
+    assert results[0].host_memory_bytes is None
+
+
+def test_异步采样路径附加主机指标(tmp_path: Path) -> None:
+    """异步采样路径同样附加主机标量（覆盖 3s 超时包装）。"""
+    engine = create_engine(f"sqlite:///{tmp_path / 'async-sampler.sqlite3'}")
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine, expire_on_commit=False)
+    sampler = MonitorSampler(
+        session_factory=session_factory,
+        connectors=(
+            _Connector("a", _snapshot()),
+            _Connector("b", _snapshot()),
+        ),
+        retention_hours=24,
+        host_collector=_FakeHostCollector(_host_metrics()),
+    )
+
+    results = asyncio.run(sampler.sample_once_async())
+
+    assert [result.host_cpu_percent for result in results] == [42.5, 42.5]
+    assert [result.host_disk_used_percent for result in results] == [70.0, 70.0]
+    with session_factory() as session:
+        records = list(session.scalars(select(ServiceMonitorSampleRecord).order_by(ServiceMonitorSampleRecord.service_id)))
+    assert len(records) == 2
+    assert all(record.host_cpu_percent == 42.5 for record in records)
+
+
+def test_p6_主机指标迁移升降级(tmp_path: Path) -> None:
+    """P6 主机指标迁移 upgrade 增加四列，downgrade 移除，既有 PG/Redis 样本不受影响。"""
+    database_path = tmp_path / "p6-host-metrics.sqlite3"
+    result = _run_alembic(database_path, ["upgrade", "head"])
+    assert result.returncode == 0, result.stderr
+
+    engine = create_app_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        inspector = inspect(engine)
+        columns = {item["name"] for item in inspector.get_columns("service_monitor_samples")}
+        assert {"host_cpu_percent", "host_memory_percent", "host_memory_bytes", "host_disk_used_percent"} <= columns
+        constraint_text = "\n".join(
+            str(item["sqltext"]) for item in inspector.get_check_constraints("service_monitor_samples")
+        )
+        assert "host_cpu_percent" in constraint_text
+        assert "host_disk_used_percent" in constraint_text
+    finally:
+        engine.dispose()
+
+    result = _run_alembic(database_path, ["downgrade", "20260807_06_p6_redis_monitor_metrics"])
+    assert result.returncode == 0, result.stderr
+    engine = create_app_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        columns = {item["name"] for item in inspect(engine).get_columns("service_monitor_samples")}
+        assert "host_cpu_percent" not in columns
+        assert "host_memory_bytes" not in columns
+        assert "host_disk_used_percent" not in columns
     finally:
         engine.dispose()
 
