@@ -6,7 +6,13 @@
 from src.core.agent import BaseAgent
 from src.core.llm import LLMClient
 from src.core.tool_registry import ToolRegistry
-from src.tools.db_tools import ExplainTool, ShowIndexTool, ShowCreateTableTool
+from src.tools.db_tools import (
+    ExplainTool,
+    ShowIndexTool,
+    ShowCreateTableTool,
+    CheckLockStatusTool,
+    CheckConnectionPoolTool,
+)
 from src.scenarios.db_diagnosis import SYSTEM_PROMPT, TOOL_CALLING_EXAMPLE
 
 
@@ -18,6 +24,8 @@ class DBAgent(BaseAgent):
         tools.register(ExplainTool(service_id))
         tools.register(ShowIndexTool(service_id))
         tools.register(ShowCreateTableTool(service_id))
+        tools.register(CheckLockStatusTool(service_id))
+        tools.register(CheckConnectionPoolTool(service_id))
 
         system_prompt = SYSTEM_PROMPT + "\n\n" + TOOL_CALLING_EXAMPLE
 

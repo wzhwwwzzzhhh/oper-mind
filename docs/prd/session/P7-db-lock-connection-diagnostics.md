@@ -1,6 +1,6 @@
 ---
 title: 数据库深度只读诊断——锁与连接池（慢查询深化第一切片）
-status: 已确认
+status: 完成
 domain: session
 phase: P7
 issue: 44
@@ -45,9 +45,11 @@ Agent 调用锁与连接池诊断工具，返回阻塞链和连接利用率的�
   输出结构化脱敏事实。
 - 新增**连接池诊断工具**（只读）：统计连接总数/活跃/空闲/等待、最大连接数与利用率，
   输出结构化脱敏事实。
-- 双模式（mock/真实）：真实模式查询真实 PostgreSQL；mock 模式走既有 scenario 数据，
-  行为完全不变（沿用 `get_active_scenario()` 判定）。
-- 复用 P4/P4.2 已验证的连接来源（`load_service_settings().pg_dsn`）、只读引擎、3 秒超时、
+- 双模式（mock/真实）：真实模式查询真实 PostgreSQL；mock 模式走确定性场景数据，
+  行为完全不变（沿用 `get_active_scenario()` 判定；新工具 mock 分支定义在工具模块内，不改
+  `data/scenarios.py`/`data/mock_db.py`）。
+- 复用 P4/P4.2 已验证的连接来源（`load_service_dsn(service_id)`，即 `OPERMIND_SERVICE_<ID>_DSN`；
+  实际实现不使用 `load_service_settings().pg_dsn`）、只读引擎、3 秒超时、
   三态降级（成功/不可用/未配置）。
 - 结构化输出：跨层数据使用 Pydantic/TypedDict；Trace 只展示脱敏摘要（锁类型/数量/等待时长/
   连接利用率等收敛指标），不展示明细行。
@@ -66,9 +68,11 @@ Agent 调用锁与连接池诊断工具，返回阻塞链和连接利用率的�
 ## 功能需求
 
 ### 1. 锁诊断
-- **输入**：可选过滤（数据库名；Design 定是否支持按表过滤），默认全库。
+- **输入**：可选过滤（数据库名；Design 定是否支持按表过滤）。默认**当前连接数据库**
+  （DSN 指向的库，已确认 Design 决策 1），可选 `database` 参数过滤；不做按表过滤。
 - **行为**：查询当前锁与锁等待状态，识别锁等待链（持有锁的源头会话、被阻塞的会话、等待时长、
-  锁类型/模式）；无锁等待时返回诚实"无锁等待"状态；仅 PostgreSQL 真实模式，mock 模式返回 scenario 数据。
+  锁类型/模式）；无锁等待时返回诚实"无锁等待"状态；仅 PostgreSQL 真实模式，mock 模式返回
+  确定性场景事实（锁诊断 mock 如实返回"无锁等待"）。
 - **输出**：结构化脱敏事实——锁等待链数量、每条链的阻塞时长、锁类型/模式分布、
   相关对象名（可展示的收敛信息，不含 SQL/用户名/IP）。
 
@@ -134,10 +138,23 @@ Agent 调用锁与连接池诊断工具，返回阻塞链和连接利用率的�
 - [ ] 未打印/记录 DSN，未含凭据，未改 mock 数据源
 - [ ] 只读约束与脱敏有测试锁定（AC5/AC6）
 
+## 已确认决策（技术方案见 Design，执行 AI 不必重新设计）
+> 来源：`docs/design/session/P7DB锁与连接池诊断Design.md`（已确认）。以下为执行 AI 必须遵守的技术约束。
+
+1. ✅ 锁诊断默认范围 = **当前连接数据库**（DSN 指向的库），可选 `database` 参数过滤；不做按表过滤。
+2. ✅ 连接"等待"判定口径：`wait_event_type IS NOT NULL AND state <> 'idle'` 计为等待。
+3. ✅ 健康档位阈值：利用率 `>=100%` 已耗尽、`>=80%` 接近上限、否则正常。
+4. ✅ 工具命名：`check_lock_status` / `check_connection_pool`。
+5. ✅ 新工具 mock 分支在工具模块内定义确定性映射，**不改** `data/scenarios.py`/`data/mock_db.py`；
+   锁诊断 mock 如实返回"无锁等待"，连接池按场景返回确定性占用。
+6. ✅ 服务中心服务详情页不同步展示（页面展示属后续切片）。
+7. ✅ DSN 来源复用 `load_service_dsn(service_id)`（`OPERMIND_SERVICE_<ID>_DSN`），非
+   `load_service_settings().pg_dsn`（旧文本陈旧，已回写）。
+
 ## 开放问题
-- 锁诊断的过滤粒度：默认全库，是否支持按数据库/表过滤，Design 定。
-- 连接"等待"状态的判定口径（`wait_event`/状态分类），Design 定。
-- 锁/连接池诊断是否在服务中心服务详情页同步展示（本 PRD 仅会话 Agent 工具，页面展示属后续切片），需用户确认。
+- ~~锁诊断的过滤粒度~~：已确认——默认当前连接数据库，可选 `database` 过滤，不做按表过滤。
+- ~~连接"等待"状态的判定口径~~：已确认——`wait_event_type IS NOT NULL AND state <> 'idle'`。
+- ~~锁/连接池诊断是否在服务中心服务详情页同步展示~~：已确认——不同步展示，页面展示属后续切片。
 
 ## GitHub Issue
 - issue：#44（协作入口，关联本 PRD）

@@ -33,7 +33,7 @@
 | P6 | 日志真实源接入 | `session/P6-log-source-real.md` | 完成 |
 | P4 | 服务中心快照变真（已交付，非本目录 PRD） | — | 完成 |
 | P7 | 文档知识库页面——知识目录浏览与确定性检索 | `knowledge/P7-knowledge-page.md` | 进行中 |
-| P7 | 数据库深度只读诊断——锁与连接池（慢查询深化第一切片） | `session/P7-db-lock-connection-diagnostics.md` | 已确认 |
+| P7 | 数据库深度只读诊断——锁与连接池（慢查询深化第一切片） | `session/P7-db-lock-connection-diagnostics.md` | 完成 |
 | P7 | 服务监控概览页——多服务监控聚合（导航"服务监控"落地） | `monitor/P7-monitoring-overview-page.md` | 已确认 |
 
 ## 执行 AI 如何使用
