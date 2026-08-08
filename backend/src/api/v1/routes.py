@@ -27,6 +27,8 @@ from src.api.v1.resources import (
     action_event_resource,
     action_execution_resource,
     action_proposal_resource,
+    knowledge_document_resource,
+    knowledge_search_hit_resource,
     message_resource,
     monitor_history_resource,
     provider_resource,
@@ -49,6 +51,10 @@ from src.api.v1.schemas import (
     CursorPage,
     DiagnosisRunListResponse,
     DiagnosisRunResource,
+    KnowledgeDocumentDetailResource,
+    KnowledgeDocumentResponse,
+    KnowledgeListResponse,
+    KnowledgeSearchResponse,
     MessageListResponse,
     ModelConfigResponse,
     ModelConfigResource,
@@ -72,6 +78,8 @@ from src.api.v1.schemas import (
 from src.api.v1.sse import parse_event_sequence, replay_run_events
 from src.application.action_services import DecideActionProposalCommand, RequestActionExecutionCommand
 from src.application.contracts import CreateRunCommand, CreateSessionCommand, UpdateSessionCommand
+from src.application.knowledge import KnowledgeReaderService, KnowledgeTimeoutError
+from src.knowledge.reader import _ILLEGAL_PATH_RE, _ILLEGAL_QUERY_RE
 from src.application.model_providers import (
     ActivateModelProviderCommand,
     CreateModelProviderCommand,
@@ -127,6 +135,8 @@ APPLICATION_ERROR_STATUS = {
     "PROVIDER_NOT_FOUND": 404,
     "SECRET_KEY_NOT_CONFIGURED": 409,
     "PROVIDER_IDEMPOTENCY_REUSED": 409,
+    "KNOWLEDGE_TIMEOUT": 503,
+    "KNOWLEDGE_DOCUMENT_NOT_FOUND": 404,
 }
 
 
@@ -196,6 +206,11 @@ def _action_service(services: V1Services):
     if services.action_service is None:
         raise ActionProposalInvalidStateError("固定修复能力当前不可用。")
     return services.action_service
+
+
+def _knowledge_service(services: V1Services) -> KnowledgeReaderService | None:
+    """读取已装配的 P7 知识库只读服务；未装配返回 None（诚实降级为未配置）。"""
+    return services.knowledge_service
 
 
 def _model_endpoint_resource(config: object) -> ModelEndpointResource | None:
@@ -943,4 +958,101 @@ def stream_run_events(
             "X-Request-Id": str(meta.request_id),
             "X-Trace-Id": str(run.trace_id),
         },
+    )
+
+
+@router.get("/knowledge/documents", response_model=KnowledgeListResponse)
+def list_knowledge_documents(
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> KnowledgeListResponse:
+    """列出受管知识目录内的 Markdown 文档清单（标题 + 相对路径）。"""
+    knowledge = _knowledge_service(services)
+    if knowledge is None:
+        status, items = "not_configured", []
+    else:
+        try:
+            status, items = knowledge.list_documents()
+        except KnowledgeTimeoutError:
+            raise ApiV1Error(503, "KNOWLEDGE_TIMEOUT", "知识库读取超时，请稍后重试")
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return KnowledgeListResponse(
+        status=status,
+        items=[knowledge_document_resource(item) for item in items],
+        meta=meta,
+    )
+
+
+@router.get("/knowledge/search", response_model=KnowledgeSearchResponse)
+def search_knowledge(
+    request: Request,
+    response: Response,
+    query: Annotated[str, Query(min_length=1, max_length=100)],
+    limit: Annotated[int, Query(ge=1, le=10)] = 5,
+    services: V1Services = Depends(get_v1_services),
+) -> KnowledgeSearchResponse:
+    """在受管知识目录内按关键词确定性检索 Markdown 文档。"""
+    normalized_query = query.strip()
+    if not normalized_query or _ILLEGAL_QUERY_RE.search(query):
+        raise ApiV1Error(422, "VALIDATION_ERROR", "检索词不能为空且不含路径分隔符或控制字符")
+    knowledge = _knowledge_service(services)
+    if knowledge is None:
+        status, items = "not_configured", []
+    else:
+        try:
+            status, items = knowledge.search(normalized_query, limit)
+        except KnowledgeTimeoutError:
+            raise ApiV1Error(503, "KNOWLEDGE_TIMEOUT", "知识库检索超时，请稍后重试")
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return KnowledgeSearchResponse(
+        status=status,
+        query=normalized_query,
+        items=[knowledge_search_hit_resource(item) for item in items],
+        meta=meta,
+    )
+
+
+def _knowledge_document_title(content: str, relative_path: str) -> str:
+    """从正文提取首个一级标题作为文档标题；无标题时回退文件名。"""
+    for line in content.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("# "):
+            return stripped[2:].strip()
+    return relative_path.rsplit("/", 1)[-1].removesuffix(".md")
+
+
+@router.get("/knowledge/documents/{document_path:path}", response_model=KnowledgeDocumentResponse)
+def get_knowledge_document(
+    document_path: str,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> KnowledgeDocumentResponse:
+    """按受管目录内相对路径返回 Markdown 文档正文（脱敏后）。"""
+    knowledge = _knowledge_service(services)
+    if knowledge is None or knowledge.root is None:
+        meta = response_meta(request)
+        apply_headers(response, meta)
+        return KnowledgeDocumentResponse(status="not_configured", document=None, meta=meta)
+    if _ILLEGAL_PATH_RE.search(document_path):
+        raise ApiV1Error(404, "KNOWLEDGE_DOCUMENT_NOT_FOUND", "知识文档不存在或不可访问")
+    try:
+        content = knowledge.get_document(document_path)
+    except KnowledgeTimeoutError:
+        raise ApiV1Error(503, "KNOWLEDGE_TIMEOUT", "知识库读取超时，请稍后重试")
+    if content is None:
+        raise ApiV1Error(404, "KNOWLEDGE_DOCUMENT_NOT_FOUND", "知识文档不存在或不可访问")
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return KnowledgeDocumentResponse(
+        status="ok",
+        document=KnowledgeDocumentDetailResource(
+            title=_knowledge_document_title(content, document_path),
+            relative_path=document_path,
+            content=content,
+        ),
+        meta=meta,
     )

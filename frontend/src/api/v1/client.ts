@@ -26,6 +26,12 @@ export type ServiceResponse = components['schemas']['ServiceResponse']
 export type ServiceListResponse = components['schemas']['ServiceListResponse']
 export type ServiceActivityResource = components['schemas']['ServiceActivityResource']
 export type ServiceActivityListResponse = components['schemas']['ServiceActivityListResponse']
+export type KnowledgeDocumentResource = components['schemas']['KnowledgeDocumentResource']
+export type KnowledgeListResponse = components['schemas']['KnowledgeListResponse']
+export type KnowledgeSearchHitResource = components['schemas']['KnowledgeSearchHitResource']
+export type KnowledgeSearchResponse = components['schemas']['KnowledgeSearchResponse']
+export type KnowledgeDocumentDetailResource = components['schemas']['KnowledgeDocumentDetailResource']
+export type KnowledgeDocumentResponse = components['schemas']['KnowledgeDocumentResponse']
 export interface MonitorSampleResource {
   id: string | null
   service_id: string
@@ -133,6 +139,12 @@ export type ListActionEventsQuery = NonNullable<
 >
 export type ListServiceActivitiesQuery = NonNullable<
   operations['list_service_activities_api_v1_services__service_id__activities_get']['parameters']['query']
+>
+export type ListKnowledgeDocumentsQuery = NonNullable<
+  operations['list_knowledge_documents_api_v1_knowledge_documents_get']['parameters']['query']
+>
+export type SearchKnowledgeQuery = NonNullable<
+  operations['search_knowledge_api_v1_knowledge_search_get']['parameters']['query']
 >
 
 export interface ApiRequestDiagnostics {
@@ -307,6 +319,16 @@ export interface ApiV1Client {
     payload: ActionExecutionRequest,
     options: ActionMutationOptions,
   ): Promise<ApiResponse<ActionExecutionResponse>>
+  list_knowledge_documents(options?: ApiRequestOptions): Promise<ApiResponse<KnowledgeListResponse>>
+  search_knowledge(
+    query: string,
+    limit?: number,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<KnowledgeSearchResponse>>
+  get_knowledge_document(
+    document_path: string,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<KnowledgeDocumentResponse>>
 }
 
 function create_request_id(): string {
@@ -707,6 +729,30 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
           idempotency_key: request_options.idempotency_key,
           method: 'POST',
         },
+      ),
+    list_knowledge_documents: (request_options) =>
+      request_json<KnowledgeListResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        '/api/v1/knowledge/documents',
+        request_options,
+      ),
+    search_knowledge: (query, limit = 5, request_options) =>
+      request_json<KnowledgeSearchResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        append_query('/api/v1/knowledge/search', { query, limit }),
+        request_options,
+      ),
+    get_knowledge_document: (document_path, request_options) =>
+      request_json<KnowledgeDocumentResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        `/api/v1/knowledge/documents/${document_path.split('/').map(encodeURIComponent).join('/')}`,
+        request_options,
       ),
   }
 }

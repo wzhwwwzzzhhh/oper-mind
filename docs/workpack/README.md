@@ -20,7 +20,7 @@ docs/workpack/
 
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
-| （无活跃工作包） | | | | | |
+| P7 | knowledge-page | 审查通过，待交付 | [plan.md](P7-knowledge-page/plan.md) | [review.md](P7-knowledge-page/review.md) PASS | [evidence.md](P7-knowledge-page/evidence.md) |
 
 ## 已归档
 
