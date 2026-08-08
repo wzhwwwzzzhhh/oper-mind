@@ -63,6 +63,29 @@ export interface MonitorHistoryResponse {
   samples: MonitorSampleResource[]
   meta: components['schemas']['ResponseMeta']
 }
+
+export interface MonitorTrendSummaryResource {
+  sample_count: number
+  anomaly_sample_count: number
+}
+
+export interface MonitorServiceOverviewResource {
+  service_id: string
+  title: string
+  kind: string
+  connection_status: 'available' | 'unavailable' | 'not_configured' | 'not_sampled'
+  availability: 'healthy' | 'unhealthy' | 'unavailable' | 'not_configured'
+  latest_sample: MonitorSampleResource | null
+  trend_summary: MonitorTrendSummaryResource
+}
+
+export interface MonitorOverviewResponse {
+  items: MonitorServiceOverviewResource[]
+  source: 'scheduled_sampling'
+  sample_interval_seconds: number
+  retention_hours: number
+  meta: components['schemas']['ResponseMeta']
+}
 export interface ModelEndpointResource {
   provider: string
   base_url_host: string
@@ -254,6 +277,7 @@ export interface ApiV1Client {
     query?: { from?: string; to?: string; hours?: number },
     options?: ApiRequestOptions,
   ): Promise<ApiResponse<MonitorHistoryResponse>>
+  get_monitor_overview(options?: ApiRequestOptions): Promise<ApiResponse<MonitorOverviewResponse>>
   list_service_activities(
     service_id: string,
     query?: ListServiceActivitiesQuery,
@@ -591,6 +615,14 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
         request_id_factory,
         base_url,
         append_query(`/api/v1/services/${encodeURIComponent(service_id)}/monitor/history`, query),
+        request_options,
+      ),
+    get_monitor_overview: (request_options) =>
+      request_json<MonitorOverviewResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        '/api/v1/monitor/overview',
         request_options,
       ),
     list_service_activities: (service_id, query = {}, request_options) =>

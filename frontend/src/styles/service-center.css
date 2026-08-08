@@ -331,3 +331,89 @@
   font-size: 11px;
   line-height: 1.7;
 }
+
+/* P7 服务监控概览页 */
+.monitor-honesty-strip {
+  margin-bottom: 18px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.monitor-table {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.monitor-table-head,
+.monitor-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.5fr) 0.9fr 0.9fr 0.9fr 1fr 0.9fr 1.1fr;
+  align-items: center;
+  column-gap: 14px;
+}
+
+.monitor-table-head {
+  min-height: 34px;
+  padding: 0 15px;
+  color: var(--text-muted);
+  background: var(--surface-soft);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.monitor-row {
+  width: 100%;
+  min-height: 75px;
+  padding: 0 15px;
+  border: 0;
+  border-top: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.monitor-row:hover {
+  background: var(--surface-soft);
+}
+
+.monitor-service {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.monitor-anomaly {
+  display: inline-flex;
+  padding: 4px 6px;
+  border-radius: 4px;
+  color: var(--warning);
+  background: var(--warning-soft);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.monitor-normal {
+  display: inline-flex;
+  padding: 4px 6px;
+  border-radius: 4px;
+  color: var(--success);
+  background: var(--success-soft);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.monitor-table small {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 9px;
+}

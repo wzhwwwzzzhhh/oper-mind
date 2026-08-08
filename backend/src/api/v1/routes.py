@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 from datetime import datetime
 from typing import Annotated, TypeVar
@@ -31,6 +32,7 @@ from src.api.v1.resources import (
     knowledge_search_hit_resource,
     message_resource,
     monitor_history_resource,
+    monitor_overview_resource,
     provider_resource,
     run_event_resource,
     run_resource,
@@ -62,6 +64,7 @@ from src.api.v1.schemas import (
     ModelProviderListResponse,
     ModelProviderResponse,
     MonitorHistoryResponse,
+    MonitorOverviewResponse,
     ResponseMeta,
     RunEventEnvelope,
     RunEventListResponse,
@@ -88,7 +91,11 @@ from src.application.model_providers import (
     provider_create_fingerprint,
 )
 from src.application.service_center import CreateServiceSessionCommand, ServiceCenterApplicationService
-from src.application.monitoring import MonitorHistoryApplicationService
+from src.application.monitoring import (
+    MonitorHistoryApplicationService,
+    MonitorOverviewApplicationService,
+    OVERVIEW_READ_TIMEOUT_SECONDS,
+)
 from src.application.errors import (
     ActionProposalInvalidStateError,
     ApplicationError,
@@ -198,6 +205,19 @@ def _monitor_history(services: V1Services) -> MonitorHistoryApplicationService:
         sample_interval_seconds=settings.sample_interval_seconds,
         retention_hours=settings.retention_hours,
         query_max_hours=settings.query_max_hours,
+    )
+
+
+def _monitor_overview(services: V1Services) -> MonitorOverviewApplicationService:
+    """读取已装配的静态服务注册表，构造概览用例。"""
+    if services.service_registry is None:
+        raise ServiceCenterUnavailableError()
+    settings = load_monitor_settings()
+    return MonitorOverviewApplicationService(
+        session_factory=services.session_factory,
+        registry=services.service_registry,
+        sample_interval_seconds=settings.sample_interval_seconds,
+        retention_hours=settings.retention_hours,
     )
 
 
@@ -543,6 +563,32 @@ def get_service_monitor_history(
     payload = monitor_history_resource(value)
     payload["meta"] = meta
     return MonitorHistoryResponse.model_validate(payload)
+
+
+@router.get("/monitor/overview", response_model=MonitorOverviewResponse)
+async def get_monitor_overview(
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> MonitorOverviewResponse:
+    """读取全部已注册服务的监控概览，只读历史样本、不触发目标连接。
+
+    读库限时 3 秒（复用网关超时模式），超时返回 INTERNAL_ERROR 安全错误，不影响既有接口。
+    """
+    try:
+        value = await asyncio.wait_for(
+            asyncio.to_thread(_monitor_overview(services).get_overview),
+            timeout=OVERVIEW_READ_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError as error:
+        raise ApiV1Error(500, "INTERNAL_ERROR", "服务内部错误，请稍后重试") from error
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    payload = monitor_overview_resource(value)
+    payload["meta"] = meta
+    return MonitorOverviewResponse.model_validate(payload)
 
 
 @router.post("/sessions", response_model=SessionResponse, status_code=201)

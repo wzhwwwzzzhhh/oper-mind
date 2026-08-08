@@ -6,4 +6,4 @@
 |---|---|---|
 | [P5-monitor-trends.md](P5-monitor-trends.md) | 服务监控历史趋势与页面内告警 | 完成 |
 | [P6-host-metrics-monitoring.md](P6-host-metrics-monitoring.md) | 服务主机指标监控 | 完成 |
-| [P7-monitoring-overview-page.md](P7-monitoring-overview-page.md) | 服务监控概览页——多服务监控聚合（导航"服务监控"落地） | 已确认 |
+| [P7-monitoring-overview-page.md](P7-monitoring-overview-page.md) | 服务监控概览页——多服务监控聚合（导航"服务监控"落地） | 进行中 |
