@@ -21,11 +21,13 @@
 
 ## 验证记录（2026-08-08）
 
-- 后端：`..\.venv\Scripts\python.exe -m pytest tests -q` → **287 passed, 2 skipped**
+- 后端：`..\.venv\Scripts\python.exe -m pytest tests -q` → **287 passed, 2 skipped**（合 main 后 **332 passed, 2 skipped**）
 - 后端聚焦：`..\.venv\Scripts\python.exe -m pytest tests/test_monitor_overview.py tests/test_monitor_overview_api.py -q` → **12 passed**
-- 前端：`npm run typecheck` ✓、`npm run test` → **79 passed**、`npm run build` ✓
+- 前端：`npm run typecheck` ✓、`npm run test` → **79 passed**（合 main 后 **84 passed**）、`npm run build` ✓
 - 门禁：`git diff --check` 干净（仅 LF/CRLF 警告）
 - 覆盖超时路径：`test_概览接口读库超时返回内部错误`（`OVERVIEW_READ_TIMEOUT_SECONDS` 3s，测试注入 0.05s 验证 500）
+- **合 main**：`git merge origin/main`（P7 #43/#44 已交付）在 resources.py / prd README / App.tsx /
+  GlobalNav / ServiceContextNav 解冲突，合并后回归全绿。
 
 ## 交付时复核
 
