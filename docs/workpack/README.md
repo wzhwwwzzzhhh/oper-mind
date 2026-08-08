@@ -20,7 +20,7 @@ docs/workpack/
 
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
-| （无活跃工作包） | | | | | |
+| P7 | monitoring-overview | 待用户确认计划 | [plan.md](P7-monitoring-overview/plan.md) | — | — |
 
 ## 已归档
 
