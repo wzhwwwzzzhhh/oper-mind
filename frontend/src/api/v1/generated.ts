@@ -252,6 +252,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/monitor/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Monitor Overview
+         * @description 读取全部已注册服务的监控概览，只读历史样本、不触发目标连接。
+         */
+        get: operations["get_monitor_overview_api_v1_monitor_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions": {
         parameters: {
             query?: never;
@@ -1065,6 +1085,21 @@ export interface components {
             meta: unknown;
         };
         /**
+         * MonitorOverviewResponse
+         * @description 监控概览响应。
+         */
+        MonitorOverviewResponse: {
+            /** Items */
+            items: unknown;
+            /** Source */
+            source: unknown;
+            /** Sample Interval Seconds */
+            sample_interval_seconds: unknown;
+            /** Retention Hours */
+            retention_hours: unknown;
+            meta: unknown;
+        };
+        /**
          * MonitorSampleResource
          * @description 历史监控样本的安全标量资源。
          */
@@ -1103,6 +1138,34 @@ export interface components {
             performance_signal: unknown;
             /** Source Status */
             source_status: unknown;
+        };
+        /**
+         * MonitorServiceOverviewResource
+         * @description 单个已注册服务的监控概览资源。
+         */
+        MonitorServiceOverviewResource: {
+            /** Service Id */
+            service_id: unknown;
+            /** Title */
+            title: unknown;
+            /** Kind */
+            kind: unknown;
+            /** Connection Status */
+            connection_status: unknown;
+            /** Availability */
+            availability: unknown;
+            latest_sample?: unknown;
+            trend_summary: unknown;
+        };
+        /**
+         * MonitorTrendSummaryResource
+         * @description 概览窗口内的趋势摘要：样本数与异常采样点计数。
+         */
+        MonitorTrendSummaryResource: {
+            /** Sample Count */
+            sample_count: unknown;
+            /** Anomaly Sample Count */
+            anomaly_sample_count: unknown;
         };
         /**
          * RecommendationResource
@@ -1862,6 +1925,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_monitor_overview_api_v1_monitor_overview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonitorOverviewResponse"];
                 };
             };
         };

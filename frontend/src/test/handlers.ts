@@ -89,6 +89,68 @@ const service_activity = {
   verification_status: 'verified',
 }
 
+const service_monitor_overview = {
+  items: [
+    {
+      service_id: 'postgres-production',
+      title: '订单服务靶场',
+      kind: 'postgres_orders_demo',
+      connection_status: 'available',
+      availability: 'healthy',
+      latest_sample: {
+        id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2',
+        service_id: 'postgres-production',
+        observed_at: '2026-07-31T02:05:00.000Z',
+        availability: 'healthy',
+        p50_ms: 82,
+        p95_ms: 210,
+        slow_query_count: 3,
+        timeout_count: 1,
+        memory_bytes: null,
+        client_connections: null,
+        slowlog_count: null,
+        host_cpu_percent: 92,
+        host_memory_percent: 81,
+        host_memory_bytes: 13958643712,
+        host_disk_used_percent: 70,
+        performance_signal: 'slow_query_detected',
+        source_status: 'available',
+      },
+      trend_summary: { sample_count: 12, anomaly_sample_count: 3 },
+    },
+    {
+      service_id: 'redis-production',
+      title: '生产 Redis 缓存',
+      kind: 'redis',
+      connection_status: 'not_configured',
+      availability: 'not_configured',
+      latest_sample: {
+        id: 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1',
+        service_id: 'redis-production',
+        observed_at: '2026-08-06T02:00:00.000Z',
+        availability: 'not_configured',
+        p50_ms: null,
+        p95_ms: null,
+        slow_query_count: null,
+        timeout_count: null,
+        memory_bytes: null,
+        client_connections: null,
+        slowlog_count: null,
+        host_cpu_percent: null,
+        host_memory_percent: null,
+        host_memory_bytes: null,
+        host_disk_used_percent: null,
+        performance_signal: 'not_configured',
+        source_status: 'not_configured',
+      },
+      trend_summary: { sample_count: 0, anomaly_sample_count: 0 },
+    },
+  ],
+  source: 'scheduled_sampling',
+  sample_interval_seconds: 300,
+  retention_hours: 24,
+}
+
 const service_monitor_history = {
   service_id: 'postgres-production',
   status: 'available',
@@ -453,6 +515,7 @@ export const api_v1_handlers = [
     HttpResponse.json(null, { status: 204 }),
   ),
   http.get('/api/v1/services', ({ request }) => response(request, { items: [order_service] })),
+  http.get('/api/v1/monitor/overview', ({ request }) => response(request, service_monitor_overview)),
   http.get('/api/v1/services/postgres-production', ({ request }) => response(request, { service: order_service })),
   http.get('/api/v1/services/postgres-production/monitor/history', ({ request }) => response(request, service_monitor_history)),
   http.get('/api/v1/services/postgres-production/activities', ({ request }) =>
@@ -557,4 +620,4 @@ export const api_v1_contract_scenarios = {
   network_interruption: http.get(/\/api\/v1\/sessions$/, () => HttpResponse.error()),
 }
 
-export const api_v1_contract_fixtures = { accepted_run_id, archived_session_id, cancelled_run_id, empty_result_run_id, failed_run_id, order_service, protocol_error_run_id, provider_fixture, redis_monitor_history, redis_service, run_events, run_id, service_activity, service_monitor_history, service_run_id, service_session, service_session_id, session_id, trace_id }
+export const api_v1_contract_fixtures = { accepted_run_id, archived_session_id, cancelled_run_id, empty_result_run_id, failed_run_id, order_service, protocol_error_run_id, provider_fixture, redis_monitor_history, redis_service, run_events, run_id, service_activity, service_monitor_history, service_monitor_overview, service_run_id, service_session, service_session_id, session_id, trace_id }

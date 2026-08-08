@@ -10,12 +10,13 @@ function jump_to(navigate: (to: string) => void, section: string): void {
   window.setTimeout(() => document.getElementById(section)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
 }
 
-/** 第二栏上下文导航：服务中心和模型服务共用运维模式壳。 */
+/** 第二栏上下文导航：服务中心、服务监控和模型服务共用运维模式壳。 */
 export function ServiceContextNav(): ReactElement {
   const navigate = useNavigate()
   const location = useLocation()
   const is_models = location.pathname.startsWith('/models')
-  const services_query = useQuery({ ...list_services_query(), enabled: !is_models })
+  const is_monitor = location.pathname.startsWith('/monitor')
+  const services_query = useQuery({ ...list_services_query(), enabled: !is_models && !is_monitor })
   const service_count = services_query.data ? read_items(services_query.data.data).length : 0
 
   if (is_models) {
@@ -47,8 +48,9 @@ export function ServiceContextNav(): ReactElement {
       </div>
       <p className="svc-label">服务中心</p>
       <nav className="svc-nav">
-        <button className="svc-link active" onClick={() => navigate('/services')} type="button"><i>⌂</i>概览</button>
-        <button className="svc-link" onClick={() => navigate('/services')} type="button"><i>◫</i>已接入服务<span className="svc-count">{service_count}</span></button>
+        <button className={`svc-link${!is_monitor ? ' active' : ''}`} onClick={() => navigate('/services')} type="button"><i>⌂</i>概览</button>
+        <button className={`svc-link${!is_monitor ? ' active' : ''}`} onClick={() => navigate('/services')} type="button"><i>◫</i>已接入服务<span className="svc-count">{service_count}</span></button>
+        <button className={`svc-link${is_monitor ? ' active' : ''}`} onClick={() => navigate('/monitor')} type="button"><i>◌</i>服务监控<span>定时采样</span></button>
       </nav>
       <div className="svc-divider" />
       <p className="svc-label">快捷操作</p>

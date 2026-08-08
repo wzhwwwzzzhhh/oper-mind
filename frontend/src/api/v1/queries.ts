@@ -21,6 +21,7 @@ export const api_v1_query_keys = {
   model_providers: () => ['api-v1', 'model-providers'] as const,
   services: () => ['api-v1', 'services'] as const,
   service: (service_id: string) => ['api-v1', 'service', service_id] as const,
+  monitor_overview: () => ['api-v1', 'monitor-overview'] as const,
   service_monitor_history: (service_id: string) => ['api-v1', 'service-monitor-history', service_id] as const,
   service_activities: (service_id: string, query: ListServiceActivitiesQuery) =>
     ['api-v1', 'service-activities', service_id, query] as const,
@@ -59,6 +60,13 @@ export function get_service_monitor_history_query(service_id: string) {
   return queryOptions({
     queryKey: api_v1_query_keys.service_monitor_history(service_id),
     queryFn: ({ signal }) => api_v1_client.get_service_monitor_history(service_id, {}, { signal }),
+  })
+}
+
+export function get_monitor_overview_query() {
+  return queryOptions({
+    queryKey: api_v1_query_keys.monitor_overview(),
+    queryFn: ({ signal }) => api_v1_client.get_monitor_overview({ signal }),
   })
 }
 
