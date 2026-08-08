@@ -67,3 +67,8 @@
 
 - 设计文档：[P5监控历史趋势与页面告警Design.md](../../design/monitor/P5监控历史趋势与页面告警Design.md)
 - 设计状态：已完成 Design → Review → 用户确认。
+
+## 分支记录
+
+- worktree 路径：`D:/market-handsome/oper-mind-worktrees/p5-monitor-trends-deliver`
+- 分支名：`docs/p5-monitor-trends-deliver`（基线 `origin/main`；功能代码已在 main，本分支用于流程收尾与交付）
