@@ -156,6 +156,12 @@
   font-size: 10px;
 }
 
+.service-batch-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .catalog {
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -166,7 +172,7 @@
 .catalog-head,
 .service-row {
   display: grid;
-  grid-template-columns: minmax(240px, 1.65fr) 1fr 0.78fr 1.12fr 1fr;
+  grid-template-columns: 28px minmax(210px, 1.65fr) 1fr 0.78fr 1.12fr 1fr;
   align-items: center;
   column-gap: 14px;
 }

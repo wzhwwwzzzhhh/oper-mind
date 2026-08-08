@@ -15,10 +15,12 @@ from src.domain.host_metrics import HostMetricsData
 POSTGRES_PRODUCTION_SERVICE_ID = "postgres-production"
 POSTGRES_STAGING_SERVICE_ID = "postgres-staging"
 POSTGRES_TARGET_SERVICE_ID = "postgres-target"
+REDIS_PRODUCTION_SERVICE_ID = "redis-production"
 REGISTERED_SERVICE_IDS = frozenset({
     POSTGRES_PRODUCTION_SERVICE_ID,
     POSTGRES_STAGING_SERVICE_ID,
     POSTGRES_TARGET_SERVICE_ID,
+    REDIS_PRODUCTION_SERVICE_ID,
 })
 ORDERS_SLOW_QUERY_INTENT_ID = "orders_slow_query.v1"
 ORDERS_SLOW_QUERY_DEFAULT_QUERY = "订单服务变慢，帮我排查慢查询。"

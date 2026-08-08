@@ -27,6 +27,7 @@ class CreateSessionCommand(ApplicationCommand):
     environment_id: UUID | None = None
     incident_id: UUID | None = None
     service_id: str | None = Field(default=None, min_length=1, max_length=64)
+    service_ids: tuple[str, ...] | None = None
 
     @field_validator("title")
     @classmethod
@@ -36,6 +37,14 @@ class CreateSessionCommand(ApplicationCommand):
         if not normalized:
             raise ValueError("title 不能为空。")
         return normalized
+
+    @field_validator("service_ids")
+    @classmethod
+    def reject_duplicate_service_ids(cls, value: tuple[str, ...] | None) -> tuple[str, ...] | None:
+        """服务集合必须由调用方显式去重，避免静默改变请求语义。"""
+        if value is not None and len(set(value)) != len(value):
+            raise ValueError("service_ids 不允许重复。")
+        return value
 
 
 class UpdateSessionCommand(ApplicationCommand):
@@ -70,6 +79,7 @@ class CreateRunCommand(ApplicationCommand):
     session_id: UUID
     query: str = Field(min_length=1, max_length=4000)
     idempotency_key: UUID
+    service_id: str | None = Field(default=None, min_length=1, max_length=64)
 
     @field_validator("query")
     @classmethod

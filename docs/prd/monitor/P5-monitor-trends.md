@@ -1,10 +1,10 @@
 ---
 title: 服务监控历史趋势与页面内告警
-status: 已确认
+status: 完成
 domain: monitor
 phase: P5
 issue: 28
-updated: 2026-08-06
+updated: 2026-08-08
 ---
 
 # 服务监控历史趋势与页面内告警 · PRD

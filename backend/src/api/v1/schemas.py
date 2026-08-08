@@ -179,6 +179,7 @@ class SessionResource(ApiV1Model):
     environment_id: UUID | None = None
     incident_id: UUID | None = None
     service_id: str | None = Field(default=None, min_length=1, max_length=64)
+    service_ids: list[str] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
     archived_at: datetime | None = None
@@ -329,6 +330,7 @@ class CreateSessionRequest(ApiV1Model):
     environment_id: UUID | None = None
     incident_id: UUID | None = None
     service_id: str | None = Field(default=None, min_length=1, max_length=64)
+    service_ids: list[str] | None = None
 
     @field_validator("title")
     @classmethod
@@ -338,6 +340,14 @@ class CreateSessionRequest(ApiV1Model):
         if not normalized:
             raise ValueError("不能为空")
         return normalized
+
+    @field_validator("service_ids")
+    @classmethod
+    def reject_duplicate_service_ids(cls, value: list[str] | None) -> list[str] | None:
+        """拒绝重复服务，避免请求体语义被静默更改。"""
+        if value is not None and len(set(value)) != len(value):
+            raise ValueError("service_ids 不允许重复")
+        return value
 
 
 class UpdateSessionRequest(ApiV1Model):
@@ -460,6 +470,7 @@ class CreateRunRequest(ApiV1Model):
     """受理诊断 Run 的请求。"""
 
     query: str = Field(min_length=1, max_length=4000)
+    service_id: str | None = Field(default=None, min_length=1, max_length=64)
 
     @field_validator("query")
     @classmethod

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Callable, TypeVar
 from uuid import UUID
 
@@ -30,6 +30,7 @@ from src.infrastructure.persistence.models import (
     RunEventRecord,
     RunIdempotencyKeyRecord,
     SessionRecord,
+    SessionServiceRecord,
 )
 
 
@@ -85,11 +86,20 @@ class SqlAlchemySessionRepository:
                 archived_at=session.archived_at,
             )
         )
+        self._session.add_all(
+            SessionServiceRecord(
+                session_id=session.id,
+                service_id=service_id,
+                # 关联表不单设排序列，以写入时间的微秒偏移保存用户选择顺序。
+                created_at=session.created_at + timedelta(microseconds=index),
+            )
+            for index, service_id in enumerate(session.service_ids)
+        )
 
     def get_by_id(self, session_id: UUID) -> SessionData | None:
         """按主键读取会话。"""
         record = self._session.get(SessionRecord, session_id)
-        return _session_data(record) if record is not None else None
+        return self._session_data(record) if record is not None else None
 
     def save(self, session: SessionData) -> bool:
         """保存已有会话，返回是否找到目标记录，不提交。"""
@@ -135,10 +145,21 @@ class SqlAlchemySessionRepository:
             )
         )
         return _page(
-            [_session_data(record) for record in records],
+            [self._session_data(record) for record in records],
             limit,
             lambda item: SessionCursor(updated_at=item.updated_at, id=item.id),
         )
+
+    def _session_data(self, record: SessionRecord) -> SessionData:
+        """读取关联服务；旧记录没有关联行时回退到遗留单值字段。"""
+        service_ids = tuple(
+            self._session.scalars(
+                select(SessionServiceRecord.service_id)
+                .where(SessionServiceRecord.session_id == record.id)
+                .order_by(SessionServiceRecord.created_at.asc(), SessionServiceRecord.service_id.asc())
+            )
+        )
+        return _session_data(record, service_ids)
 
 
 class SqlAlchemyMessageRepository:
@@ -413,7 +434,7 @@ class SqlAlchemyRunIdempotencyKeyRepository:
         return _run_idempotency_key_data(record) if record is not None else None
 
 
-def _session_data(record: SessionRecord) -> SessionData:
+def _session_data(record: SessionRecord, service_ids: tuple[str, ...] = ()) -> SessionData:
     """将 Session ORM mapper 转换为领域数据对象。"""
     return SessionData(
         id=record.id,
@@ -422,6 +443,7 @@ def _session_data(record: SessionRecord) -> SessionData:
         environment_id=record.environment_id,
         incident_id=record.incident_id,
         service_id=record.service_id,
+        service_ids=service_ids or ((record.service_id,) if record.service_id is not None else ()),
         created_at=_as_utc(record.created_at),
         updated_at=_as_utc(record.updated_at),
         archived_at=_as_utc(record.archived_at),

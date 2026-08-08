@@ -42,6 +42,7 @@ import {
   load_session_run_send_intent,
   mark_session_run_send_intent_accepted,
   save_session_run_send_intent,
+  submit_unaccepted_session_runs,
   type SessionRunSendIntent,
 } from './send-intent'
 import {
@@ -111,6 +112,14 @@ function session_storage(): Storage | undefined {
   } catch {
     return undefined
   }
+}
+
+function session_service_ids(value: unknown): string[] {
+  const record = read_record(value)
+  const service_ids = record?.service_ids
+  if (Array.isArray(service_ids)) return service_ids.filter((id): id is string => typeof id === 'string')
+  const service_id = resource_optional_string(value, 'service_id')
+  return service_id ? [service_id] : []
 }
 
 async function fetch_all_pages<TData>(
@@ -276,11 +285,14 @@ function AssistantReply({ investigation, output, session_id }: { investigation: 
   )
 }
 
-function ConversationTurnCard({ turn, session_id }: { turn: ConversationTurn; session_id: string }): ReactElement {
-  const investigation = turn.investigation
-  const is_live = investigation != null && (investigation.status === 'queued' || investigation.status === 'running')
-  const has_genuine_output = turn.output != null
+function service_result_title(service_id: string | undefined, services_by_id: Map<string, { kind?: string; title?: string }>): string {
+  if (!service_id) return '未关联服务'
+  const service = services_by_id.get(service_id)
+  if (!service) return service_id
+  return service.kind ? `${service.title ?? service_id} · ${service.kind}` : service.title ?? service_id
+}
 
+function ConversationTurnCard({ turn, session_id, services_by_id }: { turn: ConversationTurn; session_id: string; services_by_id: Map<string, { kind?: string; title?: string }> }): ReactElement {
   return (
     <>
       <article className="message user" aria-label="用户问题">
@@ -290,23 +302,24 @@ function ConversationTurnCard({ turn, session_id }: { turn: ConversationTurn; se
           <div className="bubble">{turn.input.content}</div>
         </div>
       </article>
-      {investigation && (is_live || has_genuine_output) && (
-        <article className="message assistant" aria-label="助手答复">
+      {turn.investigations.map(({ investigation, output }) => {
+        const is_live = investigation.status === 'queued' || investigation.status === 'running'
+        const Container = is_live || output ? 'article' : 'div'
+        return (
+        <Container {...(is_live || output ? { 'aria-label': '助手答复' } : {})} className="message assistant service-result" key={investigation.id}>
           <div className="message-avatar">O</div>
-          <AssistantReply investigation={investigation} output={turn.output} session_id={session_id} />
-        </article>
-      )}
-      {investigation && !is_live && !has_genuine_output && (
-        <div className="message assistant">
-          <div className="message-avatar">O</div>
-          <AssistantReply investigation={investigation} output={turn.output} session_id={session_id} />
-        </div>
-      )}
+          <div className="service-investigation-result">
+            <div className="service-result-label">{service_result_title(investigation.service_id, services_by_id)}</div>
+            <AssistantReply investigation={investigation} output={output} session_id={session_id} />
+          </div>
+        </Container>
+        )
+      })}
     </>
   )
 }
 
-function ConversationTimeline({ messages, runs, session_id }: { messages: unknown[]; runs: unknown[]; session_id: string }): ReactElement {
+function ConversationTimeline({ messages, runs, services_by_id, session_id }: { messages: unknown[]; runs: unknown[]; services_by_id: Map<string, { kind?: string; title?: string }>; session_id: string }): ReactElement {
   const { issues, timeline } = useMemo(
     () => project_conversation_turns(messages, runs, session_id),
     [messages, runs, session_id],
@@ -333,7 +346,7 @@ function ConversationTimeline({ messages, runs, session_id }: { messages: unknow
             />
           )
         }
-        return <ConversationTurnCard key={item.turn.input.id} session_id={session_id} turn={item.turn} />
+        return <ConversationTurnCard key={item.turn.input.id} services_by_id={services_by_id} session_id={session_id} turn={item.turn} />
       })}
     </section>
   )
@@ -352,7 +365,7 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
   const session_query = useQuery({ ...get_session_query(session_id), enabled: Boolean(session_id) })
   const services_query = useQuery({
     ...list_services_query(),
-    enabled: Boolean(session_query.data && resource_optional_string((session_query.data as ApiResponse<SessionResponse>).data.session, 'service_id')),
+    enabled: Boolean(session_query.data && session_service_ids((session_query.data as ApiResponse<SessionResponse>).data.session).length > 0),
   })
   const runs_query_key = api_v1_query_keys.session_runs(session_id, { limit: API_V1_DEFAULT_PAGE_SIZE })
   const messages_query_key = api_v1_query_keys.session_messages(session_id, { limit: API_V1_DEFAULT_PAGE_SIZE })
@@ -401,11 +414,11 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
   // 记录挂载时已存在的发送意图：仅对"进会话前就写好"的意图做自动提交，
   // 用户在会话内自行输入并发送的意图走手动提交，避免重复提交。
   const initial_intent_key = useRef<string | undefined>(
-    storage ? load_session_run_send_intent(storage, session_id)?.idempotency_key : undefined,
+    storage ? load_session_run_send_intent(storage, session_id)?.runs.map((run) => run.idempotency_key).join(':') : undefined,
   )
 
   const reconcile_accepted_intent = async (intent: SessionRunSendIntent): Promise<void> => {
-    if (!intent.accepted_run_id || !intent.input_message_id) return
+    if (!intent.runs.every((run) => run.phase === 'accepted' && run.accepted_run_id && run.input_message_id)) return
     set_recovery_error(undefined)
     const all_runs = await fetch_all_pages<DiagnosisRunListResponse>((cursor) =>
       api_v1_client.list_session_runs(session_id, { cursor, limit: API_V1_DEFAULT_PAGE_SIZE }),
@@ -416,18 +429,15 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
     query_client.setQueryData(runs_query_key, all_runs)
     query_client.setQueryData(messages_query_key, all_messages)
 
-    const accepted_run_found = all_runs.pages
-      .flatMap((page) => read_items(page.data))
-      .some((run) => resource_optional_string(run, 'id') === intent.accepted_run_id
-        && resource_optional_string(run, 'session_id') === session_id
-        && resource_optional_string(run, 'input_message_id') === intent.input_message_id)
-    const input_message_found = all_messages.pages
-      .flatMap((page) => read_items(page.data))
-      .some((message) => resource_optional_string(message, 'id') === intent.input_message_id
+    const recovered_run_values = all_runs.pages.flatMap((page) => read_items(page.data))
+    const recovered_message_values = all_messages.pages.flatMap((page) => read_items(page.data))
+    const all_accepted_found = intent.runs.every((intent_run) => recovered_run_values.some((run) => resource_optional_string(run, 'id') === intent_run.accepted_run_id
+      && resource_optional_string(run, 'session_id') === session_id
+      && resource_optional_string(run, 'input_message_id') === intent_run.input_message_id)
+      && recovered_message_values.some((message) => resource_optional_string(message, 'id') === intent_run.input_message_id
         && resource_optional_string(message, 'session_id') === session_id
-        && resource_string(message, 'role') === 'user')
-
-    if (!accepted_run_found || !input_message_found) {
+        && resource_string(message, 'role') === 'user'))
+    if (!all_accepted_found) {
       throw new Error('ACCEPTED_TURN_NOT_FOUND：调查已受理，但尚未恢复对应的已保存问题或调查记录。')
     }
 
@@ -444,7 +454,7 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
       const accepted_session_id = resource_optional_string(accepted_run, 'session_id')
       const input_message_id = resource_optional_string(accepted_run, 'input_message_id')
       const current_intent = storage ? load_session_run_send_intent(storage, session_id) : undefined
-      if (!current_intent || current_intent.idempotency_key !== variables.idempotency_key) {
+      if (!current_intent || !current_intent.runs.some((run) => run.idempotency_key === variables.idempotency_key)) {
         set_recovery_error(new Error('SEND_INTENT_MISSING：无法确认当前受理响应对应的发送意图。'))
         return
       }
@@ -453,15 +463,11 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
         return
       }
 
-      const accepted_intent = mark_session_run_send_intent_accepted(current_intent, accepted_run_id, input_message_id)
+      const accepted_intent = mark_session_run_send_intent_accepted(current_intent, variables.idempotency_key, accepted_run_id, input_message_id)
       if (storage) save_session_run_send_intent(storage, accepted_intent)
       set_send_intent(accepted_intent)
     },
     onError: (error) => {
-      if (is_validation_error(error)) {
-        if (storage) clear_session_run_send_intent(storage, session_id)
-        set_send_intent(undefined)
-      }
       if (error instanceof ApiClientError && error.code === 'SESSION_ARCHIVED') {
         void query_client.invalidateQueries({ queryKey: api_v1_query_keys.session(session_id) })
       }
@@ -470,8 +476,8 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
   })
 
   useEffect(() => {
-    if (!session_query.isSuccess || !send_intent?.accepted_run_id || !send_intent.input_message_id || create_run.isPending) return
-    const attempt_key = `${session_id}:${send_intent.accepted_run_id}`
+    if (!session_query.isSuccess || !send_intent?.runs.every((run) => run.phase === 'accepted') || create_run.isPending) return
+    const attempt_key = `${session_id}:${send_intent.runs.map((run) => run.accepted_run_id).join(':')}`
     if (automatic_recovery_attempts.current.has(attempt_key)) return
     automatic_recovery_attempts.current.add(attempt_key)
     void reconcile_accepted_intent(send_intent).catch(set_recovery_error)
@@ -481,11 +487,11 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
   const auto_submit_attempted = useRef<string | null>(null)
   useEffect(() => {
     if (!session_query.isSuccess || create_run.isPending) return
-    if (send_intent?.phase !== 'acceptance_unknown') return
+    if (!send_intent?.runs.some((run) => run.phase === 'acceptance_unknown')) return
     if (!send_intent.query.trim()) return
     // 仅自动提交"进会话前就写好"的意图，不处理用户在会话内新输入并发送的意图。
-    if (send_intent.idempotency_key !== initial_intent_key.current) return
-    const attempt_key = `${session_id}:${send_intent.idempotency_key}`
+    if (send_intent.runs.map((run) => run.idempotency_key).join(':') !== initial_intent_key.current) return
+    const attempt_key = `${session_id}:${send_intent.runs.map((run) => run.idempotency_key).join(':')}`
     if (auto_submit_attempted.current === attempt_key) return
     auto_submit_attempted.current = attempt_key
     submit_investigation(send_intent.query)
@@ -505,7 +511,11 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
       return
     }
 
-    const current_intent = send_intent ?? create_session_run_send_intent(session_id, normalized_query)
+    const current_intent = send_intent ?? create_session_run_send_intent(
+      session_id,
+      normalized_query,
+      { service_ids: session_query.data ? session_service_ids((session_query.data as ApiResponse<SessionResponse>).data.session) : [] },
+    )
     if (current_intent.query !== normalized_query) {
       set_recovery_error(new Error('当前发送意图仍在恢复中；请先完成重试或明确刷新后再修改问题。'))
       return
@@ -513,11 +523,20 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
     save_session_run_send_intent(storage, current_intent)
     set_send_intent(current_intent)
     set_recovery_error(undefined)
-    create_run.mutate({
-      idempotency_key: current_intent.idempotency_key,
-      query: current_intent.query,
-      session_id,
-    })
+    const submit_next = async (): Promise<void> => {
+      const errors = await submit_unaccepted_session_runs(current_intent, (intent_run) =>
+        create_run.mutateAsync({ idempotency_key: intent_run.idempotency_key, query: current_intent.query, service_id: intent_run.service_id, session_id }).then(() => undefined),
+      )
+      if (errors.length) {
+        if (current_intent.runs.length === 1) {
+          set_recovery_error(errors[0]!.error)
+          return
+        }
+        const failed_services = errors.map(({ service_id }) => service_id ?? '未关联服务').join('、')
+        set_recovery_error(new Error(`以下服务的调查未能提交：${failed_services}。其他服务仍会继续提交；可使用原幂等键重试未受理服务。`))
+      }
+    }
+    void submit_next().catch(() => undefined)
   }
 
   if (session_query.isPending) return <LoadingBlock label="正在恢复会话" />
@@ -533,19 +552,23 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
 
   const session = (session_query.data as ApiResponse<SessionResponse>).data.session
   const session_status = resource_string(session, 'status', 'unknown')
-  const session_service_id = resource_optional_string(session, 'service_id')
-  const session_service = session_service_id
-    ? read_items(services_query.data?.data).find((service) => resource_optional_string(service, 'id') === session_service_id)
-    : undefined
-  const session_service_title = resource_optional_string(session_service, 'title') ?? session_service_id ?? ''
+  const selected_session_service_ids = session_service_ids(session)
+  const session_service_titles = selected_session_service_ids.map((service_id) => {
+    const service = read_items(services_query.data?.data).find((item) => resource_optional_string(item, 'id') === service_id)
+    return resource_optional_string(service, 'title') ?? service_id
+  })
+  const services_by_id = new Map(read_items(services_query.data?.data).flatMap((service) => {
+    const id = resource_optional_string(service, 'id')
+    return id ? [[id, { kind: resource_optional_string(service, 'kind'), title: resource_optional_string(service, 'title') }] as const] : []
+  }))
   const can_send = session_status === 'active'
   const has_idempotency_key_conflict = is_idempotency_key_conflict(recovery_error)
   return (
     <div className="chat-inner">
-      {session_service_id && (
+      {session_service_titles.length > 0 && (
         <div aria-label="本次调查目标服务" className="session-service-context">
           <span>调查目标服务</span>
-          <strong>{session_service_title}</strong>
+          <strong>{session_service_titles.join('、')}</strong>
         </div>
       )}
       {session_status === 'archived' && (
@@ -566,7 +589,7 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
       {runs_query.isSuccess && messages_query.isError && <ApiErrorNotice error={messages_query.error} />}
       {runs_query.isSuccess && messages_query.isSuccess && (
         <>
-          <ConversationTimeline messages={recovered_messages} runs={recovered_runs} session_id={session_id} />
+          <ConversationTimeline messages={recovered_messages} runs={recovered_runs} services_by_id={services_by_id} session_id={session_id} />
           <LoadMoreButton
             has_more={Boolean(runs_query.hasNextPage)}
             is_fetching={runs_query.isFetchingNextPage}
@@ -592,7 +615,7 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
           value={query}
         />
       )}
-      {send_intent?.phase === 'acceptance_unknown' && (
+      {send_intent?.runs.some((run) => run.phase === 'acceptance_unknown') && (
         <UiAlert
           className="investigation-send-notice"
           description="本次请求的受理结果尚未确认。请使用同一问题和同一幂等键重试，或刷新页面恢复；不要修改问题后盲目再次发送。"
@@ -633,7 +656,7 @@ function ConversationHome(): ReactElement {
   const storage = session_storage()
   const pending_prompt = useRef<string | null>(null)
   const [query, set_query] = useState('')
-  const [selected_service_id, set_selected_service_id] = useState('')
+  const [selected_service_ids, set_selected_service_ids] = useState<string[]>([])
   const services_query = useQuery({ ...list_services_query() })
   const service_resources = services_query.data ? read_items(services_query.data.data) : []
   const services = service_resources.flatMap((service) => {
@@ -651,7 +674,7 @@ function ConversationHome(): ReactElement {
       // 预写发送意图，让会话页加载后自动提交调查，避免"创建会话后消息丢失"。
       const prompt = pending_prompt.current
       if (storage && prompt) {
-        const intent = create_session_run_send_intent(created_id, prompt)
+        const intent = create_session_run_send_intent(created_id, prompt, { service_ids: selected_service_ids })
         save_session_run_send_intent(storage, intent)
       }
       pending_prompt.current = null
@@ -661,14 +684,14 @@ function ConversationHome(): ReactElement {
   })
   const submit_prompt = (prompt: string): void => {
     pending_prompt.current = prompt
-    create_session.mutate({ title: prompt.slice(0, 40), service_id: selected_service_id || undefined })
+    create_session.mutate({ title: prompt.slice(0, 40), service_ids: selected_service_ids.length ? selected_service_ids : undefined })
   }
   return (
     <div className="chat-inner">
       <WelcomePanel
         on_prompt={submit_prompt}
-        on_service_change={set_selected_service_id}
-        selected_service_id={selected_service_id}
+        on_service_change={set_selected_service_ids}
+        selected_service_ids={selected_service_ids}
         service_count={service_count}
         services={services}
       />
