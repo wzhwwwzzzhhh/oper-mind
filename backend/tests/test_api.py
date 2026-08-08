@@ -46,18 +46,13 @@ def _build_mock_coordinator() -> CoordinatorAgent:
 
 @pytest.fixture
 def api_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
-    """替换共享 LLM，避免导入 API 时触发真实系统副作用。"""
+    """以 mock 模型环境构建 API 客户端，避免导入时触发真实系统副作用。"""
     monkeypatch.setenv("OPERMIND_API_KEY", "mock")
     monkeypatch.setenv("OPERMIND_BASE_URL", "http://mock")
     monkeypatch.setenv("OPERMIND_MODEL", "mock")
 
     from src import app as api_module
 
-    monkeypatch.setattr(
-        api_module,
-        "_shared_llm",
-        LLMClient(api_key="mock", base_url="http://mock", model="mock"),
-    )
     with TestClient(api_module.app, raise_server_exceptions=False) as client:
         yield client
 

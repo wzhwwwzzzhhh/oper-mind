@@ -25,6 +25,8 @@ fpdf==1.7.2         # scripts/ 生成方案 PDF
 SQLAlchemy==2.0.51  # 同步 ORM；P2 应用元数据持久化基础
 alembic==1.18.5     # 显式 schema migration；服务启动不自动迁移
 psycopg[binary]==3.3.4  # PostgreSQL 应用数据库驱动；本地测试仍使用 SQLite
+cryptography==44.0.0  # P6 模型 Provider API Key 的 AES-256-GCM 加密
+httpx==0.28.1       # P6 模型 Provider 连接验证的受控 HTTP 客户端（FastAPI TestClient 亦依赖）
 
 # ===== 真实诊断数据源（后续接入 MySQL 时启用） =====
 # pymysql>=1.1.0

@@ -8,6 +8,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_serializer, field_validator, model_validator
 
+from src.domain.model_provider import validate_provider_base_url
+from src.infrastructure.secrets import MIN_API_KEY_LENGTH
+
 
 class ApiV1Model(BaseModel):
     """v1 对外模型基类，拒绝未约定字段并统一输出 UTC Z 时间。"""
@@ -53,6 +56,89 @@ class ModelConfigResponse(ApiV1Model):
 
     config: ModelConfigResource
     meta: ResponseMeta
+
+
+class ModelProviderResource(ApiV1Model):
+    """单个 Provider 配置的安全视图；不含 API Key 明文。"""
+
+    id: UUID
+    name: str
+    base_url: str
+    model: str
+    has_api_key: bool
+    masked_tail: str | None = None
+    active_endpoint: Literal["diagnostic", "judge"] | None = None
+    verify_status: Literal["unknown", "ok", "failed", "timeout"]
+    last_verified_at: datetime | None = None
+    verify_error_code: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class ModelProviderListResponse(ApiV1Model):
+    """Provider 列表响应。"""
+
+    items: list[ModelProviderResource]
+    meta: ResponseMeta
+
+
+class ModelProviderResponse(ApiV1Model):
+    """单个 Provider 响应。"""
+
+    provider: ModelProviderResource
+    meta: ResponseMeta
+
+
+class CreateModelProviderRequest(ApiV1Model):
+    """新增 Provider 请求。"""
+
+    name: str = Field(min_length=1, max_length=80)
+    base_url: str = Field(min_length=1, max_length=500)
+    model: str = Field(min_length=1, max_length=120)
+    api_key: str | None = None
+
+    @field_validator("base_url")
+    @classmethod
+    def validate_base_url(cls, value: str) -> str:
+        """拒绝协议或主机不合法的 Base URL。"""
+        return validate_provider_base_url(value)
+
+    @field_validator("api_key")
+    @classmethod
+    def validate_api_key_length(cls, value: str | None) -> str | None:
+        """API Key 若提供则必须达到最小长度。"""
+        if value is not None and value != "" and len(value) < MIN_API_KEY_LENGTH:
+            raise ValueError(f"API Key 长度至少需要 {MIN_API_KEY_LENGTH} 字符。")
+        return value
+
+
+class UpdateModelProviderRequest(ApiV1Model):
+    """编辑 Provider 请求；api_key 不传=不改，空串=清空。"""
+
+    name: str = Field(min_length=1, max_length=80)
+    base_url: str = Field(min_length=1, max_length=500)
+    model: str = Field(min_length=1, max_length=120)
+    api_key: str | None = None
+
+    @field_validator("base_url")
+    @classmethod
+    def validate_base_url(cls, value: str) -> str:
+        """拒绝协议或主机不合法的 Base URL。"""
+        return validate_provider_base_url(value)
+
+    @field_validator("api_key")
+    @classmethod
+    def validate_api_key_length(cls, value: str | None) -> str | None:
+        """非空 API Key 必须达到最小长度。"""
+        if value is not None and value != "" and len(value) < MIN_API_KEY_LENGTH:
+            raise ValueError(f"API Key 长度至少需要 {MIN_API_KEY_LENGTH} 字符。")
+        return value
+
+
+class ActivateModelProviderRequest(ApiV1Model):
+    """激活 Provider 为指定端点生效配置。"""
+
+    endpoint: Literal["diagnostic", "judge"]
 
 
 class CursorPage(ApiV1Model):

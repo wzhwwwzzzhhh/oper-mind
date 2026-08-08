@@ -3,6 +3,8 @@
 # 安全建议：优先通过环境变量注入密钥，不要将真实 Key 写入 YAML。
 # 诊断模型：OPERMIND_API_KEY / OPERMIND_BASE_URL / OPERMIND_MODEL
 # 裁判模型：OPERMIND_JUDGE_API_KEY / OPERMIND_JUDGE_BASE_URL / OPERMIND_JUDGE_MODEL
+# 模型 Provider API Key 加密主密钥：OPERMIND_SECRET_KEY（>=32 字符，必填才能在前端保存 API Key；
+#   未配置时允许只读与无 Key 元数据保存。务必妥善备份，丢失后已存 Key 密文无法解密）
 # 环境变量存在时会覆盖下方同名字段；mock 回归只需设置 OPERMIND_API_KEY=mock。
 
 llm:

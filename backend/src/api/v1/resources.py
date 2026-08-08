@@ -11,6 +11,7 @@ from src.api.v1.schemas import (
     DiagnosisResultResource,
     DiagnosisRunResource,
     MessageResource,
+    ModelProviderResource,
     RunErrorResource,
     RunEventResource,
     ServiceActivityResource,
@@ -32,6 +33,7 @@ from src.domain.actions import (
     ActionVerificationData,
 )
 from src.domain.diagnosis import RunStatus
+from src.domain.model_provider import ModelProviderData
 from src.domain.records import DiagnosisResultData, DiagnosisRunData, MessageData, RunEventData, SessionData
 from src.domain.services import ServiceActivityData, ServiceViewData
 from src.domain.host_metrics import HostMetricsData
@@ -286,3 +288,21 @@ def monitor_history_resource(value: MonitorHistoryData) -> dict[str, object]:
         "to": value.to_at,
         "samples": [sample.model_dump() for sample in value.samples],
     }
+
+
+def provider_resource(value: ModelProviderData) -> ModelProviderResource:
+    """把领域 Provider 转为公开资源，绝不暴露密文或明文 Key。"""
+    return ModelProviderResource(
+        id=value.id,
+        name=value.name,
+        base_url=value.base_url,
+        model=value.model,
+        has_api_key=value.has_api_key,
+        masked_tail=value.masked_tail,
+        active_endpoint=value.active_endpoint.value if value.active_endpoint is not None else None,
+        verify_status=value.verify_status.value,
+        last_verified_at=value.last_verified_at,
+        verify_error_code=value.verify_error_code,
+        created_at=value.created_at,
+        updated_at=value.updated_at,
+    )

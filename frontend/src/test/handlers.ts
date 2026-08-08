@@ -361,6 +361,28 @@ function error_response(request: Request, code: string, message: string, status:
   return response(request, { error: { code, message, details: null } }, status)
 }
 
+interface ProviderFixturePayload {
+  name?: string
+  base_url?: string
+  model?: string
+  api_key?: string | null
+}
+
+const provider_fixture = {
+  id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  name: 'DeepSeek 生产',
+  base_url: 'https://api.deepseek.com/v1',
+  model: 'deepseek-chat',
+  has_api_key: true,
+  masked_tail: '1234',
+  active_endpoint: null,
+  verify_status: 'unknown',
+  last_verified_at: null,
+  verify_error_code: null,
+  created_at: '2026-08-06T03:00:00.000Z',
+  updated_at: '2026-08-06T03:00:00.000Z',
+}
+
 export const api_v1_handlers = [
   http.get('/api/v1/model/config', ({ request }) => response(request, {
     config: {
@@ -374,6 +396,62 @@ export const api_v1_handlers = [
       judge_model: null,
     },
   })),
+  http.get('/api/v1/model/providers', ({ request }) => response(request, { items: [provider_fixture] })),
+  http.post('/api/v1/model/providers', async ({ request }) => {
+    const body = (await request.json()) as ProviderFixturePayload
+    const has_key = typeof body.api_key === 'string' && body.api_key !== ''
+    return response(request, {
+      provider: {
+        ...provider_fixture,
+        name: body.name ?? provider_fixture.name,
+        base_url: body.base_url ?? provider_fixture.base_url,
+        model: body.model ?? provider_fixture.model,
+        has_api_key: has_key,
+        masked_tail: has_key && (body.api_key?.length ?? 0) >= 8 ? (body.api_key as string).slice(-4) : null,
+      },
+    }, 201)
+  }),
+  http.put('/api/v1/model/providers/:provider_id', async ({ request, params }) => {
+    const body = (await request.json()) as ProviderFixturePayload
+    return response(request, {
+      provider: {
+        ...provider_fixture,
+        id: String(params.provider_id),
+        name: body.name ?? provider_fixture.name,
+        base_url: body.base_url ?? provider_fixture.base_url,
+        model: body.model ?? provider_fixture.model,
+        has_api_key: body.api_key != null ? body.api_key !== '' : provider_fixture.has_api_key,
+        masked_tail:
+          body.api_key === '' ? null
+            : body.api_key != null && body.api_key.length >= 8 ? body.api_key.slice(-4)
+            : provider_fixture.masked_tail,
+      },
+    })
+  }),
+  http.post('/api/v1/model/providers/:provider_id/activate', async ({ request, params }) => {
+    const body = (await request.json()) as { endpoint?: 'diagnostic' | 'judge' }
+    return response(request, {
+      provider: {
+        ...provider_fixture,
+        id: String(params.provider_id),
+        active_endpoint: body.endpoint ?? null,
+      },
+    })
+  }),
+  http.post('/api/v1/model/providers/:provider_id/verify', ({ request, params }) =>
+    response(request, {
+      provider: {
+        ...provider_fixture,
+        id: String(params.provider_id),
+        verify_status: 'ok',
+        last_verified_at: '2026-08-06T04:00:00.000Z',
+        verify_error_code: null,
+      },
+    }),
+  ),
+  http.delete('/api/v1/model/providers/:provider_id', () =>
+    HttpResponse.json(null, { status: 204 }),
+  ),
   http.get('/api/v1/services', ({ request }) => response(request, { items: [order_service] })),
   http.get('/api/v1/services/postgres-production', ({ request }) => response(request, { service: order_service })),
   http.get('/api/v1/services/postgres-production/monitor/history', ({ request }) => response(request, service_monitor_history)),
@@ -479,4 +557,4 @@ export const api_v1_contract_scenarios = {
   network_interruption: http.get(/\/api\/v1\/sessions$/, () => HttpResponse.error()),
 }
 
-export const api_v1_contract_fixtures = { accepted_run_id, archived_session_id, cancelled_run_id, empty_result_run_id, failed_run_id, order_service, protocol_error_run_id, redis_monitor_history, redis_service, run_events, run_id, service_activity, service_monitor_history, service_run_id, service_session, service_session_id, session_id, trace_id }
+export const api_v1_contract_fixtures = { accepted_run_id, archived_session_id, cancelled_run_id, empty_result_run_id, failed_run_id, order_service, protocol_error_run_id, provider_fixture, redis_monitor_history, redis_service, run_events, run_id, service_activity, service_monitor_history, service_run_id, service_session, service_session_id, session_id, trace_id }

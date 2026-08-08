@@ -73,6 +73,49 @@ export interface ModelConfigResponse {
   meta: components['schemas']['ResponseMeta']
 }
 
+export interface ModelProviderResource {
+  id: string
+  name: string
+  base_url: string
+  model: string
+  has_api_key: boolean
+  masked_tail: string | null
+  active_endpoint: 'diagnostic' | 'judge' | null
+  verify_status: 'unknown' | 'ok' | 'failed' | 'timeout'
+  last_verified_at: string | null
+  verify_error_code: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface ModelProviderListResponse {
+  items: ModelProviderResource[]
+  meta: components['schemas']['ResponseMeta']
+}
+
+export interface ModelProviderResponse {
+  provider: ModelProviderResource
+  meta: components['schemas']['ResponseMeta']
+}
+
+export interface CreateModelProviderRequest {
+  name: string
+  base_url: string
+  model: string
+  api_key?: string | null
+}
+
+export interface UpdateModelProviderRequest {
+  name: string
+  base_url: string
+  model: string
+  api_key?: string | null
+}
+
+export interface ActivateModelProviderRequest {
+  endpoint: 'diagnostic' | 'judge'
+}
+
 export type ListSessionsQuery = NonNullable<
   operations['list_sessions_api_v1_sessions_get']['parameters']['query']
 >
@@ -121,6 +164,10 @@ export interface CreateRunOptions extends ApiRequestOptions {
   idempotency_key: string
 }
 
+export interface ProviderCreateOptions extends ApiRequestOptions {
+  idempotency_key: string
+}
+
 export interface ActionMutationOptions extends ApiRequestOptions {
   idempotency_key: string
 }
@@ -165,6 +212,29 @@ export class ApiClientError extends Error {
 
 export interface ApiV1Client {
   get_model_config(options?: ApiRequestOptions): Promise<ApiResponse<ModelConfigResponse>>
+  list_model_providers(options?: ApiRequestOptions): Promise<ApiResponse<ModelProviderListResponse>>
+  create_model_provider(
+    payload: CreateModelProviderRequest,
+    options: ProviderCreateOptions,
+  ): Promise<ApiResponse<ModelProviderResponse>>
+  update_model_provider(
+    provider_id: string,
+    payload: UpdateModelProviderRequest,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<ModelProviderResponse>>
+  activate_model_provider(
+    provider_id: string,
+    payload: ActivateModelProviderRequest,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<ModelProviderResponse>>
+  verify_model_provider(
+    provider_id: string,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<ModelProviderResponse>>
+  delete_model_provider(
+    provider_id: string,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<void>>
   list_services(options?: ApiRequestOptions): Promise<ApiResponse<ServiceListResponse>>
   get_service(service_id: string, options?: ApiRequestOptions): Promise<ApiResponse<ServiceResponse>>
   get_service_monitor_history(
@@ -329,6 +399,9 @@ function build_diagnostics(
 }
 
 async function parse_json_response(response: Response): Promise<unknown> {
+  if (response.status === 204) {
+    return undefined
+  }
   const content_type = response.headers.get('content-type') ?? ''
   if (!content_type.toLowerCase().includes('application/json')) {
     throw new Error('non_json')
@@ -340,7 +413,7 @@ async function parse_json_response(response: Response): Promise<unknown> {
 interface JsonRequestOptions {
   body?: unknown
   idempotency_key?: string
-  method?: 'GET' | 'POST'
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
 }
 
 async function request_json<TData>(
@@ -420,6 +493,59 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
         base_url,
         '/api/v1/model/config',
         request_options,
+      ),
+    list_model_providers: (request_options) =>
+      request_json<ModelProviderListResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        '/api/v1/model/providers',
+        request_options,
+      ),
+    create_model_provider: (payload, request_options) =>
+      request_json<ModelProviderResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        '/api/v1/model/providers',
+        request_options,
+        { body: payload, method: 'POST', idempotency_key: request_options.idempotency_key },
+      ),
+    update_model_provider: (provider_id, payload, request_options) =>
+      request_json<ModelProviderResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        `/api/v1/model/providers/${encodeURIComponent(provider_id)}`,
+        request_options,
+        { body: payload, method: 'PUT' },
+      ),
+    activate_model_provider: (provider_id, payload, request_options) =>
+      request_json<ModelProviderResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        `/api/v1/model/providers/${encodeURIComponent(provider_id)}/activate`,
+        request_options,
+        { body: payload, method: 'POST' },
+      ),
+    verify_model_provider: (provider_id, request_options) =>
+      request_json<ModelProviderResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        `/api/v1/model/providers/${encodeURIComponent(provider_id)}/verify`,
+        request_options,
+        { method: 'POST' },
+      ),
+    delete_model_provider: (provider_id, request_options) =>
+      request_json<void>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        `/api/v1/model/providers/${encodeURIComponent(provider_id)}`,
+        request_options,
+        { method: 'DELETE' },
       ),
     list_services: (request_options) =>
       request_json<ServiceListResponse>(
