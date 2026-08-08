@@ -1,6 +1,6 @@
 ---
 title: 服务监控概览页——多服务监控聚合（导航"服务监控"落地）
-status: 进行中
+status: 完成
 domain: monitor
 phase: P7
 issue: 45
