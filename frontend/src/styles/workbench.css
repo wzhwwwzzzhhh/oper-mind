@@ -579,7 +579,474 @@
   text-align: center;
 }
 
-/* P3-PKG8：结构化诊断结果面板，保持结果只读、证据可追溯且不依赖 antd。 */
+/* P3-PKG7：自绘 UI 原语（会话工作台），不依赖任何第三方 UI 库。 */
+.ui-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text-secondary);
+  background: var(--surface-soft);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.ui-alert__icon {
+  flex: none;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.5;
+}
+
+.ui-alert--info {
+  border-color: var(--accent-soft);
+  background: var(--accent-soft);
+}
+
+.ui-alert--info .ui-alert__icon {
+  color: var(--accent);
+}
+
+.ui-alert--success {
+  border-color: var(--success-soft);
+  background: var(--success-soft);
+}
+
+.ui-alert--success .ui-alert__icon {
+  color: var(--success);
+}
+
+.ui-alert--warning {
+  border-color: var(--warning-soft);
+  background: var(--warning-soft);
+}
+
+.ui-alert--warning .ui-alert__icon {
+  color: var(--warning);
+}
+
+.ui-alert--error {
+  border-color: var(--danger-soft);
+  background: var(--danger-soft);
+}
+
+.ui-alert--error .ui-alert__icon {
+  color: var(--danger);
+}
+
+.ui-alert__content {
+  min-width: 0;
+}
+
+.ui-alert__title {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.ui-alert__desc {
+  margin-top: 2px;
+  color: var(--text-secondary);
+}
+
+.ui-alert__action {
+  flex: none;
+  margin-left: auto;
+}
+
+.ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 13px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  background: var(--surface);
+  font-size: 12px;
+  font-weight: 650;
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
+}
+
+.ui-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.ui-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.ui-btn.primary {
+  border-color: var(--accent);
+  color: #fff;
+  background: var(--accent);
+}
+
+.ui-btn.primary:hover:not(:disabled) {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+}
+
+.ui-btn.danger {
+  border-color: var(--danger-soft);
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.ui-btn.danger:hover:not(:disabled) {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.ui-btn.primary.danger {
+  border-color: var(--danger);
+  background: var(--danger);
+}
+
+.ui-btn.primary.danger:hover:not(:disabled) {
+  border-color: #9c4046;
+  background: #9c4046;
+}
+
+.ui-btn.link {
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  color: var(--accent);
+  background: transparent;
+}
+
+.ui-btn.link:hover:not(:disabled) {
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+
+.ui-btn__spinner {
+  width: 11px;
+  height: 11px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: ui-spin 0.7s linear infinite;
+}
+
+@keyframes ui-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ui-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 2px 7px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  background: var(--surface-soft);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.ui-tag--green {
+  border-color: var(--success-soft);
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.ui-tag--red {
+  border-color: var(--danger-soft);
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.ui-tag--blue {
+  border-color: var(--accent-soft);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.ui-tag--cyan {
+  border-color: #cfe4ec;
+  color: #1b6d85;
+  background: #e6f4f8;
+}
+
+.ui-tag--gold {
+  border-color: var(--warning-soft);
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.ui-tag--orange {
+  border-color: #ecdcc2;
+  color: #a95f1f;
+  background: #fbf1e0;
+}
+
+.ui-space {
+  display: flex;
+}
+
+.ui-space--vertical {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.ui-space--wrap {
+  flex-wrap: wrap;
+}
+
+.ui-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: none;
+}
+
+.ui-card__head {
+  padding: 11px 13px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 720;
+}
+
+.ui-card__body {
+  padding: 13px;
+}
+
+.ui-title {
+  margin: 0;
+  color: var(--text);
+  font-weight: 720;
+}
+
+.ui-title--2 {
+  font-size: 19px;
+  letter-spacing: -0.02em;
+}
+
+.ui-title--5 {
+  margin-bottom: 9px;
+  font-size: 13px;
+}
+
+.ui-text {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.ui-text--strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.ui-paragraph {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.ui-descriptions__title {
+  margin: 0 0 8px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ui-descriptions__list {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+}
+
+.ui-descriptions__row {
+  display: grid;
+  grid-template-columns: minmax(92px, 0.4fr) 1fr;
+  gap: 9px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-soft);
+}
+
+.ui-descriptions__row dt {
+  color: var(--text-muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.ui-descriptions__row dd {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.ui-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.ui-list__item {
+  padding: 7px 10px;
+  border-top: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.ui-list__item:first-child {
+  border-top: 0;
+}
+
+.ui-modal {
+  position: fixed;
+  z-index: 24;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(31, 39, 43, 0.35);
+}
+
+.ui-modal[hidden] {
+  display: none;
+}
+
+.ui-modal__dialog {
+  width: min(440px, 100%);
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+}
+
+.ui-modal__head {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 720;
+}
+
+.ui-modal__body {
+  padding: 15px 16px;
+}
+
+.ui-modal__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-soft);
+}
+
+.ui-spin {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: ui-spin 0.7s linear infinite;
+}
+
+.ui-skeleton {
+  display: grid;
+  gap: 9px;
+}
+
+.ui-skeleton__line {
+  display: block;
+  height: 12px;
+  border-radius: 4px;
+  background: var(--surface-soft);
+}
+
+.ui-skeleton__line--title {
+  width: 38%;
+  height: 14px;
+}
+
+.ui-skeleton--active .ui-skeleton__line {
+  background: linear-gradient(90deg, var(--surface-soft) 25%, var(--surface-muted) 37%, var(--surface-soft) 63%);
+  background-size: 400% 100%;
+  animation: ui-skeleton-shimmer 1.4s ease infinite;
+}
+
+@keyframes ui-skeleton-shimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+.ui-collapse {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.ui-collapse__item + .ui-collapse__item {
+  border-top: 1px solid var(--border);
+}
+
+.ui-collapse__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 0;
+  color: var(--text-secondary);
+  background: var(--surface);
+  font-size: 12px;
+  font-weight: 650;
+  text-align: left;
+}
+
+.ui-collapse__head:hover {
+  background: var(--surface-soft);
+}
+
+.ui-collapse__toggle {
+  color: var(--text-muted);
+  font-size: 14px;
+  transition: transform 0.18s ease;
+}
+
+.ui-collapse__item.open .ui-collapse__toggle {
+  transform: rotate(180deg);
+}
+
+.ui-collapse__body {
+  padding: 12px;
+  border-top: 1px solid var(--border);
+}
+
+/* P3-PKG8：结构化诊断结果面板，保持结果只读、证据可追溯。 */
 .diagnosis-result-panel {
   width: 100%;
   padding: 18px;

@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Alert, Button, Card, Descriptions, List, Modal, Space, Spin, Tag, Typography } from 'antd'
 import type { ReactElement } from 'react'
 import { useMemo, useState } from 'react'
 
@@ -9,6 +8,21 @@ import {
   type ActionApprovalRequest,
   type ActionExecutionRequest,
 } from '../../api/v1/client'
+import {
+  UiAlert,
+  UiButton,
+  UiCard,
+  UiDescriptions,
+  UiDescriptionsItem,
+  UiList,
+  UiModal,
+  UiParagraph,
+  UiSpace,
+  UiSpin,
+  UiTag,
+  UiText,
+  UiTitle,
+} from './ui'
 
 
 type ProposalStatus =
@@ -123,7 +137,7 @@ function read_action_events(value: unknown): ActionEventView[] {
   })
 }
 
-function status_color(status: ProposalStatus): string {
+function status_color(status: ProposalStatus): 'green' | 'red' | 'blue' | 'cyan' | 'gold' {
   if (status === 'verified') return 'green'
   if (status === 'failed' || status === 'blocked' || status === 'rejected' || status === 'expired') return 'red'
   if (status === 'approved') return 'blue'
@@ -200,70 +214,67 @@ export function ActionProposalPanel({ run_id }: { run_id: string }): ReactElemen
     },
   })
 
-  if (proposal_query.isLoading) return <Spin aria-label="正在读取固定修复提案" size="small" />
-  if (proposal_query.isError) return <Alert description={safe_error(proposal_query.error)} title="固定修复提案暂不可读取" showIcon type="warning" />
+  if (proposal_query.isLoading) return <UiSpin label="正在读取固定修复提案" />
+  if (proposal_query.isError) return <UiAlert description={safe_error(proposal_query.error)} showIcon title="固定修复提案暂不可读取" type="warning" />
   if (!proposal) return null
 
   const events = read_action_events(events_query.data)
   const busy = approve_mutation.isPending || reject_mutation.isPending || execute_mutation.isPending
   const failure = proposal.failure_message ?? proposal.execution?.failure_message
   return (
-    <Card size="small" title="固定修复提案" type="inner">
-      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-        <Space wrap>
-          <Tag color={status_color(proposal.status)}>{status_text(proposal.status)}</Tag>
-          <Tag color={proposal.mode === 'mock' ? 'orange' : 'blue'}>{proposal.mode === 'mock' ? '模拟模式：不含真实 DDL' : '受控靶场 target 模式'}</Tag>
-        </Space>
-        <Typography.Text strong>{proposal.title}</Typography.Text>
-        <Typography.Paragraph>{proposal.description}</Typography.Paragraph>
-        <Alert description="当前没有多用户身份或 RBAC；审批 actor 固定记录为 local_operator，只表示本地操作者明确确认。" title="本地人工审批限制" showIcon type="info" />
-        <Descriptions column={1} size="small" title="固定边界">
-          {Object.entries(proposal.target).map(([key, value]) => <Descriptions.Item key={key} label={key}>{value}</Descriptions.Item>)}
-          <Descriptions.Item label="风险">{proposal.risk_summary}</Descriptions.Item>
-        </Descriptions>
+    <UiCard title="固定修复提案">
+      <UiSpace direction="vertical" size="middle" style={{ width: '100%' }}>
+        <UiSpace wrap>
+          <UiTag color={status_color(proposal.status)}>{status_text(proposal.status)}</UiTag>
+          <UiTag color={proposal.mode === 'mock' ? 'orange' : 'blue'}>{proposal.mode === 'mock' ? '模拟模式：不含真实 DDL' : '受控靶场 target 模式'}</UiTag>
+        </UiSpace>
+        <UiText strong>{proposal.title}</UiText>
+        <UiParagraph>{proposal.description}</UiParagraph>
+        <UiAlert description="当前没有多用户身份或 RBAC；审批 actor 固定记录为 local_operator，只表示本地操作者明确确认。" showIcon title="本地人工审批限制" type="info" />
+        <UiDescriptions title="固定边界">
+          {Object.entries(proposal.target).map(([key, value]) => <UiDescriptionsItem key={key} label={key}>{value}</UiDescriptionsItem>)}
+          <UiDescriptionsItem label="风险">{proposal.risk_summary}</UiDescriptionsItem>
+        </UiDescriptions>
         <section aria-labelledby={`verify-plan-${proposal.id}`}>
-          <Typography.Title id={`verify-plan-${proposal.id}`} level={5}>独立 Verify 计划</Typography.Title>
-          <List dataSource={proposal.verification_plan} renderItem={(item) => <List.Item>{item}</List.Item>} size="small" />
+          <UiTitle id={`verify-plan-${proposal.id}`} level={5}>独立 Verify 计划</UiTitle>
+          <UiList dataSource={proposal.verification_plan} renderItem={(item) => item} />
         </section>
         {proposal.status === 'pending_approval' && (
-          <Space wrap>
-            <Button disabled={busy} onClick={() => set_confirm('approve')} type="primary">批准固定修复</Button>
-            <Button danger disabled={busy} loading={reject_mutation.isPending} onClick={() => reject_mutation.mutate()}>拒绝</Button>
-          </Space>
+          <UiSpace wrap>
+            <UiButton disabled={busy} onClick={() => set_confirm('approve')} type="primary">批准固定修复</UiButton>
+            <UiButton danger disabled={busy} loading={reject_mutation.isPending} onClick={() => reject_mutation.mutate()}>拒绝</UiButton>
+          </UiSpace>
         )}
         {proposal.status === 'approved' && (
-          <Button danger disabled={busy} onClick={() => set_confirm('execute')} type="primary">执行固定修复</Button>
+          <UiButton danger disabled={busy} onClick={() => set_confirm('execute')} type="primary">执行固定修复</UiButton>
         )}
-        {(proposal.status === 'executing' || proposal.status === 'verifying') && <Alert description="页面正在轮询已提交的 action 审计事件；不会显示思维链、SQL、日志原文或内部请求 ID。" title="固定修复处理中" showIcon type="info" />}
+        {(proposal.status === 'executing' || proposal.status === 'verifying') && <UiAlert description="页面正在轮询已提交的 action 审计事件；不会显示思维链、SQL、日志原文或内部请求 ID。" showIcon title="固定修复处理中" type="info" />}
         {proposal.status === 'verified' && proposal.verification && (
-          <Alert description={proposal.verification.summary} title="Verify 已通过" showIcon type="success" />
+          <UiAlert description={proposal.verification.summary} showIcon title="Verify 已通过" type="success" />
         )}
-        {failure && <Alert description={`${failure} 请重新发起调查以生成新提案。`} title="该提案不能重试" showIcon type="error" />}
+        {failure && <UiAlert description={`${failure} 请重新发起调查以生成新提案。`} showIcon title="该提案不能重试" type="error" />}
         {proposal.verification && (
-          <Descriptions column={1} size="small" title="Verify 脱敏事实">
-            {Object.entries(proposal.verification.facts).map(([key, value]) => <Descriptions.Item key={key} label={key}>{String(value)}</Descriptions.Item>)}
-          </Descriptions>
+          <UiDescriptions title="Verify 脱敏事实">
+            {Object.entries(proposal.verification.facts).map(([key, value]) => <UiDescriptionsItem key={key} label={key}>{String(value)}</UiDescriptionsItem>)}
+          </UiDescriptions>
         )}
         {events.length > 0 && (
           <section aria-labelledby={`action-events-${proposal.id}`}>
-            <Typography.Title id={`action-events-${proposal.id}`} level={5}>审批与执行时间线</Typography.Title>
-            <List
+            <UiTitle id={`action-events-${proposal.id}`} level={5}>审批与执行时间线</UiTitle>
+            <UiList
               dataSource={events}
               renderItem={(event) => (
-                <List.Item>
-                  <Space direction="vertical" size={2}>
-                    <Space wrap><Tag>#{event.sequence}</Tag><Tag>{event.type}</Tag>{event.status && <Tag color="blue">{event.status}</Tag>}{event.mode && <Tag>{event.mode}</Tag>}</Space>
-                    {event.summary && <Typography.Text>{event.summary}</Typography.Text>}
-                  </Space>
-                </List.Item>
+                <UiSpace direction="vertical" size={2}>
+                  <UiSpace wrap><UiTag>#{event.sequence}</UiTag><UiTag>{event.type}</UiTag>{event.status && <UiTag color="blue">{event.status}</UiTag>}{event.mode && <UiTag>{event.mode}</UiTag>}</UiSpace>
+                  {event.summary && <UiText>{event.summary}</UiText>}
+                </UiSpace>
               )}
-              size="small"
             />
           </section>
         )}
-        {(approve_mutation.isError || reject_mutation.isError || execute_mutation.isError) && <Alert description={safe_error(approve_mutation.error ?? reject_mutation.error ?? execute_mutation.error)} title="固定修复操作未完成" showIcon type="error" />}
-      </Space>
-      <Modal
+        {(approve_mutation.isError || reject_mutation.isError || execute_mutation.isError) && <UiAlert description={safe_error(approve_mutation.error ?? reject_mutation.error ?? execute_mutation.error)} showIcon title="固定修复操作未完成" type="error" />}
+      </UiSpace>
+      <UiModal
         cancelText="取消"
         confirmLoading={confirm === 'approve' ? approve_mutation.isPending : execute_mutation.isPending}
         okButtonProps={{ danger: confirm === 'execute' }}
@@ -273,12 +284,12 @@ export function ActionProposalPanel({ run_id }: { run_id: string }): ReactElemen
         open={confirm !== null}
         title={confirm === 'approve' ? '确认本地人工审批' : '再次确认执行固定修复'}
       >
-        <Typography.Paragraph>
+        <UiParagraph>
           {confirm === 'approve'
             ? '你将以 local_operator 记录对不可编辑固定提案的明确批准；这不是企业级多人审批。'
             : '系统只会对受控靶场执行代码内固定的联合索引重建，并在之后独立 Verify；验证失败不会自动回滚。'}
-        </Typography.Paragraph>
-      </Modal>
-    </Card>
+        </UiParagraph>
+      </UiModal>
+    </UiCard>
   )
 }

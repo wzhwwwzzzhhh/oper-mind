@@ -13,9 +13,7 @@
     "test:mock-api": "..\\.venv\\Scripts\\python.exe -m pytest scripts/test_mock_v1_api.py -q"
   },
   "dependencies": {
-    "@ant-design/icons": "^6.1.0",
     "@tanstack/react-query": "^5.90.20",
-    "antd": "^6.3.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.13.1",
