@@ -29,3 +29,8 @@ persistence: {}
 # cache_seconds 默认 10（0–600，0=不缓存）；采样器与 API 请求共享缓存。
 # host_metrics:
 #   cache_seconds: 10
+
+# 知识库受管目录（P6/P7）：环境变量 OPERMIND_KNOWLEDGE_DIR 优先。
+# 指向只读 Markdown 知识目录；未配置/不存在 → 页面与检索如实返回「未配置」。
+# knowledge:
+#   directory: "D:/ops-knowledge"

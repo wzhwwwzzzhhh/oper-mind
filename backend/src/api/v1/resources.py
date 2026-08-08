@@ -10,6 +10,11 @@ from src.api.v1.schemas import (
     ActionVerificationResource,
     DiagnosisResultResource,
     DiagnosisRunResource,
+    HostDiskPartitionResource,
+    HostMetricsResource,
+    HostProcessResource,
+    KnowledgeDocumentResource,
+    KnowledgeSearchHitResource,
     MessageResource,
     ModelProviderResource,
     RunErrorResource,
@@ -20,9 +25,6 @@ from src.api.v1.schemas import (
     ServiceResource,
     ServiceServerMetricsResource,
     ServiceSnapshotResource,
-    HostDiskPartitionResource,
-    HostMetricsResource,
-    HostProcessResource,
     SessionResource,
 )
 from src.domain.actions import (
@@ -38,6 +40,7 @@ from src.domain.records import DiagnosisResultData, DiagnosisRunData, MessageDat
 from src.domain.services import ServiceActivityData, ServiceViewData
 from src.domain.host_metrics import HostMetricsData
 from src.domain.monitoring import MonitorHistoryData
+from src.knowledge.reader import KnowledgeDocumentMeta, KnowledgeSearchHit
 
 
 def session_resource(value: SessionData) -> SessionResource:
@@ -306,4 +309,20 @@ def provider_resource(value: ModelProviderData) -> ModelProviderResource:
         verify_error_code=value.verify_error_code,
         created_at=value.created_at,
         updated_at=value.updated_at,
+    )
+
+
+def knowledge_document_resource(value: KnowledgeDocumentMeta) -> KnowledgeDocumentResource:
+    """把 reader 文档清单条目映射为公开资源（relative_name → relative_path）。"""
+    return KnowledgeDocumentResource(title=value.title, relative_path=value.relative_name)
+
+
+def knowledge_search_hit_resource(value: KnowledgeSearchHit) -> KnowledgeSearchHitResource:
+    """把 reader 检索命中项映射为公开资源（relative_name → relative_path）。"""
+    return KnowledgeSearchHitResource(
+        title=value.title,
+        relative_path=value.relative_name,
+        snippet_count=value.snippet_count,
+        title_hit=value.title_hit,
+        snippets=value.snippets,
     )

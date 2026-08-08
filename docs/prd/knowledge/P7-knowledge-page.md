@@ -1,6 +1,6 @@
 ---
 title: 文档知识库页面——知识目录浏览与确定性检索
-status: 已确认
+status: 进行中
 domain: knowledge
 phase: P7
 issue: 43

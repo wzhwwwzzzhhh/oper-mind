@@ -12,12 +12,14 @@ from dataclasses import dataclass
 from fastapi import Request
 
 from src.application.action_services import ActionApplicationService
+from src.application.knowledge import KnowledgeReaderService
 from src.application.model_providers import resolve_model_config
 from src.application.services import RunApplicationService, SessionApplicationService
 from src.application.service_center import ServiceCenterApplicationService
 from src.config import (
     load_action_mode,
     load_host_metrics_settings,
+    load_knowledge_settings,
     load_monitor_settings,
     load_persistence_settings,
     load_service_dsn,
@@ -52,6 +54,7 @@ class V1Services:
     service_center: ServiceCenterApplicationService | None = None
     monitor_sampler: MonitorSampler | None = None
     service_registry: ServiceRegistry | None = None
+    knowledge_service: KnowledgeReaderService | None = None
 
 
 def build_v1_services() -> V1Services:
@@ -160,6 +163,7 @@ def build_v1_services_for_runtime(
             host_collector=host_collector,
         ),
         service_registry=registry,
+        knowledge_service=KnowledgeReaderService(load_knowledge_settings().directory),
     )
 
 
