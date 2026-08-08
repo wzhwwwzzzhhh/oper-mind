@@ -24,7 +24,7 @@
 | P4.3 | 模型设置页读取真实生效配置 | `model/P4.3-model-settings-real.md` | 完成 |
 | P6 | 模型 Provider 与 API Key 管理 | `model/P6-model-provider-key-management.md` | 完成 |
 | P4.4 | 服务中心多服务实例接入 | `service-center/P4.4-service-instances.md` | 完成 |
-| P5 | 服务监控历史趋势与页面内告警 | `monitor/P5-monitor-trends.md` | 已确认 |
+| P5 | 服务监控历史趋势与页面内告警 | `monitor/P5-monitor-trends.md` | 完成 |
 | P6 | 服务主机指标监控 | `monitor/P6-host-metrics-monitoring.md` | 完成 |
 | P5 | 受控动作闭环变真——联合索引重建 | `approval/P5-controlled-action-real.md` | 完成 |
 | P6 | 知识库——目录内 Markdown 确定性检索 | `knowledge/P6-knowledge-retrieval.md` | 完成 |

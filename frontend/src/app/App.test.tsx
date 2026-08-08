@@ -503,6 +503,31 @@ describe('App', () => {
     expect(screen.queryByText('99.98%')).not.toBeInTheDocument()
   })
 
+  it('服务详情无历史采样时展示诚实空态，不绘制假趋势线', async () => {
+    open_path('/services/postgres-production')
+    server.use(
+      http.get('/api/v1/services/postgres-production/monitor/history', ({ request }) =>
+        response(request, {
+          service_id: 'postgres-production',
+          status: 'not_sampled',
+          source: 'scheduled_sampling',
+          sample_interval_seconds: 300,
+          retention_hours: 24,
+          from: '2026-07-31T02:00:00.000Z',
+          to: '2026-07-31T03:00:00.000Z',
+          samples: [],
+        }),
+      ),
+    )
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: '订单服务靶场' })).toBeInTheDocument()
+    expect(await screen.findByText('暂无历史采样')).toBeInTheDocument()
+    expect(screen.getByText(/不会绘制假趋势线/)).toBeInTheDocument()
+    expect(screen.queryByText('采样点异常')).not.toBeInTheDocument()
+    expect(screen.getByText('定时采样 · 每 5 分钟 · 保留最近 24 小时 · 历史记录')).toBeInTheDocument()
+  })
+
   it('模型服务页展示后端真实配置并保留本地 Agent 偏好', async () => {
     open_path('/models')
     render(<App />)
