@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import datetime, timezone
 from typing import TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from src.application.errors import ServiceCenterUnavailableError, ServiceNotFoundError
+from src.domain.host_metrics import HostMetricsCollector, HostMetricsData, HostMetricsMode, HostMetricsSourceStatus
 from src.domain.records import DiagnosisRunCursor, RepositoryPage, SessionData
 from src.domain.services import ServiceActivityData, ServiceConnector, ServiceRegistry, ServiceViewData
 from src.infrastructure.persistence.database import SessionFactory
@@ -30,22 +32,50 @@ class CreateServiceSessionCommand(BaseModel):
 class ServiceCenterApplicationService:
     """编排静态 Connector、短事务 Session 创建和活动只读模型。"""
 
-    def __init__(self, session_factory: SessionFactory, registry: ServiceRegistry | None) -> None:
+    def __init__(
+        self,
+        session_factory: SessionFactory,
+        registry: ServiceRegistry | None,
+        host_metrics_collector: HostMetricsCollector | None = None,
+    ) -> None:
         self._session_factory = session_factory
         self._registry = registry
+        self._host_metrics_collector = host_metrics_collector
 
     def list_services(self) -> list[ServiceViewData]:
-        """读取所有静态注册服务的当前有限快照。"""
+        """读取所有静态注册服务的当前有限快照与共享主机指标（每请求只采集一次）。"""
         registry = self._required_registry()
+        host_metrics = self._host_metrics()
         return [
-            ServiceViewData(definition=connector.definition(), snapshot=connector.health_snapshot())
+            ServiceViewData(
+                definition=connector.definition(),
+                snapshot=connector.health_snapshot(),
+                host_metrics=host_metrics,
+            )
             for connector in registry.list_connectors()
         ]
 
     def get_service(self, service_id: str) -> ServiceViewData:
-        """读取一个静态服务的身份与当前有限快照。"""
+        """读取一个静态服务的身份、当前有限快照与共享主机指标。"""
         connector = self._get_connector(service_id)
-        return ServiceViewData(definition=connector.definition(), snapshot=connector.health_snapshot())
+        return ServiceViewData(
+            definition=connector.definition(),
+            snapshot=connector.health_snapshot(),
+            host_metrics=self._host_metrics(),
+        )
+
+    def _host_metrics(self) -> HostMetricsData:
+        """读取主机指标；采集器未装配或采集失败时防御性返回不可用状态。"""
+        if self._host_metrics_collector is None:
+            return HostMetricsData.unavailable(
+                datetime.now(timezone.utc), mode=HostMetricsMode.TARGET
+            )
+        try:
+            return self._host_metrics_collector.collect()
+        except Exception:
+            return HostMetricsData.unavailable(
+                datetime.now(timezone.utc), mode=HostMetricsMode.TARGET
+            )
 
     def create_service_session(self, command: CreateServiceSessionCommand) -> SessionData:
         """为静态服务创建 active Session，不创建 Message、Run 或外部读取。"""

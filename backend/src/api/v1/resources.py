@@ -20,6 +20,9 @@ from src.api.v1.schemas import (
     ServiceResource,
     ServiceServerMetricsResource,
     ServiceSnapshotResource,
+    HostDiskPartitionResource,
+    HostMetricsResource,
+    HostProcessResource,
     SessionResource,
 )
 from src.domain.actions import (
@@ -33,6 +36,7 @@ from src.domain.diagnosis import RunStatus
 from src.domain.model_provider import ModelProviderData
 from src.domain.records import DiagnosisResultData, DiagnosisRunData, MessageData, RunEventData, SessionData
 from src.domain.services import ServiceActivityData, ServiceViewData
+from src.domain.host_metrics import HostMetricsData
 from src.domain.monitoring import MonitorHistoryData
 
 
@@ -214,6 +218,44 @@ def service_resource(value: ServiceViewData) -> ServiceResource:
                 signal=snapshot.database.signal.value,
             ),
         ),
+        host_metrics=host_metrics_resource(value.host_metrics),
+    )
+
+
+def host_metrics_resource(value: HostMetricsData) -> HostMetricsResource:
+    """将主机指标领域模型映射为脱敏公开资源，标量保持 null 而非 0。"""
+    return HostMetricsResource(
+        mode=value.mode.value,
+        source_status=value.source_status.value,
+        observed_at=value.observed_at,
+        cpu_percent=value.cpu_percent,
+        cpu_count=value.cpu_count,
+        load_avg_1m=value.load_avg_1m,
+        memory_total_bytes=value.memory_total_bytes,
+        memory_used_bytes=value.memory_used_bytes,
+        memory_percent=value.memory_percent,
+        disk_used_percent=value.disk_used_percent,
+        disk_top_partitions=[
+            HostDiskPartitionResource(
+                mount=part.mount,
+                percent=part.percent,
+                used_bytes=part.used_bytes,
+                total_bytes=part.total_bytes,
+            )
+            for part in value.disk_top_partitions
+        ],
+        network_connections=value.network_connections,
+        network_established=value.network_established,
+        network_time_wait=value.network_time_wait,
+        abnormal_processes=[
+            HostProcessResource(
+                name=proc.name,
+                pid=proc.pid,
+                cpu_percent=proc.cpu_percent,
+                memory_percent=proc.memory_percent,
+            )
+            for proc in value.abnormal_processes
+        ],
     )
 
 

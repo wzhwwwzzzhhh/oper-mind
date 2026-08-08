@@ -21,6 +21,7 @@ docs/workpack/
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
 | P6 | log-source-real | 已实现，待交付 | [plan](P6-log-source-real/plan.md) | [review](P6-log-source-real/review.md) | [evidence](P6-log-source-real/evidence.md) |
+| P6 | host-metrics | 已实现，待交付 | [plan](P6-host-metrics/plan.md) | [review](P6-host-metrics/review.md) | [evidence](P6-host-metrics/evidence.md) |
 | P5 | monitor-trends | 待用户确认计划 | [plan](P5-monitor-trends/plan.md) | 待执行 | 待执行 |
 | P5 | controlled-action-real | 已实现，待交付 | [plan](P5-controlled-action-real/plan.md) | [review](P5-controlled-action-real/review.md) | [evidence](P5-controlled-action-real/evidence.md) |
 

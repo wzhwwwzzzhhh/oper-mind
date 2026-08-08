@@ -116,6 +116,19 @@ def test_get_service可以映射() -> None:
     assert resource.snapshot.availability == ServiceAvailability.NOT_CONFIGURED.value
 
 
+def test_未装配主机采集器时返回不可用主机指标() -> None:
+    """P6：host_collector 缺省时防御性返回 unavailable 主机指标，资源映射恒产出 host_metrics。"""
+    connector = PostgresServiceConnector(None)
+    views = _service_center(connector).list_services()
+
+    assert len(views) == 1
+    assert views[0].host_metrics.source_status.value == "unavailable"
+    resource = service_resource(views[0])
+    assert resource.host_metrics.source_status == "unavailable"
+    assert resource.host_metrics.cpu_percent is None
+    assert resource.host_metrics.mode == "target"
+
+
 def test_多实例服务中心各自返回实例定义() -> None:
     """两个 PostgreSQL 实例可以同时注册并保留各自身份。"""
     services = ServiceCenterApplicationService(

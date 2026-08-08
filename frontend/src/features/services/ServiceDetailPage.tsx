@@ -94,6 +94,18 @@ function monitor_value(value: unknown, suffix = ''): string {
   return typeof value === 'number' && Number.isFinite(value) ? `${value}${suffix}` : '—'
 }
 
+function host_trend_track(label: string, samples: unknown[], field: string, key_prefix: string, suffix: string): ReactElement | null {
+  const points = samples.filter((item) => typeof resource_value(item, field) === 'number')
+  if (points.length === 0) return null
+  return (
+    <div className="svc-detail-chart">
+      <div className="svc-detail-chart-legend"><span>{label}</span></div>
+      <div className="svc-detail-chart-track">{points.map((item) => { const value = resource_value(item, field) as number; const bar = Math.min(100, Math.max(4, value)); return <div className="svc-detail-chart-point" key={`${key_prefix}-${resource_value(item, 'id') ?? resource_value(item, 'observed_at')}`} title={`${display_time(resource_value(item, 'observed_at'))} · ${label} ${monitor_value(value, suffix)}`}><i style={{ height: `${bar}%` }} /></div> })}</div>
+      <div className="svc-detail-chart-axis"><span>{display_time(resource_value(points[0], 'observed_at'))}</span><span>{display_time(resource_value(points[points.length - 1], 'observed_at'))}</span></div>
+    </div>
+  )
+}
+
 /** 单服务详情页：只展示后端真实服务快照，缺失数据保持诚实空态。 */
 export function ServiceDetailPage(): ReactElement {
   const navigate = useNavigate()
@@ -211,6 +223,38 @@ export function ServiceDetailPage(): ReactElement {
         </div>
       </section>
 
+      <section className="svc-detail-section">
+        <div className="svc-detail-section-head"><div><h2>主机指标</h2><p>后端所在主机 · 单主机采集 · 只读本机指标，不代表服务所在远端主机。</p></div></div>
+        {(() => {
+          const host_metrics = read_record(resource_value(service, 'host_metrics'))
+          if (!resource_value(service, 'host_metrics')) {
+            return <div className="svc-detail-inline-empty">后端未返回主机指标，不展示示例数据。</div>
+          }
+          const host_status = resource_string(host_metrics, 'source_status', 'unavailable')
+          const host_mode = resource_string(host_metrics, 'mode', 'target')
+          const host_source_label = host_mode === 'mock' ? '演示场景' : '真实采集'
+          if (host_status === 'unavailable') {
+            return <div className="svc-detail-inline-empty"><strong>主机指标不可用</strong><p>psutil 采集不可用，页面不伪造数值。</p></div>
+          }
+          const processes = read_array(resource_value(host_metrics, 'abnormal_processes'))
+          return (
+            <div>
+              <div className="svc-detail-metrics">
+                <article className="svc-detail-metric"><span>CPU 使用率</span><strong>{display_number(resource_value(host_metrics, 'cpu_percent'), ' %')}</strong><small>{host_source_label} · {display_number(resource_value(host_metrics, 'cpu_count'), ' 核')}</small></article>
+                <article className="svc-detail-metric"><span>内存使用率</span><strong>{display_number(resource_value(host_metrics, 'memory_percent'), ' %')}</strong><small>{display_bytes(resource_value(host_metrics, 'memory_used_bytes'))} / {display_bytes(resource_value(host_metrics, 'memory_total_bytes'))}</small></article>
+                <article className="svc-detail-metric"><span>磁盘使用率</span><strong>{display_number(resource_value(host_metrics, 'disk_used_percent'), ' %')}</strong><small>跨分区最大使用率</small></article>
+                <article className="svc-detail-metric"><span>网络连接</span><strong>{display_number(resource_value(host_metrics, 'network_connections'), ' 个')}</strong><small>ESTABLISHED {display_number(resource_value(host_metrics, 'network_established'))} · TIME_WAIT {display_number(resource_value(host_metrics, 'network_time_wait'))}</small></article>
+                <article className="svc-detail-metric"><span>Load 1m</span><strong>{display_number(resource_value(host_metrics, 'load_avg_1m'))}</strong><small>主机负载</small></article>
+              </div>
+              {processes.length > 0 && (
+                <div className="svc-detail-attention"><span className="attention-dot attention" /><div><strong>异常进程（{processes.length} 个）</strong><p>{processes.map((item) => { const proc = read_record(item); return `${resource_string(proc, 'name', '未知')} (PID=${resource_value(proc, 'pid')}) CPU ${display_number(resource_value(proc, 'cpu_percent'), '%')} · 内存 ${display_number(resource_value(proc, 'memory_percent'), '%')}` }).join('；')}</p></div></div>
+              )}
+              <div className="svc-detail-facts"><div><small>采集来源</small><b>{host_source_label}</b></div><div><small>采集范围</small><b>后端所在主机（单主机）</b></div></div>
+            </div>
+          )
+        })()}
+      </section>
+
       <div className="svc-detail-two-col">
         <section className="svc-detail-card">
           <div className="svc-detail-card-head"><div><h3>运行趋势</h3><p>定时采样 · 每 5 分钟 · 保留最近 24 小时 · 历史记录</p></div></div>
@@ -225,7 +269,7 @@ export function ServiceDetailPage(): ReactElement {
                 : (item.slow_query_count ?? 0) > 0 || (item.timeout_count ?? 0) > 0 || (index > 0 && item.availability !== samples[index - 1].availability),
             )
             if (samples.length === 0) return <div className="svc-detail-chart-empty"><span>⌁</span><strong>暂无历史采样</strong><p>{monitor_status_label(history.status)}，不会绘制假趋势线。</p></div>
-             return <div className="svc-detail-chart"><div className="svc-detail-chart-legend"><span>{is_redis ? '内存占用' : 'p95 延迟'}</span><span>{is_redis ? '慢日志' : '慢查询 / 超时'}</span></div><div className="svc-detail-chart-track">{samples.map((item) => { const bar = is_redis ? Math.min(100, Math.max(8, (item.memory_bytes ?? 0) / 131072)) : Math.min(100, Math.max(8, (item.p95_ms ?? 0) / 4)); return <div className={`svc-detail-chart-point ${anomalies.includes(item) ? 'anomaly' : ''}`} key={item.id ?? item.observed_at} title={`${display_time(item.observed_at)} · ${is_redis ? display_bytes(item.memory_bytes) : monitor_value(item.p95_ms, ' ms')}`}><i style={{ height: `${bar}%` }} /></div> })}</div><div className="svc-detail-chart-axis"><span>{display_time(samples[0].observed_at)}</span><span>{display_time(samples[samples.length - 1].observed_at)}</span></div>{anomalies.length > 0 && <div className="svc-detail-anomalies"><strong>采样点异常</strong>{anomalies.slice(-5).map((item) => <span key={item.id ?? item.observed_at}>{display_time(item.observed_at)} · {is_redis ? `慢日志 ${item.slowlog_count}` : `${(item.slow_query_count ?? 0) > 0 ? `慢查询 ${item.slow_query_count}` : ''}${(item.timeout_count ?? 0) > 0 ? ` 超时 ${item.timeout_count}` : ''}`}</span>)}</div>}</div>
+             return <><div className="svc-detail-chart"><div className="svc-detail-chart-legend"><span>{is_redis ? '内存占用' : 'p95 延迟'}</span><span>{is_redis ? '慢日志' : '慢查询 / 超时'}</span></div><div className="svc-detail-chart-track">{samples.map((item) => { const bar = is_redis ? Math.min(100, Math.max(8, (item.memory_bytes ?? 0) / 131072)) : Math.min(100, Math.max(8, (item.p95_ms ?? 0) / 4)); return <div className={`svc-detail-chart-point ${anomalies.includes(item) ? 'anomaly' : ''}`} key={item.id ?? item.observed_at} title={`${display_time(item.observed_at)} · ${is_redis ? display_bytes(item.memory_bytes) : monitor_value(item.p95_ms, ' ms')}`}><i style={{ height: `${bar}%` }} /></div> })}</div><div className="svc-detail-chart-axis"><span>{display_time(samples[0].observed_at)}</span><span>{display_time(samples[samples.length - 1].observed_at)}</span></div>{anomalies.length > 0 && <div className="svc-detail-anomalies"><strong>采样点异常</strong>{anomalies.slice(-5).map((item) => <span key={item.id ?? item.observed_at}>{display_time(item.observed_at)} · {is_redis ? `慢日志 ${item.slowlog_count}` : `${(item.slow_query_count ?? 0) > 0 ? `慢查询 ${item.slow_query_count}` : ''}${(item.timeout_count ?? 0) > 0 ? ` 超时 ${item.timeout_count}` : ''}`}</span>)}</div>}</div>{host_trend_track('主机 CPU', samples, 'host_cpu_percent', 'cpu', ' %')}{host_trend_track('主机内存', samples, 'host_memory_percent', 'mem', ' %')}{host_trend_track('主机磁盘', samples, 'host_disk_used_percent', 'disk', ' %')}</>
           })()}
         </section>
         <section className="svc-detail-card">
