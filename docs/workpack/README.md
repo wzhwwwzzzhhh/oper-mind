@@ -35,6 +35,7 @@ docs/workpack/
 | P6 | model-provider-key-management | #32 | 2026-08-07 |
 | P6 | log-source-real | #29 | 2026-08-08 |
 | P6 | host-metrics | #34 | 2026-08-08 |
+| P5 | controlled-action-real | #38 | 2026-08-08 |
 
 ## 规则
 - `plan.md` 必须经用户确认后才进入 `dev-execute`；`review.md` 必须 PASS 才能进入 `dev-deliver`。
