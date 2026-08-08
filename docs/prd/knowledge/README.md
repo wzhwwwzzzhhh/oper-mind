@@ -5,4 +5,4 @@
 | PRD | 主题 | 状态 |
 |---|---|---|
 | [P6-knowledge-retrieval.md](P6-knowledge-retrieval.md) | 知识库——目录内 Markdown 确定性检索 | 完成 |
-| [P7-knowledge-page.md](P7-knowledge-page.md) | 文档知识库页面——知识目录浏览与确定性检索 | 已确认 |
+| [P7-knowledge-page.md](P7-knowledge-page.md) | 文档知识库页面——知识目录浏览与确定性检索 | 完成 |

@@ -33,6 +33,9 @@ export const api_v1_query_keys = {
     ['api-v1', 'session-runs', session_id, query] as const,
   run: (run_id: string) => ['api-v1', 'run', run_id] as const,
   run_events: (run_id: string, query: ListRunEventsQuery) => ['api-v1', 'run-events', run_id, query] as const,
+  knowledge_documents: () => ['api-v1', 'knowledge-documents'] as const,
+  knowledge_search: (query: string) => ['api-v1', 'knowledge-search', query] as const,
+  knowledge_document: (document_path: string) => ['api-v1', 'knowledge-document', document_path] as const,
 }
 
 export function get_model_config_query() {
@@ -231,5 +234,26 @@ export function verify_model_provider_mutation() {
 export function delete_model_provider_mutation() {
   return mutationOptions({
     mutationFn: (provider_id: string) => api_v1_client.delete_model_provider(provider_id),
+  })
+}
+
+export function list_knowledge_documents_query() {
+  return queryOptions({
+    queryKey: api_v1_query_keys.knowledge_documents(),
+    queryFn: ({ signal }) => api_v1_client.list_knowledge_documents({ signal }),
+  })
+}
+
+export function search_knowledge_query(query: string) {
+  return queryOptions({
+    queryKey: api_v1_query_keys.knowledge_search(query),
+    queryFn: ({ signal }) => api_v1_client.search_knowledge(query, 5, { signal }),
+  })
+}
+
+export function get_knowledge_document_query(document_path: string) {
+  return queryOptions({
+    queryKey: api_v1_query_keys.knowledge_document(document_path),
+    queryFn: ({ signal }) => api_v1_client.get_knowledge_document(document_path, { signal }),
   })
 }

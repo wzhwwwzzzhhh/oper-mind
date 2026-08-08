@@ -8,12 +8,13 @@ export function GlobalNav(): ReactElement {
   const on_services = location.pathname.startsWith('/services')
   const on_models = location.pathname.startsWith('/models')
   const on_monitor = location.pathname.startsWith('/monitor')
+  const on_knowledge = location.pathname.startsWith('/knowledge')
 
   const items = [
-    { key: 'chat', icon: '⌂', label: '会话工作台', active: !on_services && !on_models && !on_monitor },
+    { key: 'chat', icon: '⌂', label: '会话工作台', active: !on_services && !on_models && !on_monitor && !on_knowledge },
     { key: 'services', icon: '◫', label: '服务中心', active: on_services },
     { key: 'monitor', icon: '◌', label: '服务监控', active: on_monitor },
-    { key: 'docs', icon: '▤', label: '文档知识库', active: false },
+    { key: 'docs', icon: '▤', label: '文档知识库', active: on_knowledge },
     { key: 'models', icon: '✦', label: '模型设置', active: on_models },
   ]
 
@@ -21,6 +22,7 @@ export function GlobalNav(): ReactElement {
     if (key === 'chat') navigate('/workbench')
     else if (key === 'services') navigate('/services')
     else if (key === 'monitor') navigate('/monitor')
+    else if (key === 'docs') navigate('/knowledge')
     else if (key === 'models') navigate('/models')
   }
 

@@ -446,6 +446,44 @@ const provider_fixture = {
 }
 
 export const api_v1_handlers = [
+  http.get('/api/v1/knowledge/documents', ({ request }) => response(request, {
+    status: 'ok',
+    items: [
+      { title: 'kill 慢查询 SOP', relative_path: 'sop/kill-slow-query.md' },
+      { title: '索引优化手册', relative_path: 'sop/index-tuning.md' },
+    ],
+  })),
+  http.get('/api/v1/knowledge/search', ({ request }) => {
+    const url = new URL(request.url)
+    const query = url.searchParams.get('query') ?? ''
+    const items = query.toLowerCase().includes('kill')
+      ? [
+          {
+            title: 'kill 慢查询 SOP',
+            relative_path: 'sop/kill-slow-query.md',
+            snippet_count: 1,
+            title_hit: true,
+            snippets: ['执行 kill 慢查询前先确认会话。'],
+          },
+        ]
+      : []
+    return response(request, {
+      status: items.length > 0 ? 'ok' : 'no_match',
+      query,
+      items,
+    })
+  }),
+  http.get('/api/v1/knowledge/documents/*', ({ request }) => {
+    const path = new URL(request.url).pathname.replace('/api/v1/knowledge/documents/', '')
+    return response(request, {
+      status: 'ok',
+      document: {
+        title: path.split('/').pop()?.replace('.md', '') ?? '知识文档',
+        relative_path: path,
+        content: '# kill 慢查询 SOP\n\n执行 kill 慢查询前先确认会话。\n\n- 只读受管知识目录\n',
+      },
+    })
+  }),
   http.get('/api/v1/model/config', ({ request }) => response(request, {
     config: {
       mode: 'mock',

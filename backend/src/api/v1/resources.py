@@ -10,6 +10,11 @@ from src.api.v1.schemas import (
     ActionVerificationResource,
     DiagnosisResultResource,
     DiagnosisRunResource,
+    HostDiskPartitionResource,
+    HostMetricsResource,
+    HostProcessResource,
+    KnowledgeDocumentResource,
+    KnowledgeSearchHitResource,
     MessageResource,
     ModelProviderResource,
     MonitorServiceOverviewResource,
@@ -22,9 +27,6 @@ from src.api.v1.schemas import (
     ServiceResource,
     ServiceServerMetricsResource,
     ServiceSnapshotResource,
-    HostDiskPartitionResource,
-    HostMetricsResource,
-    HostProcessResource,
     SessionResource,
 )
 from src.domain.actions import (
@@ -41,6 +43,8 @@ from src.domain.services import ServiceActivityData, ServiceViewData
 from src.domain.host_metrics import HostMetricsData
 from src.domain.monitoring import MonitorHistoryData, MonitorOverviewData
 from src.domain.monitoring import MonitorServiceOverviewData
+from src.knowledge.reader import KnowledgeDocumentMeta, KnowledgeSearchHit
+from src.core.tool_gateway import desensitize
 
 
 def session_resource(value: SessionData) -> SessionResource:
@@ -335,4 +339,23 @@ def provider_resource(value: ModelProviderData) -> ModelProviderResource:
         verify_error_code=value.verify_error_code,
         created_at=value.created_at,
         updated_at=value.updated_at,
+    )
+
+
+def knowledge_document_resource(value: KnowledgeDocumentMeta) -> KnowledgeDocumentResource:
+    """把 reader 文档清单条目映射为公开资源（relative_name → relative_path），标题脱敏兜底。"""
+    return KnowledgeDocumentResource(
+        title=desensitize(value.title),
+        relative_path=value.relative_name,
+    )
+
+
+def knowledge_search_hit_resource(value: KnowledgeSearchHit) -> KnowledgeSearchHitResource:
+    """把 reader 检索命中项映射为公开资源（relative_name → relative_path），标题与片段脱敏兜底。"""
+    return KnowledgeSearchHitResource(
+        title=desensitize(value.title),
+        relative_path=value.relative_name,
+        snippet_count=value.snippet_count,
+        title_hit=value.title_hit,
+        snippets=[desensitize(snippet) for snippet in value.snippets],
     )

@@ -10,14 +10,33 @@ function jump_to(navigate: (to: string) => void, section: string): void {
   window.setTimeout(() => document.getElementById(section)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
 }
 
-/** 第二栏上下文导航：服务中心、服务监控和模型服务共用运维模式壳。 */
+/** 第二栏上下文导航：服务中心、服务监控、模型服务和文档知识库共用运维模式壳。 */
 export function ServiceContextNav(): ReactElement {
   const navigate = useNavigate()
   const location = useLocation()
   const is_models = location.pathname.startsWith('/models')
   const is_monitor = location.pathname.startsWith('/monitor')
-  const services_query = useQuery({ ...list_services_query(), enabled: !is_models && !is_monitor })
+  const is_knowledge = location.pathname.startsWith('/knowledge')
+  const services_query = useQuery({ ...list_services_query(), enabled: !is_models && !is_monitor && !is_knowledge })
   const service_count = services_query.data ? read_items(services_query.data.data).length : 0
+
+  if (is_knowledge) {
+    return (
+      <aside aria-label="文档知识库导航" className="second svc-context knowledge-context">
+        <div className="svc-context-head">
+          <div className="svc-context-mark">▤</div>
+          <div><strong>文档知识库</strong><span>受管知识目录</span></div>
+        </div>
+        <p className="svc-label">知识库</p>
+        <nav className="svc-nav">
+          <button className="svc-link active" onClick={() => navigate('/knowledge')} type="button"><i>▤</i>文档浏览与检索</button>
+        </nav>
+        <div className="svc-divider" />
+        <div className="knowledge-context-card"><small>数据来源</small><strong>受管知识目录 · 只读</strong><span>目录由 OPERMIND_KNOWLEDGE_DIR 配置；未配置时如实显示未启用。</span><b>只读浏览</b></div>
+        <div className="svc-bottom"><strong>当前访问边界</strong>只读受管目录 · 凭据文件排除</div>
+      </aside>
+    )
+  }
 
   if (is_models) {
     return (

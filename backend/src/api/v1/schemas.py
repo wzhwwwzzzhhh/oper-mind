@@ -815,3 +815,53 @@ class ActionExecutionResponse(ApiV1Model):
 
     execution: ActionExecutionResource
     meta: ResponseMeta
+
+
+class KnowledgeDocumentResource(ApiV1Model):
+    """知识库文档清单条目：标题 + 受管目录内相对 posix 路径。"""
+
+    title: str
+    relative_path: str
+
+
+class KnowledgeSearchHitResource(ApiV1Model):
+    """知识库检索命中项：标题 + 相对路径 + 命中片段。"""
+
+    title: str
+    relative_path: str
+    snippet_count: int
+    title_hit: bool
+    snippets: list[str]
+
+
+class KnowledgeDocumentDetailResource(ApiV1Model):
+    """知识库文档详情：标题 + 相对路径 + 脱敏正文。"""
+
+    title: str
+    relative_path: str
+    content: str
+
+
+class KnowledgeListResponse(ApiV1Model):
+    """知识库文档列表响应（诚实状态：not_configured/empty/ok）。"""
+
+    status: Literal["not_configured", "empty", "ok"]
+    items: list[KnowledgeDocumentResource]
+    meta: ResponseMeta
+
+
+class KnowledgeSearchResponse(ApiV1Model):
+    """知识库检索响应（诚实状态：not_configured/empty/no_match/ok）。"""
+
+    status: Literal["not_configured", "empty", "no_match", "ok"]
+    query: str
+    items: list[KnowledgeSearchHitResource]
+    meta: ResponseMeta
+
+
+class KnowledgeDocumentResponse(ApiV1Model):
+    """知识库文档详情响应（诚实状态：not_configured/ok）。"""
+
+    status: Literal["not_configured", "ok"]
+    document: KnowledgeDocumentDetailResource | None = None
+    meta: ResponseMeta
