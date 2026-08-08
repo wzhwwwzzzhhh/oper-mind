@@ -5,10 +5,11 @@
 ## 验证记录
 
 - 后端聚焦 S1：`python -m pytest tests/test_knowledge_api.py tests/test_knowledge_service.py tests/test_knowledge_tool.py tests/test_knowledge_agent.py -q` → 36 passed, 1 skipped
-- 后端全量 S1：`python -m pytest tests -q` → **288 passed, 2 skipped**
-- 前端 S2：`npm run typecheck` ✅、`npm run test`（78 passed）✅、`npm run build` ✅
+- 后端全量 S3：`python -m pytest tests -q` → **294 passed, 2 skipped**
+- 前端 S3：`npm run typecheck` ✅、`npm run test`（78 passed）✅、`npm run build` ✅
 - 生成类型：`openapi-typescript` 重新生成 `generated.ts`，`npm run typecheck` 通过
-- 门禁：`git diff --check` 通过；`git diff -- data` 为空（mock 数据源零改动）；diff 中 `sk-` 字面量仅为测试夹具
+- 门禁：`git diff --check` 通过；`git diff -- data` 为空（mock 数据源零改动）；S1–S4 关键词路由不变断言通过；
+  diff 中 `sk-` 字面量仅为测试夹具
 
 ## AC 证据表
 
@@ -28,7 +29,7 @@
 ## DoD 核对
 
 - [x] 全部 AC（AC1–AC10）通过
-- [ ] 全量回归终验（S3 收尾后回填最终数字）
+- [x] 相关回归测试全绿（后端 294 / 前端 78）
 - [x] `git status` 只出现本 PRD 允许的文件（他人 P7 Design 文件按隔离清单排除）
 - [x] 未新增数据库迁移 / 持久化 / 凭据
 - [x] 未打印/记录 DSN，未含凭据，未改 mock 数据源
