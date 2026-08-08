@@ -1,10 +1,10 @@
 ---
 title: 日志真实源接入
-status: 进行中
+status: 完成
 domain: session
 phase: P6
 issue: 21
-updated: 2026-08-06
+updated: 2026-08-08
 ---
 
 # 日志真实源接入 · PRD
