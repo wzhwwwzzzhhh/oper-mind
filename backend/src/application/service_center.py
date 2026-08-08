@@ -82,7 +82,11 @@ class ServiceCenterApplicationService:
         definition = self._get_connector(command.service_id).definition()
 
         def operation(session: Session) -> SessionData:
-            value = SessionData(title=definition.session_title, service_id=definition.id)
+            value = SessionData(
+                title=definition.session_title,
+                service_id=definition.id,
+                service_ids=(definition.id,),
+            )
             SqlAlchemySessionRepository(session).add(value)
             return value
 

@@ -20,14 +20,14 @@ export interface ConversationInvestigation {
   id: string
   input_message_id: string
   result: unknown
+  service_id?: string
   status: InvestigationStatus
   trace_id?: string
 }
 
 export interface ConversationTurn {
   input: ConversationMessage
-  investigation?: ConversationInvestigation
-  output?: ConversationMessage
+  investigations: Array<{ investigation: ConversationInvestigation; output?: ConversationMessage }>
 }
 
 export type ConversationTimelineItem =
@@ -78,6 +78,7 @@ function read_investigation(value: unknown, session_id: string, issues: string[]
   const input_message_id = resource_optional_string(value, 'input_message_id')
   const status = resource_optional_string(value, 'status')
   const trace_id = resource_optional_string(value, 'trace_id')
+  const service_id = resource_optional_string(value, 'service_id')
   const record = read_record(value)
 
   if (!id || !resource_session_id || !input_message_id || !status || !record) {
@@ -102,6 +103,7 @@ function read_investigation(value: unknown, session_id: string, issues: string[]
     id,
     input_message_id,
     result: resource_value(value, 'result'),
+    service_id,
     status: status as InvestigationStatus,
     trace_id,
   }
@@ -125,7 +127,6 @@ export function project_conversation_turns(
     .filter((investigation): investigation is ConversationInvestigation => investigation !== undefined)
   const message_by_id = new Map(messages.map((message) => [message.id, message]))
   const investigation_by_input_id = new Map<string, ConversationInvestigation>()
-  const duplicated_input_message_ids = new Set<string>()
   const output_by_run_id = new Map<string, ConversationMessage>()
 
   for (const investigation of investigations) {
@@ -134,14 +135,10 @@ export function project_conversation_turns(
       continue
     }
     if (investigation_by_input_id.has(investigation.input_message_id)) {
-      investigation_by_input_id.delete(investigation.input_message_id)
-      duplicated_input_message_ids.add(investigation.input_message_id)
       issues.push(`RUN_INPUT_MESSAGE_DUPLICATED：一条用户消息关联了多个调查，当前只读视图不会自行选择。`)
       continue
     }
-    if (!duplicated_input_message_ids.has(investigation.input_message_id)) {
-      investigation_by_input_id.set(investigation.input_message_id, investigation)
-    }
+    investigation_by_input_id.set(investigation.input_message_id, investigation)
   }
 
   for (const message of messages) {
@@ -174,13 +171,37 @@ export function project_conversation_turns(
       kind: 'turn',
       turn: {
         input: message,
-        investigation,
-        output: investigation ? output_by_run_id.get(investigation.id) : undefined,
+        investigations: investigation ? [{ investigation, output: output_by_run_id.get(investigation.id) }] : [],
       },
     })
   }
 
-  return { issues, timeline }
+  // Each Run persists its own user message. Only adjacent equal questions form one multi-service turn.
+  const grouped_timeline: ConversationTimelineItem[] = []
+  for (const item of timeline) {
+    if (item.kind !== 'turn') {
+      grouped_timeline.push(item)
+      continue
+    }
+    const previous = grouped_timeline.at(-1)
+    const previous_turn = previous?.kind === 'turn' ? previous.turn : undefined
+    const previous_service_ids = new Set(previous_turn?.investigations.flatMap(({ investigation }) =>
+      investigation.service_id ? [investigation.service_id] : [],
+    ))
+    const service_id = item.turn.investigations[0]?.investigation.service_id
+    const adjacent = previous_turn
+      && previous_turn.input.content === item.turn.input.content
+      && Math.abs(Date.parse(item.turn.input.created_at) - Date.parse(previous_turn.input.created_at)) <= 10_000
+      && service_id !== undefined
+      && !previous_service_ids.has(service_id)
+    if (adjacent) {
+      previous_turn.investigations.push(...item.turn.investigations)
+    } else {
+      grouped_timeline.push(item)
+    }
+  }
+
+  return { issues, timeline: grouped_timeline }
 }
 
 export function investigation_status_text(status: InvestigationStatus): string {

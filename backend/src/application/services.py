@@ -79,15 +79,19 @@ class SessionApplicationService:
 
     def create_session(self, command: CreateSessionCommand) -> SessionData:
         """创建 active Session 并在短事务中提交。"""
-        if command.service_id is not None and (
-            self._registry is None or self._registry.get_connector(command.service_id) is None
+        service_ids = command.service_ids if command.service_ids is not None else (
+            (command.service_id,) if command.service_id is not None else ()
+        )
+        if service_ids and (
+            self._registry is None or not set(service_ids).issubset(self._registry.service_ids())
         ):
             raise ServiceNotFoundError()
         session_data = SessionData(
             title=command.title,
             environment_id=command.environment_id,
             incident_id=command.incident_id,
-            service_id=command.service_id,
+            service_id=command.service_id if command.service_ids is None else None,
+            service_ids=service_ids,
         )
 
         def operation(session: Session) -> SessionData:
@@ -154,7 +158,7 @@ class RunApplicationService:
 
     def accept_run(self, command: CreateRunCommand) -> AcceptedRun:
         """原子受理 Run，并处理同键重放与冲突。"""
-        fingerprint = _query_fingerprint(command.query)
+        fingerprint = _query_fingerprint(command.query, command.service_id)
         try:
             return _in_transaction(
                 self._session_factory,
@@ -232,7 +236,8 @@ class RunApplicationService:
             raise SessionNotFoundError()
         if session_data.status == SessionStatus.ARCHIVED:
             raise SessionArchivedError()
-        if session_data.service_id is None and _requires_database_context(command.query):
+        target_service_id = _resolve_run_service_id(session_data, command)
+        if target_service_id is None and _requires_database_context(command.query):
             raise ServiceContextRequiredError()
 
         existing = idempotency_repository.get_by_scope(
@@ -257,7 +262,7 @@ class RunApplicationService:
         )
         run = DiagnosisRunData(
             session_id=command.session_id,
-            service_id=session_data.service_id,
+            service_id=target_service_id,
             input_message_id=input_message.id,
             status=RunStatus.QUEUED,
             next_event_sequence=2,
@@ -490,9 +495,23 @@ def _requires_database_context(query: str) -> bool:
     )
 
 
-def _query_fingerprint(query: str) -> str:
-    """计算已规范化 query 的稳定 SHA-256 语义指纹。"""
-    return sha256(query.strip().encode("utf-8")).hexdigest()
+def _resolve_run_service_id(session: SessionData, command: CreateRunCommand) -> str | None:
+    """为单个 Run 解析显式服务，绝不在多服务数据库调查中猜测目标。"""
+    if command.service_id is not None:
+        if command.service_id not in session.service_ids:
+            raise ServiceContextRequiredError("目标服务不属于当前诊断会话。")
+        return command.service_id
+    if len(session.service_ids) == 1:
+        return session.service_ids[0]
+    if len(session.service_ids) > 1 and _requires_database_context(command.query):
+        raise ServiceContextRequiredError("数据库调查需要指定目标服务。")
+    return None
+
+
+def _query_fingerprint(query: str, service_id: str | None = None) -> str:
+    """计算稳定请求语义指纹；无显式服务时保持既有幂等值。"""
+    value = query.strip() if service_id is None else f"{query.strip()}\n{service_id}"
+    return sha256(value.encode("utf-8")).hexdigest()
 
 
 def _safe_failure() -> tuple[str, str]:

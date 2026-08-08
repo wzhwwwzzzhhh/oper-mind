@@ -6,6 +6,7 @@ import {
   load_session_run_send_intent,
   mark_session_run_send_intent_accepted,
   save_session_run_send_intent,
+  submit_unaccepted_session_runs,
 } from './send-intent'
 
 const SESSION_ID = '11111111-1111-4111-8111-111111111111'
@@ -50,7 +51,7 @@ describe('Session Run 发送意图', () => {
     const target = storage()
     const intent = create_session_run_send_intent(SESSION_ID, '请检查网关错误。', {
       created_at: '2026-07-29T01:00:00.000Z',
-      idempotency_key: KEY,
+      idempotency_keys: [KEY],
     })
 
     save_session_run_send_intent(target, intent)
@@ -61,15 +62,13 @@ describe('Session Run 发送意图', () => {
   it('只在合法 202 对账后写入 Run 和 input Message 标识', () => {
     const initial = create_session_run_send_intent(SESSION_ID, '请检查网关错误。', {
       created_at: '2026-07-29T01:00:00.000Z',
-      idempotency_key: KEY,
+      idempotency_keys: [KEY],
     })
 
-    expect(mark_session_run_send_intent_accepted(initial, RUN_ID, INPUT_ID)).toMatchObject({
-      accepted_run_id: RUN_ID,
-      input_message_id: INPUT_ID,
-      phase: 'accepted',
+    expect(mark_session_run_send_intent_accepted(initial, KEY, RUN_ID, INPUT_ID)).toMatchObject({
+      runs: [{ accepted_run_id: RUN_ID, input_message_id: INPUT_ID, phase: 'accepted' }],
     })
-    expect(() => mark_session_run_send_intent_accepted(initial, 'invalid', INPUT_ID)).toThrow('受理响应缺少合法')
+    expect(() => mark_session_run_send_intent_accepted(initial, KEY, 'invalid', INPUT_ID)).toThrow('受理响应缺少合法')
   })
 
   it('拒绝跨会话、损坏或含非法标识的 storage 数据', () => {
@@ -94,11 +93,11 @@ describe('Session Run 发送意图', () => {
     const target = storage()
     const current = create_session_run_send_intent(SESSION_ID, '当前会话', {
       created_at: '2026-07-29T01:00:00.000Z',
-      idempotency_key: KEY,
+      idempotency_keys: [KEY],
     })
     const other = create_session_run_send_intent('55555555-5555-4555-8555-555555555555', '其他会话', {
       created_at: '2026-07-29T01:00:00.000Z',
-      idempotency_key: '66666666-6666-4666-8666-666666666666',
+      idempotency_keys: ['66666666-6666-4666-8666-666666666666'],
     })
     save_session_run_send_intent(target, current)
     save_session_run_send_intent(target, other)
@@ -107,5 +106,50 @@ describe('Session Run 发送意图', () => {
 
     expect(load_session_run_send_intent(target, SESSION_ID)).toBeUndefined()
     expect(load_session_run_send_intent(target, other.session_id)).toEqual(other)
+  })
+
+  it('为每个目标服务创建独立幂等键，并兼容读取 v1 单 Run 意图', () => {
+    const target = storage()
+    const intent = create_session_run_send_intent(SESSION_ID, '检查两个服务。', {
+      created_at: '2026-07-29T01:00:00.000Z',
+      idempotency_keys: [KEY, '66666666-6666-4666-8666-666666666666'],
+      service_ids: ['postgres-production', 'postgres-staging'],
+    })
+    expect(intent.runs).toEqual([
+      expect.objectContaining({ idempotency_key: KEY, service_id: 'postgres-production' }),
+      expect.objectContaining({ service_id: 'postgres-staging' }),
+    ])
+
+    target.setItem('opermind:p3.6b:send-intent:' + SESSION_ID, JSON.stringify({
+      created_at: '2026-07-29T01:00:00.000Z', endpoint: '/api/v1/sessions/{session_id}/runs',
+      idempotency_key: KEY, phase: 'acceptance_unknown', query: '旧问题。', session_id: SESSION_ID, version: 1,
+    }))
+    expect(load_session_run_send_intent(target, SESSION_ID)).toMatchObject({ version: 2, runs: [{ idempotency_key: KEY }] })
+  })
+
+  it('逐个提交未受理服务，失败不阻止后续服务且不重提已受理 Run', async () => {
+    const accepted_key = '66666666-6666-4666-8666-666666666666'
+    const failed_key = '77777777-7777-4777-8777-777777777777'
+    const later_key = '88888888-8888-4888-8888-888888888888'
+    const intent = mark_session_run_send_intent_accepted(
+      create_session_run_send_intent(SESSION_ID, '检查服务。', {
+        idempotency_keys: [accepted_key, failed_key, later_key],
+        service_ids: ['postgres-production', 'redis-production', 'postgres-staging'],
+      }),
+      accepted_key,
+      RUN_ID,
+      INPUT_ID,
+    )
+    const submitted: string[] = []
+
+    const errors = await submit_unaccepted_session_runs(intent, async (run) => {
+      submitted.push(run.service_id ?? 'none')
+      if (run.service_id === 'redis-production') throw new Error('Redis 暂不可用')
+    })
+
+    expect(submitted).toEqual(['redis-production', 'postgres-staging'])
+    expect(errors).toHaveLength(1)
+    expect(errors[0]).toMatchObject({ service_id: 'redis-production' })
+    expect(intent.runs[0]).toMatchObject({ phase: 'accepted', accepted_run_id: RUN_ID })
   })
 })
