@@ -17,27 +17,34 @@ from src.config import load_config, load_knowledge_settings
 from data.scenarios import set_active_scenario, clear_active_scenario
 
 
+def build_llm_from_config(config: dict) -> LLMClient:
+    """从生效模型配置构建 LLM 客户端；配置缺失时回退确定性 mock，永不 raise。"""
+    llm_config = config.get("llm") or {}
+    api_key = llm_config.get("api_key") or "mock"
+    base_url = llm_config.get("base_url") or "http://mock"
+    model = llm_config.get("model") or "mock"
+
+    llm = LLMClient(
+        api_key=api_key,
+        base_url=base_url,
+        model=model,
+    )
+
+    # mock 模式激活确定性场景（默认 S1）；真实模式清除，工具走真实数据源（如 psutil）
+    if api_key == "mock":
+        set_active_scenario("S1")
+    else:
+        clear_active_scenario()
+    return llm
+
+
 def build_llm() -> LLMClient:
     """构建共享 LLM 客户端，并按模式设置确定性 mock 场景。
 
     LLM 客户端在多个 Run 间可安全共享（无每请求可变状态）；mock 场景开关是
     进程级设置，只需在构建时设定一次，不随每 Run 重复切换。
     """
-    config = load_config()
-    llm_config = config["llm"]
-
-    llm = LLMClient(
-        api_key=llm_config["api_key"],
-        base_url=llm_config["base_url"],
-        model=llm_config.get("model", "qwen2.5:7b"),
-    )
-
-    # mock 模式激活确定性场景（默认 S1）；真实模式清除，工具走真实数据源（如 psutil）
-    if llm_config["api_key"] == "mock":
-        set_active_scenario("S1")
-    else:
-        clear_active_scenario()
-    return llm
+    return build_llm_from_config(load_config())
 
 
 def build_coordinator(llm: LLMClient, service_id: str | None = None, enable_long_term_memory: bool = False) -> CoordinatorAgent:

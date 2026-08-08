@@ -12,15 +12,22 @@ from dataclasses import dataclass
 from fastapi import Request
 
 from src.application.action_services import ActionApplicationService
+from src.application.model_providers import resolve_model_config
 from src.application.services import RunApplicationService, SessionApplicationService
 from src.application.service_center import ServiceCenterApplicationService
 from src.config import load_action_mode, load_monitor_settings, load_persistence_settings, load_service_dsn
 from src.application.action_execution import ControlledActionExecutor
+from src.core.bootstrap import build_coordinator, build_llm_from_config
 from src.domain.services import ServiceRegistry
 from src.infrastructure.diagnosis.coordinator_executor import CoordinatorDiagnosisExecutor
 from src.infrastructure.diagnosis.result_assembler import KernelReportResultAssembler
 from src.infrastructure.diagnosis.postgres_missing_index import PostgresMissingIndexCollector
 from src.infrastructure.persistence.database import PersistenceRuntime, SessionFactory, create_persistence_runtime
+from src.infrastructure.secrets import (
+    SecretKeyNotConfiguredError,
+    SecretKeyTooShortError,
+    load_secret_key,
+)
 from src.infrastructure.services.postgres_connector import PostgresServiceConnector
 from src.infrastructure.services.redis_connector import RedisServiceConnector
 from src.infrastructure.actions.postgres_target_executor import PostgresTargetActionExecutor
@@ -40,14 +47,36 @@ class V1Services:
     service_registry: ServiceRegistry | None = None
 
 
-def build_v1_services(coordinator_factory: Callable[[str | None], object]) -> V1Services:
-    """装配默认持久化 Runtime 与多 Agent 内核诊断执行。
+def build_v1_services() -> V1Services:
+    """装配默认持久化 Runtime 与按生效配置每 Run 解析的 Coordinator 工厂。
 
-    coordinator_factory 每 Run 现造一套内核，隔离并发 Run 的 Agent 状态。
+    coordinator 工厂每 Run 现造一套内核，隔离并发 Run 的 Agent 状态；模型生效配置
+    在每次构建时经 ``resolve_model_config`` 解析（DB 激活 Provider 优先，env/YAML 兜底），
+    因此 Provider 保存 / 激活 / 删除后下一次 Run 即生效，无需重启。
     """
     persistence_settings = load_persistence_settings()
     runtime = create_persistence_runtime(persistence_settings.database_url)
-    return build_v1_services_for_runtime(runtime, coordinator_factory)
+    return build_v1_services_for_runtime(runtime, _resolved_coordinator_factory(runtime))
+
+
+def _resolved_coordinator_factory(runtime: PersistenceRuntime) -> Callable[[str | None], object]:
+    """构造每 Run 解析生效模型配置的 Coordinator 工厂。"""
+    secret_key = _load_secret_key_or_none()
+
+    def build(service_id: str | None) -> object:
+        config = resolve_model_config(runtime.session_factory, secret_key)
+        llm = build_llm_from_config(config)
+        return build_coordinator(llm, service_id=service_id)
+
+    return build
+
+
+def _load_secret_key_or_none() -> bytes | None:
+    """读取 Provider API Key 主密钥；未配置或过短时返回 None，允许只读与无 Key 保存。"""
+    try:
+        return load_secret_key()
+    except (SecretKeyNotConfiguredError, SecretKeyTooShortError):
+        return None
 
 
 def build_v1_services_for_runtime(

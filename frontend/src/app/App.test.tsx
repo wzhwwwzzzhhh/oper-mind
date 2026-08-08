@@ -479,14 +479,14 @@ describe('App', () => {
 
     expect(await screen.findByRole('heading', { name: '模型服务' })).toBeInTheDocument()
     expect((await screen.findAllByText('diagnostic-model')).length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Mock 模式').length).toBeGreaterThan(0)
+    expect((await screen.findAllByText(/Mock 模式/)).length).toBeGreaterThan(0)
     expect(screen.getByText('未配置独立裁判模型')).toBeInTheDocument()
     const coordinator_toggle = screen.getByRole('button', { name: 'Coordinator 策略开关' })
     fireEvent.click(coordinator_toggle)
     expect(JSON.parse(window.localStorage.getItem('opermind:model-policy') ?? '{}')).toMatchObject({ coordinator: false })
 
-    expect(screen.getByRole('button', { name: '＋ 添加模型服务' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: '检查全部连接' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '＋ 添加模型服务' })).toBeEnabled()
+    expect(await screen.findByText('DeepSeek 生产')).toBeInTheDocument()
   })
 
   it('模型配置接口失败时显示错误且不回退静态 Provider', async () => {

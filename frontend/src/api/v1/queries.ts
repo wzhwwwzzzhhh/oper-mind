@@ -9,12 +9,16 @@ import {
   type CreateRunOptions,
   type CreateRunRequest,
   type CreateSessionRequest,
+  type CreateModelProviderRequest,
+  type ActivateModelProviderRequest,
+  type ProviderCreateOptions,
   type ListSessionsQuery,
   type ListServiceActivitiesQuery,
 } from './client'
 
 export const api_v1_query_keys = {
   model_config: () => ['api-v1', 'model-config'] as const,
+  model_providers: () => ['api-v1', 'model-providers'] as const,
   services: () => ['api-v1', 'services'] as const,
   service: (service_id: string) => ['api-v1', 'service', service_id] as const,
   service_monitor_history: (service_id: string) => ['api-v1', 'service-monitor-history', service_id] as const,
@@ -148,4 +152,74 @@ export function create_session_mutation() {
 export const default_session_list_query: ListSessionsQuery = {
   limit: API_V1_DEFAULT_PAGE_SIZE,
   status: 'active',
+}
+
+export function list_model_providers_query() {
+  return queryOptions({
+    queryKey: api_v1_query_keys.model_providers(),
+    queryFn: ({ signal }) => api_v1_client.list_model_providers({ signal }),
+  })
+}
+
+export interface CreateModelProviderMutationVariables {
+  name: CreateModelProviderRequest['name']
+  base_url: CreateModelProviderRequest['base_url']
+  model: CreateModelProviderRequest['model']
+  api_key: CreateModelProviderRequest['api_key']
+  idempotency_key: string
+}
+
+export function create_model_provider_mutation() {
+  return mutationOptions({
+    mutationFn: ({
+      name,
+      base_url,
+      model,
+      api_key,
+      idempotency_key,
+    }: CreateModelProviderMutationVariables) =>
+      api_v1_client.create_model_provider(
+        { name, base_url, model, api_key },
+        { idempotency_key } satisfies ProviderCreateOptions,
+      ),
+  })
+}
+
+export interface UpdateModelProviderMutationVariables {
+  provider_id: string
+  name: CreateModelProviderRequest['name']
+  base_url: CreateModelProviderRequest['base_url']
+  model: CreateModelProviderRequest['model']
+  api_key: CreateModelProviderRequest['api_key']
+}
+
+export function update_model_provider_mutation() {
+  return mutationOptions({
+    mutationFn: ({ provider_id, name, base_url, model, api_key }: UpdateModelProviderMutationVariables) =>
+      api_v1_client.update_model_provider(provider_id, { name, base_url, model, api_key }),
+  })
+}
+
+export interface ActivateModelProviderMutationVariables {
+  provider_id: string
+  endpoint: ActivateModelProviderRequest['endpoint']
+}
+
+export function activate_model_provider_mutation() {
+  return mutationOptions({
+    mutationFn: ({ provider_id, endpoint }: ActivateModelProviderMutationVariables) =>
+      api_v1_client.activate_model_provider(provider_id, { endpoint }),
+  })
+}
+
+export function verify_model_provider_mutation() {
+  return mutationOptions({
+    mutationFn: (provider_id: string) => api_v1_client.verify_model_provider(provider_id),
+  })
+}
+
+export function delete_model_provider_mutation() {
+  return mutationOptions({
+    mutationFn: (provider_id: string) => api_v1_client.delete_model_provider(provider_id),
+  })
 }
