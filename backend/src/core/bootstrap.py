@@ -55,7 +55,7 @@ def build_coordinator(llm: LLMClient, service_id: str | None = None, enable_long
     """
     db_agent = DBAgent(llm=llm, service_id=service_id, enable_long_term_memory=enable_long_term_memory)
     server_agent = ServerAgent(llm=llm, enable_long_term_memory=enable_long_term_memory)
-    log_agent = LogAgent(llm=llm, enable_long_term_memory=enable_long_term_memory)
+    log_agent = LogAgent(llm=llm, service_id=service_id, enable_long_term_memory=enable_long_term_memory)
     knowledge_settings = load_knowledge_settings()
     knowledge_agent = KnowledgeAgent(
         llm=llm,

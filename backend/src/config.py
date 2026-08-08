@@ -133,6 +133,19 @@ def load_service_dsn(instance_id: str) -> str | None:
     return None
 
 
+def load_service_log_dir(instance_id: str) -> str | None:
+    """读取指定服务实例的受管日志目录；缺省时返回 None。
+
+    命名空间与 `load_service_dsn` 同构（`OPERMIND_SERVICE_<INSTANCE_ID>_LOG_DIR`），
+    仅环境变量、零落库、不打印不记录。
+    """
+    env_name = f"OPERMIND_SERVICE_{instance_id.upper().replace('-', '_')}_LOG_DIR"
+    value = os.environ.get(env_name)
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
 @dataclass(frozen=True)
 class KnowledgeSettings:
     """受管知识目录配置；未配置时不启用知识检索。"""

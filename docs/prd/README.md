@@ -30,7 +30,7 @@
 | P6 | 知识库——目录内 Markdown 确定性检索 | `knowledge/P6-knowledge-retrieval.md` | 完成 |
 | P6 | Redis 服务接入与只读监控 | `service-center/P6-redis-service-monitor.md` | 完成 |
 | P6 | 跨服务联合调查——会话多服务 + 多 Run 聚合 | `session/P6-cross-service-investigation.md` | 已确认 |
-| P6 | 日志真实源接入 | `session/P6-log-source-real.md` | 已确认 |
+| P6 | 日志真实源接入 | `session/P6-log-source-real.md` | 进行中 |
 | P4 | 服务中心快照变真（已交付，非本目录 PRD） | — | 完成 |
 
 ## 执行 AI 如何使用
