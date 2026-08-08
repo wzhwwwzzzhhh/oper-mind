@@ -5,4 +5,4 @@
 | PRD | 主题 | 状态 |
 |---|---|---|
 | [P5-monitor-trends.md](P5-monitor-trends.md) | 服务监控历史趋势与页面内告警 | 已确认 |
-| [P6-host-metrics-monitoring.md](P6-host-metrics-monitoring.md) | 服务主机指标监控 | 进行中 |
+| [P6-host-metrics-monitoring.md](P6-host-metrics-monitoring.md) | 服务主机指标监控 | 完成 |
