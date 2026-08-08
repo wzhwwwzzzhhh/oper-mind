@@ -1,6 +1,6 @@
 ---
 title: 知识库——目录内 Markdown 确定性检索
-status: 已确认
+status: 完成
 domain: knowledge
 phase: P6
 updated: 2026-08-06
