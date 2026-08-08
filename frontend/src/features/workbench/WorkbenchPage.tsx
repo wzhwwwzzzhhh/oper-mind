@@ -1,13 +1,4 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  Alert,
-  Button,
-  Collapse,
-  Skeleton,
-  Space,
-  Tag,
-  Typography,
-} from 'antd'
 import type { ReactElement, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -60,6 +51,16 @@ import {
   resource_optional_string,
   resource_string,
 } from './resource-readers'
+import {
+  UiAlert,
+  UiButton,
+  UiCollapse,
+  UiSkeleton,
+  UiSpace,
+  UiTag,
+  UiText,
+  UiTitle,
+} from './ui'
 
 function safe_error(error: unknown): { title: string; detail: ReactNode } {
   if (error instanceof ApiClientError) {
@@ -68,10 +69,10 @@ function safe_error(error: unknown): { title: string; detail: ReactNode } {
     return {
       title: `${error.code}：${error.message}`,
       detail: (
-        <Space size="small" wrap>
-          {request_id && <Tag>请求 {request_id}</Tag>}
-          {trace_id && <Tag color="cyan">Trace {trace_id}</Tag>}
-        </Space>
+        <UiSpace size="small" wrap>
+          {request_id && <UiTag>请求 {request_id}</UiTag>}
+          {trace_id && <UiTag color="cyan">Trace {trace_id}</UiTag>}
+        </UiSpace>
       ),
     }
   }
@@ -86,14 +87,14 @@ function safe_error(error: unknown): { title: string; detail: ReactNode } {
 function LoadingBlock({ label }: { label: string }): ReactElement {
   return (
     <div aria-label={label} className="workbench-loading">
-      <Skeleton active paragraph={{ rows: 4 }} title />
+      <UiSkeleton active paragraph={{ rows: 4 }} title />
     </div>
   )
 }
 
 function ApiErrorNotice({ error }: { error: unknown }): ReactElement {
   const safe = safe_error(error)
-  return <Alert description={safe.detail} title={safe.title} showIcon type="error" />
+  return <UiAlert description={safe.detail} showIcon title={safe.title} type="error" />
 }
 
 function is_idempotency_key_conflict(error: unknown): boolean {
@@ -146,9 +147,9 @@ function LoadMoreButton({
 }): ReactElement | null {
   if (!has_more) return null
   return (
-    <Button className="load-more-button" disabled={is_fetching} onClick={on_click} type="link">
+    <UiButton className="load-more-button" disabled={is_fetching} onClick={on_click} type="link">
       {is_fetching ? '正在加载…' : label}
-    </Button>
+    </UiButton>
   )
 }
 
@@ -208,27 +209,27 @@ function AssistantReply({ investigation, output, session_id }: { investigation: 
         <InvestigationProcess investigation={investigation} session_id={session_id} />
         {output && <div className="bubble">{output.content}</div>}
         {!output && (
-          <Alert
+          <UiAlert
             description="服务端已标记调查成功，但尚未恢复关联的助手答复。页面不会根据 Result 伪造一条已保存消息。"
-            title="ANSWER_RECOVERY_PENDING"
             showIcon
+            title="ANSWER_RECOVERY_PENDING"
             type="warning"
           />
         )}
         {result_read.result ? (
-          <Collapse
+          <UiCollapse
             className="investigation-details"
             items={[{
               key: 'result',
               label: '展开结论、证据与建议',
-              children: <Space direction="vertical" size="middle" style={{ width: '100%' }}><DiagnosisResultPanel result={result_read.result} /><ActionProposalPanel run_id={investigation.id} /></Space>,
+              children: <UiSpace direction="vertical" size="middle" style={{ width: '100%' }}><DiagnosisResultPanel result={result_read.result} /><ActionProposalPanel run_id={investigation.id} /></UiSpace>,
             }]}
           />
         ) : (
-          <Alert
+          <UiAlert
             description={result_read.issues[0] ? `${result_read.issues[0].field}：${result_read.issues[0].message}` : '结构化结果不符合公开契约。'}
-            title="RESULT_PROTOCOL_ERROR"
             showIcon
+            title="RESULT_PROTOCOL_ERROR"
             type="warning"
           />
         )}
@@ -243,10 +244,10 @@ function AssistantReply({ investigation, output, session_id }: { investigation: 
     return (
       <div className="message-body">
         <div className="message-label">OperMind · 调查未完成</div>
-        <Alert
+        <UiAlert
           description={code && message ? message : '服务端未返回可安全展示的调查错误。'}
-          title={code ?? '调查未完成'}
           showIcon
+          title={code ?? '调查未完成'}
           type="error"
         />
         <InvestigationProcess investigation={investigation} session_id={session_id} />
@@ -258,7 +259,7 @@ function AssistantReply({ investigation, output, session_id }: { investigation: 
     return (
       <div className="message-body">
         <div className="message-label">OperMind · 调查已取消</div>
-        <Alert description="可保留已保存的会话内容；当前不推断取消原因或继续执行。" title="调查已取消" showIcon type="warning" />
+        <UiAlert description="可保留已保存的会话内容；当前不推断取消原因或继续执行。" showIcon title="调查已取消" type="warning" />
       </div>
     )
   }
@@ -314,20 +315,20 @@ function ConversationTimeline({ messages, runs, session_id }: { messages: unknow
   return (
     <section className="conversation">
       {issues.map((issue, index) => (
-        <Alert className="conversation-protocol-notice" description={issue} key={`${issue}-${index}`} showIcon title="会话关联异常" type="warning" />
+        <UiAlert className="conversation-protocol-notice" description={issue} key={`${issue}-${index}`} showIcon title="会话关联异常" type="warning" />
       ))}
       {timeline.length === 0 && (
-        <Typography.Text className="muted-note">该会话还没有可恢复的对话内容</Typography.Text>
+        <UiText className="muted-note">该会话还没有可恢复的对话内容</UiText>
       )}
       {timeline.map((item) => {
         if (item.kind === 'system') {
           return (
-            <Alert
+            <UiAlert
               className="conversation-system-message"
               description={item.message.content}
               key={item.message.id}
-              title={`系统提醒 · ${item.message.created_at}`}
               showIcon
+              title={`系统提醒 · ${item.message.created_at}`}
               type="info"
             />
           )
@@ -523,9 +524,9 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
   if (session_query.isError) {
     return (
       <section className="workbench-page" aria-labelledby="workbench-title">
-        <Typography.Title id="workbench-title" level={2}>无法恢复会话</Typography.Title>
+        <UiTitle id="workbench-title" level={2}>无法恢复会话</UiTitle>
         <ApiErrorNotice error={session_query.error} />
-        <Button className="return-workbench" onClick={() => navigate('/workbench')} type="link">返回会话列表</Button>
+        <UiButton className="return-workbench" onClick={() => navigate('/workbench')} type="link">返回会话列表</UiButton>
       </section>
     )
   }
@@ -548,14 +549,14 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
         </div>
       )}
       {session_status === 'archived' && (
-        <Alert className="archive-notice" description="会话已归档，仅可阅读历史内容；重新激活和编辑尚未实现。" title="已归档会话" showIcon type="info" />
+        <UiAlert className="archive-notice" description="会话已归档，仅可阅读历史内容；重新激活和编辑尚未实现。" showIcon title="已归档会话" type="info" />
       )}
       {prefilled_query && !send_intent && !has_idempotency_key_conflict && (
-        <Alert
+        <UiAlert
           className="investigation-send-notice"
           description="此会话从服务中心进入，预填问题尚未提交。你可以修改问题；只有点击发送后才会创建 Message 和 Run。"
-          title="尚未开始调查"
           showIcon
+          title="尚未开始调查"
           type="info"
         />
       )}
@@ -592,21 +593,21 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
         />
       )}
       {send_intent?.phase === 'acceptance_unknown' && (
-        <Alert
+        <UiAlert
           className="investigation-send-notice"
           description="本次请求的受理结果尚未确认。请使用同一问题和同一幂等键重试，或刷新页面恢复；不要修改问题后盲目再次发送。"
-          title="等待确认调查是否已受理"
           showIcon
+          title="等待确认调查是否已受理"
           type="warning"
         />
       )}
       {has_idempotency_key_conflict && (
-        <Alert
-          action={<Button onClick={discard_send_intent} type="link">丢弃当前发送意图</Button>}
+        <UiAlert
+          action={<UiButton onClick={discard_send_intent} type="link">丢弃当前发送意图</UiButton>}
           className="investigation-send-notice"
           description="幂等键已用于不同问题。请丢弃当前发送意图后重新提问。"
-          title="发送冲突"
           showIcon
+          title="发送冲突"
           type="warning"
         />
       )}
