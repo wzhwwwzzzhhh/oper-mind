@@ -136,6 +136,7 @@ APPLICATION_ERROR_STATUS = {
     "SECRET_KEY_NOT_CONFIGURED": 409,
     "PROVIDER_IDEMPOTENCY_REUSED": 409,
     "KNOWLEDGE_TIMEOUT": 503,
+    "KNOWLEDGE_DOCUMENT_NOT_FOUND": 404,
 }
 
 
@@ -207,7 +208,7 @@ def _action_service(services: V1Services):
     return services.action_service
 
 
-def _knowledge_service(services: V1Services) -> KnowledgeReaderService:
+def _knowledge_service(services: V1Services) -> KnowledgeReaderService | None:
     """读取已装配的 P7 知识库只读服务；未装配返回 None（诚实降级为未配置）。"""
     return services.knowledge_service
 
@@ -993,21 +994,22 @@ def search_knowledge(
     services: V1Services = Depends(get_v1_services),
 ) -> KnowledgeSearchResponse:
     """在受管知识目录内按关键词确定性检索 Markdown 文档。"""
-    if _ILLEGAL_QUERY_RE.search(query):
-        raise ApiV1Error(422, "VALIDATION_ERROR", "检索词含路径分隔符或控制字符")
+    normalized_query = query.strip()
+    if not normalized_query or _ILLEGAL_QUERY_RE.search(query):
+        raise ApiV1Error(422, "VALIDATION_ERROR", "检索词不能为空且不含路径分隔符或控制字符")
     knowledge = _knowledge_service(services)
     if knowledge is None:
         status, items = "not_configured", []
     else:
         try:
-            status, items = knowledge.search(query.strip(), limit)
+            status, items = knowledge.search(normalized_query, limit)
         except KnowledgeTimeoutError:
             raise ApiV1Error(503, "KNOWLEDGE_TIMEOUT", "知识库检索超时，请稍后重试")
     meta = response_meta(request)
     apply_headers(response, meta)
     return KnowledgeSearchResponse(
         status=status,
-        query=query.strip(),
+        query=normalized_query,
         items=[knowledge_search_hit_resource(item) for item in items],
         meta=meta,
     )

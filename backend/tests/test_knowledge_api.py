@@ -103,6 +103,16 @@ def test_列表接口返回受管文档清单(knowledge_env) -> None:
     ]
 
 
+def test_列表接口尾斜杠行为契约(knowledge_env) -> None:
+    """`/knowledge/documents/`（尾斜杠）行为锁定：path 通配收到空文档路径 → 诚实 404，绝不回退为全量列表。"""
+    client, root = knowledge_env
+    _seed_docs(root)
+    response = client.get("/api/v1/knowledge/documents/")
+    # 契约：尾斜杠空路径按「文档不存在」处理（不落入列表语义、不泄露目录结构），行为确定。
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "KNOWLEDGE_DOCUMENT_NOT_FOUND"
+
+
 def test_检索接口命中返回匹配文档与片段(knowledge_env) -> None:
     """检索词有匹配 → 返回标题 + 命中片段，相关度排序。"""
     client, _ = knowledge_env
@@ -147,6 +157,14 @@ def test_检索接口非法检索词返回422(knowledge_env) -> None:
         assert response.status_code == 422, bad
 
 
+def test_检索接口纯空白检索词返回422(knowledge_env) -> None:
+    """纯空白检索词 → 422，拒绝空检索导致的全量返回。"""
+    client, _ = knowledge_env
+    for bad in ("   ", "\t\n"):
+        response = client.get("/api/v1/knowledge/search", params={"query": bad})
+        assert response.status_code == 422, repr(bad)
+
+
 def test_详情接口返回脱敏正文(knowledge_env) -> None:
     """详情返回受管目录内 Markdown 正文（经 desensitize 脱敏兜底）。"""
     client, root = knowledge_env
@@ -175,6 +193,14 @@ def test_详情接口路径逃逸被拒绝(knowledge_env) -> None:
     for bad in ("../outside-secret.md", "sop/../kill-slow-query.md", "/etc/passwd", "sop//kill-slow-query.md"):
         response = client.get(f"/api/v1/knowledge/documents/{bad}")
         assert response.status_code == 404, bad
+
+
+def test_详情接口URL编码穿越被拒绝(knowledge_env) -> None:
+    """URL 编码的 `..`/反斜杠/斜杠穿越 → 404（FastAPI 解参后命中段级/字符级校验 + resolve 前缀兜底）。"""
+    client, root = knowledge_env
+    for encoded in ("..%2Foutside-secret.md", "%2e%2e%2foutside-secret.md", "..%5Coutside-secret.md", "sop%2f..%2fkill-slow-query.md"):
+        response = client.get(f"/api/v1/knowledge/documents/{encoded}")
+        assert response.status_code in (404, 422), encoded
 
 
 def test_详情接口非markdown被拒绝(knowledge_env) -> None:
@@ -224,15 +250,24 @@ def test_含sk内容文档不进入列表检索与详情(knowledge_env) -> None:
 
 
 def test_检索与列表结果不含凭据明文(knowledge_env) -> None:
-    """检索片段与标题经脱敏兜底，不包含 sk-/连接串凭据。"""
+    """检索片段与标题经脱敏兜底，不包含连接串/口令明文（非 sk- 模式）。"""
     client, root = knowledge_env
     (root / "ops.md").write_text(
-        "# 排障手册\n\n连接串 postgres://admin:pw@host/app，token 是 sk-aaaa1111bbbb。\n",
+        "# 排障手册\n\n连接串 postgres://admin:pw@host/app，口令 password=secret123。\n",
         encoding="utf-8",
     )
-    response = client.get("/api/v1/knowledge/search", params={"query": "排障"})
+    response = client.get("/api/v1/knowledge/search", params={"query": "连接串"})
     assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["items"][0]["title"] == "排障手册"
+    assert len(body["items"][0]["snippets"]) >= 1
     text = response.text
-    assert "sk-aaaa1111bbbb" not in text
     assert "admin:pw" not in text
     assert "pw@host" not in text
+    assert "password=secret123" not in text
+
+    list_response = client.get("/api/v1/knowledge/documents")
+    list_text = list_response.text
+    assert "排障手册" in list_text
+    assert "password=secret123" not in list_text

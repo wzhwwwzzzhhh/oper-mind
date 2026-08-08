@@ -85,3 +85,38 @@ def test_shutdown可释放线程池(tmp_path: Path) -> None:
     """shutdown 后仍可再次安全调用（不会复用已关线程池）。"""
     service = KnowledgeReaderService(str(tmp_path))
     service.shutdown()
+
+
+def test_read_document路径逃逸直接拒绝(tmp_path: Path) -> None:
+    """reader 层直接锁定路径逃逸防护（不经 HTTP 客户端规范化），覆盖段级/字符级/前缀校验。"""
+    (tmp_path / "inside.md").write_text("# 内部\n", encoding="utf-8")
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "doc.md").write_text("# 子文档\n", encoding="utf-8")
+    outside = tmp_path.parent / "outside.md"
+    outside.write_text("# 外部\n", encoding="utf-8")
+    service = KnowledgeReaderService(str(tmp_path))
+    try:
+        assert service.get_document("inside.md") is not None
+        assert service.get_document("sub/doc.md") is not None
+        # 段级拒绝：绝对路径 / `..`/`.` 段 / 空段 / 反斜杠 / 控制字符
+        for bad in (
+            "/etc/passwd",
+            "\\etc\\passwd",
+            "../outside.md",
+            "sub/../inside.md",
+            "sub/./inside.md",
+            "sub//inside.md",
+            "sub\\..\\outside.md",
+            "sub\x00.md",
+        ):
+            assert service.get_document(bad) is None, bad
+        # 非 markdown / 隐藏 / 凭据文件
+        (tmp_path / "note.txt").write_text("x\n", encoding="utf-8")
+        (tmp_path / ".env").write_text("TOKEN=x\n", encoding="utf-8")
+        (tmp_path / "config.local.yaml").write_text("p: x\n", encoding="utf-8")
+        assert service.get_document("note.txt") is None
+        assert service.get_document(".env") is None
+        assert service.get_document("config.local.yaml") is None
+        assert outside.exists()
+    finally:
+        service.shutdown()

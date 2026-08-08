@@ -8,15 +8,45 @@ import {
   list_knowledge_documents_query,
   search_knowledge_query,
 } from '../../api/v1/queries'
-import type { KnowledgeDocumentResource, KnowledgeSearchHitResource } from '../../api/v1/client'
+import { read_array, read_items, resource_optional_string, resource_string, resource_value } from '../workbench/resource-readers'
 
-function list_empty_text(status: string | undefined): string | null {
+interface KnowledgeDocumentItem {
+  title: string
+  relative_path: string
+}
+
+interface KnowledgeSearchHitItem {
+  title: string
+  relative_path: string
+  snippet_count: number
+  title_hit: boolean
+  snippets: string[]
+}
+
+function to_document_items(payload: unknown): KnowledgeDocumentItem[] {
+  return read_items(payload).map((item) => ({
+    title: resource_string(item, 'title', '未知文档'),
+    relative_path: resource_optional_string(item, 'relative_path') ?? '',
+  })).filter((item) => item.relative_path !== '')
+}
+
+function to_search_hits(payload: unknown): KnowledgeSearchHitItem[] {
+  return read_items(payload).map((item) => ({
+    title: resource_string(item, 'title', '未知文档'),
+    relative_path: resource_optional_string(item, 'relative_path') ?? '',
+    snippet_count: Number(resource_optional_string(item, 'snippet_count')) || 0,
+    title_hit: resource_optional_string(item, 'title_hit') === 'true',
+    snippets: read_array(resource_value(item, 'snippets')).map(String),
+  })).filter((item) => item.relative_path !== '')
+}
+
+function list_empty_text(status: unknown): string | null {
   if (status === 'not_configured') return '知识库未配置：请配置 OPERMIND_KNOWLEDGE_DIR 后使用。'
   if (status === 'empty') return '暂无文档：受管知识目录内还没有 Markdown 文档。'
   return null
 }
 
-function search_empty_text(status: string | undefined): string | null {
+function search_empty_text(status: unknown): string | null {
   if (status === 'not_configured') return '知识库未配置：请配置 OPERMIND_KNOWLEDGE_DIR 后使用。'
   if (status === 'empty') return '暂无文档：受管知识目录内还没有 Markdown 文档。'
   if (status === 'no_match') return '无匹配文档：请尝试更换检索词。'
@@ -52,8 +82,8 @@ export function KnowledgePage(): ReactElement {
     void search_query.refetch()
   }
 
-  const items: KnowledgeDocumentResource[] = list_query.data?.data.items ?? []
-  const hits: KnowledgeSearchHitResource[] = search_query.data?.data.items ?? []
+  const items = list_query.data ? to_document_items(list_query.data.data) : []
+  const hits = search_query.data ? to_search_hits(search_query.data.data) : []
 
   if (opened_path != null && opened_path !== '') {
     if (document_query.isPending) {
@@ -68,11 +98,13 @@ export function KnowledgePage(): ReactElement {
       return (
         <div className="knowledge-page">
           <div className="knowledge-breadcrumb"><button onClick={close_document} type="button">← 返回文档列表</button></div>
-          <div className="knowledge-inline-state error">读取文档失败，请稍后重试。</div>
+          <div className="knowledge-inline-state error">读取文档失败，请稍后重试。
+            <button className="knowledge-link" onClick={() => void document_query.refetch()} type="button">重试</button>
+          </div>
         </div>
       )
     }
-    const document = document_query.data?.data.document
+    const document = document_query.data?.data?.document
     if (document == null) {
       return (
         <div className="knowledge-page">
@@ -81,14 +113,16 @@ export function KnowledgePage(): ReactElement {
         </div>
       )
     }
+    const title = resource_string(document, 'title', '知识文档')
+    const content = resource_string(document, 'content', '')
     return (
       <div className="knowledge-page">
-        <div className="knowledge-breadcrumb"><button onClick={close_document} type="button">← 返回文档列表</button><span>/</span><strong>{document.title}</strong></div>
+        <div className="knowledge-breadcrumb"><button onClick={close_document} type="button">← 返回文档列表</button><span>/</span><strong>{title}</strong></div>
         <section className="knowledge-detail-head">
-          <div><div className="knowledge-eyebrow">受管知识目录 · 只读</div><h1>{document.title}</h1><p>{document.relative_path}</p></div>
+          <div><div className="knowledge-eyebrow">受管知识目录 · 只读</div><h1>{title}</h1><p>{resource_optional_string(document, 'relative_path') ?? ''}</p></div>
         </section>
         <section className="knowledge-detail-body">
-          <pre>{document.content}</pre>
+          <pre>{content}</pre>
         </section>
       </div>
     )
@@ -130,7 +164,7 @@ export function KnowledgePage(): ReactElement {
       {search_query.isEnabled && search_query.isSuccess && (
         <section className="knowledge-section">
           <div className="knowledge-section-head"><div><h2>检索结果</h2><p>来源：受管知识目录 · 确定性检索</p></div></div>
-          {hits.length === 0 && <div className="knowledge-empty">{search_empty_text(search_query.data?.data.status)}</div>}
+          {hits.length === 0 && <div className="knowledge-empty">{search_empty_text(search_query.data?.data?.status)}</div>}
           <div className="knowledge-doc-list">{hits.map((hit) => (
             <button className="knowledge-doc" key={hit.relative_path} onClick={() => open_document(hit.relative_path)} type="button">
               <strong>{hit.title}</strong>
@@ -143,7 +177,7 @@ export function KnowledgePage(): ReactElement {
 
       <section className="knowledge-section">
         <div className="knowledge-section-head"><div><h2>全部文档</h2><p>来源：受管知识目录 · 只读</p></div></div>
-        {list_query.isSuccess && items.length === 0 && <div className="knowledge-empty">{list_empty_text(list_query.data?.data.status) ?? '知识库为空。'}</div>}
+        {list_query.isSuccess && items.length === 0 && <div className="knowledge-empty">{list_empty_text(list_query.data?.data?.status) ?? '知识库为空。'}</div>}
         <div className="knowledge-doc-list">{items.map((item) => (
           <button className="knowledge-doc" key={item.relative_path} onClick={() => open_document(item.relative_path)} type="button">
             <strong>{item.title}</strong>

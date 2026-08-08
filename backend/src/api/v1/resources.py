@@ -41,6 +41,7 @@ from src.domain.services import ServiceActivityData, ServiceViewData
 from src.domain.host_metrics import HostMetricsData
 from src.domain.monitoring import MonitorHistoryData
 from src.knowledge.reader import KnowledgeDocumentMeta, KnowledgeSearchHit
+from src.core.tool_gateway import desensitize
 
 
 def session_resource(value: SessionData) -> SessionResource:
@@ -313,16 +314,19 @@ def provider_resource(value: ModelProviderData) -> ModelProviderResource:
 
 
 def knowledge_document_resource(value: KnowledgeDocumentMeta) -> KnowledgeDocumentResource:
-    """把 reader 文档清单条目映射为公开资源（relative_name → relative_path）。"""
-    return KnowledgeDocumentResource(title=value.title, relative_path=value.relative_name)
+    """把 reader 文档清单条目映射为公开资源（relative_name → relative_path），标题脱敏兜底。"""
+    return KnowledgeDocumentResource(
+        title=desensitize(value.title),
+        relative_path=value.relative_name,
+    )
 
 
 def knowledge_search_hit_resource(value: KnowledgeSearchHit) -> KnowledgeSearchHitResource:
-    """把 reader 检索命中项映射为公开资源（relative_name → relative_path）。"""
+    """把 reader 检索命中项映射为公开资源（relative_name → relative_path），标题与片段脱敏兜底。"""
     return KnowledgeSearchHitResource(
-        title=value.title,
+        title=desensitize(value.title),
         relative_path=value.relative_name,
         snippet_count=value.snippet_count,
         title_hit=value.title_hit,
-        snippets=value.snippets,
+        snippets=[desensitize(snippet) for snippet in value.snippets],
     )
