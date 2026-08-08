@@ -103,10 +103,6 @@ button {
   color: #58707e;
 }
 
-.workbench-title-row .ant-typography {
-  margin-bottom: 0;
-}
-
 .session-navigator,
 .workbench-card {
   margin-top: 24px;
@@ -268,10 +264,6 @@ button {
   background: transparent;
 }
 
-.investigation-details .ant-collapse-item {
-  border-bottom: 0 !important;
-}
-
 .conversation-protocol-notice,
 .conversation-system-message {
   margin-bottom: 16px;
@@ -379,19 +371,6 @@ button {
   color: #1d3b4c;
 }
 
-.service-capability + .service-capability {
-  margin-top: 12px;
-}
-
-.service-capability .ant-typography {
-  margin-bottom: 6px;
-}
-
 .service-mutation-error {
   margin-top: 12px;
-}
-
-.service-activity-list .ant-list-item {
-  align-items: flex-start;
-  gap: 12px;
 }
