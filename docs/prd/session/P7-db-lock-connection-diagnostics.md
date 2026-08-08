@@ -1,6 +1,6 @@
 ---
 title: 数据库深度只读诊断——锁与连接池（慢查询深化第一切片）
-status: 进行中
+status: 完成
 domain: session
 phase: P7
 issue: 44
