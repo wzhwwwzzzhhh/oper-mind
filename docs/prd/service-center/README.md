@@ -6,4 +6,4 @@
 | PRD | 主题 | 状态 |
 |---|---|---|
 | [P4.4-service-instances.md](P4.4-service-instances.md) | 服务中心多服务实例接入 | 完成 |
-| [P6-redis-service-monitor.md](P6-redis-service-monitor.md) | Redis 服务接入与只读监控 | 已确认 |
+| [P6-redis-service-monitor.md](P6-redis-service-monitor.md) | Redis 服务接入与只读监控 | 完成 |

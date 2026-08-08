@@ -8,4 +8,5 @@
 | [P4.2-db-agent-real.md](P4.2-db-agent-real.md) | 会话 DBAgent 工具接真实 PostgreSQL | 完成 |
 | [P4.3-service-context.md](P4.3-service-context.md) | 会话服务上下文贯通与服务选择 | 完成 |
 | [P6-cross-service-investigation.md](P6-cross-service-investigation.md) | 跨服务联合调查——会话多服务 + 多 Run 聚合 | 完成 |
-| [P6-log-source-real.md](P6-log-source-real.md) | 日志真实源接入 | 进行中 |
+| [P6-log-source-real.md](P6-log-source-real.md) | 日志真实源接入 | 完成 |
+| [P7-db-lock-connection-diagnostics.md](P7-db-lock-connection-diagnostics.md) | 数据库深度只读诊断——锁与连接池（慢查询深化第一切片） | 已确认 |
