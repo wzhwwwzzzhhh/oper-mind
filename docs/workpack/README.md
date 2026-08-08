@@ -21,7 +21,6 @@ docs/workpack/
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
 | P5 | monitor-trends | 待用户确认计划 | [plan](P5-monitor-trends/plan.md) | 待执行 | 待执行 |
-| P5 | controlled-action-real | 已实现，待交付 | [plan](P5-controlled-action-real/plan.md) | [review](P5-controlled-action-real/review.md) | [evidence](P5-controlled-action-real/evidence.md) |
 
 ## 已归档
 
@@ -36,6 +35,7 @@ docs/workpack/
 | P6 | model-provider-key-management | #32 | 2026-08-07 |
 | P6 | log-source-real | #29 | 2026-08-08 |
 | P6 | host-metrics | #34 | 2026-08-08 |
+| P5 | controlled-action-real | #38 | 2026-08-08 |
 
 ## 规则
 - `plan.md` 必须经用户确认后才进入 `dev-execute`；`review.md` 必须 PASS 才能进入 `dev-deliver`。
