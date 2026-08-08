@@ -592,6 +592,35 @@ class MonitorHistoryResponse(ApiV1Model):
     meta: ResponseMeta
 
 
+class MonitorTrendSummaryResource(ApiV1Model):
+    """概览窗口内的趋势摘要：样本数与异常采样点计数。"""
+
+    sample_count: int = Field(ge=0)
+    anomaly_sample_count: int = Field(ge=0)
+
+
+class MonitorServiceOverviewResource(ApiV1Model):
+    """单个已注册服务的监控概览资源。"""
+
+    service_id: str = Field(min_length=1, max_length=64)
+    title: str
+    kind: str = Field(min_length=1, max_length=80)
+    connection_status: Literal["available", "unavailable", "not_configured", "not_sampled"]
+    availability: Literal["healthy", "unhealthy", "unavailable", "not_configured"]
+    latest_sample: MonitorSampleResource | None = None
+    trend_summary: MonitorTrendSummaryResource
+
+
+class MonitorOverviewResponse(ApiV1Model):
+    """监控概览响应。"""
+
+    items: list[MonitorServiceOverviewResource]
+    source: Literal["scheduled_sampling"]
+    sample_interval_seconds: int = Field(ge=30)
+    retention_hours: int = Field(ge=1)
+    meta: ResponseMeta
+
+
 class SessionResponse(ApiV1Model):
     """单个会话响应。"""
 

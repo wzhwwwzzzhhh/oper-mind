@@ -12,6 +12,8 @@ from src.api.v1.schemas import (
     DiagnosisRunResource,
     MessageResource,
     ModelProviderResource,
+    MonitorServiceOverviewResource,
+    MonitorTrendSummaryResource,
     RunErrorResource,
     RunEventResource,
     ServiceActivityResource,
@@ -37,7 +39,8 @@ from src.domain.model_provider import ModelProviderData
 from src.domain.records import DiagnosisResultData, DiagnosisRunData, MessageData, RunEventData, SessionData
 from src.domain.services import ServiceActivityData, ServiceViewData
 from src.domain.host_metrics import HostMetricsData
-from src.domain.monitoring import MonitorHistoryData
+from src.domain.monitoring import MonitorHistoryData, MonitorOverviewData
+from src.domain.monitoring import MonitorServiceOverviewData
 
 
 def session_resource(value: SessionData) -> SessionResource:
@@ -288,6 +291,32 @@ def monitor_history_resource(value: MonitorHistoryData) -> dict[str, object]:
         "from": value.from_at,
         "to": value.to_at,
         "samples": [sample.model_dump() for sample in value.samples],
+    }
+
+
+def monitor_service_overview_resource(value: MonitorServiceOverviewData) -> MonitorServiceOverviewResource:
+    """将单个服务概览领域模型映射为公开资源。"""
+    return MonitorServiceOverviewResource(
+        service_id=value.service_id,
+        title=value.title,
+        kind=value.kind,
+        connection_status=value.connection_status.value,
+        availability=value.availability.value,
+        latest_sample=value.latest_sample.model_dump() if value.latest_sample is not None else None,
+        trend_summary=MonitorTrendSummaryResource(
+            sample_count=value.trend_summary.sample_count,
+            anomaly_sample_count=value.trend_summary.anomaly_sample_count,
+        ),
+    )
+
+
+def monitor_overview_resource(value: MonitorOverviewData) -> dict[str, object]:
+    """将监控概览领域模型映射为已脱敏 API 字段。"""
+    return {
+        "items": [monitor_service_overview_resource(item) for item in value.items],
+        "source": value.source,
+        "sample_interval_seconds": value.sample_interval_seconds,
+        "retention_hours": value.retention_hours,
     }
 
 
