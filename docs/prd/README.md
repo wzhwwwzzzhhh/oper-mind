@@ -22,7 +22,7 @@
 | P4.2 | 会话 DBAgent 工具接真实 PostgreSQL | `session/P4.2-db-agent-real.md` | 完成 |
 | P4.3 | 会话服务上下文贯通与服务选择 | `session/P4.3-service-context.md` | 完成 |
 | P4.3 | 模型设置页读取真实生效配置 | `model/P4.3-model-settings-real.md` | 完成 |
-| P6 | 模型 Provider 与 API Key 管理 | `model/P6-model-provider-key-management.md` | 已确认 |
+| P6 | 模型 Provider 与 API Key 管理 | `model/P6-model-provider-key-management.md` | 完成 |
 | P4.4 | 服务中心多服务实例接入 | `service-center/P4.4-service-instances.md` | 完成 |
 | P5 | 服务监控历史趋势与页面内告警 | `monitor/P5-monitor-trends.md` | 已确认 |
 | P6 | 服务主机指标监控 | `monitor/P6-host-metrics-monitoring.md` | 已确认 |

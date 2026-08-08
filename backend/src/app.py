@@ -19,7 +19,12 @@ from src.api.v1.errors import ApiV1Error
 from src.api.v1.routes import router as v1_router
 from src.api.v1.schemas import ApiError as V1ApiError
 from src.api.v1.schemas import ErrorEnvelope, FieldIssue, ResponseMeta
-from src.core.bootstrap import build_coordinator, build_llm
+from src.application.model_providers import resolve_model_config
+from src.infrastructure.secrets import (
+    SecretKeyNotConfiguredError,
+    SecretKeyTooShortError,
+    load_secret_key,
+)
 
 
 LOGGER = logging.getLogger(__name__)
@@ -50,10 +55,8 @@ app = FastAPI(
     lifespan=_lifespan,
 )
 
-# 共享 LLM 客户端（多 Run 间无可变状态，可安全复用）。
-_shared_llm = build_llm()
-# v1 正式路径：每 Run 现造一套内核，隔离并发 Agent 状态。
-app.state.v1_services = build_v1_services(lambda service_id: build_coordinator(_shared_llm, service_id=service_id))
+# v1 正式路径：每 Run 现造一套内核并解析生效模型配置，隔离并发 Agent 状态。
+app.state.v1_services = build_v1_services()
 
 
 @app.middleware("http")
@@ -188,9 +191,38 @@ def _validation_details(errors: list[dict[str, object]]) -> list[ErrorDetail]:
     ]
 
 
-def _service_mode() -> str:
+def _effective_model_config() -> dict[str, dict[str, str]]:
+    """返回当前生效模型配置（DB 激活优先，env/YAML 兜底），供健康检查展示。
+
+    应用库不可用或未迁移时由解析层回退到 env/YAML，健康探针不因数据库问题而崩溃。
+    """
+    services = getattr(app.state, "v1_services", None)
+    session_factory = getattr(services, "session_factory", None)
+    if session_factory is None:
+        return _env_config_fallback()
+    try:
+        secret_key = load_secret_key()
+    except (SecretKeyNotConfiguredError, SecretKeyTooShortError):
+        secret_key = None
+    return resolve_model_config(session_factory, secret_key)
+
+
+def _env_config_fallback() -> dict[str, dict[str, str]]:
+    """应用尚未装配时仅从环境变量读取健康检查所需字段。"""
+    return {
+        "llm": {
+            "api_key": os.environ.get("OPERMIND_API_KEY", ""),
+            "base_url": os.environ.get("OPERMIND_BASE_URL", ""),
+            "model": os.environ.get("OPERMIND_MODEL", ""),
+        },
+        "judge_llm": {},
+    }
+
+
+def _service_mode(config: dict[str, dict[str, str]]) -> str:
     """返回安全的运行模式标识，不泄露 API Key。"""
-    return "mock" if getattr(_shared_llm, "client", None) and getattr(_shared_llm.client, "api_key", None) == "mock" else "real"
+    api_key = (config.get("llm") or {}).get("api_key") or os.environ.get("OPERMIND_API_KEY", "")
+    return "mock" if api_key == "mock" else "real"
 
 
 @app.get("/", response_model=RootResponse)
@@ -210,10 +242,11 @@ def root() -> RootResponse:
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     """返回可用于前端状态栏的非敏感服务状态。"""
+    config = _effective_model_config()
     return HealthResponse(
         status="ok",
-        mode=_service_mode(),
-        model=getattr(_shared_llm, "model", "unknown"),
+        mode=_service_mode(config),
+        model=(config.get("llm") or {}).get("model") or "unknown",
     )
 
 

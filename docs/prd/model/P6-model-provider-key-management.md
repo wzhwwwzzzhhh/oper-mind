@@ -1,10 +1,10 @@
 ---
 title: 模型 Provider 与 API Key 管理
-status: 已确认
+status: 完成
 domain: model
 phase: P6
 issue: 22
-updated: 2026-08-06
+updated: 2026-08-07
 ---
 
 # 模型 Provider 与 API Key 管理 · PRD
@@ -39,14 +39,14 @@ updated: 2026-08-06
 - 不做多租户 / 多用户的模型权限管理（后续阶段）。
 - 不做模型列表自动发现（Ollama 等 Provider 的模型枚举）。
 - 不做 Agent 调用策略开关的真实化（沿用 P4.3 结论，保留前端本地偏好或只读）。
-- 不改后端配置加载机制本身（env 优先 YAML 的既有逻辑）。
+- 不改后端配置加载机制本身（`load_config()` 内部 env 优先 YAML 的既有逻辑）。**经 arch-review 决议（用户 2026-08-06 拍板）：模型端点生效配置由 DB 激活的 Provider 承担，未激活时 env/YAML 兜底**；详见 `docs/design/model/P6模型Provider与APIKey管理Design.md`。
 - 不接外部密钥服务（Vault 等，后续阶段）。
 
 ## 功能需求
 
 ### 1. Provider 配置与 API Key 安全保存
 - **输入**：Provider 配置（名称 / Base URL / 模型）与 API Key。
-- **行为**：API Key 经安全方案持久化（加密或密钥引用，方案待 Design），界面掩码展示、不落明文、不进日志/Trace/接口响应；Base URL 与模型可编辑。
+- **行为**：API Key 经安全方案持久化（**已决议：AES-256-GCM 加密落库，主密钥 `OPERMIND_SECRET_KEY` 走 env**，见 `docs/design/model/P6模型Provider与APIKey管理Design.md`），界面掩码展示、不落明文、不进日志/Trace/接口响应；Base URL 与模型可编辑。
 - **输出**：Provider 配置保存成功；API Key 掩码展示。
 
 ### 2. 连接验证
@@ -65,8 +65,8 @@ updated: 2026-08-06
 - **诚实**：未配置/不可用/验证失败如实标注，不伪造连接成功。
 
 ## 数据与接口影响
-- 数据：新增 API Key 安全持久化方案（加密存储或密钥引用，方案待 Design，可能涉及迁移）。
-- 接口：新增模型 Provider 配置的读写接口（保存/验证/列表）；P4.3 只读接口结构保持兼容。
+- 数据：新增 API Key 安全持久化方案（**已决议：AES-256-GCM 加密落应用库专用表，主密钥 `OPERMIND_SECRET_KEY` 走 env**，涉及 `model_providers` 表迁移）。
+- 接口：新增模型 Provider 配置的读写接口（保存/验证/列表/激活/删除）；P4.3 只读接口结构保持兼容。
 
 ## 验收标准
 - [ ] AC1: 当运维在前端新增 Provider 并保存 API Key 时，配置应安全保存，API Key 掩码展示，不落明文。
@@ -91,10 +91,10 @@ updated: 2026-08-06
 - [ ] API Key 无明文落库/日志/Trace/响应/截图
 - [ ] 连接验证只发最小验证请求，不做任意调用
 
-## 开放问题
-1. API Key 持久化方案：加密存储（密钥来自 env）还是外部密钥服务引用？——待 Design（arch-design）定。
-2. 配置生效方式：即时生效还是需重启/重载？——待 Design。
-3. Provider 列表范围：内置白名单（如 DeepSeek/OpenAI-compatible）还是任意 Base URL？——待 Design。
+## 开放问题（已由 Design 决议，用户 2026-08-06 拍板）
+1. **API Key 持久化方案**：AES-256-GCM **加密落库**（应用库专用表），主密钥 `OPERMIND_SECRET_KEY` 走环境变量（≥32 字符），明文永不落库；外部密钥服务（Vault）不做。→ 已定，见 `docs/design/model/P6模型Provider与APIKey管理Design.md` D1。
+2. **配置生效方式**：DB 激活配置**优先于** env/YAML（未激活时兜底），每 Run 解析构造 LLM 客户端，**保存即生效、无需重启**；mock/real 如实标注。→ 已定，见 Design D2；PRD 排除项已同步放宽。
+3. **Provider 列表范围**：**任意 OpenAI-compatible Base URL**（自由输入，http(s) + 主机解析校验，非 localhost 强制 https、拒私有/保留段），不做硬编码白名单；常见 Provider 仅 UI 提示。→ 已定，见 Design D3。
 
 ## GitHub Issue（已确认后回填）
 - issue：#22，指向本 PRD 的 GitHub issue（https://github.com/wzhwwwzzzhhh/oper-mind/issues/22）
