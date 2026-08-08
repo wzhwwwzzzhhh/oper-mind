@@ -6,8 +6,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = "20260807_07_p6_host_metrics"
-down_revision = "20260807_06_p6_redis_monitor_metrics"
+revision = "20260807_08_p6_host_metrics"
+down_revision = "20260807_07_p6_model_provider"
 branch_labels = None
 depends_on = None
 
