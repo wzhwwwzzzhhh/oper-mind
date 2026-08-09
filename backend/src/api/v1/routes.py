@@ -6,8 +6,8 @@ import asyncio
 import os
 from datetime import datetime
 from typing import Annotated, TypeVar
-from uuid import UUID
 from urllib.parse import urlparse
+from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, Query, Request, Response
 from fastapi.responses import StreamingResponse
@@ -58,17 +58,17 @@ from src.api.v1.schemas import (
     KnowledgeListResponse,
     KnowledgeSearchResponse,
     MessageListResponse,
-    ModelConfigResponse,
     ModelConfigResource,
+    ModelConfigResponse,
     ModelEndpointResource,
     ModelProviderListResponse,
     ModelProviderResponse,
     MonitorHistoryResponse,
     MonitorOverviewResponse,
     ResponseMeta,
+    RunActionProposalResponse,
     RunEventEnvelope,
     RunEventListResponse,
-    RunActionProposalResponse,
     RunResponse,
     ServiceActivityListResponse,
     ServiceListResponse,
@@ -81,21 +81,6 @@ from src.api.v1.schemas import (
 from src.api.v1.sse import parse_event_sequence, replay_run_events
 from src.application.action_services import DecideActionProposalCommand, RequestActionExecutionCommand
 from src.application.contracts import CreateRunCommand, CreateSessionCommand, UpdateSessionCommand
-from src.application.knowledge import KnowledgeReaderService, KnowledgeTimeoutError
-from src.knowledge.reader import _ILLEGAL_PATH_RE, _ILLEGAL_QUERY_RE
-from src.application.model_providers import (
-    ActivateModelProviderCommand,
-    CreateModelProviderCommand,
-    ModelProviderApplicationService,
-    UpdateModelProviderCommand,
-    provider_create_fingerprint,
-)
-from src.application.service_center import CreateServiceSessionCommand, ServiceCenterApplicationService
-from src.application.monitoring import (
-    MonitorHistoryApplicationService,
-    MonitorOverviewApplicationService,
-    OVERVIEW_READ_TIMEOUT_SECONDS,
-)
 from src.application.errors import (
     ActionProposalInvalidStateError,
     ApplicationError,
@@ -103,6 +88,21 @@ from src.application.errors import (
     ServiceCenterUnavailableError,
     SessionNotFoundError,
 )
+from src.application.knowledge import KnowledgeReaderService, KnowledgeTimeoutError
+from src.application.model_providers import (
+    ActivateModelProviderCommand,
+    CreateModelProviderCommand,
+    ModelProviderApplicationService,
+    UpdateModelProviderCommand,
+    provider_create_fingerprint,
+)
+from src.application.monitoring import (
+    OVERVIEW_READ_TIMEOUT_SECONDS,
+    MonitorHistoryApplicationService,
+    MonitorOverviewApplicationService,
+)
+from src.application.service_center import CreateServiceSessionCommand, ServiceCenterApplicationService
+from src.config import load_monitor_settings
 from src.domain.diagnosis import SessionStatus
 from src.domain.model_provider import ProviderEndpoint
 from src.domain.records import DiagnosisRunData, SessionData
@@ -115,11 +115,12 @@ from src.infrastructure.persistence.repositories import (
 )
 from src.infrastructure.secrets import (
     SecretKeyNotConfiguredError as SecretsSecretKeyNotConfiguredError,
+)
+from src.infrastructure.secrets import (
     SecretKeyTooShortError,
     load_secret_key,
 )
-from src.config import load_monitor_settings
-
+from src.knowledge.reader import _ILLEGAL_PATH_RE, _ILLEGAL_QUERY_RE
 
 CursorT = TypeVar("CursorT", SessionCursor, MessageCursor, DiagnosisRunCursor, RunEventCursor, ActionEventCursor)
 
@@ -580,7 +581,7 @@ async def get_monitor_overview(
             asyncio.to_thread(_monitor_overview(services).get_overview),
             timeout=OVERVIEW_READ_TIMEOUT_SECONDS,
         )
-    except asyncio.TimeoutError as error:
+    except TimeoutError as error:
         raise ApiV1Error(500, "INTERNAL_ERROR", "服务内部错误，请稍后重试") from error
     except ApplicationError as error:
         raise_application_error(error)
@@ -1020,8 +1021,9 @@ def list_knowledge_documents(
     else:
         try:
             status, items = knowledge.list_documents()
-        except KnowledgeTimeoutError:
-            raise ApiV1Error(503, "KNOWLEDGE_TIMEOUT", "知识库读取超时，请稍后重试")
+        except KnowledgeTimeoutError as err:
+            # from err 只进服务端日志；响应体由 handler 从 code/message 构造，不含异常链。
+            raise ApiV1Error(503, "KNOWLEDGE_TIMEOUT", "知识库读取超时，请稍后重试") from err
     meta = response_meta(request)
     apply_headers(response, meta)
     return KnowledgeListResponse(
@@ -1049,8 +1051,8 @@ def search_knowledge(
     else:
         try:
             status, items = knowledge.search(normalized_query, limit)
-        except KnowledgeTimeoutError:
-            raise ApiV1Error(503, "KNOWLEDGE_TIMEOUT", "知识库检索超时，请稍后重试")
+        except KnowledgeTimeoutError as err:
+            raise ApiV1Error(503, "KNOWLEDGE_TIMEOUT", "知识库检索超时，请稍后重试") from err
     meta = response_meta(request)
     apply_headers(response, meta)
     return KnowledgeSearchResponse(
@@ -1087,8 +1089,8 @@ def get_knowledge_document(
         raise ApiV1Error(404, "KNOWLEDGE_DOCUMENT_NOT_FOUND", "知识文档不存在或不可访问")
     try:
         content = knowledge.get_document(document_path)
-    except KnowledgeTimeoutError:
-        raise ApiV1Error(503, "KNOWLEDGE_TIMEOUT", "知识库读取超时，请稍后重试")
+    except KnowledgeTimeoutError as err:
+        raise ApiV1Error(503, "KNOWLEDGE_TIMEOUT", "知识库读取超时，请稍后重试") from err
     if content is None:
         raise ApiV1Error(404, "KNOWLEDGE_DOCUMENT_NOT_FOUND", "知识文档不存在或不可访问")
     meta = response_meta(request)

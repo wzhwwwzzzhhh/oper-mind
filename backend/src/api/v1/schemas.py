@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID
 
@@ -24,7 +24,7 @@ class ApiV1Model(BaseModel):
             return value
         if value.tzinfo is None:
             raise ValueError("对外时间必须是 UTC aware datetime。")
-        return value.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+        return value.astimezone(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 class ResponseMeta(ApiV1Model):
@@ -368,7 +368,7 @@ class UpdateSessionRequest(ApiV1Model):
         return normalized
 
     @model_validator(mode="after")
-    def require_change(self) -> "UpdateSessionRequest":
+    def require_change(self) -> UpdateSessionRequest:
         """避免无语义 PATCH。"""
         if self.title is None and self.status is None:
             raise ValueError("至少提供一个可更新字段")
@@ -505,7 +505,7 @@ class DiagnosisRunResource(ApiV1Model):
     finished_at: datetime | None = None
 
     @model_validator(mode="after")
-    def validate_terminal_payload(self) -> "DiagnosisRunResource":
+    def validate_terminal_payload(self) -> DiagnosisRunResource:
         """保持 Result 与 Error 的终态语义，拒绝不一致的持久化数据。"""
         if self.status == "succeeded" and self.result is None:
             raise ValueError("成功 Run 缺少结构化结果")
@@ -777,7 +777,7 @@ class ActionApprovalRequest(ApiV1Model):
         return normalized or None
 
     @model_validator(mode="after")
-    def validate_approval_body(self) -> "ActionApprovalRequest":
+    def validate_approval_body(self) -> ActionApprovalRequest:
         """批准不接受备注，避免把审批输入扩展成动作参数。"""
         if self.decision == "approve" and self.comment is not None:
             raise ValueError("批准请求不接受备注")

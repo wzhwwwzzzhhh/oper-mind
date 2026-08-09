@@ -1,10 +1,14 @@
 """Agent 基类 — 所有领域 Agent 继承此类"""
 
+import logging
+
 from src.core.llm import LLMClient
 from src.core.tool_gateway import ToolGateway
 from src.core.tool_registry import ToolRegistry
-from src.memory.short_term import ShortTermMemory
 from src.memory.long_term import LongTermMemory
+from src.memory.short_term import ShortTermMemory
+
+LOGGER = logging.getLogger(__name__)
 
 
 class BaseAgent:
@@ -48,7 +52,7 @@ class BaseAgent:
         gateway = ToolGateway(self.tools)
         try:
             for step in range(self.max_steps):
-                print(f"\n[Step {step + 1}/{self.max_steps}]")
+                LOGGER.debug("ReAct 第 %d/%d 步", step + 1, self.max_steps)
                 response = self.llm.chat(messages, tools=tool_schemas)
 
                 if "error" in response:
@@ -64,7 +68,8 @@ class BaseAgent:
                     for tc in tool_calls:
                         func = tc["function"]
                         step_log = f"Step {step + 1}: 调用 {func['name']}({func['arguments']})"
-                        print(f"→ {step_log}")
+                        # 只记工具名：arguments 可能含 SQL 或连接参数，不进日志。
+                        LOGGER.debug("第 %d 步调用工具 %s", step + 1, func["name"])
 
                         gw_result = gateway.invoke(func["name"], func["arguments"])
                         result = gw_result.output

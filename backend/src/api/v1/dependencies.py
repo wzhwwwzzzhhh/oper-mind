@@ -11,11 +11,12 @@ from dataclasses import dataclass
 
 from fastapi import Request
 
+from src.application.action_execution import ControlledActionExecutor
 from src.application.action_services import ActionApplicationService
 from src.application.knowledge import KnowledgeReaderService
 from src.application.model_providers import resolve_model_config
-from src.application.services import RunApplicationService, SessionApplicationService
 from src.application.service_center import ServiceCenterApplicationService
+from src.application.services import RunApplicationService, SessionApplicationService
 from src.config import (
     load_action_mode,
     load_host_metrics_settings,
@@ -24,12 +25,14 @@ from src.config import (
     load_persistence_settings,
     load_service_dsn,
 )
-from src.application.action_execution import ControlledActionExecutor
 from src.core.bootstrap import build_coordinator, build_llm_from_config
 from src.domain.services import ServiceRegistry
+from src.infrastructure.actions.postgres_target_executor import PostgresTargetActionExecutor
 from src.infrastructure.diagnosis.coordinator_executor import CoordinatorDiagnosisExecutor
-from src.infrastructure.diagnosis.result_assembler import KernelReportResultAssembler
 from src.infrastructure.diagnosis.postgres_missing_index import PostgresMissingIndexCollector
+from src.infrastructure.diagnosis.result_assembler import KernelReportResultAssembler
+from src.infrastructure.monitoring.host_metrics import PsutilHostMetricsCollector
+from src.infrastructure.monitoring.sampler import MonitorSampler
 from src.infrastructure.persistence.database import PersistenceRuntime, SessionFactory, create_persistence_runtime
 from src.infrastructure.secrets import (
     SecretKeyNotConfiguredError,
@@ -38,9 +41,6 @@ from src.infrastructure.secrets import (
 )
 from src.infrastructure.services.postgres_connector import PostgresServiceConnector
 from src.infrastructure.services.redis_connector import RedisServiceConnector
-from src.infrastructure.actions.postgres_target_executor import PostgresTargetActionExecutor
-from src.infrastructure.monitoring.host_metrics import PsutilHostMetricsCollector
-from src.infrastructure.monitoring.sampler import MonitorSampler
 
 
 @dataclass(frozen=True)

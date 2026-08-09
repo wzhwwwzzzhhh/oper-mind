@@ -5,7 +5,6 @@
 
 from src.core.fallback import RuleEngine
 
-
 # 覆盖 RuleEngine 五条默认规则，每条给出应命中的代表性 SQL。
 _RULE_CASES: list[tuple[str, str]] = [
     ("全表扫描", "SELECT * FROM orders WHERE status = 'PAID'"),

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -13,14 +13,10 @@ from sqlalchemy.orm import sessionmaker
 from src.api.v1.dependencies import V1Services
 from src.domain.monitoring import ServiceMonitorSampleData
 from src.domain.services import (
-    DatabaseSignal,
     PerformanceSignal,
     ServiceAvailability,
-    ServiceDatabaseStateData,
     ServiceDefinitionData,
-    ServiceMode,
     ServiceRegistry,
-    ServiceServerMetricsData,
     ServiceSnapshotData,
     ServiceSourceStatus,
 )
@@ -123,7 +119,7 @@ def overview_client(
             yield DiagnosisExecutionEvent(
                 type=RunEventType.ROUTE_DECIDED,
                 node="route",
-                occurred_at=datetime.now(timezone.utc),
+                occurred_at=datetime.now(UTC),
             )
             yield DiagnosisExecutionResult(strategy="direct")
 
@@ -138,7 +134,7 @@ def overview_client(
         service_registry=registry,
     )
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     with session_factory() as session:
         repository = SqlAlchemyMonitorSampleRepository(session)
         repository.add(_sample("postgres-production", now - timedelta(minutes=5), slow=2))
@@ -223,8 +219,8 @@ def test_概览接口读库超时返回内部错误(overview_client: TestClient,
     """概览读库限时（复用网关超时模式）：超时返回 INTERNAL_ERROR，不挂起请求。"""
     import time
 
-    from src.application import monitoring as monitoring_module
     from src.api.v1 import routes as routes_module
+    from src.application import monitoring as monitoring_module
 
     original = monitoring_module.MonitorOverviewApplicationService.get_overview
 

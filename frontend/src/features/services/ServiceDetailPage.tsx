@@ -5,6 +5,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 
 import { api_v1_client } from '../../api/v1/client'
 import { get_service_monitor_history_query, get_service_query, list_service_activities_query } from '../../api/v1/queries'
+import { Icon } from '../shell/Icon'
+import type { IconName } from '../shell/Icon'
 import {
   read_array,
   read_items,
@@ -35,6 +37,13 @@ function status_class(value: unknown): 'ok' | 'attention' | 'muted' {
   if (value === 'healthy') return 'ok'
   if (value === 'unhealthy') return 'attention'
   return 'muted'
+}
+
+/** 状态标记图标：未知不借用告警图标，落到"缺数据"的横杠上。 */
+function notice_mark_icon(value: unknown): IconName {
+  if (value === 'healthy') return 'check'
+  if (value === 'unhealthy') return 'alert'
+  return 'minus'
 }
 
 function signal_label(value: unknown): string {
@@ -195,10 +204,17 @@ export function ServiceDetailPage(): ReactElement {
         <span>快照模式 <b>{snapshot_mode}</b></span>
       </div>
 
-      {notice && <div className="svc-detail-toast" role="status">{notice}<button onClick={() => set_notice(null)} type="button">×</button></div>}
+      {notice && (
+        <div className="svc-detail-toast" role="status">
+          {notice}
+          <button aria-label="关闭提示" onClick={() => set_notice(null)} type="button"><Icon name="x" size={13} /></button>
+        </div>
+      )}
 
       <div className={`svc-detail-notice ${status_class(availability)}`}>
-        <div className="svc-detail-notice-mark">{availability === 'healthy' ? '✓' : '!'}</div>
+        <div className="svc-detail-notice-mark">
+          <Icon name={notice_mark_icon(availability)} size={13} />
+        </div>
         <div><strong>{availability === 'healthy' ? '服务运行正常' : availability ? `服务状态：${status_label(availability)}` : '暂无服务快照'}</strong><p>{snapshot ? `性能信号：${signal_label(resource_value(snapshot, 'performance_signal'))}` : '后端没有返回当前快照，页面不展示示例指标。'}</p></div>
         <span>{snapshot ? `观测于 ${display_time(resource_value(snapshot, 'observed_at'))}` : '等待真实数据'}</span>
       </div>
@@ -268,7 +284,7 @@ export function ServiceDetailPage(): ReactElement {
                 ? (item.slowlog_count ?? 0) > 0 || (index > 0 && item.availability !== samples[index - 1].availability)
                 : (item.slow_query_count ?? 0) > 0 || (item.timeout_count ?? 0) > 0 || (index > 0 && item.availability !== samples[index - 1].availability),
             )
-            if (samples.length === 0) return <div className="svc-detail-chart-empty"><span>⌁</span><strong>暂无历史采样</strong><p>{monitor_status_label(history.status)}，不会绘制假趋势线。</p></div>
+            if (samples.length === 0) return <div className="svc-detail-chart-empty"><span><Icon name="pulse" size={18} /></span><strong>暂无历史采样</strong><p>{monitor_status_label(history.status)}，不会绘制假趋势线。</p></div>
              return <><div className="svc-detail-chart"><div className="svc-detail-chart-legend"><span>{is_redis ? '内存占用' : 'p95 延迟'}</span><span>{is_redis ? '慢日志' : '慢查询 / 超时'}</span></div><div className="svc-detail-chart-track">{samples.map((item) => { const bar = is_redis ? Math.min(100, Math.max(8, (item.memory_bytes ?? 0) / 131072)) : Math.min(100, Math.max(8, (item.p95_ms ?? 0) / 4)); return <div className={`svc-detail-chart-point ${anomalies.includes(item) ? 'anomaly' : ''}`} key={item.id ?? item.observed_at} title={`${display_time(item.observed_at)} · ${is_redis ? display_bytes(item.memory_bytes) : monitor_value(item.p95_ms, ' ms')}`}><i style={{ height: `${bar}%` }} /></div> })}</div><div className="svc-detail-chart-axis"><span>{display_time(samples[0].observed_at)}</span><span>{display_time(samples[samples.length - 1].observed_at)}</span></div>{anomalies.length > 0 && <div className="svc-detail-anomalies"><strong>采样点异常</strong>{anomalies.slice(-5).map((item) => <span key={item.id ?? item.observed_at}>{display_time(item.observed_at)} · {is_redis ? `慢日志 ${item.slowlog_count}` : `${(item.slow_query_count ?? 0) > 0 ? `慢查询 ${item.slow_query_count}` : ''}${(item.timeout_count ?? 0) > 0 ? ` 超时 ${item.timeout_count}` : ''}`}</span>)}</div>}</div>{host_trend_track('主机 CPU', samples, 'host_cpu_percent', 'cpu', ' %')}{host_trend_track('主机内存', samples, 'host_memory_percent', 'mem', ' %')}{host_trend_track('主机磁盘', samples, 'host_disk_used_percent', 'disk', ' %')}</>
           })()}
         </section>
@@ -284,9 +300,9 @@ export function ServiceDetailPage(): ReactElement {
         <div className="svc-detail-capabilities">
           {investigations.length > 0 ? investigations.map((item, index) => {
             const investigation = read_record(item)
-            return <article className="svc-detail-capability" key={resource_string(investigation, 'id', String(index))}><div><span className="capability-mark">✓</span><strong>{resource_string(investigation, 'title', '未命名调查')}</strong></div><p>{resource_string(investigation, 'description', '暂无调查说明。')}</p><small>已启用调查入口</small></article>
-          }) : <article className="svc-detail-capability muted"><div><span className="capability-mark">—</span><strong>暂无已启用调查</strong></div><p>当前服务没有返回 supported_investigations。</p><small>未启用</small></article>}
-          <article className="svc-detail-capability boundary"><div><span className="capability-mark">◇</span><strong>动作边界</strong></div><p>{action_boundary}</p><small>只读展示</small></article>
+            return <article className="svc-detail-capability" key={resource_string(investigation, 'id', String(index))}><div><span className="capability-mark"><Icon name="check" size={12} /></span><strong>{resource_string(investigation, 'title', '未命名调查')}</strong></div><p>{resource_string(investigation, 'description', '暂无调查说明。')}</p><small>已启用调查入口</small></article>
+          }) : <article className="svc-detail-capability muted"><div><span className="capability-mark"><Icon name="minus" size={12} /></span><strong>暂无已启用调查</strong></div><p>当前服务没有返回 supported_investigations。</p><small>未启用</small></article>}
+          <article className="svc-detail-capability boundary"><div><span className="capability-mark"><Icon name="shield" size={12} /></span><strong>动作边界</strong></div><p>{action_boundary}</p><small>只读展示</small></article>
         </div>
       </section>
 

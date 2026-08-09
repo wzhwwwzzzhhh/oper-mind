@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import TypeVar
 from uuid import UUID
 
@@ -370,4 +370,4 @@ def _in_transaction(session_factory: SessionFactory, operation: Callable[[Sessio
 
 def _utc_now() -> datetime:
     """返回应用服务使用的 UTC aware 当前时间。"""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)

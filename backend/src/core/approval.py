@@ -26,7 +26,6 @@ ALLOWED_ALTER_OPERATIONS = [
 
 class ApprovalRequired(Exception):
     """需要人工审批的异常"""
-    pass
 
 
 def is_high_risk_sql(sql: str) -> bool:
@@ -44,11 +43,7 @@ def is_high_risk_sql(sql: str) -> bool:
             return False
 
     # 检查是否匹配高危操作
-    for keyword in HIGH_RISK_KEYWORDS:
-        if keyword in sql_lower:
-            return True
-
-    return False
+    return any(keyword in sql_lower for keyword in HIGH_RISK_KEYWORDS)
 
 
 def is_alter_table_safe(alter_statement: str) -> bool:
@@ -57,10 +52,7 @@ def is_alter_table_safe(alter_statement: str) -> bool:
     只允许 ADD INDEX，其他 ALTER 操作需要审批。
     """
     alter_lower = alter_statement.lower()
-    for allowed in ALLOWED_ALTER_OPERATIONS:
-        if allowed in alter_lower:
-            return True
-    return False
+    return any(allowed in alter_lower for allowed in ALLOWED_ALTER_OPERATIONS)
 
 
 def request_approval(operation: str, reason: str) -> bool:
@@ -71,7 +63,7 @@ def request_approval(operation: str, reason: str) -> bool:
     开发环境：CLI 输入 y/n
     """
     print(f"\n{'='*50}")
-    print(f"⚠️  需要审批")
+    print("⚠️  需要审批")
     print(f"操作: {operation}")
     print(f"原因: {reason}")
     print(f"{'='*50}")
@@ -81,7 +73,7 @@ def request_approval(operation: str, reason: str) -> bool:
         if choice in ("y", "yes"):
             print("✅ 已批准")
             return True
-        elif choice in ("n", "no"):
+        if choice in ("n", "no"):
             print("❌ 已拒绝")
             return False
         print("请输入 y 或 n")

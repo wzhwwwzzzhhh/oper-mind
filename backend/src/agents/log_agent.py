@@ -6,8 +6,7 @@
 from src.core.agent import BaseAgent
 from src.core.llm import LLMClient
 from src.core.tool_registry import ToolRegistry
-from src.tools.log_tools import SearchLogsTool, AggregateErrorsTool, QuerySlowLogTool
-
+from src.tools.log_tools import AggregateErrorsTool, QuerySlowLogTool, SearchLogsTool
 
 LOG_SYSTEM_PROMPT = """你是日志分析专家，擅长从日志中定位问题根因。
 

@@ -1,6 +1,6 @@
 """降级策略：LLM 不可用时，规则引擎兜底"""
 
-from typing import Callable
+from collections.abc import Callable
 
 
 class RuleEngine:
@@ -61,7 +61,7 @@ class RuleEngine:
             "```sql\nALTER TABLE `orders` ADD INDEX `idx_status_create_time` (`status`, `create_time`);\n```"
         )
 
-    def add_rule(self, condition: Callable[[str], bool], response: str):
+    def add_rule(self, condition: Callable[[str], bool], response: str) -> None:
         """添加一条规则"""
         self.rules.append((condition, response))
 

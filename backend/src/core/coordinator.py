@@ -1,14 +1,12 @@
 """Coordinator Agent —— 动态路由调度器（LangGraph 编排版）。"""
 
-from collections.abc import Iterator
-from datetime import datetime, timezone
 import logging
-from typing import Any, Literal, TypedDict, cast
-from typing_extensions import NotRequired
+from collections.abc import Iterator
+from datetime import UTC, datetime
+from typing import Any, Literal, NotRequired, TypedDict, cast
 
 from src.core.graph import build_diagnosis_graph
 from src.core.llm import LLMClient
-
 
 LOGGER = logging.getLogger(__name__)
 
@@ -151,7 +149,7 @@ class CoordinatorAgent:
     @staticmethod
     def _timestamp() -> str:
         """生成前端可排序的 UTC ISO 8601 时间戳。"""
-        return datetime.now(timezone.utc).isoformat()
+        return datetime.now(UTC).isoformat()
 
     def _create_start_events(self, update: dict[str, Any]) -> list[TraceRecord]:
         """在路由完成后补发领域 Agent 启动事件，供 SSE 前端即时点亮节点。"""

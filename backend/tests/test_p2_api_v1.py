@@ -7,7 +7,7 @@ import os
 import subprocess
 import sys
 from collections.abc import Iterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -19,8 +19,7 @@ from src.application.contracts import DiagnosisExecutionError, DiagnosisExecutio
 from src.application.services import RunApplicationService, SessionApplicationService
 from src.domain.diagnosis import RunEventType
 from src.infrastructure.diagnosis.result_assembler import ConservativeResultAssembler
-from src.infrastructure.persistence.database import PersistenceRuntime, create_persistence_runtime
-
+from src.infrastructure.persistence.database import create_persistence_runtime
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = BACKEND_ROOT.parent
@@ -35,7 +34,7 @@ class _DeterministicExecutor:
         yield DiagnosisExecutionEvent(
             type=RunEventType.ROUTE_DECIDED,
             node="route",
-            occurred_at=datetime.now(timezone.utc),
+            occurred_at=datetime.now(UTC),
         )
         yield DiagnosisExecutionResult(strategy="direct")
 

@@ -8,7 +8,7 @@ import subprocess
 import sys
 from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -31,7 +31,6 @@ from src.infrastructure.persistence.models import (
     SessionRecord,
 )
 
-
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = BACKEND_ROOT.parent
 ALEMBIC_INI = BACKEND_ROOT / "alembic.ini"
@@ -49,7 +48,7 @@ class _CountingExecutor:
         yield DiagnosisExecutionEvent(
             type=RunEventType.ROUTE_DECIDED,
             node="route",
-            occurred_at=datetime.now(timezone.utc),
+            occurred_at=datetime.now(UTC),
         )
         yield DiagnosisExecutionResult(strategy="direct")
 

@@ -1,6 +1,16 @@
 import type { ReactElement } from 'react'
 
-import type { DiagnosisAgentSummary, DiagnosisEvidence, DiagnosisResultProjection, DiagnosisRisk, DiagnosisRootCause } from './result-readers'
+import type {
+  DiagnosisAgentSummary,
+  DiagnosisEvidence,
+  DiagnosisImpact,
+  DiagnosisRecommendation,
+  DiagnosisResultProjection,
+  DiagnosisRisk,
+  DiagnosisRootCause,
+  RecommendationPriority,
+  RiskLevel,
+} from './result-readers'
 
 const SEVERITY_CLASSES: Record<DiagnosisResultProjection['severity'], string> = {
   critical: 'critical',
@@ -8,6 +18,38 @@ const SEVERITY_CLASSES: Record<DiagnosisResultProjection['severity'], string> = 
   info: 'info',
   low: 'low',
   medium: 'medium',
+}
+
+/** 建议优先级 → 视觉等级：P0/P1 用告警色抢注意力，P2/P3 收敛为中性。 */
+const PRIORITY_CLASSES: Record<RecommendationPriority, string> = {
+  p0: 'danger',
+  p1: 'warning',
+  p2: 'info',
+  p3: 'muted',
+}
+
+const PRIORITY_LABELS: Record<RecommendationPriority, string> = {
+  p0: 'P0 立即处理',
+  p1: 'P1 尽快处理',
+  p2: 'P2 计划处理',
+  p3: 'P3 观察',
+}
+
+const RISK_LABELS: Record<RiskLevel, string> = {
+  critical: '严重风险',
+  high: '高风险',
+  low: '低风险',
+  medium: '中风险',
+  none: '无额外风险',
+}
+
+/** 风险等级 → 视觉等级：none 走"已核实"绿，其余按严重度升级。 */
+const RISK_CLASSES: Record<RiskLevel, string> = {
+  critical: 'danger',
+  high: 'danger',
+  low: 'muted',
+  medium: 'warning',
+  none: 'success',
 }
 
 function EvidenceReferences({ evidence_ids, evidence_by_id }: { evidence_ids: string[]; evidence_by_id: ReadonlyMap<string, DiagnosisEvidence> }): ReactElement {
@@ -56,11 +98,67 @@ function AgentSummaryItem({ item }: { item: DiagnosisAgentSummary }): ReactEleme
   )
 }
 
+function ImpactBlock({ impact }: { impact: DiagnosisImpact }): ReactElement {
+  return (
+    <div className="diagnosis-result-panel__impact">
+      <p className="diagnosis-result-panel__item-copy">{impact.summary}</p>
+      <div className="diagnosis-result-panel__details">
+        <span className="diagnosis-result-panel__meta-line">
+          影响范围：{impact.affected_scope ?? '服务未界定影响范围'}
+        </span>
+        {impact.affected_services.length === 0
+          ? <span className="diagnosis-result-panel__meta-line">受影响服务：服务未返回受影响清单</span>
+          : (
+            <div className="diagnosis-result-panel__tags">
+              <span className="diagnosis-result-panel__meta-line">受影响服务：</span>
+              {impact.affected_services.map((service) => (
+                <span className="diagnosis-result-panel__tag" key={service}>{service}</span>
+              ))}
+            </div>
+          )}
+      </div>
+    </div>
+  )
+}
+
+function RecommendationItem({
+  recommendation,
+  evidence_by_id,
+}: {
+  evidence_by_id: ReadonlyMap<string, DiagnosisEvidence>
+  recommendation: DiagnosisRecommendation
+}): ReactElement {
+  return (
+    <li className="diagnosis-result-panel__item">
+      <div className="diagnosis-result-panel__item-title-row">
+        <span className={`diagnosis-result-panel__tag diagnosis-result-panel__tag--${PRIORITY_CLASSES[recommendation.priority]}`}>
+          {PRIORITY_LABELS[recommendation.priority]}
+        </span>
+        <span className="diagnosis-result-panel__item-title">{recommendation.title}</span>
+      </div>
+      <p className="diagnosis-result-panel__item-copy">{recommendation.description}</p>
+      <div className="diagnosis-result-panel__tags">
+        <span className={`diagnosis-result-panel__tag diagnosis-result-panel__tag--${RISK_CLASSES[recommendation.risk_level]}`}>
+          {RISK_LABELS[recommendation.risk_level]}
+        </span>
+        <span
+          className={`diagnosis-result-panel__tag${recommendation.requires_approval ? ' diagnosis-result-panel__tag--warning' : ' diagnosis-result-panel__tag--success'}`}
+        >
+          {recommendation.requires_approval ? '需人工审批后执行' : '无需审批'}
+        </span>
+        <EvidenceReferences evidence_by_id={evidence_by_id} evidence_ids={recommendation.evidence_ids} />
+      </div>
+    </li>
+  )
+}
+
 function RiskItem({ risk }: { risk: DiagnosisRisk }): ReactElement {
   return (
     <li className="diagnosis-result-panel__item">
       <div className="diagnosis-result-panel__item-title-row">
-        <span className={`diagnosis-result-panel__tag diagnosis-result-panel__tag--${SEVERITY_CLASSES[risk.level]}`}>风险 {risk.level}</span>
+        {/* 走 RISK_CLASSES 而不是 SEVERITY_CLASSES：__tag-- 只有视觉等级那一套变体，
+            severity 那套名字（critical/high/...）在 tag 上没有对应规则，会渲染成无色。 */}
+        <span className={`diagnosis-result-panel__tag diagnosis-result-panel__tag--${RISK_CLASSES[risk.level]}`}>{RISK_LABELS[risk.level]}</span>
         <span className="diagnosis-result-panel__item-copy diagnosis-result-panel__item-copy--inline">{risk.summary}</span>
       </div>
       {risk.mitigation && <p className="diagnosis-result-panel__meta-line">缓解：{risk.mitigation}</p>}
@@ -119,6 +217,29 @@ export function DiagnosisResultPanel({ result }: { result: DiagnosisResultProjec
         {result.root_causes.length === 0
           ? <EmptyState>服务未返回结构化根因</EmptyState>
           : <ul className="diagnosis-result-panel__list">{result.root_causes.map((root_cause) => <RootCauseItem evidence_by_id={evidence_by_id} key={root_cause.id} root_cause={root_cause} />)}</ul>}
+      </section>
+
+      <section aria-labelledby="impact-heading" className="diagnosis-result-panel__section">
+        <h4 className="diagnosis-result-panel__section-title" id="impact-heading">影响面</h4>
+        {result.impact === null
+          ? <EmptyState>服务未返回影响面评估</EmptyState>
+          : <ImpactBlock impact={result.impact} />}
+      </section>
+
+      <section aria-labelledby="recommendations-heading" className="diagnosis-result-panel__section">
+        <h4 className="diagnosis-result-panel__section-title" id="recommendations-heading">
+          处置建议
+          {result.requires_approval && <span className="diagnosis-result-panel__badge diagnosis-result-panel__badge--medium">整体需人工审批</span>}
+        </h4>
+        {result.recommendations.length === 0
+          ? <EmptyState>服务未返回处置建议</EmptyState>
+          : (
+            <ul className="diagnosis-result-panel__list">
+              {result.recommendations.map((recommendation) => (
+                <RecommendationItem evidence_by_id={evidence_by_id} key={recommendation.id} recommendation={recommendation} />
+              ))}
+            </ul>
+          )}
       </section>
 
       <section aria-labelledby="evidence-heading" className="diagnosis-result-panel__section">

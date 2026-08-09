@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+
 # 知识库应用依赖在模块导入时按 OPERMIND_KNOWLEDGE_DIR 装配，因此用模块级环境注入 + 目录操作切换状态。
 # 服务每次请求即时读取目录，因此测试通过创建/删除/写入目录内容来切换 not_configured/empty/ok。
 
@@ -197,7 +198,7 @@ def test_详情接口路径逃逸被拒绝(knowledge_env) -> None:
 
 def test_详情接口URL编码穿越被拒绝(knowledge_env) -> None:
     """URL 编码的 `..`/反斜杠/斜杠穿越 → 404（FastAPI 解参后命中段级/字符级校验 + resolve 前缀兜底）。"""
-    client, root = knowledge_env
+    client, _root = knowledge_env
     for encoded in ("..%2Foutside-secret.md", "%2e%2e%2foutside-secret.md", "..%5Coutside-secret.md", "sop%2f..%2fkill-slow-query.md"):
         response = client.get(f"/api/v1/knowledge/documents/{encoded}")
         assert response.status_code in (404, 422), encoded

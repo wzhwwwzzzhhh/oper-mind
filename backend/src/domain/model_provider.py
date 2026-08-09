@@ -7,7 +7,7 @@ API Key 明文绝不进入本模型之外的任何层；``api_key_encrypted`` / 
 from __future__ import annotations
 
 import ipaddress
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from urllib.parse import urlparse
 from uuid import UUID
@@ -89,7 +89,7 @@ class ModelProviderData(ModelProviderDomainModel):
     @classmethod
     def validate_last_verified_at(cls, value: datetime | None) -> datetime | None:
         """验证时间必须为 UTC aware datetime。"""
-        if value is not None and (value.tzinfo is None or value.utcoffset() != timezone.utc.utcoffset(value)):
+        if value is not None and (value.tzinfo is None or value.utcoffset() != UTC.utcoffset(value)):
             raise ValueError("last_verified_at 必须是 UTC aware datetime。")
         return value
 

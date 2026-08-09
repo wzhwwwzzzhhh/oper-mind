@@ -5,14 +5,15 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import AbstractContextManager
 from typing import Any
+from unittest.mock import patch
 
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import OperationalError
-from unittest.mock import patch
 
-from src.domain.services import ServiceAvailability, ServiceRegistry, ServiceSourceStatus
 from src.config import load_service_dsn
+from src.domain.services import ServiceAvailability, ServiceRegistry, ServiceSourceStatus
 from src.infrastructure.services.postgres_connector import PostgresServiceConnector
+
 
 class FakeResult:
     """提供 Connector 所需的最小 SQLAlchemy 结果接口。"""
@@ -41,13 +42,13 @@ class FakeConnection(AbstractContextManager[Any]):
 
     def __exit__(self, *_args: object) -> None:
         """退出假连接上下文。"""
-        return None
+        return
 
     def execute(self, statement: object) -> FakeResult:
         """记录 SQL 形状并返回下一项结果。"""
         sql = str(statement)
         self.statements.append(sql)
-        if sql.startswith("SET TRANSACTION READ ONLY") or sql.startswith("SELECT 1"):
+        if sql.startswith(("SET TRANSACTION READ ONLY", "SELECT 1")):
             return FakeResult()
         return next(self._results)
 

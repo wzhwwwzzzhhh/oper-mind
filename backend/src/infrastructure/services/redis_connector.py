@@ -6,7 +6,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import logging
+from datetime import UTC, datetime
 from typing import Any
 
 import redis
@@ -23,6 +24,8 @@ from src.domain.services import (
     ServiceSnapshotData,
     ServiceSourceStatus,
 )
+
+LOGGER = logging.getLogger(__name__)
 
 
 class RedisServiceConnector:
@@ -54,7 +57,7 @@ class RedisServiceConnector:
 
     def health_snapshot(self) -> ServiceSnapshotData:
         """读取当前有限只读快照；失败/超时返回 unavailable，不抛异常。"""
-        observed = datetime.now(timezone.utc)
+        observed = datetime.now(UTC)
         if self._dsn is None:
             return self._not_configured(observed)
 
@@ -70,11 +73,15 @@ class RedisServiceConnector:
                 try:
                     client.close()
                 except Exception:
-                    pass
+                    # 关连接失败不影响已取回的快照，但不能静默：
+                    # 只记异常类型，异常文本可能带 DSN。
+                    LOGGER.warning("Redis 连接关闭失败：instance_id=%s", self._instance_id)
 
     def _create_readonly_client(self) -> Redis:
         """创建只读 Redis 客户端，固定三秒连接与命令超时。"""
-        assert self._dsn is not None
+        # 同 postgres_connector：不用 assert，python -O 下会被剥掉。异常文本不含 DSN。
+        if self._dsn is None:
+            raise ValueError("Redis DSN 未配置")
         return redis.Redis.from_url(
             self._dsn,
             socket_connect_timeout=3.0,

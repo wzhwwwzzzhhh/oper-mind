@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Protocol
 from uuid import UUID
@@ -10,7 +10,6 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.domain.host_metrics import HostMetricsData
-
 
 POSTGRES_PRODUCTION_SERVICE_ID = "postgres-production"
 POSTGRES_STAGING_SERVICE_ID = "postgres-staging"
@@ -138,7 +137,7 @@ class ServiceSnapshotData(ServiceDomainModel):
     @classmethod
     def validate_observed_at(cls, value: datetime) -> datetime:
         """快照时间必须为 UTC aware 时间。"""
-        if value.tzinfo is None or value.utcoffset() != timezone.utc.utcoffset(value):
+        if value.tzinfo is None or value.utcoffset() != UTC.utcoffset(value):
             raise ValueError("observed_at 必须是 UTC aware datetime。")
         return value
 
@@ -176,7 +175,7 @@ class ServiceActivityData(ServiceDomainModel):
         """活动时间必须为 UTC aware 时间。"""
         if value is None:
             return value
-        if value.tzinfo is None or value.utcoffset() != timezone.utc.utcoffset(value):
+        if value.tzinfo is None or value.utcoffset() != UTC.utcoffset(value):
             raise ValueError("活动时间必须是 UTC aware datetime。")
         return value
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Protocol
 from uuid import UUID
 
@@ -66,7 +66,7 @@ class UpdateSessionCommand(ApplicationCommand):
         return normalized
 
     @model_validator(mode="after")
-    def require_change(self) -> "UpdateSessionCommand":
+    def require_change(self) -> UpdateSessionCommand:
         """拒绝没有任何更新字段的命令。"""
         if self.title is None and self.status is None:
             raise ValueError("至少提供一个可更新字段。")
@@ -105,7 +105,7 @@ class DiagnosisExecutionEvent(BaseModel):
     @classmethod
     def validate_occurred_at(cls, value: datetime) -> datetime:
         """执行事件必须携带 UTC aware 时间。"""
-        if value.tzinfo is None or value.utcoffset() != timezone.utc.utcoffset(value):
+        if value.tzinfo is None or value.utcoffset() != UTC.utcoffset(value):
             raise ValueError("occurred_at 必须是 UTC aware datetime。")
         return value
 

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from typing import Callable, TypeVar
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import Select, and_, or_, select, update
@@ -11,11 +11,13 @@ from sqlalchemy.orm import Session
 
 from src.domain.diagnosis import DiagnosisSeverity, MessageRole, RunEventType, RunStatus, SessionStatus
 from src.domain.records import (
+    CursorT,
     DiagnosisResultData,
     DiagnosisRunCursor,
     DiagnosisRunData,
     MessageCursor,
     MessageData,
+    RecordT,
     RepositoryPage,
     RunEventCursor,
     RunEventData,
@@ -34,17 +36,13 @@ from src.infrastructure.persistence.models import (
 )
 
 
-RecordT = TypeVar("RecordT")
-CursorT = TypeVar("CursorT")
-
-
 def _as_utc(value: datetime | None) -> datetime | None:
     """将 SQLite 读出的无时区时间按 UTC 存储约定归一化。"""
     if value is None:
         return None
     if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _validate_limit(limit: int) -> None:

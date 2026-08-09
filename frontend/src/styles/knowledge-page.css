@@ -1,12 +1,293 @@
-.knowledge-page { width:min(100%,1180px); margin:0 auto; padding:0 30px 56px; }
-.knowledge-breadcrumb { height:54px; display:flex; align-items:center; gap:8px; color:var(--text-muted); font-size:11px; }.knowledge-breadcrumb button { padding:0; border:0; color:var(--text-secondary); background:transparent; font-size:11px; }.knowledge-breadcrumb button:hover { color:var(--accent-hover); }.knowledge-breadcrumb strong { color:var(--text-secondary); font-weight:650; }
-.knowledge-page-head { display:flex; align-items:flex-end; justify-content:space-between; gap:24px; padding:11px 0 23px; border-bottom:1px solid var(--border); }.knowledge-eyebrow { margin-bottom:8px; color:var(--accent); font-size:10px; font-weight:750; letter-spacing:.14em; }.knowledge-page-head h1 { margin:0; font-size:26px; letter-spacing:-.05em; }.knowledge-page-head p { max-width:720px; margin:9px 0 0; color:var(--text-secondary); font-size:12px; line-height:1.7; }.knowledge-source-badge { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border:1px solid var(--border); border-radius:6px; color:var(--text-muted); background:var(--surface); font-size:10px; white-space:nowrap; }.knowledge-source-badge::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--accent); }
-.knowledge-search { display:flex; gap:8px; margin-top:18px; }.knowledge-search input { flex:1; height:38px; padding:0 13px; border:1px solid var(--border-strong); border-radius:7px; color:var(--text); background:var(--surface); font-size:12px; }.knowledge-search input:focus { outline:none; border-color:var(--accent); }.knowledge-button { height:38px; padding:0 17px; border:1px solid var(--accent); border-radius:7px; color:#fff; background:var(--accent); font-size:11px; font-weight:650; }.knowledge-button:hover { background:var(--accent-hover); }.knowledge-button:disabled { opacity:.55; cursor:default; }
-.knowledge-inline-state { margin-top:16px; padding:13px 14px; border:1px solid var(--border); border-radius:8px; color:var(--text-secondary); background:var(--surface); font-size:11px; }.knowledge-inline-state.error { color:var(--warning); border-color:var(--warning-soft); }.knowledge-link { padding:0; margin-left:9px; border:0; color:var(--accent); background:transparent; font-size:11px; }.knowledge-link:hover { color:var(--accent-hover); }
-.knowledge-section { padding-top:26px; }.knowledge-section-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:11px; }.knowledge-section-head h2 { margin:0; font-size:14px; }.knowledge-section-head p { margin:4px 0 0; color:var(--text-muted); font-size:10px; }
-.knowledge-empty { padding:20px; border:1px dashed var(--border-strong); border-radius:8px; color:var(--text-muted); font-size:11px; text-align:center; }
-.knowledge-doc-list { display:grid; gap:9px; }.knowledge-doc { display:block; width:100%; padding:14px 16px; border:1px solid var(--border); border-radius:8px; color:var(--text); background:var(--surface); text-align:left; }.knowledge-doc:hover { border-color:var(--border-strong); box-shadow:0 5px 14px rgba(28,40,46,.05); }.knowledge-doc strong { display:block; font-size:12px; }.knowledge-doc span { display:block; margin-top:4px; color:var(--text-muted); font-size:9px; }.knowledge-doc p { margin:8px 0 0; color:var(--text-secondary); font-size:9px; line-height:1.6; }
-.knowledge-detail-head { display:flex; align-items:flex-end; justify-content:space-between; gap:24px; padding:11px 0 23px; border-bottom:1px solid var(--border); }.knowledge-detail-head h1 { margin:0; font-size:22px; letter-spacing:-.04em; }.knowledge-detail-head p { margin:8px 0 0; color:var(--text-muted); font-size:10px; }
-.knowledge-detail-body { margin-top:20px; }.knowledge-detail-body pre { margin:0; padding:20px 22px; border:1px solid var(--border); border-radius:8px; color:var(--text-secondary); background:var(--surface); font-size:11px; line-height:1.75; white-space:pre-wrap; word-break:break-word; }
-@media (max-width:720px) { .knowledge-page { padding:0 14px 35px; }.knowledge-page-head { display:block; }.knowledge-source-badge { margin-top:14px; } }
-.knowledge-context-card { margin:22px 7px 0; padding:13px; border:1px solid var(--border); border-radius:8px; background:var(--surface); }.knowledge-context-card small { display:block; color:var(--text-muted); font-size:9px; }.knowledge-context-card strong { display:block; margin-top:7px; font-size:12px; }.knowledge-context-card span { display:block; margin-top:4px; color:var(--text-secondary); font-size:9px; line-height:1.4; }.knowledge-context-card b { display:inline-flex; align-items:center; gap:5px; margin-top:10px; padding:5px 7px; border-radius:5px; color:var(--text-muted); background:var(--surface-soft); font-size:8px; font-weight:650; }.knowledge-context-card b::before { content:""; width:5px; height:5px; border-radius:50%; background:var(--accent); }
+/* 文档知识库 —— 目录浏览与确定性检索
+   知识条目是"参考事实"，不是诊断结论：全页不用告警色，只用结构色和中性面。 */
+
+.knowledge-page {
+  width: min(100%, 1180px);
+  margin: 0 auto;
+  padding: 0 30px 56px;
+}
+
+.knowledge-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 54px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.knowledge-breadcrumb button {
+  padding: 0;
+  border: 0;
+  color: var(--text-secondary);
+  background: transparent;
+  font-size: 12px;
+}
+
+.knowledge-breadcrumb button:hover {
+  color: var(--accent-hover);
+}
+
+/* 返回按钮：图标与文字基线对齐，图标不参与换行。 */
+.knowledge-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.knowledge-breadcrumb strong {
+  color: var(--text-secondary);
+  font-weight: 650;
+}
+
+.knowledge-page-head,
+.knowledge-detail-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 11px 0 23px;
+  border-bottom: 1px solid var(--border);
+}
+
+.knowledge-eyebrow {
+  margin-bottom: 8px;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: var(--tracking-kicker);
+  text-transform: uppercase;
+}
+
+.knowledge-page-head h1 {
+  margin: 0;
+  font-size: 26px;
+  letter-spacing: -0.045em;
+}
+
+.knowledge-page-head p {
+  max-width: 720px;
+  margin: 9px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.knowledge-detail-head h1 {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: -0.035em;
+}
+
+.knowledge-detail-head p {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* 数据来源标注：知识来自本地文档目录，不是模型编的。 */
+.knowledge-source-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  background: var(--surface);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.knowledge-source-badge::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.knowledge-search {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.knowledge-search input {
+  flex: 1;
+  height: 38px;
+  padding: 0 13px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  color: var(--text);
+  background: var(--surface);
+  font-size: 13px;
+}
+
+.knowledge-search input:focus {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.knowledge-button {
+  height: 38px;
+  padding: 0 17px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  color: var(--accent-on);
+  background: var(--accent);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.knowledge-button:hover:not(:disabled) {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+}
+
+.knowledge-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.knowledge-inline-state {
+  margin-top: 16px;
+  padding: 13px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  background: var(--surface);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.knowledge-inline-state.error {
+  border-color: var(--warning-soft);
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.knowledge-link {
+  margin-left: 9px;
+  padding: 0;
+  border: 0;
+  color: var(--accent);
+  background: transparent;
+  font-size: 12px;
+}
+
+.knowledge-link:hover {
+  color: var(--accent-hover);
+}
+
+.knowledge-section {
+  padding-top: 26px;
+}
+
+.knowledge-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 11px;
+}
+
+.knowledge-section-head h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.knowledge-section-head p {
+  margin: 5px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* 检索无结果：斜纹填充把"这里确实没有"画出来，而不是留一片白。 */
+.knowledge-empty {
+  padding: 24px 20px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  background: var(--hatch);
+  font-size: 12px;
+  text-align: center;
+}
+
+.knowledge-doc-list {
+  display: grid;
+  gap: 9px;
+}
+
+.knowledge-doc {
+  display: block;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  border-radius: var(--radius);
+  color: var(--text);
+  background: var(--surface);
+  text-align: left;
+  transition: border-color 0.16s ease;
+}
+
+.knowledge-doc:hover {
+  border-color: var(--border-strong);
+  border-left-color: var(--accent);
+}
+
+.knowledge-doc strong {
+  display: block;
+  font-size: 13px;
+}
+
+.knowledge-doc span {
+  display: block;
+  margin-top: 5px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.knowledge-doc p {
+  margin: 8px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.knowledge-detail-body {
+  margin-top: 20px;
+}
+
+/* 文档正文按原文纯文本呈现，不解析 Markdown、不执行内联内容。 */
+.knowledge-detail-body pre {
+  margin: 0;
+  padding: 20px 22px;
+  overflow-wrap: break-word;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 720px) {
+  .knowledge-page {
+    padding: 0 14px 35px;
+  }
+
+  .knowledge-page-head,
+  .knowledge-detail-head {
+    display: block;
+  }
+
+  .knowledge-source-badge {
+    margin-top: 14px;
+  }
+}

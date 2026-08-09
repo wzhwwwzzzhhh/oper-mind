@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
-import re
 import json
+import re
 from typing import Any, Literal
 
+from data.scenarios import get_active_scenario
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
-from data.scenarios import get_active_scenario
 from src.config import load_service_dsn
 from src.core.tool_registry import Tool
 from src.infrastructure.services.postgres_engine import create_read_only_postgres_engine
-
 
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 

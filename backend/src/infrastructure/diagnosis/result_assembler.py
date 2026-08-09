@@ -29,11 +29,11 @@ class ConservativeResultAssembler(ResultAssembler):
 
 
 class KernelReportResultAssembler(ResultAssembler):
-    """用多 Agent 内核的报告正文作为用户可读答复，结构化字段仍保守留空。
+    """用多 Agent 内核的报告正文作为用户可读答复，结构化字段只来自确定性只读事实。
 
-    P1 阶段：大脑已能产出面向用户的报告（=助手消息），但尚未接入受控工具，
-    因此没有经过核实的结构化证据。此组装器把报告放进 summary/report_markdown，
-    而 severity/confidence/证据/根因等一律保守留空，绝不从散文反推事实。
+    报告正文放进 summary/report_markdown；severity/confidence/根因/证据/风险
+    一律来自 EvidenceInvestigationResult（确定性只读收集器产出），
+    没有只读事实时保守留空，绝不从散文反推事实。
     """
 
     def assemble(self, run: DiagnosisRunData, result: DiagnosisExecutionResult) -> DiagnosisResultData:
@@ -67,7 +67,8 @@ class KernelReportResultAssembler(ResultAssembler):
             root_causes=root_causes,
             evidence=evidence,
             recommendations=[],
-            risks=[],
+            # 风险来自只读收集器的确定性范围说明，不做推断；无调查时留空。
+            risks=[item.model_dump(mode="json") for item in investigation.risks] if investigation else [],
             requires_approval=investigation is not None and investigation.missing_index is not None,
             agent_summary=[item.model_dump(mode="json") for item in investigation.agent_summary] if investigation else [],
             report_markdown=report_markdown,

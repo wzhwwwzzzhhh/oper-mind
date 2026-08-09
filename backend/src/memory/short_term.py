@@ -18,7 +18,7 @@ class ShortTermMemory:
         self.max_rounds = max_rounds
         self.messages: list[dict] = [self.system_prompt]
 
-    def add_message(self, message: dict):
+    def add_message(self, message: dict) -> list[dict]:
         """
         添加一条消息到记忆中。
         """
@@ -66,7 +66,7 @@ class ShortTermMemory:
         """
         return self.messages
 
-    def clear(self):
+    def clear(self) -> None:
         """
         清空对话历史,保留system prompt
         """

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-import json
 import asyncio
+import json
+from collections.abc import Callable
 from typing import Any
 
 from sqlalchemy import text
@@ -13,9 +13,9 @@ from sqlalchemy.engine import Engine
 from src.application.action_execution import (
     ActionExecutionAttempt,
     ActionPreconditionBlockedError,
-    ControlledActionError,
     ActionVerificationFailedError,
     ActionVerificationOutcome,
+    ControlledActionError,
 )
 from src.application.action_services import (
     COMPOUND_INDEX_ACTION_ID,
@@ -28,7 +28,6 @@ from src.application.action_services import (
 )
 from src.domain.actions import ActionProposalData, action_digest
 from src.infrastructure.services.postgres_engine import create_read_write_postgres_engine
-
 
 EngineFactory = Callable[[str], Engine]
 
@@ -152,7 +151,8 @@ class PostgresTargetActionExecutor:
 
     @staticmethod
     def _table_exists(connection: Any) -> bool:
-        return connection.execute(text("SELECT to_regclass('public.orders')")).scalar() == "public.orders"
+        # to_regclass 返回 regclass：PG 按 search_path 简化为 "orders"，只能判断非 None。
+        return connection.execute(text("SELECT to_regclass('public.orders')")).scalar() is not None
 
     @staticmethod
     def _index_state(connection: Any) -> bool | str | None:

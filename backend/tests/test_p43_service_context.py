@@ -3,18 +3,17 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
 
-from src.application.contracts import CreateSessionCommand, DiagnosisExecutionEvent, DiagnosisExecutionResult
+from src.application.contracts import CreateSessionCommand, DiagnosisExecutionEvent
 from src.application.errors import ServiceNotFoundError
 from src.application.services import SessionApplicationService, _requires_database_context, _safe_event_data
 from src.domain.diagnosis import RunEventType
 from src.domain.records import SessionData
 from src.domain.services import ServiceRegistry
-from src.application.services import SessionApplicationService
 from src.infrastructure.diagnosis.coordinator_executor import CoordinatorDiagnosisExecutor
 from src.tools.db_tools import ShowIndexTool
 
@@ -47,7 +46,7 @@ def test_工具事件携带绑定服务且仍只保留安全摘要() -> None:
         DiagnosisExecutionEvent(
             type=RunEventType.TOOL_INVOKED,
             node="tool",
-            occurred_at=datetime.now(timezone.utc),
+            occurred_at=datetime.now(UTC),
             data={"summary": "只读工具完成", "service_id": "postgres-staging", "status": "ok"},
         )
     )

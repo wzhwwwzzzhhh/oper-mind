@@ -1,6 +1,6 @@
 """验证 P2-B 工具调用审计记录的 Trace 管道接缝。"""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.application.contracts import DiagnosisExecutionEvent, DiagnosisExecutionResult
 from src.application.services import _safe_event_data
@@ -55,7 +55,7 @@ def test_executor_emits_safe_tool_event_data() -> None:
 
 def test_safe_event_data_preserves_gateway_statuses() -> None:
     """Application Service 应保留工具摘要、网关状态和耗时白名单字段。"""
-    occurred_at = datetime.now(timezone.utc)
+    occurred_at = datetime.now(UTC)
     event = DiagnosisExecutionEvent(
         type=RunEventType.TOOL_INVOKED,
         node="tool",

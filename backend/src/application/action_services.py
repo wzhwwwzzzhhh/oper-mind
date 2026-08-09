@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from json import dumps
 from typing import Literal, TypeVar
@@ -13,26 +13,26 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from src.application.errors import (
-    ActionProposalExpiredError,
-    ActionProposalInvalidStateError,
-    ActionProposalNotFoundError,
-    IdempotencyKeyReusedError,
-)
 from src.application.action_execution import (
     ActionPreconditionBlockedError,
     ActionVerificationFailedError,
     ControlledActionError,
     ControlledActionExecutor,
 )
+from src.application.errors import (
+    ActionProposalExpiredError,
+    ActionProposalInvalidStateError,
+    ActionProposalNotFoundError,
+    IdempotencyKeyReusedError,
+)
 from src.domain.actions import (
-    ActionEventCursor,
     ACTION_APPROVAL_ENDPOINT,
     ACTION_EXECUTION_ENDPOINT,
     APPROVAL_VALIDITY_SECONDS,
     LOCAL_OPERATOR,
     ActionApprovalData,
     ActionApprovalDecision,
+    ActionEventCursor,
     ActionEventData,
     ActionEventType,
     ActionExecutionData,
@@ -45,7 +45,6 @@ from src.domain.actions import (
     ActionVerificationStatus,
     action_digest,
 )
-from src.domain.diagnosis import RunStatus
 from src.domain.records import DiagnosisResultData, DiagnosisRunData, RepositoryPage
 from src.infrastructure.persistence.action_repositories import (
     SqlAlchemyActionApprovalRepository,
@@ -56,7 +55,6 @@ from src.infrastructure.persistence.action_repositories import (
     SqlAlchemyActionVerificationRepository,
 )
 from src.infrastructure.persistence.database import SessionFactory
-
 
 TransactionT = TypeVar("TransactionT")
 ACTION_IDEMPOTENCY_RETENTION = timedelta(hours=24)
@@ -864,4 +862,4 @@ def _fingerprint(payload: object) -> str:
 
 def _utc_now() -> datetime:
     """返回 action 应用服务的 UTC 时间。"""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)

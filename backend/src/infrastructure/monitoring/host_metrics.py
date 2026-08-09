@@ -13,9 +13,10 @@ import logging
 import re
 import time
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from data.scenarios import get_active_scenario
+
 from src.domain.host_metrics import (
     HostDiskPartitionData,
     HostMetricsCollector,
@@ -24,7 +25,6 @@ from src.domain.host_metrics import (
     HostMetricsSourceStatus,
     HostProcessData,
 )
-
 
 LOGGER = logging.getLogger(__name__)
 
@@ -142,7 +142,7 @@ class PsutilHostMetricsCollector:
     def collect(self) -> HostMetricsData:
         """采集主机指标；mock 读场景，真实读 psutil，失败返回不可用。"""
         active = get_active_scenario()
-        observed_at = datetime.now(timezone.utc)
+        observed_at = datetime.now(UTC)
         if active is not None:
             return _parse_mock(active.server, observed_at)
         if self._cache is not None and self._cache[0] > time.monotonic():

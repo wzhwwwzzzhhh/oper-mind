@@ -1,7 +1,8 @@
 """ Tool注册中心：管理所有可用的工具"""
 
 import json
-from src.core.approval import is_high_risk_sql, is_alter_table_safe, check_operation_safety
+
+from src.core.approval import check_operation_safety, is_alter_table_safe, is_high_risk_sql
 
 
 class Tool:
@@ -43,7 +44,7 @@ class ToolRegistry:
     def __init__(self):
         self._tools: dict[str, Tool] = {}
 
-    def register(self, tool: Tool):
+    def register(self, tool: Tool) -> None:
         """注册一个工具"""
         self._tools[tool.name] = tool
 

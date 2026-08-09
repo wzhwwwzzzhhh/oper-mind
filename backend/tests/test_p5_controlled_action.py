@@ -2,15 +2,14 @@
 
 from uuid import uuid4
 
-from src.application.contracts import DiagnosisExecutionResult
-from src.domain.diagnosis import DiagnosisSeverity
-from src.domain.evidence import EvidenceInvestigationResult, MissingIndexSignal, RootCauseFact
-from src.domain.records import DiagnosisRunData
-from src.domain.actions import ActionProposalData
 from src.application.action_execution import ActionPreconditionBlockedError
-from src.infrastructure.actions.postgres_target_executor import PostgresTargetActionExecutor
 from src.application.action_services import _root_cause_id
-from src.domain.records import DiagnosisResultData
+from src.application.contracts import DiagnosisExecutionResult
+from src.domain.actions import ActionProposalData
+from src.domain.diagnosis import DiagnosisSeverity
+from src.domain.evidence import EvidenceInvestigationResult, MissingIndexSignal, RiskFact, RootCauseFact
+from src.domain.records import DiagnosisResultData, DiagnosisRunData
+from src.infrastructure.actions.postgres_target_executor import PostgresTargetActionExecutor
 from src.infrastructure.diagnosis.result_assembler import KernelReportResultAssembler
 
 
@@ -36,6 +35,7 @@ def _investigation() -> EvidenceInvestigationResult:
             missing_index=_signal(),
         )],
         missing_index=_signal(),
+        risks=[RiskFact(level="medium", summary="只读调查未覆盖业务影响面。", mitigation="低峰窗口执行。")],
     )
 
 
@@ -51,6 +51,28 @@ def test_结果组装器保留结构化缺索引信号() -> None:
 
     assert result.root_causes[0]["missing_index"]["table"] == "orders"
     assert len(result.evidence) >= 3
+
+
+def test_结果组装器透传只读调查的风险说明() -> None:
+    """风险来自确定性只读收集器，不能在组装阶段被丢弃。"""
+    run = DiagnosisRunData(session_id=uuid4(), input_message_id=uuid4())
+    result = KernelReportResultAssembler().assemble(
+        run,
+        DiagnosisExecutionResult(report="报告正文。", evidence_investigation=_investigation()),
+    )
+
+    assert [item["level"] for item in result.risks] == ["medium"]
+    assert result.risks[0]["summary"] == "只读调查未覆盖业务影响面。"
+
+
+def test_结果组装器无只读调查时风险留空() -> None:
+    """没有确定性事实时保守留空，不伪造风险。"""
+    run = DiagnosisRunData(session_id=uuid4(), input_message_id=uuid4())
+    result = KernelReportResultAssembler().assemble(run, DiagnosisExecutionResult(report="报告正文。"))
+
+    assert result.risks == []
+    assert result.root_causes == []
+    assert result.confidence == 0.0
 
 
 def test_缺索引信号保留固定列顺序() -> None:
@@ -153,7 +175,9 @@ class _FakeConnection:
         sql = str(statement)
         self.statements.append(sql)
         if "to_regclass" in sql:
-            return _ScalarResult("public.orders")
+            # 与真实 PG 行为一致：regclass 按 search_path 简化为 "orders"，
+            # 生产代码只能做非 None 判断（防止再次写出字面比较 bug）。
+            return _ScalarResult("orders")
         if "pg_index" in sql or "index_ns" in sql:
             return _ScalarResult(self.index_exists)
         if "EXPLAIN" in sql:
@@ -219,3 +243,58 @@ def test_固定动作使用_autocommit_并先通过前置条件() -> None:
     assert connection.autocommit is True
     assert any("CREATE INDEX CONCURRENTLY" in statement for statement in connection.statements)
     assert result.mode == "target"
+
+
+class _CollectorConnection:
+    """模拟真实 PG：to_regclass 按 search_path 返回简化名 "orders"。"""
+
+    def __init__(self, *, regclass: object = "orders", index_exists: bool = False, seq_scan: bool = True) -> None:
+        self.regclass = regclass
+        self.index_exists = index_exists
+        self.seq_scan = seq_scan
+
+    def execute(self, statement: object, *_args: object, **_kwargs: object) -> object:
+        sql = str(statement)
+        if "to_regclass" in sql:
+            return _ScalarResult(self.regclass)
+        if "pg_index" in sql or "index_ns" in sql:
+            return _ScalarResult(self.index_exists)
+        if "EXPLAIN" in sql:
+            node_type = "Seq Scan" if self.seq_scan else "Index Scan"
+            return _MappingResult([{"QUERY PLAN": [{"Plan": {"Node Type": node_type}}]}])
+        return _ScalarResult(True)
+
+    def close(self) -> None:
+        pass
+
+
+def _collect_with(connection: _CollectorConnection, monkeypatch: object) -> object:
+    from src.infrastructure.diagnosis import postgres_missing_index as module
+
+    monkeypatch.setattr(module, "create_read_only_postgres_engine", lambda _dsn: _FakeEngine(connection))  # type: ignore[attr-defined]
+    collector = module.PostgresMissingIndexCollector("target-dsn")
+    return collector.collect("postgres-target", "排查慢查询 seq scan")
+
+
+def test_收集器接受_regclass_简化名并产出缺索引信号(monkeypatch: object) -> None:
+    """真实 PG 的 to_regclass 返回 "orders"，不能用字面 "public.orders" 比较。"""
+    investigation = _collect_with(_CollectorConnection(regclass="orders"), monkeypatch)
+
+    assert investigation is not None
+    assert investigation.missing_index is not None
+    assert investigation.missing_index.table == "orders"
+    assert investigation.confidence == 1.0
+    assert investigation.risks != []
+
+
+def test_收集器在目标表不存在时无信号(monkeypatch: object) -> None:
+    """to_regclass 解析不到对象才代表表不存在。"""
+    assert _collect_with(_CollectorConnection(regclass=None), monkeypatch) is None
+
+
+def test_收集器在索引已存在时无信号(monkeypatch: object) -> None:
+    assert _collect_with(_CollectorConnection(index_exists=True), monkeypatch) is None
+
+
+def test_收集器在无顺序扫描时无信号(monkeypatch: object) -> None:
+    assert _collect_with(_CollectorConnection(seq_scan=False), monkeypatch) is None

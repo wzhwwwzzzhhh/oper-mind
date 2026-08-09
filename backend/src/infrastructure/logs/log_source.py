@@ -20,7 +20,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-
 # ---- 常量：有界扫描与安全防护（对齐知识检索工具集） ----
 _LOG_SUFFIXES = (".log", ".txt")
 _MAX_LINE_CHARS = 8192  # 单行日志上限（超长行截断，防超大单行撑爆内存）
@@ -108,8 +107,12 @@ class LogSourceConnector:
             return None
         return root
 
-    def _degradation(self, field: str) -> tuple[str, str]:
-        """按配置状态返回 (status, message) 的诚实降级对。"""
+    def _degradation(self, field: str) -> tuple[Literal["not_configured", "unavailable"], str]:
+        """按配置状态返回 (status, message) 的诚实降级对。
+
+        返回类型收窄到实际的两个字面量，这样三个 Result 模型的 status
+        字段（都是含这两个值的 Literal 联合）可以直接接收，无需 cast。
+        """
         if not self._log_dir:
             return "not_configured", "日志源未配置"
         return "unavailable", "日志源不可用"
@@ -125,9 +128,8 @@ class LogSourceConnector:
         if any(part.startswith(".") for part in rel.parts):
             return False
         lowered = path.name.lower()
-        if lowered in _EXCLUDED_FILENAMES or lowered.endswith(_EXCLUDED_SUFFIXES):
-            return False
-        return True
+        excluded = lowered in _EXCLUDED_FILENAMES or lowered.endswith(_EXCLUDED_SUFFIXES)
+        return not excluded
 
     def _scan_lines(self, root: Path) -> list[tuple[str, str]] | None:
         """确定性遍历受管目录内文本日志行；目录不可遍历返回 None 以降级为 unavailable。"""

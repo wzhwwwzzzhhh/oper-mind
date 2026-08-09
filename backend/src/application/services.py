@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from inspect import signature
 from typing import TypeVar
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
-from uuid import UUID, uuid4
-
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -18,22 +17,22 @@ from src.application.action_services import ActionApplicationService
 from src.application.contracts import (
     CreateRunCommand,
     CreateSessionCommand,
-    UpdateSessionCommand,
     DiagnosisExecutionError,
     DiagnosisExecutionEvent,
     DiagnosisExecutionResult,
     DiagnosisExecutor,
     ResultAssembler,
+    UpdateSessionCommand,
 )
 from src.application.errors import (
     IdempotencyKeyReusedError,
     RunAlreadyTerminalError,
     RunInputMessageInvalidError,
     RunNotFoundError,
+    ServiceContextRequiredError,
+    ServiceNotFoundError,
     SessionArchivedError,
     SessionNotFoundError,
-    ServiceNotFoundError,
-    ServiceContextRequiredError,
 )
 from src.domain.actions import ActionMode
 from src.domain.diagnosis import MessageRole, RunEventType, RunStatus, SessionStatus
@@ -54,7 +53,6 @@ from src.infrastructure.persistence.repositories import (
     SqlAlchemyRunIdempotencyKeyRepository,
     SqlAlchemySessionRepository,
 )
-
 
 TransactionT = TypeVar("TransactionT")
 IDEMPOTENCY_RETENTION = timedelta(hours=24)
@@ -491,7 +489,7 @@ def _requires_database_context(query: str) -> bool:
         return any(keyword in lowered for keyword in database_keywords)
     return any(
         keyword in lowered
-        for keyword in database_keywords + ("查询", "表")
+        for keyword in (*database_keywords, "查询", "表")
     )
 
 
@@ -545,7 +543,7 @@ def _safe_event_data(event: DiagnosisExecutionEvent) -> dict[str, object]:
 
 def _utc_now() -> datetime:
     """返回 Application Service 使用的 UTC aware 当前时间。"""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 

@@ -8,15 +8,22 @@
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from pathlib import Path
 from typing import Literal
 
 from src.knowledge.reader import (
     KnowledgeDocumentMeta,
     KnowledgeSearchHit,
+)
+from src.knowledge.reader import (
     list_documents as reader_list_documents,
+)
+from src.knowledge.reader import (
     read_document as reader_read_document,
+)
+from src.knowledge.reader import (
     search_documents as reader_search_documents,
 )
 

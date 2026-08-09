@@ -12,14 +12,14 @@ from __future__ import annotations
 import json
 import re
 import time
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
-from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
 from src.core.tool_registry import ToolRegistry
-
 
 # 脱敏规则：命中即整体替换为占位符，防止凭据/密钥流入结果、Trace、日志。
 # 说明：这是"最后一道防线"，工具本身也不应把凭据放进返回值。
@@ -102,7 +102,7 @@ def _validate_arguments(schema: dict[str, Any], args: dict[str, Any]) -> str | N
 
 def _now_iso() -> str:
     """前端可排序的 UTC ISO 8601 时间戳。"""
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 class ToolGateway:

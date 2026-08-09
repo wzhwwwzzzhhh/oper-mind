@@ -11,6 +11,7 @@ import re
 from collections import Counter
 
 from data.scenarios import active_or_default, get_active_scenario
+
 from src.config import load_service_log_dir
 from src.core.tool_registry import Tool
 from src.infrastructure.logs.log_source import LogSourceConnector

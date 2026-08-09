@@ -8,9 +8,15 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-from src.application.action_services import TARGET_COLUMNS, TARGET_INDEX_NAME, TARGET_SCHEMA, TARGET_SERVICE_ID, TARGET_TABLE
+from src.application.action_services import (
+    TARGET_COLUMNS,
+    TARGET_INDEX_NAME,
+    TARGET_SCHEMA,
+    TARGET_SERVICE_ID,
+    TARGET_TABLE,
+)
 from src.domain.diagnosis import DiagnosisSeverity
-from src.domain.evidence import EvidenceFact, EvidenceInvestigationResult, MissingIndexSignal, RootCauseFact
+from src.domain.evidence import EvidenceFact, EvidenceInvestigationResult, MissingIndexSignal, RiskFact, RootCauseFact
 from src.infrastructure.services.postgres_engine import create_read_only_postgres_engine
 
 
@@ -30,7 +36,9 @@ class PostgresMissingIndexCollector:
             engine = create_read_only_postgres_engine(self._dsn)
             connection = engine.connect()
             connection.execute(text("SET TRANSACTION READ ONLY"))
-            if connection.execute(text("SELECT to_regclass('public.orders')")).scalar() != "public.orders":
+            # to_regclass 返回 regclass：PG 会按 search_path 把名字简化成 "orders"，
+            # 因此只能判断是否解析到对象（非 None），不能与 "public.orders" 字面比较。
+            if connection.execute(text("SELECT to_regclass('public.orders')")).scalar() is None:
                 return None
             index_exists = connection.execute(
                 text(
@@ -80,6 +88,19 @@ class PostgresMissingIndexCollector:
                 root_causes=[root_cause],
                 evidence=evidence,
                 missing_index=signal,
+                # 如实声明本次只读调查的边界，不推断未采集的事实。
+                risks=[
+                    RiskFact(
+                        level="medium",
+                        summary="本次只读调查仅覆盖固定目标对象的索引与执行计划，未评估业务影响面与调用方。",
+                        mitigation="建索引前确认目标表写入量与业务低峰窗口。",
+                    ),
+                    RiskFact(
+                        level="low",
+                        summary="执行计划来自单次 EXPLAIN 采样，未包含真实执行统计与并发场景。",
+                        mitigation="必要时在低峰窗口用 EXPLAIN ANALYZE 复核实际执行成本。",
+                    ),
+                ],
             )
         except Exception:
             return None

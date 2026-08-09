@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -68,7 +68,7 @@ def test_历史查询按时间升序并限制窗口() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine, expire_on_commit=False)
-    now = datetime(2026, 8, 5, 12, tzinfo=timezone.utc)
+    now = datetime(2026, 8, 5, 12, tzinfo=UTC)
     with session_factory() as session:
         repository = SqlAlchemyMonitorSampleRepository(session)
         repository.add(_sample("postgres-production", now - timedelta(hours=2)))
@@ -95,7 +95,7 @@ def test_历史样本携带主机标量() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine, expire_on_commit=False)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     with session_factory() as session:
         repository = SqlAlchemyMonitorSampleRepository(session)
         repository.add(
@@ -156,7 +156,7 @@ def test_redis样本经历史查询返回专用标量且pg字段为null() -> Non
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine, expire_on_commit=False)
-    now = datetime(2026, 8, 5, 12, tzinfo=timezone.utc)
+    now = datetime(2026, 8, 5, 12, tzinfo=UTC)
     sample = ServiceMonitorSampleData(
         service_id="redis-production",
         observed_at=now,
@@ -220,7 +220,7 @@ def test_未配置服务历史查询返回空序列和未配置状态() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine, expire_on_commit=False)
-    now = datetime(2026, 8, 5, 12, tzinfo=timezone.utc)
+    now = datetime(2026, 8, 5, 12, tzinfo=UTC)
     with session_factory() as session:
         repository = SqlAlchemyMonitorSampleRepository(session)
         repository.add(_not_configured_sample("unconfigured-service", now - timedelta(minutes=10)))
@@ -267,7 +267,7 @@ def test_仅有不可用样本返回不可用状态但保留状态样本() -> No
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine, expire_on_commit=False)
-    now = datetime(2026, 8, 5, 12, tzinfo=timezone.utc)
+    now = datetime(2026, 8, 5, 12, tzinfo=UTC)
     with session_factory() as session:
         repository = SqlAlchemyMonitorSampleRepository(session)
         repository.add(_unavailable_sample("flaky-service", now - timedelta(minutes=10)))
@@ -297,7 +297,7 @@ def test_混合状态无可用样本时如实标注不可用() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine, expire_on_commit=False)
-    now = datetime(2026, 8, 5, 12, tzinfo=timezone.utc)
+    now = datetime(2026, 8, 5, 12, tzinfo=UTC)
     with session_factory() as session:
         repository = SqlAlchemyMonitorSampleRepository(session)
         repository.add(_unavailable_sample("mixed-service", now - timedelta(minutes=10)))
@@ -323,7 +323,7 @@ def test_混合状态含可用样本时返回可用并过滤未配置样本() ->
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine, expire_on_commit=False)
-    now = datetime(2026, 8, 5, 12, tzinfo=timezone.utc)
+    now = datetime(2026, 8, 5, 12, tzinfo=UTC)
     with session_factory() as session:
         repository = SqlAlchemyMonitorSampleRepository(session)
         repository.add(_not_configured_sample("transitioning-service", now - timedelta(minutes=20)))
@@ -363,7 +363,7 @@ class _StubConnector:
 
     def health_snapshot(self) -> ServiceSnapshotData:
         return ServiceSnapshotData(
-            observed_at=datetime.now(timezone.utc),
+            observed_at=datetime.now(UTC),
             mode=ServiceMode.TARGET,
             availability=ServiceAvailability.NOT_CONFIGURED,
             performance_signal=PerformanceSignal.NOT_CONFIGURED,
@@ -405,7 +405,7 @@ def history_client(
             yield DiagnosisExecutionEvent(
                 type=RunEventType.ROUTE_DECIDED,
                 node="route",
-                occurred_at=datetime.now(timezone.utc),
+                occurred_at=datetime.now(UTC),
             )
             yield DiagnosisExecutionResult(strategy="direct")
 
@@ -420,7 +420,7 @@ def history_client(
         service_registry=registry,
     )
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     with session_factory() as session:
         repository = SqlAlchemyMonitorSampleRepository(session)
         repository.add(_not_configured_sample("postgres-production", now - timedelta(minutes=5)))

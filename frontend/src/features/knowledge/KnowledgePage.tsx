@@ -8,6 +8,7 @@ import {
   list_knowledge_documents_query,
   search_knowledge_query,
 } from '../../api/v1/queries'
+import { Icon } from '../shell/Icon'
 import { read_array, read_items, resource_optional_string, resource_string, resource_value } from '../workbench/resource-readers'
 
 interface KnowledgeDocumentItem {
@@ -53,6 +54,20 @@ function search_empty_text(status: unknown): string | null {
   return null
 }
 
+interface BackToListProps {
+  on_click: () => void
+}
+
+/** 文档详情三态共用的返回按钮，避免同一段面包屑重复四遍。 */
+function BackToList({ on_click }: BackToListProps): ReactElement {
+  return (
+    <button className="knowledge-back" onClick={on_click} type="button">
+      <Icon name="chevron-left" size={13} />
+      返回文档列表
+    </button>
+  )
+}
+
 /** 文档知识库页：受管知识目录的列表浏览 / 页面内检索 / 文档详情三视图，全程只读。 */
 export function KnowledgePage(): ReactElement {
   const [search_params, set_search_params] = useSearchParams()
@@ -89,7 +104,7 @@ export function KnowledgePage(): ReactElement {
     if (document_query.isPending) {
       return (
         <div className="knowledge-page">
-          <div className="knowledge-breadcrumb"><button onClick={close_document} type="button">← 返回文档列表</button></div>
+          <div className="knowledge-breadcrumb"><BackToList on_click={close_document} /></div>
           <div className="knowledge-inline-state">正在读取文档…</div>
         </div>
       )
@@ -97,7 +112,7 @@ export function KnowledgePage(): ReactElement {
     if (document_query.isError) {
       return (
         <div className="knowledge-page">
-          <div className="knowledge-breadcrumb"><button onClick={close_document} type="button">← 返回文档列表</button></div>
+          <div className="knowledge-breadcrumb"><BackToList on_click={close_document} /></div>
           <div className="knowledge-inline-state error">读取文档失败，请稍后重试。
             <button className="knowledge-link" onClick={() => void document_query.refetch()} type="button">重试</button>
           </div>
@@ -108,7 +123,7 @@ export function KnowledgePage(): ReactElement {
     if (document == null) {
       return (
         <div className="knowledge-page">
-          <div className="knowledge-breadcrumb"><button onClick={close_document} type="button">← 返回文档列表</button></div>
+          <div className="knowledge-breadcrumb"><BackToList on_click={close_document} /></div>
           <div className="knowledge-inline-state">文档不存在或不可访问。</div>
         </div>
       )
@@ -117,7 +132,7 @@ export function KnowledgePage(): ReactElement {
     const content = resource_string(document, 'content', '')
     return (
       <div className="knowledge-page">
-        <div className="knowledge-breadcrumb"><button onClick={close_document} type="button">← 返回文档列表</button><span>/</span><strong>{title}</strong></div>
+        <div className="knowledge-breadcrumb"><BackToList on_click={close_document} /><span>/</span><strong>{title}</strong></div>
         <section className="knowledge-detail-head">
           <div><div className="knowledge-eyebrow">受管知识目录 · 只读</div><h1>{title}</h1><p>{resource_optional_string(document, 'relative_path') ?? ''}</p></div>
         </section>

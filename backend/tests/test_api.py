@@ -8,11 +8,11 @@ from collections.abc import Iterator
 import pytest
 from fastapi.testclient import TestClient
 
+from src.agents.report_agent import ReportAgent
 from src.core.coordinator import CoordinatorAgent
 from src.core.debate import DebateArena
 from src.core.llm import LLMClient
 from src.core.reflection import ReflectionEngine
-from src.agents.report_agent import ReportAgent
 
 
 class _StubAgent:
@@ -65,6 +65,37 @@ def test_健康检查不暴露密钥(api_client: TestClient) -> None:
     body = response.json()
     assert body == {"status": "ok", "mode": "mock", "model": "mock"}
     assert "api_key" not in body
+
+
+def test_未装配时环境变量回退可用(monkeypatch: pytest.MonkeyPatch) -> None:
+    """应用未装配时的健康检查回退路径必须能真正执行。
+
+    历史缺陷：`src/app.py` 用了 `os.environ` 但漏了 `import os`，
+    这条回退分支和空 api_key 的模式判定都会直接 NameError。
+    """
+    monkeypatch.setenv("OPERMIND_API_KEY", "mock")
+    monkeypatch.setenv("OPERMIND_BASE_URL", "http://mock")
+    monkeypatch.setenv("OPERMIND_MODEL", "mock")
+
+    from src import app as api_module
+
+    config = api_module._env_config_fallback()
+
+    assert config["llm"] == {"api_key": "mock", "base_url": "http://mock", "model": "mock"}
+    assert config["judge_llm"] == {}
+
+
+def test_模式判定在空密钥下不抛异常(monkeypatch: pytest.MonkeyPatch) -> None:
+    """config 未带 api_key 时会退到环境变量，这条短路右侧同样不能 NameError。"""
+    monkeypatch.delenv("OPERMIND_API_KEY", raising=False)
+
+    from src import app as api_module
+
+    # 空 api_key 且环境变量缺失：判定为 real，且不得抛异常。
+    assert api_module._service_mode({"llm": {"api_key": ""}}) == "real"
+
+    monkeypatch.setenv("OPERMIND_API_KEY", "mock")
+    assert api_module._service_mode({"llm": {}}) == "mock"
 
 
 def test_服务列表返回多个实例且不暴露凭据(api_client: TestClient) -> None:

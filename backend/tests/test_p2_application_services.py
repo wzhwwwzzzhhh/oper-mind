@@ -6,12 +6,11 @@ import os
 import subprocess
 import sys
 from collections.abc import Callable, Iterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy.orm import Session
 
 from src.application.contracts import (
     CreateRunCommand,
@@ -22,7 +21,6 @@ from src.application.contracts import (
 )
 from src.application.errors import (
     IdempotencyKeyReusedError,
-    RunInputMessageInvalidError,
     SessionArchivedError,
     SessionNotFoundError,
 )
@@ -38,7 +36,6 @@ from src.infrastructure.persistence.repositories import (
     SqlAlchemyRunEventRepository,
     SqlAlchemySessionRepository,
 )
-
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = BACKEND_ROOT.parent
@@ -105,7 +102,7 @@ def _event(event_type: RunEventType, node: str = "route") -> DiagnosisExecutionE
     return DiagnosisExecutionEvent(
         type=event_type,
         node=node,
-        occurred_at=datetime.now(timezone.utc),
+        occurred_at=datetime.now(UTC),
         data={"raw": "不得持久化"},
     )
 

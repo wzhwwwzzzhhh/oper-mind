@@ -8,7 +8,6 @@ import yaml
 
 from src.project_paths import CONFIG_DIR, DATA_DIR
 
-
 # 环境变量名 -> 配置段与字段名的映射。
 # 环境变量优先级高于 YAML，用于把密钥等敏感信息从配置文件中剥离。
 _ENV_TO_CONFIG_KEY = {

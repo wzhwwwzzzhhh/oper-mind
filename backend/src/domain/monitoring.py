@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from uuid import UUID
 
@@ -57,12 +57,12 @@ class ServiceMonitorSampleData(MonitorDomainModel):
     @classmethod
     def validate_observed_at(cls, value: datetime) -> datetime:
         """样本时间必须为 UTC aware datetime。"""
-        if value.tzinfo is None or value.utcoffset() != timezone.utc.utcoffset(value):
+        if value.tzinfo is None or value.utcoffset() != UTC.utcoffset(value):
             raise ValueError("observed_at 必须是 UTC aware datetime。")
         return value
 
     @classmethod
-    def from_snapshot(cls, service_id: str, snapshot: ServiceSnapshotData) -> "ServiceMonitorSampleData":
+    def from_snapshot(cls, service_id: str, snapshot: ServiceSnapshotData) -> ServiceMonitorSampleData:
         """从服务快照提取只允许落库的脱敏字段。"""
         metrics = snapshot.server_metrics
         return cls(
@@ -81,7 +81,7 @@ class ServiceMonitorSampleData(MonitorDomainModel):
         )
 
     @classmethod
-    def unavailable(cls, service_id: str, observed_at: datetime) -> "ServiceMonitorSampleData":
+    def unavailable(cls, service_id: str, observed_at: datetime) -> ServiceMonitorSampleData:
         """把采样异常收敛为不可用状态，不保存异常详情。"""
         return cls(
             service_id=service_id,

@@ -5,13 +5,16 @@
 Run 主脊执行，Trace 只展示安全摘要，不暴露 CoT。
 """
 
+import asyncio
 import logging
-from contextlib import asynccontextmanager
+import os
+from collections.abc import Awaitable, Callable
+from contextlib import asynccontextmanager, suppress
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from src.api.schemas import ErrorDetail, ErrorResponse, HealthResponse, RootResponse
 from src.api.v1.dependencies import build_v1_services
@@ -26,7 +29,6 @@ from src.infrastructure.secrets import (
     load_secret_key,
 )
 
-
 LOGGER = logging.getLogger(__name__)
 
 @asynccontextmanager
@@ -35,17 +37,14 @@ async def _lifespan(application: FastAPI):
     sampler = getattr(application.state.v1_services, "monitor_sampler", None)
     task = None
     if sampler is not None:
-        import asyncio
         task = asyncio.create_task(sampler.run_forever())
     try:
         yield
     finally:
         if task is not None:
             task.cancel()
-            try:
+            with suppress(asyncio.CancelledError):
                 await task
-            except asyncio.CancelledError:
-                pass
 
 
 app = FastAPI(
@@ -60,7 +59,7 @@ app.state.v1_services = build_v1_services()
 
 
 @app.middleware("http")
-async def v1_request_id_middleware(request: Request, call_next):
+async def v1_request_id_middleware(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
     """仅为 `/api/v1` 验证或生成 request id，并在所有 v1 响应回显。"""
     if not request.url.path.startswith("/api/v1"):
         return await call_next(request)

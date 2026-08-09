@@ -6,12 +6,12 @@
 
 from __future__ import annotations
 
-import time
+from datetime import UTC
 from types import SimpleNamespace
 
 import pytest
-
 from data.scenarios import set_active_scenario
+
 from src.domain.host_metrics import HostMetricsMode, HostMetricsSourceStatus
 from src.infrastructure.monitoring.host_metrics import PsutilHostMetricsCollector
 
@@ -144,12 +144,12 @@ class TestHonestDegradation:
 
     def test_unavailable_never_uses_zero(self) -> None:
         """AC4：不可用状态标量全部为 null，而不是 0 代替缺失。"""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from src.domain.host_metrics import HostMetricsData
 
         unavailable = HostMetricsData.unavailable(
-            datetime.now(timezone.utc), mode=HostMetricsMode.TARGET
+            datetime.now(UTC), mode=HostMetricsMode.TARGET
         )
         scalar_fields = [
             unavailable.cpu_percent,
@@ -211,7 +211,7 @@ class TestDomainModel:
     """领域模型约束：UTC aware、frozen、extra forbid。"""
 
     def test_observed_at_must_be_utc_aware(self) -> None:
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from src.domain.host_metrics import HostMetricsData
 
@@ -225,7 +225,7 @@ class TestDomainModel:
         value = HostMetricsData(
             mode=HostMetricsMode.MOCK,
             source_status=HostMetricsSourceStatus.AVAILABLE,
-            observed_at=datetime.now(timezone.utc),
+            observed_at=datetime.now(UTC),
             cpu_percent=1.0,
         )
         assert value.cpu_percent == 1.0

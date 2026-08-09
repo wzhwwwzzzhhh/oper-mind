@@ -5,9 +5,9 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from uuid import UUID, uuid4
+from uuid import UUID
 
 import pytest
 from pydantic import ValidationError
@@ -32,7 +32,6 @@ from src.infrastructure.persistence.repositories import (
     SqlAlchemyRunIdempotencyKeyRepository,
     SqlAlchemySessionRepository,
 )
-
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = BACKEND_ROOT.parent
@@ -84,7 +83,7 @@ def repository_session(tmp_path: Path):
 
 def _time(second: int) -> datetime:
     """生成固定且可排序的 UTC aware 测试时间。"""
-    return datetime(2026, 7, 26, 9, 0, second, tzinfo=timezone.utc)
+    return datetime(2026, 7, 26, 9, 0, second, tzinfo=UTC)
 
 
 def _uuid(number: int) -> UUID:

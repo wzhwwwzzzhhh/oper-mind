@@ -1,16 +1,14 @@
 /* OperMind 会话主区 —— 欢迎页 + 消息流 + 输入区
    来源：frontend/参考原型/opermind-deepseek.html（设计稿） */
 
-.chat-scroll {
-  flex: 1;
-  overflow: auto;
-}
-
+/* min-height 用 100%：现在参照的是 .main-scroll 的高度，
+   不再是视口高度，所以不用手扣顶栏那 56px。
+   下内边距是给固定在底部的输入区留的位置，避免正文被压在它后面。 */
 .chat-inner {
   width: min(var(--content-max-width), calc(100% - 48px));
-  min-height: calc(100vh - 60px);
+  min-height: 100%;
   margin: 0 auto;
-  padding: 58px 0 185px;
+  padding: 58px 0 165px;
 }
 
 /* 欢迎页 */
@@ -27,7 +25,7 @@
   margin: 0 auto 17px;
   border: 1px solid var(--accent-hover);
   border-radius: 10px;
-  color: #fff;
+  color: var(--accent-on);
   background: var(--accent);
   font-size: 21px;
   font-weight: 800;
@@ -137,8 +135,8 @@
 }
 
 .quick-card:hover {
-  border-color: #a8bbc5;
-  background: #fbfcfd;
+  border-color: var(--accent);
+  background: var(--surface-soft);
 }
 
 .quick-card strong {
@@ -182,15 +180,16 @@
 }
 
 .assistant .message-avatar {
-  color: #fff;
+  color: var(--accent-on);
   background: var(--accent);
 }
 
 .user .message-avatar {
   order: 2;
+  border: 1px solid var(--border-strong);
   border-radius: 50%;
-  color: #fff;
-  background: #7c878b;
+  color: var(--text-secondary);
+  background: var(--surface-muted);
 }
 
 .message-body {
@@ -207,7 +206,7 @@
 .message-label {
   margin: 2px 0 7px;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.02em;
 }
 
@@ -238,7 +237,7 @@
   padding: 10px 14px;
   border: 1px solid var(--border);
   border-radius: 10px 10px 3px 10px;
-  color: #42525a;
+  color: var(--text);
   background: var(--surface-soft);
 }
 
@@ -249,7 +248,7 @@
   gap: 6px;
   margin: -1px 0 10px;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .meta-pill {
@@ -264,13 +263,13 @@
 }
 
 .meta-pill.readonly {
-  border-color: #cce2da;
+  border-color: var(--success-soft);
   color: var(--success);
   background: var(--success-soft);
 }
 
 .meta-pill.blue {
-  border-color: #cedce7;
+  border-color: var(--accent-soft);
   color: var(--accent);
   background: var(--accent-soft);
 }
@@ -288,13 +287,6 @@
 
 .bubble p:last-child {
   margin-bottom: 0;
-}
-
-.answer-heading {
-  margin: 0 0 9px;
-  color: var(--text);
-  font-size: 16px;
-  font-weight: 720;
 }
 
 .muted-note {
@@ -316,15 +308,27 @@
   display: none;
 }
 
+/* 折叠触发器是真按钮：可聚焦、可回车展开，不是带 onClick 的 div。 */
 .trace-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
+  width: 100%;
   min-height: 44px;
   padding: 9px 12px;
+  border: 0;
   border-bottom: 1px solid var(--border);
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
   user-select: none;
+}
+
+.trace-card.collapsed .trace-head {
+  border-bottom: 0;
 }
 
 .trace-head:hover {
@@ -348,27 +352,52 @@
 }
 
 .pulse {
+  flex: none;
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: var(--success);
 }
 
+/* 只有真在跑的时候才呼吸；静态绿点不假装还在执行。 */
+.pulse.running {
+  background: var(--signal);
+  animation: trace-pulse 1.4s ease-in-out infinite;
+}
+
+.pulse.attention {
+  background: var(--warning);
+  animation: none;
+}
+
+@keyframes trace-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse.running { animation: none; }
+}
+
 .trace-meta {
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 11px;
   white-space: nowrap;
 }
 
 .trace-state {
   color: var(--success);
-  font-size: 10px;
+  font-size: 11px;
   white-space: nowrap;
 }
 
+.trace-state--attention {
+  color: var(--warning);
+}
+
 .trace-toggle {
+  flex: none;
   color: var(--text-muted);
-  font-size: 14px;
   transition: transform 0.18s ease;
 }
 
@@ -388,7 +417,7 @@
   align-items: center;
   min-height: 48px;
   padding: 9px 12px;
-  border-bottom: 1px solid #edf0ee;
+  border-bottom: 1px solid var(--border);
   font-size: 11px;
 }
 
@@ -403,21 +432,23 @@
   bottom: -8px;
   left: 21px;
   width: 1px;
-  background: #dfe5e2;
+  background: var(--border-strong);
 }
 
 .trace-icon {
   z-index: 1;
-  width: 18px;
-  height: 18px;
   display: grid;
   place-items: center;
-  border: 1px solid #cedbe0;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--border-strong);
   border-radius: 5px;
   color: var(--accent);
-  background: #f3f6f7;
-  font-size: 9px;
-  font-weight: 750;
+  background: var(--surface-soft);
+}
+
+.trace-row__body {
+  min-width: 0;
 }
 
 .trace-row strong {
@@ -427,26 +458,37 @@
   font-weight: 680;
 }
 
-.trace-row span {
+/* 描述行单独给类名：早先写成 .trace-row span，
+   连状态徽标一起选中，把徽标文字压成了灰色。 */
+.trace-row__desc {
   display: block;
   margin-top: 3px;
   color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .trace-badge {
-  min-width: 32px;
-  padding: 3px 6px;
-  border-radius: 4px;
+  flex: none;
+  min-width: 34px;
+  padding: 3px 7px;
+  border-radius: var(--radius-sm);
   color: var(--success);
   background: var(--success-soft);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   text-align: center;
+  white-space: nowrap;
 }
 
-.trace-badge.warn {
+/* 后端 status 只有 ok / rejected / timeout / error 四种。 */
+.trace-badge--warn {
   color: var(--warning);
   background: var(--warning-soft);
+}
+
+.trace-badge--danger {
+  color: var(--danger);
+  background: var(--danger-soft);
 }
 
 /* 底部输入区 */
@@ -459,17 +501,22 @@
   display: flex;
   justify-content: center;
   padding: 13px 21px 15px;
-  background: linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.93) 24%, #fff 50%);
+  /* 用 canvas 自身淡出，深色主题下不会出现一条白带。 */
+  background: linear-gradient(to bottom, transparent, var(--canvas) 30%, var(--canvas) 100%);
   pointer-events: none;
 }
 
 .composer-area {
-  width: min(var(--content-max-width), 100%);
+  width: min(var(--composer-max-width), 100%);
   pointer-events: auto;
 }
 
+/* 输入区改成纵向流：文本域和工具条各占自己的高度。
+   原来工具条是绝对定位，靠 textarea 46px 的下内边距给它腾位置，
+   等于把一半高度做成了死区，宽度放大后整块比例就明显偏扁。 */
 .composer {
-  position: relative;
+  display: flex;
+  flex-direction: column;
   border: 1px solid var(--border-strong);
   border-radius: 10px;
   background: var(--surface);
@@ -478,38 +525,41 @@
 }
 
 .composer:focus-within {
-  border-color: #91aebe;
-  box-shadow: 0 15px 38px rgba(28, 48, 60, 0.12), 0 0 0 3px rgba(49, 95, 134, 0.07);
+  border-color: var(--accent);
+  box-shadow: var(--shadow-float), 0 0 0 3px var(--accent-soft);
 }
 
 .composer textarea {
   display: block;
   width: 100%;
+  /* flex: none —— 高度由 Composer 按 scrollHeight 动态写，不让 flex 再拉伸它。
+     min-height 是两行文字的地板，实际增高上限 320px。 */
+  flex: none;
   min-height: 62px;
-  max-height: 170px;
+  max-height: 320px;
   resize: none;
-  padding: 14px 15px 46px;
+  padding: 13px 15px 3px;
   border: 0;
   outline: none;
-  border-radius: 10px;
+  border-radius: 10px 10px 0 0;
   color: var(--text);
   background: transparent;
   font-size: 14px;
-  line-height: 1.55;
+  line-height: 1.6;
+  overflow-y: hidden;
 }
 
 .composer textarea::placeholder {
-  color: #a1a9aa;
+  color: var(--text-muted);
 }
 
 .composer-tools {
-  position: absolute;
-  right: 8px;
-  bottom: 7px;
-  left: 8px;
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
+  padding: 0 8px 8px;
 }
 
 .tool-group {
@@ -519,63 +569,57 @@
   min-width: 0;
 }
 
-.composer-btn {
-  width: 29px;
-  height: 29px;
-  border: 0;
-  border-radius: 6px;
-  color: var(--text-muted);
-  background: transparent;
-  font-size: 15px;
-}
-
-.composer-btn:hover {
-  color: var(--text);
-  background: var(--surface-soft);
-}
-
+/* 只读声明：常驻但不喧哗，提醒默认调查边界。 */
 .context-strip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  margin-left: 4px;
-  color: var(--text-muted);
-  font-size: 10px;
+  gap: 5px;
+  padding: 3px 8px 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-secondary);
+  background: var(--surface-soft);
+  font-size: 11px;
   white-space: nowrap;
 }
 
-.context-chip {
-  padding: 3px 6px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--text-secondary);
-  background: var(--surface-soft);
+.context-strip__icon {
+  flex: none;
+  color: var(--success);
 }
 
 .send-btn {
+  display: grid;
+  place-items: center;
   width: 32px;
   height: 32px;
   border: 0;
   border-radius: 7px;
-  color: #fff;
-  background: #b2bdc1;
-  font-size: 16px;
-  transition: background 0.16s ease, transform 0.16s ease;
+  color: var(--text-muted);
+  background: var(--surface-muted);
+  transition: background 0.16s ease, color 0.16s ease, transform 0.16s ease;
 }
 
+/* 有内容才点亮：按钮状态如实反映"现在能不能发"。 */
 .send-btn.ready {
+  color: var(--accent-on);
   background: var(--accent);
 }
 
-.send-btn.ready:hover {
+.send-btn.ready:hover:not(:disabled) {
   background: var(--accent-hover);
   transform: translateY(-1px);
+}
+
+.send-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .disclaimer {
   margin-top: 7px;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 11px;
   text-align: center;
 }
 
@@ -594,10 +638,10 @@
 }
 
 .ui-alert__icon {
+  display: grid;
+  place-items: center;
   flex: none;
-  font-size: 12px;
-  font-weight: 750;
-  line-height: 1.5;
+  height: 19px;
 }
 
 .ui-alert--info {
@@ -683,7 +727,7 @@
 
 .ui-btn.primary {
   border-color: var(--accent);
-  color: #fff;
+  color: var(--accent-on);
   background: var(--accent);
 }
 
@@ -709,8 +753,9 @@
 }
 
 .ui-btn.primary.danger:hover:not(:disabled) {
-  border-color: #9c4046;
-  background: #9c4046;
+  border-color: var(--danger);
+  background: var(--danger);
+  filter: brightness(0.9);
 }
 
 .ui-btn.link {
@@ -773,21 +818,16 @@
 }
 
 .ui-tag--cyan {
-  border-color: #cfe4ec;
-  color: #1b6d85;
-  background: #e6f4f8;
+  border-color: var(--accent-soft);
+  color: var(--accent);
+  background: var(--accent-soft);
 }
 
-.ui-tag--gold {
+.ui-tag--gold,
+.ui-tag--orange {
   border-color: var(--warning-soft);
   color: var(--warning);
   background: var(--warning-soft);
-}
-
-.ui-tag--orange {
-  border-color: #ecdcc2;
-  color: #a95f1f;
-  background: #fbf1e0;
 }
 
 .ui-space {
@@ -919,7 +959,7 @@
   display: grid;
   place-items: center;
   padding: 20px;
-  background: rgba(31, 39, 43, 0.35);
+  background: var(--scrim);
 }
 
 .ui-modal[hidden] {
@@ -1032,8 +1072,8 @@
 }
 
 .ui-collapse__toggle {
+  flex: none;
   color: var(--text-muted);
-  font-size: 14px;
   transition: transform 0.18s ease;
 }
 
@@ -1044,6 +1084,39 @@
 .ui-collapse__body {
   padding: 12px;
   border-top: 1px solid var(--border);
+}
+
+/* 会话恢复失败时的独立错误页：不套在消息流里，单独成卡。 */
+.workbench-page {
+  width: min(var(--content-max-width), calc(100% - 48px));
+  margin: 58px auto 0;
+  padding: 28px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.workbench-loading {
+  padding: 12px 0;
+}
+
+.archive-notice,
+.return-workbench,
+.investigation-send-notice {
+  margin-top: 16px;
+}
+
+.conversation-protocol-notice,
+.conversation-system-message {
+  margin-bottom: 16px;
+}
+
+.investigation-details {
+  background: transparent;
+}
+
+.load-more-button {
+  margin-top: 8px;
 }
 
 /* P3-PKG8：结构化诊断结果面板，保持结果只读、证据可追溯。 */
@@ -1101,7 +1174,7 @@
 
 .diagnosis-result-panel__badge {
   border-radius: 999px;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .diagnosis-result-panel__badge--critical,
@@ -1150,8 +1223,25 @@
 }
 
 .diagnosis-result-panel__section-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
   margin-bottom: 9px;
   font-size: 12px;
+}
+
+/* 影响面：整块用左侧信号条标注"这段是波及范围"，与列表型板块区分开。 */
+.diagnosis-result-panel__impact {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--signal);
+  border-radius: 7px;
+  background: var(--surface-soft);
+}
+
+.diagnosis-result-panel__impact .diagnosis-result-panel__item-copy {
+  margin: 0 0 9px;
 }
 
 .diagnosis-result-panel__list {
@@ -1198,7 +1288,7 @@
   display: block;
   margin: 0;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .diagnosis-result-panel__details {
@@ -1242,7 +1332,7 @@
 
 .diagnosis-result-panel__relation dt {
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .diagnosis-result-panel__relation dd {
@@ -1250,7 +1340,7 @@
   overflow-wrap: anywhere;
   color: var(--text-secondary);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 @media (max-width: 620px) {
