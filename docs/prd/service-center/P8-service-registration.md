@@ -1,6 +1,6 @@
 ---
 title: 服务中心服务注册——动态接入、管理与连接测试
-status: 已确认
+status: 进行中
 domain: service-center
 phase: P8
 issue: 53
@@ -35,7 +35,7 @@ P4.4 多服务实例接入（`docs/prd/service-center/P4.4-service-instances.md`
 
 ### 做什么
 - 服务注册表从代码硬编码改为**应用库持久化**，支持运行时动态增删改。
-- 凭据方案：DSN 加密落库（AES-256-GCM，主密钥 `OPERMIND_SECRET_KEY` 走 env），接口只回掩码尾号与 `has_api_key`，不回明文 DSN。
+- 凭据方案：DSN 加密落库（AES-256-GCM，主密钥 `OPERMIND_SECRET_KEY` 走 env），接口只回掩码尾号与 `has_dsn`，不回明文 DSN。
 - 新增接口：`POST /services`（注册）、`PUT /services/{id}`（改）、`DELETE /services/{id}`（移除）、`POST /services/{id}/test-connection`（显式连通性测试）。
 - 前端服务中心页新增"添加服务"表单、列表项编辑/移除、连接测试按钮。
 - 已注册服务进入既有 `GET /services` 列表与只读监控/调查链路，与现有服务同等待遇。
@@ -45,6 +45,7 @@ P4.4 多服务实例接入（`docs/prd/service-center/P4.4-service-instances.md`
 - 不做身份/权限/多用户（`docs/产品定义.md` §7 未决，第四阶段）。
 - 不做告警通道配置（邮件/webhook，已决方案是页面内告警）。
 - 不做运行时可编辑的监控阈值/关注项配置（接口清单欠账，另行排期）。
+- **不做运行时可编辑的能力声明**：`supported_investigations` 由类型模板派生（postgres/redis 各自固定），PUT 仅改标题/DSN，不接受改能力声明（本 PRD 功能 2 输入含"能力声明"，按 Design 决策 7 收窄，需用户确认）。
 - 不改变既有硬编码实例的读取方式（`OPERMIND_SERVICE_<ID>_DSN` 环境变量兼容保留，未落库实例仍可读取）。
 - 不把 DSN 明文、完整 DSN、密码或 `sk-` 内容写入日志、Trace、事件、结果、截图或接口响应。
 
@@ -60,7 +61,7 @@ P4.4 多服务实例接入（`docs/prd/service-center/P4.4-service-instances.md`
 - **输出**：服务安全视图（id/type/title/连接状态/has_dsn/掩码尾号），不含 DSN 明文。
 
 ### 2. 修改服务（PUT /services/{id}）
-- **输入**：服务 ID + 可改字段（标题、DSN、能力声明）。
+- **输入**：服务 ID + 可改字段（标题、DSN；能力声明按 Design 决策 7 收窄为不可改，见"不做什么"）。
 - **行为**：标题/DSN 更新；DSN 更新走同加密纪律；更新后连接状态重置为"未验证"并重新探测。
 - **输出**：更新后的服务安全视图。
 
@@ -80,14 +81,15 @@ P4.4 多服务实例接入（`docs/prd/service-center/P4.4-service-instances.md`
 - **输出**：可管理的服务中心界面。
 
 ## 非功能需求
-- **安全**：DSN 绝不落明文；掩码尾号展示；主密钥未配置时拒绝创建；无凭据进日志/Trace/结果/截图/响应；`has_api_key` 只表意不泄露。
+- **安全**：DSN 绝不落明文；掩码尾号展示；主密钥未配置时拒绝创建；无凭据进日志/Trace/结果/截图/响应；`has_dsn` 只表意不泄露。
 - **可靠**：单服务连接失败不影响其他服务；注册/移除/测试均有明确成功/失败反馈。
 - **诚实**：未验证/未配置/连接失败如实标注，不伪造连接成功。
 - **性能**：连接测试限时（3s）；列表读取为本地库读取，ms 级。
 
 ## 数据与接口影响
-- 数据：新增服务注册专用表（`service_registry` 或等价），存加密 DSN + 掩码尾号 + 类型/标题；涉及数据库迁移。
+- 数据：新增服务注册专用表（`service_registry`），存加密 DSN + 掩码尾号 + 类型/标题；涉及数据库迁移。**同时放宽 `sessions.service_id` / `session_services.service_id` 的既有 CHECK 白名单约束（原锁死 4 个硬编码 ID），否则动态注册服务无法创建会话、进入调查链路（按 Design 决策 8）。**
 - 接口：新增 `POST /services`、`PUT /services/{id}`、`DELETE /services/{id}`、`POST /services/{id}/test-connection`；`GET /services` 结构与既有契约兼容（返回值随注册动态增加）。
+- `POST /services` 以 instance_id 唯一作自然幂等（重复注册同 ID → 409，不单独要求 `Idempotency-Key`，按 Design 决策 9）。
 
 ## 验收标准
 - [ ] AC1: 当运维通过 `POST /services` 注册一个 pg 服务（合法 ID + DSN）时，应返回服务安全视图（id/type/title/has_dsn/掩码尾号），且响应不含 DSN 明文。
@@ -119,7 +121,9 @@ P4.4 多服务实例接入（`docs/prd/service-center/P4.4-service-instances.md`
 1. **DSN 存哪**：默认采用模型 Provider 成熟方案（AES-256-GCM 加密落库，主密钥 `OPERMIND_SECRET_KEY` 走 env）。备选：保持环境变量注入、UI 只声明服务 ID 与标题，凭据仍由运维注入。→ 推荐前者（与模型设置一致），需用户确认放宽"不落库"硬规则。
 2. **注册时是否立刻探连接**：默认**不阻塞创建**——允许存为"未验证"态，页面诚实标注。备选：连接失败拒绝创建。→ 推荐前者（更实用），需用户确认。
 3. **允许注册哪些类型**：默认 PG / Redis（有真实 Connector）；MySQL 出现但如实标注"未启用"。→ 需用户确认。
-4. **注册表持久化的迁移**：新增服务注册表与迁移方式（对齐 alembic 既有显式迁移流程）。→ 执行期 Design 定。
+4. **注册表持久化的迁移**：新增服务注册表与迁移方式（对齐 alembic 既有显式迁移流程）。→ 执行期 Design 定。**（Design 决策 8：迁移同时放宽 `session_service_id_valid` / `session_services_service_id_valid` 两个 CHECK 约束，动态服务才能建会话/进调查链路。）**
+5. **能力声明是否可编辑**：本 PRD 功能 2 输入含"能力声明"，Design 决策 7 收窄为不可改（类型模板派生）。→ 需用户确认。
+6. **掩码尾号规则**：DSN 采用 `••••` + 末 4 位（与 P6 API Key 一致）；DSN 尾号是库名/端口片段而非密码，不构成可用凭据，但会暴露库名/端口片段。→ 需用户确认。
 
 ## GitHub Issue（已确认后回填）
 - issue：#53（https://github.com/wzhwwwzzzhhh/oper-mind/issues/53）
