@@ -104,15 +104,6 @@ banned-api = { "src.infrastructure".msg = "application/domain 层不得依赖 in
 # ---- infrastructure 内部互相引用不算跨层 ----
 "src/infrastructure/**" = ["TID251"]
 
-# ---- P0-5 欠账：CLI 时代的审批残留，等设计确认后整体移除 ----
-# src/core/approval.py 的 request_approval() 用 print + input() 做审批。
-# 它唯一的入口是 tool_registry.execute_tool()，而 execute_tool 全仓库零调用点：
-# BaseAgent 走 ToolGateway.invoke()（agent.py:75），这条审批链永不执行。
-# 也就是说"高危 SQL 审批"目前实际不存在，不是"有但会报错"。
-# 不在此处删：审批该接进 ToolGateway 还是删掉并如实标注，涉及审批能力边界，
-# 见 docs/完善清单.md P0-5，须 Design → 用户确认。
-"src/core/approval.py" = ["T201"]
-
 # ---- 测试：允许 assert、允许直接组装具体实现、不强制类型标注 ----
 # S603：测试用 subprocess 跑 alembic upgrade/downgrade 验证迁移，命令全是
 #   [sys.executable, "-m", "alembic", ...] 字面量，无外部输入，不是注入面。
