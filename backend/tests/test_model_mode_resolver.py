@@ -114,6 +114,7 @@ def test_模式切换不影响Provider生效配置解析(session_factory: sessio
 def test_会话链路按生效模式构造LLM(session_factory: sessionmaker, monkeypatch: pytest.MonkeyPatch) -> None:
     """会话链路（coordinator factory 等价路径）应消费 resolve_runtime_mode 的 config 构造 LLM。"""
     from data.scenarios import get_active_scenario
+
     from src.core.bootstrap import build_llm_from_config
 
     # env 有真实 Key，但显式切到 mock → LLM 必须走 mock 场景
