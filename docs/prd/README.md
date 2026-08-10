@@ -14,6 +14,7 @@
 | 模型设置 | `model/` | Provider/调用策略/API Key |
 | 审批与受控动作 | `approval/` | 提案/人工审批/白名单执行/Verify |
 | 知识库 | `knowledge/` | Markdown 检索/RAG/文档知识 |
+| 审计/操作记录 | `audit/` | 跨服务跨会话的审计活动检索 |
 
 ## 当前进展
 
@@ -38,6 +39,9 @@
 | P8 | 服务中心服务注册——动态接入、管理与连接测试 | `service-center/P8-service-registration.md` | 已确认 |
 | P8 | 会话工作台闭环——独立消息、取消 Run 与全局提案列表 | `session/P8-workbench-loop-closure.md` | 已确认 |
 | P8 | 模型设置——运行时切换 mock / real 模式 | `model/P8-model-mode-switch.md` | 已确认 |
+| P8 | 审计操作记录——跨服务跨会话的活动检索 | `audit/P8-audit-activity-log.md` | 草稿 |
+| P8 | 模型可用列表探测——Provider 侧模型枚举 | `model/P8-model-list-enumeration.md` | 草稿 |
+| P8 | 会话管理——全局 Run 列表与会话搜索 | `session/P8-session-management.md` | 草稿 |
 
 ## 执行 AI 如何使用
 - 拿到 PRD 后：只实现「范围」内能力，逐条过「验收标准」，达到「完成定义」。
