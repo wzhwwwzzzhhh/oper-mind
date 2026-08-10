@@ -402,6 +402,29 @@ const accepted_run = {
   finished_at: null,
 }
 
+const proposal_summaries = [
+  {
+    id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb01',
+    source_run_id: run_id,
+    action_id: 'postgres.orders_compound_index_rebuild.v1',
+    status: 'pending_approval',
+    mode: 'target',
+    title: '重建受控靶场联合索引',
+    created_at: '2026-08-10T02:00:00.000Z',
+    updated_at: '2026-08-10T02:00:00.000Z',
+  },
+  {
+    id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb02',
+    source_run_id: run_id,
+    action_id: 'postgres.orders_compound_index_rebuild.v1',
+    status: 'verified',
+    mode: 'target',
+    title: '重建受控靶场联合索引',
+    created_at: '2026-08-10T01:00:00.000Z',
+    updated_at: '2026-08-10T01:30:00.000Z',
+  },
+]
+
 function correlation(request: Request) {
   const request_id = request.headers.get('X-Request-Id') ?? 'missing-client-request-id'
   return {
@@ -646,6 +669,69 @@ export const api_v1_handlers = [
     if (requested_run_id !== run_id) return error_response(request, 'RUN_NOT_FOUND', '诊断运行不存在', 404)
     return response(request, { run })
   }),
+  http.post(/\/api\/v1\/runs\/([^/]+)\/cancel$/, () => HttpResponse.json(null, { status: 204 })),
+  http.post(/\/api\/v1\/sessions\/([^/]+)\/messages$/, async ({ request }) => {
+    const requested_session_id = new URL(request.url).pathname.split('/').at(-2)
+    const payload = await request.json() as { content?: unknown }
+    const content = typeof payload.content === 'string' ? payload.content : ''
+    if (requested_session_id !== session_id) return error_response(request, 'SESSION_NOT_FOUND', '会话不存在', 404)
+    const investigation_keywords = ['慢查询', '连接池', '索引', '数据库', 'postgres', '查询', 'sql', 'explain', 'select', '表']
+    if (investigation_keywords.some((keyword) => content.includes(keyword))) {
+      return error_response(request, 'INVESTIGATION_REQUIRED', '这属于调查类问题，请使用调查发起。', 409)
+    }
+    return response(request, {
+      user_message: {
+        id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01',
+        session_id: requested_session_id,
+        run_id: null,
+        role: 'user',
+        content,
+        created_at: '2026-08-10T01:00:00.000Z',
+      },
+      assistant_message: {
+        id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa02',
+        session_id: requested_session_id,
+        run_id: null,
+        role: 'assistant',
+        content: '这是普通对话回复：本次未启动调查，也未访问任何外部服务。如果你想排查慢查询、连接池、索引等问题，可以直接描述，我会发起只读调查。',
+        created_at: '2026-08-10T01:00:00.001Z',
+      },
+    }, 201)
+  }),
+  http.get('/api/v1/action-proposals', ({ request }) => {
+    const url = new URL(request.url)
+    const status = url.searchParams.get('status')
+    const items = status ? proposal_summaries.filter((item) => item.status === status) : proposal_summaries
+    return response(request, { items, page: { next_cursor: null, has_more: false } })
+  }),
+  http.get('/api/v1/action-proposals/:proposal_id', ({ request, params }) => {
+    const proposal_id = String(params.proposal_id)
+    const summary = proposal_summaries.find((item) => item.id === proposal_id) ?? proposal_summaries[0]
+    return response(request, {
+      proposal: {
+        ...summary,
+        description: '只对受控靶场固定目标执行代码内联合索引动作。',
+        target: {
+          service_id: 'postgres-target',
+          schema: 'public',
+          table: 'orders',
+          columns: 'customer_id,created_at',
+          index_name: 'idx_orders_customer_created_at',
+        },
+        root_cause_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        evidence_ids: ['dddddddd-dddd-4ddd-8ddd-dddddddddddd'],
+        risk_summary: '受控靶场结构变更。',
+        verification_plan: ['确认受控靶场目标表存在'],
+        action_digest: 'a'.repeat(64),
+        approval: null,
+        execution: null,
+        verification: null,
+      },
+    })
+  }),
+  http.get('/api/v1/action-proposals/:proposal_id/events', ({ request }) =>
+    response(request, { items: [], page: { next_cursor: null, has_more: false } }),
+  ),
 ]
 
 export const api_v1_contract_scenarios = {

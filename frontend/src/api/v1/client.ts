@@ -15,6 +15,11 @@ export type RunResponse = components['schemas']['RunResponse']
 export type RunEventResource = components['schemas']['RunEventResource']
 export type RunEventListResponse = components['schemas']['RunEventListResponse']
 export type CreateRunRequest = components['schemas']['CreateRunRequest']
+export type SendPlainMessageRequest = components['schemas']['SendPlainMessageRequest']
+export type PlainMessageResponse = components['schemas']['PlainMessageResponse']
+export type ActionProposalStatus = components['schemas']['ActionProposalStatus']
+export type ActionProposalSummaryResource = components['schemas']['ActionProposalSummaryResource']
+export type ActionProposalListResponse = components['schemas']['ActionProposalListResponse']
 export type ActionApprovalRequest = components['schemas']['ActionApprovalRequest']
 export type ActionExecutionRequest = components['schemas']['ActionExecutionRequest']
 export type RunActionProposalResponse = components['schemas']['RunActionProposalResponse']
@@ -156,6 +161,9 @@ export type ListSessionRunsQuery = NonNullable<
 >
 export type ListRunEventsQuery = NonNullable<
   operations['list_run_events_api_v1_runs__run_id__events_get']['parameters']['query']
+>
+export type ListActionProposalsQuery = NonNullable<
+  operations['list_action_proposals_api_v1_action_proposals_get']['parameters']['query']
 >
 export type ListActionEventsQuery = NonNullable<
   operations['list_action_events_api_v1_action_proposals__proposal_id__events_get']['parameters']['query']
@@ -304,6 +312,16 @@ export interface ApiV1Client {
     query?: ListSessionMessagesQuery,
     options?: ApiRequestOptions,
   ): Promise<ApiResponse<MessageListResponse>>
+  send_plain_message(
+    session_id: string,
+    payload: SendPlainMessageRequest,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<PlainMessageResponse>>
+  cancel_run(run_id: string, options?: ApiRequestOptions): Promise<ApiResponse<void>>
+  list_action_proposals(
+    query?: ListActionProposalsQuery,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<ActionProposalListResponse>>
   list_session_runs(
     session_id: string,
     query?: ListSessionRunsQuery,
@@ -673,6 +691,32 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
         request_id_factory,
         base_url,
         append_query(`/api/v1/sessions/${encodeURIComponent(session_id)}/messages`, query),
+        request_options,
+      ),
+    send_plain_message: (session_id, payload, request_options) =>
+      request_json<PlainMessageResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        `/api/v1/sessions/${encodeURIComponent(session_id)}/messages`,
+        request_options,
+        { body: payload, method: 'POST' },
+      ),
+    cancel_run: (run_id, request_options) =>
+      request_json<void>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        `/api/v1/runs/${encodeURIComponent(run_id)}/cancel`,
+        request_options,
+        { method: 'POST' },
+      ),
+    list_action_proposals: (query = {}, request_options) =>
+      request_json<ActionProposalListResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        append_query('/api/v1/action-proposals', query),
         request_options,
       ),
     list_session_runs: (session_id, query = {}, request_options) =>

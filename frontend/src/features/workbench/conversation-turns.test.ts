@@ -109,4 +109,65 @@ describe('project_conversation_turns', () => {
     expect(service_less.timeline).toHaveLength(2)
     expect(repeated_service.timeline).toHaveLength(2)
   })
+
+  it('无 Run 关联的 assistant 消息作为普通回复配对到前一条用户消息', () => {
+    const projection = project_conversation_turns([
+      user_message(),
+      {
+        id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa02',
+        session_id: SESSION_ID,
+        run_id: null,
+        role: 'assistant',
+        content: '这是普通对话回复：本次未启动调查。',
+        created_at: '2026-07-29T01:00:00.001Z',
+      },
+    ], [], SESSION_ID)
+
+    expect(projection.issues).toEqual([])
+    expect(projection.timeline).toHaveLength(1)
+    expect(projection.timeline[0]).toMatchObject({
+      kind: 'turn',
+      turn: {
+        input: { content: '请检查网关错误。' },
+        investigations: [],
+        plain_reply: { content: '这是普通对话回复：本次未启动调查。' },
+      },
+    })
+  })
+
+  it('普通回复不与调查输出混淆，多条普通消息按顺序配对', () => {
+    const second_input = '99999999-9999-4999-8999-999999999995'
+    const projection = project_conversation_turns([
+      user_message(),
+      { ...user_message(), id: second_input, content: '谢谢', created_at: '2026-07-29T01:00:02.000Z' },
+      {
+        id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa03',
+        session_id: SESSION_ID,
+        run_id: null,
+        role: 'assistant',
+        content: '回复一。',
+        created_at: '2026-07-29T01:00:02.001Z',
+      },
+      {
+        id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa04',
+        session_id: SESSION_ID,
+        run_id: null,
+        role: 'assistant',
+        content: '回复二。',
+        created_at: '2026-07-29T01:00:03.001Z',
+      },
+    ], [run()], SESSION_ID)
+
+    expect(projection.issues).toEqual([])
+    expect(projection.timeline).toHaveLength(2)
+    expect(projection.timeline[0]).toMatchObject({ kind: 'turn', turn: { input: { content: '请检查网关错误。' }, investigations: [{ investigation: { id: RUN_ID } }] } })
+    expect(projection.timeline[1]).toMatchObject({
+      kind: 'turn',
+      turn: {
+        input: { content: '谢谢' },
+        investigations: [],
+        plain_reply: { content: '回复一。' },
+      },
+    })
+  })
 })
