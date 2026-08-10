@@ -20,6 +20,8 @@ scipy==1.17.1       # src/eval/stats.py 的 t 分布、Wilcoxon 与 Friedman 检
 # ===== 开发、测试与文档脚本 =====
 pytest==9.1.1       # tests/ 测试套件
 fpdf==1.7.2         # scripts/ 生成方案 PDF
+mypy==2.3.0         # 静态类型检查（pyproject.toml 分层配置）
+ruff==0.16.2        # linter/formatter（pyproject.toml 规则配置）
 
 # ===== 应用持久化与迁移（P1.1d） =====
 SQLAlchemy==2.0.51  # 同步 ORM；P2 应用元数据持久化基础
