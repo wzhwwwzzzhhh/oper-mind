@@ -26,6 +26,7 @@ from src.config import (
     load_service_dsn,
 )
 from src.core.bootstrap import build_coordinator, build_llm_from_config
+from src.core.coordinator import CoordinatorAgent
 from src.domain.services import ServiceRegistry
 from src.infrastructure.actions.postgres_target_executor import PostgresTargetActionExecutor
 from src.infrastructure.diagnosis.coordinator_executor import CoordinatorDiagnosisExecutor
@@ -69,11 +70,11 @@ def build_v1_services() -> V1Services:
     return build_v1_services_for_runtime(runtime, _resolved_coordinator_factory(runtime))
 
 
-def _resolved_coordinator_factory(runtime: PersistenceRuntime) -> Callable[[str | None], object]:
+def _resolved_coordinator_factory(runtime: PersistenceRuntime) -> Callable[[str | None], CoordinatorAgent]:
     """构造每 Run 解析生效模型配置的 Coordinator 工厂。"""
     secret_key = _load_secret_key_or_none()
 
-    def build(service_id: str | None) -> object:
+    def build(service_id: str | None) -> CoordinatorAgent:
         config = resolve_model_config(runtime.session_factory, secret_key)
         llm = build_llm_from_config(config)
         return build_coordinator(llm, service_id=service_id)
@@ -91,7 +92,7 @@ def _load_secret_key_or_none() -> bytes | None:
 
 def build_v1_services_for_runtime(
     runtime: PersistenceRuntime,
-    coordinator_factory: Callable[[str | None], object],
+    coordinator_factory: Callable[[str | None], CoordinatorAgent],
 ) -> V1Services:
     """用给定 Runtime 构造服务，供临时库测试安全替换。
 

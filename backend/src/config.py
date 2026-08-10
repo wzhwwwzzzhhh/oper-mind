@@ -6,6 +6,7 @@ from pathlib import Path
 
 import yaml
 
+from src.domain.actions import ActionMode
 from src.project_paths import CONFIG_DIR, DATA_DIR
 
 # 环境变量名 -> 配置段与字段名的映射。
@@ -162,7 +163,7 @@ def load_knowledge_settings() -> KnowledgeSettings:
     return KnowledgeSettings(directory=directory.strip())
 
 
-def load_action_mode() -> str:
+def load_action_mode() -> ActionMode:
     """根据受控靶场 DSN 是否配置选择动作模式；默认保持 mock 空态。"""
     return "target" if load_service_dsn("postgres-target") is not None else "mock"
 

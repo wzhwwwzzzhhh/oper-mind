@@ -8,10 +8,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
 from pathlib import Path
-from typing import Literal
+from typing import Literal, TypeVar
 
 from src.knowledge.reader import (
     KnowledgeDocumentMeta,
@@ -30,6 +31,9 @@ from src.knowledge.reader import (
 
 class KnowledgeTimeoutError(Exception):
     """知识库只读操作超时。"""
+
+
+_T = TypeVar("_T")
 
 
 class KnowledgeReaderService:
@@ -88,7 +92,7 @@ class KnowledgeReaderService:
             return None
         return self._run(lambda: reader_read_document(root, relative_name))
 
-    def _run(self, fn):
+    def _run(self, fn: Callable[[], _T]) -> _T:
         """限时执行只读操作，超时抛 KnowledgeTimeoutError。"""
         future = self._executor.submit(fn)
         try:

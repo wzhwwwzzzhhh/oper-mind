@@ -13,7 +13,13 @@ from src.domain.monitoring import (
     MonitorTrendSummaryData,
     ServiceMonitorSampleData,
 )
-from src.domain.services import ServiceAvailability, ServiceConnector, ServiceRegistry, ServiceSourceStatus
+from src.domain.services import (
+    ServiceAvailability,
+    ServiceConnector,
+    ServiceDefinitionData,
+    ServiceRegistry,
+    ServiceSourceStatus,
+)
 from src.infrastructure.persistence.database import SessionFactory
 from src.infrastructure.persistence.monitor_repositories import SqlAlchemyMonitorSampleRepository
 
@@ -147,7 +153,7 @@ class MonitorOverviewApplicationService:
         )
 
     @staticmethod
-    def _degraded(definition: object) -> MonitorServiceOverviewData:
+    def _degraded(definition: ServiceDefinitionData) -> MonitorServiceOverviewData:
         """样本读取失败时返回不可用降级概览，不保存异常详情、不伪造数值。"""
         return MonitorServiceOverviewData(
             service_id=definition.id,

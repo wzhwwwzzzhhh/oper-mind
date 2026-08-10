@@ -147,7 +147,7 @@ class AggregateErrorsTool(Tool):
         """保留既有 mock 聚合行为与文案。"""
         errors = [log for log in active_or_default().logs if "[ERROR]" in log]
         self._last_summary = f"mock 场景聚合 {len(errors)} 条错误"
-        error_types = Counter()
+        error_types: Counter[str] = Counter()
         for log in errors:
             # 提取错误类型
             match = re.search(r"-\s+(.+?)(?:[:]|\s+\d)", log)

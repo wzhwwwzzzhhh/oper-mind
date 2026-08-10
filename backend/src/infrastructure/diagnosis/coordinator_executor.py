@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from datetime import UTC, datetime
 from inspect import signature
 from typing import Any
@@ -27,7 +27,7 @@ class CoordinatorDiagnosisExecutor(DiagnosisExecutor):
 
     def __init__(
         self,
-        coordinator_factory: Callable[[], CoordinatorAgent],
+        coordinator_factory: Callable[..., CoordinatorAgent],
         missing_index_collector: PostgresMissingIndexCollector | None = None,
     ) -> None:
         self._coordinator_factory = coordinator_factory
@@ -40,8 +40,7 @@ class CoordinatorDiagnosisExecutor(DiagnosisExecutor):
         else:
             coordinator = self._coordinator_factory(service_id)
         for item in coordinator.route_stream(query):
-            kind = item["kind"]
-            if kind == "trace":
+            if item["kind"] == "trace":
                 event = item["event"]
                 event_type = _event_type(event)
                 if event_type is not None:
@@ -51,7 +50,7 @@ class CoordinatorDiagnosisExecutor(DiagnosisExecutor):
                         occurred_at=_parse_timestamp(event.get("timestamp")),
                         data=_event_data(event, service_id),
                     )
-            elif kind == "complete":
+            elif item["kind"] == "complete":
                 yield DiagnosisExecutionResult(
                     strategy=_safe_strategy(item.get("strategy")),
                     report=_safe_report(item.get("result")),
@@ -65,7 +64,7 @@ class CoordinatorDiagnosisExecutor(DiagnosisExecutor):
                 raise DiagnosisExecutionError(code=item["code"], message=item["message"])
 
 
-def _event_type(value: dict[str, Any]) -> RunEventType | None:
+def _event_type(value: Mapping[str, Any]) -> RunEventType | None:
     """仅接受 P2 受控的 Coordinator 事件类型。"""
     try:
         return RunEventType(str(value.get("type", "")))
@@ -73,7 +72,7 @@ def _event_type(value: dict[str, Any]) -> RunEventType | None:
         return None
 
 
-def _event_data(event: dict[str, Any], service_id: str | None = None) -> dict[str, Any]:
+def _event_data(event: Mapping[str, Any], service_id: str | None = None) -> dict[str, Any]:
     """仅为工具事件构造安全 data；其余事件保持空 data，维持既有行为。"""
     if str(event.get("type")) != "tool_invoked":
         return {}

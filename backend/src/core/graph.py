@@ -183,7 +183,7 @@ def build_diagnosis_graph(
 
         if target not in agents:
             result = f"未找到可处理的 Agent:{target}"
-            thinking = []
+            thinking: list[dict] = []
         else:
             agent = agents[target]
             result = agent.run(query)

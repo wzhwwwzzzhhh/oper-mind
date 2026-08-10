@@ -32,7 +32,8 @@ class TimestampedRecord(DomainRecord):
     @classmethod
     def validate_utc_datetime(cls, value: object, info: ValidationInfo) -> object:
         """拒绝非 UTC aware 时间，避免持久化边界混入本地时间。"""
-        if not info.field_name.endswith("_at") or value is None:
+        field_name = info.field_name
+        if field_name is None or not field_name.endswith("_at") or value is None:
             return value
         if not isinstance(value, datetime):
             return value

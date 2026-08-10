@@ -24,6 +24,7 @@ class ShortTermMemory:
         """
         self.messages.append(message)
         self._trim()
+        return self.messages
 
     def _trim(self):
         """

@@ -719,7 +719,7 @@ class ActionProposalResource(ApiV1Model):
 
     id: UUID
     source_run_id: UUID
-    action_id: Literal["postgres.orders.rebuild_missing_user_created_index.v1"]
+    action_id: Literal["postgres.orders_compound_index_rebuild.v1"]
     action_digest: str = Field(min_length=64, max_length=64)
     status: Literal[
         "pending_approval", "approved", "rejected", "expired", "executing", "verifying",

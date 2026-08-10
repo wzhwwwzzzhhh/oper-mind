@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import Select, and_, or_, select
+from sqlalchemy import RowMapping, Select, and_, or_, select
 from sqlalchemy.orm import Session
 
 from src.domain.records import DiagnosisRunCursor, RepositoryPage
@@ -86,7 +86,7 @@ def _activity_select() -> Select[tuple[object, ...]]:
     )
 
 
-def _activity_data(row: object) -> ServiceActivityData:
+def _activity_data(row: RowMapping) -> ServiceActivityData:
     """将 ORM 映射行收敛为公开活动所需的安全标量。"""
     values = dict(row)
     return ServiceActivityData(

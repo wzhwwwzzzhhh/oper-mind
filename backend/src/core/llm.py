@@ -1,6 +1,7 @@
 """LLM 调用封装"""
 
 import logging
+from typing import Any, cast
 
 from openai import OpenAI
 
@@ -41,7 +42,9 @@ class LLMClient:
             kwargs["tool_choice"] = "auto"
 
         try:
-            response = self.client.chat.completions.create(**kwargs,timeout=60)
+            # kwargs 是 SDK 参数的运行时子集，OpenAI stub 无法静态表达动态键组合；
+            # SDK 自身会校验参数名，这里按受控边界 cast 到 Any。
+            response = self.client.chat.completions.create(**cast(dict[str, Any], kwargs), timeout=60)
             message = response.choices[0].message
 
             # 累计 token 用量（供评测成本核算；usage 缺失时不计）

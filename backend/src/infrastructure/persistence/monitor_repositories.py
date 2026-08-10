@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from src.domain.monitoring import ServiceMonitorSampleData
 from src.infrastructure.persistence.models import ServiceMonitorSampleRecord
+from src.infrastructure.persistence.repositories import _rowcount
 
 
 class SqlAlchemyMonitorSampleRepository:
@@ -58,7 +59,7 @@ class SqlAlchemyMonitorSampleRepository:
         result = self._session.execute(
             delete(ServiceMonitorSampleRecord).where(ServiceMonitorSampleRecord.observed_at < cutoff)
         )
-        return int(result.rowcount or 0)
+        return _rowcount(result)
 
 
 def _to_data(row: ServiceMonitorSampleRecord) -> ServiceMonitorSampleData:

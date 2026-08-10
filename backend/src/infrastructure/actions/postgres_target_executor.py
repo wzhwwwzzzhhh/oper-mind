@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any
 
-from sqlalchemy import text
+from sqlalchemy import RowMapping, text
 from sqlalchemy.engine import Engine
 
 from src.application.action_execution import (
@@ -184,7 +184,7 @@ _CREATE_INDEX_SQL = "CREATE INDEX CONCURRENTLY idx_orders_customer_created_at ON
 _VERIFY_INDEX_SQL = "EXPLAIN (FORMAT JSON) SELECT customer_id, created_at FROM public.orders WHERE customer_id = 1 ORDER BY created_at"
 
 
-def _plan_uses_target_index(rows: list[dict[str, object]]) -> bool:
+def _plan_uses_target_index(rows: Sequence[RowMapping]) -> bool:
     """从 EXPLAIN JSON 计划中确认目标索引被使用。"""
     for row in rows:
         payload = row.get("QUERY PLAN") or row.get("query plan")

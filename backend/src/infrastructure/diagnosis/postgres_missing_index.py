@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from typing import Any
 
-from sqlalchemy import text
+from sqlalchemy import RowMapping, text
 from sqlalchemy.engine import Engine
 
 from src.application.action_services import (
@@ -64,7 +65,9 @@ class PostgresMissingIndexCollector:
                 return None
             signal = MissingIndexSignal(
                 service_id=TARGET_SERVICE_ID,
-                schema_name=TARGET_SCHEMA,
+                # 字段 schema_name 的 Pydantic 别名是 schema；populate_by_name=True
+                # 允许运行时用字段名，但 mypy 只认别名，这里按静态契约传别名。
+                schema=TARGET_SCHEMA,
                 table=TARGET_TABLE,
                 columns=TARGET_COLUMNS,
                 index_name=TARGET_INDEX_NAME,
@@ -111,7 +114,7 @@ class PostgresMissingIndexCollector:
                 engine.dispose()
 
 
-def _contains_seq_scan(rows: list[dict[str, Any]]) -> bool:
+def _contains_seq_scan(rows: Sequence[RowMapping]) -> bool:
     """仅从 EXPLAIN 结构化结果判断是否存在顺序扫描。"""
     for row in rows:
         payload = row.get("QUERY PLAN") or row.get("query plan")

@@ -158,6 +158,8 @@ class ModelProviderApplicationService:
                     has_api_key=encrypted is not None,
                 )
             )
+            if created.id is None:
+                raise ProviderNotFoundError()
             idempotency_repository.add(
                 ModelProviderIdempotencyKeyData(
                     idempotency_key=command.idempotency_key,
@@ -303,7 +305,7 @@ def resolve_model_config(
         finally:
             session.close()
     except SQLAlchemyError:
-        providers = ()
+        providers = []
     for endpoint, section in (("diagnostic", "llm"), ("judge", "judge_llm")):
         provider = next(
             (provider for provider in providers if provider.active_endpoint is ProviderEndpoint(endpoint)),

@@ -9,7 +9,7 @@ from inspect import signature
 from typing import TypeVar
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, JsonValue
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -343,7 +343,7 @@ class RunApplicationService:
         run_id: UUID,
         event_type: RunEventType,
         occurred_at: datetime,
-        data: dict[str, object],
+        data: dict[str, JsonValue],
     ) -> None:
         """在独立短事务中持久化一条可重放 RunEvent。"""
 
@@ -357,7 +357,7 @@ class RunApplicationService:
         session: Session,
         run_id: UUID,
         event_type: RunEventType,
-        data: dict[str, object],
+        data: dict[str, JsonValue],
         occurred_at: datetime | None = None,
     ) -> None:
         """在调用方事务内预留 sequence 并写入事件。"""
@@ -517,9 +517,9 @@ def _safe_failure() -> tuple[str, str]:
     return "DIAGNOSIS_FAILED", "诊断执行失败，请稍后重试"
 
 
-def _safe_event_data(event: DiagnosisExecutionEvent) -> dict[str, object]:
+def _safe_event_data(event: DiagnosisExecutionEvent) -> dict[str, JsonValue]:
     """只持久化最小过程摘要白名单，拒绝执行器提供的任意原始读取。"""
-    data: dict[str, object] = {"node": event.node}
+    data: dict[str, JsonValue] = {"node": event.node}
     summary = event.data.get("summary")
     if isinstance(summary, str) and 0 < len(summary) <= 280:
         data["summary"] = summary

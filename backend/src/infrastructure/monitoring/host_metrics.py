@@ -14,6 +14,7 @@ import re
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
+from typing import Any
 
 from data.scenarios import get_active_scenario
 
@@ -236,7 +237,7 @@ class PsutilHostMetricsCollector:
 
     def _collect_processes(
         self,
-        psutil,
+        psutil: Any,
         within_budget: Callable[[], bool],
     ) -> list[HostProcessData]:
         """收集高 CPU/高内存异常进程，最多 5 条，仅暴露 name/pid/占用率。"""
