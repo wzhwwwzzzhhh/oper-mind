@@ -36,6 +36,7 @@ from src.infrastructure.diagnosis.result_assembler import KernelReportResultAsse
 from src.infrastructure.monitoring.host_metrics import PsutilHostMetricsCollector
 from src.infrastructure.monitoring.sampler import MonitorSampler
 from src.infrastructure.persistence.database import PersistenceRuntime, SessionFactory, create_persistence_runtime
+from src.infrastructure.persistence.plain_message_writer import SqlAlchemyPlainMessageWriter
 from src.infrastructure.secrets import (
     SecretKeyNotConfiguredError,
     SecretKeyTooShortError,
@@ -152,7 +153,7 @@ def build_v1_services_for_runtime(
             action_service=action_service,
             action_mode=action_mode,
         ),
-        plain_message_service=PlainMessageApplicationService(session_factory),
+        plain_message_service=PlainMessageApplicationService(SqlAlchemyPlainMessageWriter(session_factory)),
         action_service=action_service,
         service_center=ServiceCenterApplicationService(
             session_factory,

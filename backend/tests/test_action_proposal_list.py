@@ -111,7 +111,6 @@ def _create_run(runtime: PersistenceRuntime) -> UUID:
         ConservativeResultAssembler(),
     )
     session_data = session_service.create_session(CreateSessionCommand(title="提案来源会话"))
-    from src.application.contracts import CreateRunCommand
 
     accepted = run_service.accept_run(
         CreateRunCommand(session_id=session_data.id, query="检查服务状态", idempotency_key=uuid4())

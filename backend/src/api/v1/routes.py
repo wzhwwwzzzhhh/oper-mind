@@ -110,7 +110,7 @@ from src.application.monitoring import (
     MonitorHistoryApplicationService,
     MonitorOverviewApplicationService,
 )
-from src.application.plain_messages import PlainMessageApplicationService, SendPlainMessageCommand
+from src.application.plain_messages import SendPlainMessageCommand
 from src.application.service_center import CreateServiceSessionCommand, ServiceCenterApplicationService
 from src.config import load_monitor_settings
 from src.domain.actions import ActionProposalStatus

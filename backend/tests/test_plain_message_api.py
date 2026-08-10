@@ -13,12 +13,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.api.v1.dependencies import V1Services
-from src.application.contracts import DiagnosisExecutionError, DiagnosisExecutionEvent, DiagnosisExecutionResult
+from src.application.contracts import DiagnosisExecutionEvent, DiagnosisExecutionResult
 from src.application.plain_messages import PLAIN_REPLY_PREFIX, PLAIN_REPLY_TEMPLATE, PlainMessageApplicationService
 from src.application.services import RunApplicationService, SessionApplicationService
 from src.domain.diagnosis import RunEventType
 from src.infrastructure.diagnosis.result_assembler import ConservativeResultAssembler
 from src.infrastructure.persistence.database import create_persistence_runtime
+from src.infrastructure.persistence.plain_message_writer import SqlAlchemyPlainMessageWriter
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = BACKEND_ROOT.parent
@@ -70,7 +71,7 @@ def v1_client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[TestC
             _DeterministicExecutor(),
             ConservativeResultAssembler(),
         ),
-        plain_message_service=PlainMessageApplicationService(runtime.session_factory),
+        plain_message_service=PlainMessageApplicationService(SqlAlchemyPlainMessageWriter(runtime.session_factory)),
     )
 
     monkeypatch.setenv("OPERMIND_APP_DATABASE_URL", f"sqlite:///{database_path.as_posix()}")
