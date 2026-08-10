@@ -15,13 +15,15 @@
 
 | AC | 证据 | 状态 |
 |---|---|---|
-| AC4 | （待 S2 回写） | ⏳ |
-| AC5 | （待 S2 回写） | ⏳ |
-| AC6 | （待 S2 回写） | ⏳ |
-| AC7 | （待 S2 回写） | ⏳ |
+| AC4（real 无可用 Key 如实标注） | `test_model_mode_api.py::test_real无可用Key时保存成功但如实标注不可用`（PUT real 成功 + `mode_available=false` + 原因）；前端 `ModelSettingsPage.test.tsx::切换到 real 保存后如实提示不可用` | ✅ |
+| AC5（GET/页面一致无漂移） | `test_model_mode_api.py::test_切换后GET与页面状态一致`（PUT 返回值 == 随后 GET）；前端 `useEffect` 同步 mode_selection + `setQueryData` 缓存 | ✅ |
+| AC6（切换接口无凭据） | `test_model_mode_api.py::test_切换接口不暴露凭据`（无 `sk-` / api_key / DSN 明文） | ✅ |
+| AC7（回归） | `pytest tests -q` → 357 passed；mypy → no issues；ruff → All checks passed；前端 `typecheck`/`test`（99 passed）/`build` 通过 | ✅ |
 
 ## DoD 门禁
 
-- [x] 迁移 upgrade/downgrade 成功（`app_settings` 表；手动 alembic upgrade head + downgrade -1 验证）
+- [x] 迁移 upgrade/downgrade 成功（`app_settings` 表；手动 alembic upgrade head + downgrade 验证）
 - [x] `git diff --check` 干净
 - [x] 无凭据 / `sk-` / DSN 明文
+- [x] `GET /model/config` 三字段加法扩展，既有字段未破坏
+- [x] `PUT /model/mode` 幂等、无需 Idempotency-Key、持久化失败 → 500 并入既有错误映射
