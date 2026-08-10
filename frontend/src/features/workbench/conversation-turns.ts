@@ -35,6 +35,7 @@ export interface ConversationTurn {
 export type ConversationTimelineItem =
   | { kind: 'system'; message: ConversationMessage }
   | { kind: 'turn'; turn: ConversationTurn }
+  | { kind: 'plain_reply'; message: ConversationMessage }
 
 export interface ConversationProjection {
   issues: string[]
@@ -193,6 +194,11 @@ export function project_conversation_turns(
         plain_reply,
       },
     })
+  }
+
+  // 无前驱 user 消息的普通回复（如分页边界）作为独立回复展示，不静默丢弃。
+  for (let index = next_plain_reply; index < plain_replies.length; index += 1) {
+    timeline.push({ kind: 'plain_reply', message: plain_replies[index]! })
   }
 
   // Each Run persists its own user message. Only adjacent equal questions form one multi-service turn.

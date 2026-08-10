@@ -159,7 +159,7 @@ describe('project_conversation_turns', () => {
     ], [run()], SESSION_ID)
 
     expect(projection.issues).toEqual([])
-    expect(projection.timeline).toHaveLength(2)
+    expect(projection.timeline).toHaveLength(3)
     expect(projection.timeline[0]).toMatchObject({ kind: 'turn', turn: { input: { content: '请检查网关错误。' }, investigations: [{ investigation: { id: RUN_ID } }] } })
     expect(projection.timeline[1]).toMatchObject({
       kind: 'turn',
@@ -168,6 +168,28 @@ describe('project_conversation_turns', () => {
         investigations: [],
         plain_reply: { content: '回复一。' },
       },
+    })
+    // 多余的无前驱普通回复作为独立回复展示，不静默丢弃。
+    expect(projection.timeline[2]).toMatchObject({ kind: 'plain_reply', message: { content: '回复二。' } })
+  })
+
+  it('无前驱的普通回复作为独立回复展示而不静默丢弃', () => {
+    const projection = project_conversation_turns([
+      {
+        id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa05',
+        session_id: SESSION_ID,
+        run_id: null,
+        role: 'assistant',
+        content: '分页边界孤儿回复。',
+        created_at: '2026-07-29T01:10:00.000Z',
+      },
+    ], [], SESSION_ID)
+
+    expect(projection.issues).toEqual([])
+    expect(projection.timeline).toHaveLength(1)
+    expect(projection.timeline[0]).toMatchObject({
+      kind: 'plain_reply',
+      message: { content: '分页边界孤儿回复。' },
     })
   })
 })

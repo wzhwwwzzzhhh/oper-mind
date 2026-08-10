@@ -380,6 +380,17 @@ function ConversationTimeline({ messages, runs, services_by_id, session_id }: { 
             />
           )
         }
+        if (item.kind === 'plain_reply') {
+          return (
+            <article aria-label="助手回复" className="message assistant plain-reply" key={item.message.id}>
+              <div className="message-avatar">O</div>
+              <div className="message-body">
+                <div className="message-label">OperMind · 普通对话</div>
+                <div className="bubble">{item.message.content}</div>
+              </div>
+            </article>
+          )
+        }
         return <ConversationTurnCard key={item.turn.input.id} services_by_id={services_by_id} session_id={session_id} turn={item.turn} />
       })}
     </section>
