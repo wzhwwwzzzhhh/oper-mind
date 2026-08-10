@@ -6,14 +6,14 @@
 from src.core.agent import BaseAgent
 from src.core.llm import LLMClient
 from src.core.tool_registry import ToolRegistry
-from src.tools.db_tools import (
-    ExplainTool,
-    ShowIndexTool,
-    ShowCreateTableTool,
-    CheckLockStatusTool,
-    CheckConnectionPoolTool,
-)
 from src.scenarios.db_diagnosis import SYSTEM_PROMPT, TOOL_CALLING_EXAMPLE
+from src.tools.db_tools import (
+    CheckConnectionPoolTool,
+    CheckLockStatusTool,
+    ExplainTool,
+    ShowCreateTableTool,
+    ShowIndexTool,
+)
 
 
 class DBAgent(BaseAgent):

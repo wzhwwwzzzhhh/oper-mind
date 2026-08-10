@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 
 import { api_v1_client } from '../../api/v1/client'
 import { list_services_query } from '../../api/v1/queries'
+import { Icon } from '../shell/Icon'
 import {
   read_array,
   read_items,
@@ -45,6 +46,20 @@ function availability_text(availability: unknown): string {
   return String(availability ?? '—')
 }
 
+/** 快照模式 → 中文说明；对应后端 ServiceMode。 */
+function mode_text(mode: unknown): string {
+  if (mode === 'mock') return '演示快照'
+  if (mode === 'target') return '目标快照'
+  if (mode === 'disabled') return '未接入'
+  return '—'
+}
+
+/** 最近一次成功读取时刻；用 react-query 的 dataUpdatedAt，不写死"刚刚"。 */
+function sync_text(updated_at: number): string {
+  if (updated_at === 0) return '尚未读取'
+  return new Date(updated_at).toLocaleTimeString('zh-CN', { hour: '2-digit', hour12: false, minute: '2-digit', second: '2-digit' })
+}
+
 /** 服务中心首页 —— 按设计稿（service-center.html）的服务目录表格。 */
 export function ServiceCenterPage(): ReactElement {
   const navigate = useNavigate()
@@ -53,6 +68,9 @@ export function ServiceCenterPage(): ReactElement {
   const [selected_service_ids, set_selected_service_ids] = useState<string[]>([])
   const services_query = useQuery({ ...list_services_query() })
   const services = services_query.data ? read_items(services_query.data.data) : []
+  const configured_count = services.filter(
+    (service) => resource_optional_string(resource_value(service, 'snapshot'), 'availability') !== 'not_configured',
+  ).length
 
   const create_investigation = useMutation({
     mutationFn: ({ service_id, intent }: { service_id: string; intent: string | null }) => {
@@ -94,33 +112,35 @@ export function ServiceCenterPage(): ReactElement {
         <div>
           <div className="eyebrow">Service workspace</div>
           <h1>服务中心</h1>
-          <p>管理当前工作空间已授权接入的服务，从服务事实出发进入详情或发起一轮只读调查。</p>
+          <p>查看后端已注册接入的服务，从服务事实出发进入详情或发起一轮只读调查。</p>
         </div>
         <div className="head-actions">
-          <button className="btn" onClick={() => void services_query.refetch()} type="button">↻ 刷新状态</button>
+          <button className="btn" disabled={services_query.isFetching} onClick={() => void services_query.refetch()} type="button">
+            <Icon name="refresh" size={13} />
+            {services_query.isFetching ? '读取中…' : '刷新状态'}
+          </button>
         </div>
       </section>
 
-      <div className="context-strip">
+      <div className="svc-context-strip">
         <div className="context-stat">
-          <small>当前工作空间</small>
-          <strong>研发运维团队</strong>
-          <span>platform-team · 受控访问</span>
-        </div>
-        <div className="context-stat">
-          <small>服务状态</small>
-          <strong>{services.length} 个服务</strong>
-          <span>{services.filter((service) => resource_optional_string(resource_value(service, 'snapshot'), 'availability') !== 'not_configured').length} 个已配置</span>
+          <small>已注册服务</small>
+          <strong>{services_query.isSuccess ? `${services.length} 个服务` : '—'}</strong>
+          <span>
+            {services_query.isSuccess
+              ? `${configured_count} 个已配置快照`
+              : '尚未读取到服务列表'}
+          </span>
         </div>
         <div className="context-stat">
           <small>默认权限</small>
           <strong>只读调查</strong>
-          <span>变更操作需要人工审批</span>
+          <span>变更动作需人工审批</span>
         </div>
         <div className="context-stat">
-          <small>最近同步</small>
-          <strong>刚刚</strong>
-          <span>状态按需刷新</span>
+          <small>最近读取</small>
+          <strong>{sync_text(services_query.dataUpdatedAt)}</strong>
+          <span>按需刷新，不做后台轮询</span>
         </div>
       </div>
 
@@ -128,7 +148,7 @@ export function ServiceCenterPage(): ReactElement {
         <div className="section-head">
           <h2>服务目录</h2>
           <div className="service-batch-actions">
-            <span>仅展示当前工作空间授权范围内的信息</span>
+            <span>仅展示后端已注册服务，按需读取，不做后台轮询</span>
             <button
               className="btn"
               disabled={selected_service_ids.length === 0 || create_batch_investigation.isPending}
@@ -155,9 +175,9 @@ export function ServiceCenterPage(): ReactElement {
             <div className="catalog-head">
               <span>选择</span>
               <span>服务</span>
-              <span>类型 / 环境</span>
+              <span>类型 / 快照模式</span>
               <span>状态</span>
-              <span>能力</span>
+              <span>已启用调查</span>
               <span>操作</span>
             </div>
             {services.map((service) => {
@@ -194,14 +214,14 @@ export function ServiceCenterPage(): ReactElement {
                   </div>
                   <div className="type">
                     {info.label}
-                    <small>受控访问</small>
+                    <small>{mode_text(resource_optional_string(snapshot, 'mode'))}</small>
                   </div>
                   <div>
                     <span className={`state ${state}`}>{availability_text(availability)}</span>
                   </div>
                   <div className="fact">
-                    <strong>只读</strong>
-                    <span>受控调查</span>
+                    <strong>{investigations.length > 0 ? `${investigations.length} 项` : '无'}</strong>
+                    <span>{investigations.length > 0 ? '只读调查' : '未启用调查入口'}</span>
                   </div>
                   <div className="actions">
                     {service_id && (

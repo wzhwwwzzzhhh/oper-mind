@@ -1,0 +1,177 @@
+[project]
+name = "opermind-backend"
+version = "0.1.0"
+description = "OperMind 多 Agent DevOps Copilot 后端"
+requires-python = ">=3.11"
+
+# 依赖仍以 requirements.txt 为唯一事实源（全部 == 锁定）。
+# 这里不重复声明，避免两处漂移。
+
+# ============================================================
+# pytest：显式锁住现有行为
+# 新增本文件会改变 pytest 的 rootdir 判定，这一段把原行为固定下来。
+# ============================================================
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+# ============================================================
+# ruff：CLAUDE.md 里写了但一直没人执行的规则，交给机器
+# ============================================================
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+src = ["."]
+extend-exclude = ["migrations/versions"]
+
+[tool.ruff.lint]
+select = [
+  "F",      # pyflakes：未定义名、未用 import、重复定义
+  "E", "W", # pycodestyle
+  "I",      # isort：import 排序
+  "UP",     # pyupgrade
+  "B",      # bugbear
+  # 没有 BLE。CLAUDE.md 的"禁止裸 except"指 except:，即 E722，已含在 E 里且全仓库零违规。
+  # BLE001（禁 except Exception）更严，但在本仓库方向是反的：24 处全部是外部边界
+  # （psycopg / redis / 子进程）宽捕后降级成中性文案，收窄异常类型会让驱动原始异常
+  # （可能含 DSN、口令）漏进返回值，违反"禁止展示原始异常"。这里宽捕是正确写法。
+  "T20",    # print（CLAUDE.md 禁止新增生产 print）
+  "TID",    # 跨层 import 边界
+  "ANN",    # 类型标注（CLAUDE.md：公开函数必须有类型标注）
+  "DTZ",    # naive datetime（本项目对外时间必须 UTC aware）
+  "S",      # bandit 安全规则
+  "RET", "SIM", "PIE", "RUF",
+]
+ignore = [
+  # FastAPI 的 Depends()/Query() 就写在默认参数里，这是框架惯例。
+  "B008",
+  # 与 formatter 冲突。
+  "E501",
+  # 本仓库注释、文档字符串和用户可见文案一律中文，全角标点是正确写法，
+  # 不是"歧义 Unicode"。这三条规则面向英文代码库，此处共 1620 处纯误报。
+  "RUF001", "RUF002", "RUF003",
+  # UP042：把 class X(str, Enum) 改成 StrEnum。涉及 domain 层 15 个 enum，
+  # 它们同时是 API 响应值和数据库列值。改动会变更 str()/f-string 输出语义，
+  # 血本比不划算；现有代码一律显式 .value（83 处），(str, Enum) 行为正确。
+  "UP042",
+  # ---- ANN：只保 ANN201，精确对齐 CLAUDE.md"公开函数必须有类型标注" ----
+  # 下面四条都严于项目规则，全局关闭而不是列 22 个文件的白名单
+  # （白名单会比规则本身还长，且掩盖"哪些是真要求"）：
+  "ANN001",  # 函数参数标注：规则只要求公开函数的返回，参数逐个补收益低
+  "ANN002", "ANN003",  # *args / **kwargs 标注
+  "ANN202",  # 私有函数返回标注：非公开接口
+  "ANN204",  # __init__ 等特殊方法返回标注：恒为 None，写出来是噪音
+  "ANN401",  # 禁 Any：SQLAlchemy connection、LLM 响应等处 Any 是诚实的
+]
+
+[tool.ruff.lint.flake8-tidy-imports]
+# 分层硬边界。当前存量违规见下方 per-file-ignores，只减不增。
+banned-api = { "src.infrastructure".msg = "application/domain 层不得依赖 infrastructure 具体实现；依赖 domain 定义的 Protocol 端口，装配在 api/v1/dependencies.py 完成。" }
+
+[tool.ruff.lint.per-file-ignores]
+# ---- 分层欠账白名单（棘轮：只减不增）----
+# 这 5 个文件内联 new 具体 SqlAlchemy* 实现共 67 处，绕过了 domain 的 Protocol 端口。
+# 新增代码不得再犯：写新 application service 时构造注入 Protocol，装配放 dependencies.py。
+# 清理进度见 docs/接口清单.md。
+"src/application/action_services.py" = ["TID251"]
+"src/application/model_providers.py" = ["TID251"]
+"src/application/monitoring.py" = ["TID251"]
+"src/application/services.py" = ["TID251"]
+"src/application/service_center.py" = ["TID251"]
+
+# src/api/v1/sse.py 同属上述欠账：内联 new SqlAlchemy*Repository。
+"src/api/v1/sse.py" = ["TID251"]
+
+# ---- api 层是装配层，import infrastructure 是它的职责，不是欠账 ----
+"src/api/v1/dependencies.py" = ["TID251"]
+"src/api/v1/routes.py" = ["TID251"]
+"src/api/v1/resources.py" = ["TID251"]
+"src/api/v1/schemas.py" = ["TID251"]
+"src/app.py" = ["TID251"]
+
+# ---- tools 层是受控外部访问的适配器，依赖 Connector 实现是设计如此 ----
+"src/tools/**" = ["TID251"]
+
+# db_tools.py 的 S608 是误报：拼进 SQL 的 scope_sql 只有两种取值——
+# 空串或固定字面量 " AND b.datname = :database"，真实库名走 :database 绑定参数。
+"src/tools/db_tools.py" = ["TID251", "S608"]
+
+# log_source.py 的 DTZ005 不能改：日志行时间戳由 fromisoformat 解析，
+# 日志格式（2026-08-09 12:34:56）不带时区，解出来是 naive。
+# 比较用的 now 必须同为 naive，改成 now(UTC) 会让 now - ts 直接 TypeError。
+"src/infrastructure/logs/log_source.py" = ["TID251", "DTZ005"]
+
+# ---- infrastructure 内部互相引用不算跨层 ----
+"src/infrastructure/**" = ["TID251"]
+
+# ---- 测试：允许 assert、允许直接组装具体实现、不强制类型标注 ----
+# S603：测试用 subprocess 跑 alembic upgrade/downgrade 验证迁移，命令全是
+#   [sys.executable, "-m", "alembic", ...] 字面量，无外部输入，不是注入面。
+# S608：test_log_tools_real.py 同 db_tools.py 的绑定参数模式。
+# DTZ001/DTZ005：测试构造固定时间戳做断言，naive 是刻意的。
+# E402：conftest.py 必须先改 sys.path 再 import src.*，顺序是功能需要。
+"tests/**" = ["S101", "TID251", "ANN", "S603", "S608", "DTZ001", "DTZ005", "E402"]
+"scripts/**" = ["S101", "T20", "TID251", "ANN"]
+# migrations/env.py 的 E402 同理：alembic 模板要求先配置再导入 model 元数据。
+"migrations/**" = ["TID251", "ANN", "E402"]
+
+# ============================================================
+# mypy：渐进式开启
+# 存量代码一次性全严会有几百个错，没人会去修，规则就废了。
+# 策略是分层设门槛：越靠内、越是契约的层越严。
+#   domain / application / api  → 严（数据契约与对外协议，错了直接是 bug）
+#   infrastructure             → 中（第三方库类型不全，宽容 untyped 调用）
+#   core / agents / tools      → 松（LLM 响应本质是 dict[str, Any]）
+# 新增文件默认落在所属层的档位上，不需要额外配置。
+# 收紧路线：把某个模块从松档移除，修完错误即可，不要反向加豁免。
+# ============================================================
+[tool.mypy]
+python_version = "3.11"
+files = ["src"]
+# src/ 没有 __init__.py（namespace package）但子目录有，mypy 会把
+# src/core/agent.py 同时解析成 core.agent 和 src.core.agent 而报重复。
+# 这两行把包根固定在 backend/，模块名统一成代码里用的 src.* 形式。
+mypy_path = "."
+explicit_package_bases = true
+# 全局基线：任何层都要满足的下限。
+warn_unused_configs = true
+warn_redundant_casts = true
+no_implicit_optional = true
+strict_equality = true
+# 存量里 __init__ 大多没标注返回，全局关掉这条，靠 ruff 的 ANN201 管公开函数。
+check_untyped_defs = false
+# 第三方库缺 stub 不算错误：langgraph、langchain 等类型覆盖不全。
+ignore_missing_imports = true
+
+# ---- 严档：数据契约与对外协议 ----
+[[tool.mypy.overrides]]
+module = ["src.domain.*", "src.application.*", "src.api.*"]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+warn_return_any = true
+warn_unused_ignores = true
+
+# ---- 中档：受控外部访问实现 ----
+[[tool.mypy.overrides]]
+module = ["src.infrastructure.*"]
+check_untyped_defs = true
+disallow_incomplete_defs = true
+# SQLAlchemy Row / psycopg 返回值类型不全，允许调用未标注函数。
+disallow_untyped_calls = false
+
+# ---- 松档：Agent 编排与 LLM 交互 ----
+# 这里的输入输出本质是 LLM 返回的 dict[str, Any]，强标注会退化成满屏 Any。
+[[tool.mypy.overrides]]
+module = ["src.core.*", "src.agents.*", "src.tools.*", "src.memory.*"]
+check_untyped_defs = false
+disallow_untyped_defs = false
+
+# ---- tools 层的 override 是插件式 Tool 的既定设计，不是缺陷 ----
+# 基类是 Tool.execute(self, **kwargs) -> str，各子类收窄成具名参数
+# （如 execute(self, sql: str)）。严格看是 LSP 违反，但契约不靠继承签名保证：
+# ToolGateway 先用 tool.parameters（JSON Schema）校验入参，再 tool.execute(**args)
+# 派发（tool_gateway.py:153-161）。收窄签名正是"每个工具声明自己的参数"这一设计。
+[[tool.mypy.overrides]]
+module = ["src.tools.*"]
+disable_error_code = ["override"]

@@ -3,36 +3,36 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from json import dumps
 from typing import Literal, TypeVar
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from src.application.errors import (
-    ActionProposalExpiredError,
-    ActionProposalInvalidStateError,
-    ActionProposalNotFoundError,
-    IdempotencyKeyReusedError,
-)
 from src.application.action_execution import (
     ActionPreconditionBlockedError,
     ActionVerificationFailedError,
     ControlledActionError,
     ControlledActionExecutor,
 )
+from src.application.errors import (
+    ActionProposalExpiredError,
+    ActionProposalInvalidStateError,
+    ActionProposalNotFoundError,
+    IdempotencyKeyReusedError,
+)
 from src.domain.actions import (
-    ActionEventCursor,
     ACTION_APPROVAL_ENDPOINT,
     ACTION_EXECUTION_ENDPOINT,
     APPROVAL_VALIDITY_SECONDS,
     LOCAL_OPERATOR,
     ActionApprovalData,
     ActionApprovalDecision,
+    ActionEventCursor,
     ActionEventData,
     ActionEventType,
     ActionExecutionData,
@@ -45,7 +45,6 @@ from src.domain.actions import (
     ActionVerificationStatus,
     action_digest,
 )
-from src.domain.diagnosis import RunStatus
 from src.domain.records import DiagnosisResultData, DiagnosisRunData, RepositoryPage
 from src.infrastructure.persistence.action_repositories import (
     SqlAlchemyActionApprovalRepository,
@@ -56,7 +55,6 @@ from src.infrastructure.persistence.action_repositories import (
     SqlAlchemyActionVerificationRepository,
 )
 from src.infrastructure.persistence.database import SessionFactory
-
 
 TransactionT = TypeVar("TransactionT")
 ACTION_IDEMPOTENCY_RETENTION = timedelta(hours=24)
@@ -561,7 +559,7 @@ class ActionApplicationService:
         proposal: ActionProposalData,
         execution: ActionExecutionData,
         summary: str,
-        facts: dict[str, bool | int | str],
+        facts: dict[str, JsonValue],
     ) -> None:
         def operation(session: Session) -> None:
             now = _utc_now()
@@ -764,9 +762,9 @@ def _in_transaction(
         session.close()
 
 
-def _safe_action_event_data(data: dict[str, object]) -> dict[str, object]:
+def _safe_action_event_data(data: dict[str, object]) -> dict[str, JsonValue]:
     """持久化 action 事件时只保留状态、模式、固定动作和简短摘要。"""
-    safe: dict[str, object] = {}
+    safe: dict[str, JsonValue] = {}
     action_id = data.get("action_id")
     if isinstance(action_id, str) and 0 < len(action_id) <= 120:
         safe["action_id"] = action_id
@@ -786,7 +784,7 @@ def _safe_action_event_data(data: dict[str, object]) -> dict[str, object]:
     return safe
 
 
-def _missing_index_signal(result: DiagnosisResultData) -> dict[str, object] | None:
+def _missing_index_signal(result: DiagnosisResultData) -> dict[str, JsonValue] | None:
     """读取并严格匹配结果中的固定缺索引信号。"""
     for root_cause in result.root_causes:
         raw = root_cause.get("missing_index")
@@ -803,7 +801,7 @@ def _missing_index_signal(result: DiagnosisResultData) -> dict[str, object] | No
     return None
 
 
-def _evidence_ids(result: DiagnosisResultData, signal: dict[str, object]) -> list[UUID]:
+def _evidence_ids(result: DiagnosisResultData, signal: dict[str, JsonValue]) -> list[UUID]:
     """只读取拥有匹配信号的根因所引用的合法证据 ID。"""
     evidence_by_id = {
         item.get("id"): item for item in result.evidence if isinstance(item.get("id"), str)
@@ -829,7 +827,7 @@ def _evidence_ids(result: DiagnosisResultData, signal: dict[str, object]) -> lis
 def _root_cause_id(
     result: DiagnosisResultData,
     evidence_ids: list[UUID],
-    signal: dict[str, object],
+    signal: dict[str, JsonValue],
 ) -> UUID | None:
     """读取绑定缺索引信号与证据的根因 UUID。"""
     allowed_evidence = set(evidence_ids)
@@ -864,4 +862,4 @@ def _fingerprint(payload: object) -> str:
 
 def _utc_now() -> datetime:
     """返回 action 应用服务的 UTC 时间。"""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)

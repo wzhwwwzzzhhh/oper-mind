@@ -6,7 +6,7 @@ API Key 以密文流转：仓储只读写 ``api_key_encrypted`` / ``api_key_nonc
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import delete, select, update
@@ -185,5 +185,5 @@ def _to_data(row: ModelProviderRecord) -> ModelProviderData:
 def _as_utc(value: datetime) -> datetime:
     """统一为 UTC aware datetime。"""
     if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)

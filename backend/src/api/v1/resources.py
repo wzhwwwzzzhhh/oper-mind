@@ -2,23 +2,32 @@
 
 from __future__ import annotations
 
+from typing import Literal, cast
+
 from src.api.v1.schemas import (
     ActionApprovalResource,
     ActionEventResource,
     ActionExecutionResource,
     ActionProposalResource,
     ActionVerificationResource,
+    AgentSummaryResource,
     DiagnosisResultResource,
     DiagnosisRunResource,
+    EvidenceResource,
     HostDiskPartitionResource,
     HostMetricsResource,
     HostProcessResource,
+    ImpactResource,
     KnowledgeDocumentResource,
     KnowledgeSearchHitResource,
     MessageResource,
     ModelProviderResource,
+    MonitorSampleResource,
     MonitorServiceOverviewResource,
     MonitorTrendSummaryResource,
+    RecommendationResource,
+    RiskResource,
+    RootCauseResource,
     RunErrorResource,
     RunEventResource,
     ServiceActivityResource,
@@ -29,6 +38,7 @@ from src.api.v1.schemas import (
     ServiceSnapshotResource,
     SessionResource,
 )
+from src.core.tool_gateway import desensitize
 from src.domain.actions import (
     ActionApprovalData,
     ActionEventData,
@@ -37,14 +47,12 @@ from src.domain.actions import (
     ActionVerificationData,
 )
 from src.domain.diagnosis import RunStatus
+from src.domain.host_metrics import HostMetricsData
 from src.domain.model_provider import ModelProviderData
+from src.domain.monitoring import MonitorHistoryData, MonitorOverviewData, MonitorServiceOverviewData
 from src.domain.records import DiagnosisResultData, DiagnosisRunData, MessageData, RunEventData, SessionData
 from src.domain.services import ServiceActivityData, ServiceViewData
-from src.domain.host_metrics import HostMetricsData
-from src.domain.monitoring import MonitorHistoryData, MonitorOverviewData
-from src.domain.monitoring import MonitorServiceOverviewData
 from src.knowledge.reader import KnowledgeDocumentMeta, KnowledgeSearchHit
-from src.core.tool_gateway import desensitize
 
 
 def session_resource(value: SessionData) -> SessionResource:
@@ -83,13 +91,13 @@ def result_resource(value: DiagnosisResultData) -> DiagnosisResultResource:
         summary=value.summary,
         severity=value.severity.value,
         confidence=value.confidence,
-        root_causes=value.root_causes,
-        evidence=value.evidence,
-        impact=value.impact,
-        recommendations=value.recommendations,
-        risks=value.risks,
+        root_causes=[RootCauseResource.model_validate(item) for item in value.root_causes],
+        evidence=[EvidenceResource.model_validate(item) for item in value.evidence],
+        impact=ImpactResource.model_validate(value.impact) if value.impact is not None else None,
+        recommendations=[RecommendationResource.model_validate(item) for item in value.recommendations],
+        risks=[RiskResource.model_validate(item) for item in value.risks],
         requires_approval=value.requires_approval,
-        agent_summary=value.agent_summary,
+        agent_summary=[AgentSummaryResource.model_validate(item) for item in value.agent_summary],
         report_markdown=value.report_markdown,
         created_at=value.created_at,
     )
@@ -138,7 +146,8 @@ def action_proposal_resource(value: ActionProposalDetail) -> ActionProposalResou
     """将不可编辑 Proposal 详情转为公开安全快照。"""
     proposal = value.proposal
     return ActionProposalResource(
-        id=proposal.id, source_run_id=proposal.source_run_id, action_id=proposal.action_id,
+        id=proposal.id, source_run_id=proposal.source_run_id,
+        action_id=cast(Literal["postgres.orders_compound_index_rebuild.v1"], proposal.action_id),
         action_digest=proposal.action_digest, status=proposal.status.value, mode=proposal.mode,
         title=proposal.title, description=proposal.description, target=proposal.target,
         root_cause_id=proposal.root_cause_id, evidence_ids=proposal.evidence_ids,
@@ -156,7 +165,8 @@ def action_proposal_resource(value: ActionProposalDetail) -> ActionProposalResou
 def action_approval_resource(value: ActionApprovalData) -> ActionApprovalResource:
     """将审批记录映射为公开资源。"""
     return ActionApprovalResource(
-        id=value.id, proposal_id=value.proposal_id, decision=value.decision.value, actor=value.actor,
+        id=value.id, proposal_id=value.proposal_id, decision=value.decision.value,
+        actor=cast(Literal["local_operator"], value.actor),
         comment=value.comment, action_digest=value.action_digest, created_at=value.created_at,
     )
 
@@ -273,14 +283,32 @@ def service_activity_resource(value: ServiceActivityData) -> ServiceActivityReso
         session_id=value.session_id,
         session_title=value.session_title,
         run_id=value.run_id,
-        run_status=value.run_status,
+        run_status=cast(
+            Literal["queued", "running", "succeeded", "failed", "cancelled"], value.run_status
+        ),
         created_at=value.created_at,
         finished_at=value.finished_at,
         summary=value.summary,
-        severity=value.severity,
+        severity=cast(
+            Literal["info", "low", "medium", "high", "critical"] | None, value.severity
+        ),
         confidence=value.confidence,
-        proposal_status=value.proposal_status,
-        verification_status=value.verification_status,
+        proposal_status=cast(
+            Literal[
+                "pending_approval",
+                "approved",
+                "rejected",
+                "expired",
+                "executing",
+                "verifying",
+                "verified",
+                "blocked",
+                "failed",
+            ]
+            | None,
+            value.proposal_status,
+        ),
+        verification_status=cast(Literal["verified", "failed"] | None, value.verification_status),
     )
 
 
@@ -306,7 +334,11 @@ def monitor_service_overview_resource(value: MonitorServiceOverviewData) -> Moni
         kind=value.kind,
         connection_status=value.connection_status.value,
         availability=value.availability.value,
-        latest_sample=value.latest_sample.model_dump() if value.latest_sample is not None else None,
+        latest_sample=(
+            MonitorSampleResource.model_validate(value.latest_sample.model_dump())
+            if value.latest_sample is not None
+            else None
+        ),
         trend_summary=MonitorTrendSummaryResource(
             sample_count=value.trend_summary.sample_count,
             anomaly_sample_count=value.trend_summary.anomaly_sample_count,
@@ -326,6 +358,8 @@ def monitor_overview_resource(value: MonitorOverviewData) -> dict[str, object]:
 
 def provider_resource(value: ModelProviderData) -> ModelProviderResource:
     """把领域 Provider 转为公开资源，绝不暴露密文或明文 Key。"""
+    if value.id is None:
+        raise ValueError("已持久化的 Provider 缺少 id。")
     return ModelProviderResource(
         id=value.id,
         name=value.name,

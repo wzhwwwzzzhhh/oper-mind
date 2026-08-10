@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from data.scenarios import set_active_scenario
+
 from src.tools.log_tools import AggregateErrorsTool, QuerySlowLogTool, SearchLogsTool
 
 _INSTANCE = "postgres-production"

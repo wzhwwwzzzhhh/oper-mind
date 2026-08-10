@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
+from typing import Literal, cast
 from uuid import UUID
 
 from sqlalchemy import Select, select, update
@@ -31,7 +32,7 @@ from src.infrastructure.persistence.models import (
     ActionProposalRecord,
     ActionVerificationRecord,
 )
-from src.infrastructure.persistence.repositories import _as_utc, _page, _validate_limit
+from src.infrastructure.persistence.repositories import _as_utc, _page, _rowcount, _validate_limit
 
 
 class SqlAlchemyActionProposalRepository:
@@ -84,7 +85,7 @@ class SqlAlchemyActionProposalRepository:
                 ActionProposalRecord.status.in_([item.value for item in expected_statuses]),
             ).values(**values).execution_options(synchronize_session="fetch")
         )
-        if outcome.rowcount != 1:
+        if _rowcount(outcome) != 1:
             return None
         record = self._session.get(ActionProposalRecord, proposal_id)
         return _action_proposal_data(record) if record is not None else None
@@ -159,7 +160,7 @@ class SqlAlchemyActionExecutionRepository:
                 ActionExecutionRecord.status.in_([item.value for item in expected_statuses]),
             ).values(**values).execution_options(synchronize_session="fetch")
         )
-        if outcome.rowcount != 1:
+        if _rowcount(outcome) != 1:
             return None
         record = self._session.get(ActionExecutionRecord, execution_id)
         return _action_execution_data(record) if record is not None else None
@@ -237,7 +238,8 @@ class SqlAlchemyActionIdempotencyKeyRepository:
 def _action_proposal_data(record: ActionProposalRecord) -> ActionProposalData:
     return ActionProposalData(
         id=record.id, source_run_id=record.source_run_id, action_id=record.action_id,
-        action_digest=record.action_digest, status=ActionProposalStatus(record.status), mode=record.mode,
+        action_digest=record.action_digest, status=ActionProposalStatus(record.status),
+        mode=cast(Literal["mock", "target"], record.mode),
         title=record.title, description=record.description, target=record.target,
         root_cause_id=record.root_cause_id, evidence_ids=[UUID(item) for item in record.evidence_ids],
         risk_summary=record.risk_summary, verification_plan=record.verification_plan,
@@ -258,7 +260,7 @@ def _action_approval_data(record: ActionApprovalRecord) -> ActionApprovalData:
 
 def _action_execution_data(record: ActionExecutionRecord) -> ActionExecutionData:
     return ActionExecutionData(
-        id=record.id, proposal_id=record.proposal_id, mode=record.mode,
+        id=record.id, proposal_id=record.proposal_id, mode=cast(Literal["mock", "target"], record.mode),
         status=ActionExecutionStatus(record.status), precondition_summary=record.precondition_summary,
         action_summary=record.action_summary, failure_code=record.failure_code,
         failure_message=record.failure_message, created_at=_as_utc(record.created_at),
@@ -269,7 +271,8 @@ def _action_execution_data(record: ActionExecutionRecord) -> ActionExecutionData
 def _action_verification_data(record: ActionVerificationRecord) -> ActionVerificationData:
     return ActionVerificationData(
         id=record.id, execution_id=record.execution_id, status=ActionVerificationStatus(record.status),
-        mode=record.mode, summary=record.summary, facts=record.facts, created_at=_as_utc(record.created_at),
+        mode=cast(Literal["mock", "target"], record.mode), summary=record.summary, facts=record.facts,
+        created_at=_as_utc(record.created_at),
     )
 
 
@@ -284,6 +287,7 @@ def _action_idempotency_data(record: ActionIdempotencyKeyRecord) -> ActionIdempo
     return ActionIdempotencyKeyData(
         id=record.id, proposal_id=record.proposal_id, endpoint=record.endpoint,
         idempotency_key=record.idempotency_key, request_fingerprint=record.request_fingerprint,
-        resource_type=record.resource_type, resource_id=record.resource_id,
+        resource_type=cast(Literal["approval", "execution"], record.resource_type),
+        resource_id=record.resource_id,
         expires_at=_as_utc(record.expires_at), created_at=_as_utc(record.created_at),
     )

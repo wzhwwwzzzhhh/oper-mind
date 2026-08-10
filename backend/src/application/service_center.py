@@ -3,20 +3,19 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from src.application.errors import ServiceCenterUnavailableError, ServiceNotFoundError
-from src.domain.host_metrics import HostMetricsCollector, HostMetricsData, HostMetricsMode, HostMetricsSourceStatus
+from src.domain.host_metrics import HostMetricsCollector, HostMetricsData, HostMetricsMode
 from src.domain.records import DiagnosisRunCursor, RepositoryPage, SessionData
 from src.domain.services import ServiceActivityData, ServiceConnector, ServiceRegistry, ServiceViewData
 from src.infrastructure.persistence.database import SessionFactory
 from src.infrastructure.persistence.repositories import SqlAlchemySessionRepository
 from src.infrastructure.persistence.service_repositories import SqlAlchemyServiceActivityRepository
-
 
 TransactionT = TypeVar("TransactionT")
 
@@ -68,13 +67,13 @@ class ServiceCenterApplicationService:
         """读取主机指标；采集器未装配或采集失败时防御性返回不可用状态。"""
         if self._host_metrics_collector is None:
             return HostMetricsData.unavailable(
-                datetime.now(timezone.utc), mode=HostMetricsMode.TARGET
+                datetime.now(UTC), mode=HostMetricsMode.TARGET
             )
         try:
             return self._host_metrics_collector.collect()
         except Exception:
             return HostMetricsData.unavailable(
-                datetime.now(timezone.utc), mode=HostMetricsMode.TARGET
+                datetime.now(UTC), mode=HostMetricsMode.TARGET
             )
 
     def create_service_session(self, command: CreateServiceSessionCommand) -> SessionData:

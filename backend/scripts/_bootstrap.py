@@ -18,8 +18,3 @@ def bootstrap_import_paths() -> None:
 
 bootstrap_import_paths()
 
-from src.project_paths import (  # noqa: E402
-    BACKEND_ROOT,
-    DATA_DIR,
-    PROJECT_ROOT,
-)

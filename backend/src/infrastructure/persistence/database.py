@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
+from typing import Any
 
 from sqlalchemy import MetaData, create_engine, event
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
-
 
 NAMING_CONVENTION = {
     "ix": "ix_%(column_0_label)s",
@@ -25,7 +25,7 @@ class Base(DeclarativeBase):
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
 
-def _enable_sqlite_foreign_keys(dbapi_connection: object, _connection_record: object) -> None:
+def _enable_sqlite_foreign_keys(dbapi_connection: Any, _connection_record: Any) -> None:
     """每个 SQLite 连接启用外键，避免测试与 PostgreSQL 语义漂移。"""
     cursor = dbapi_connection.cursor()
     try:

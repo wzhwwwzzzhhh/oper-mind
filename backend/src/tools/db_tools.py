@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
-import re
 import json
+import re
 from typing import Any, Literal
 
+from data.scenarios import get_active_scenario
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
-from data.scenarios import get_active_scenario
 from src.config import load_service_dsn
 from src.core.tool_registry import Tool
 from src.infrastructure.services.postgres_engine import create_read_only_postgres_engine
-
 
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
@@ -94,7 +93,8 @@ def _format_explain(rows: list[dict[str, Any]]) -> str:
         if isinstance(plan_payload, list) and plan_payload:
             plan_payload = plan_payload[0]
         if isinstance(plan_payload, dict):
-            plan = plan_payload.get("Plan") if isinstance(plan_payload.get("Plan"), dict) else plan_payload
+            sub_plan = plan_payload.get("Plan")
+            plan = sub_plan if isinstance(sub_plan, dict) else plan_payload
             for key in ("Node Type", "Relation Name", "Scan Direction", "Plan Rows", "Total Cost"):
                 if key in plan:
                     lines.append(f"  {key}: {plan[key]}")
@@ -561,7 +561,9 @@ class CheckConnectionPoolTool(Tool):
         }
         total, act, idle, wait, maximum = facts.get(scenario_key, (120, 60, 40, 20, 200))
         utilization = (total / maximum) if maximum else 0.0
-        health = "已耗尽" if utilization >= 1.0 else "接近上限" if utilization >= 0.8 else "正常"
+        health: Literal["正常", "接近上限", "已耗尽"] = (
+            "已耗尽" if utilization >= 1.0 else "接近上限" if utilization >= 0.8 else "正常"
+        )
         status = ConnectionPoolStatus(
             status="ok",
             message=f"连接池状态: 总数 {total}，利用率 {utilization:.1%}",

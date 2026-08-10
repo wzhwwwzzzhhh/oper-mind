@@ -66,6 +66,20 @@ describe('MonitoringOverviewPage 服务监控概览（P7）', () => {
     expect(await screen.findByText('当前健康概览')).toBeInTheDocument()
   })
 
+  it('每一行都带可见的"查看详情"提示，整行可点击不靠猜（AC7）', async () => {
+    open_monitor()
+    render(<App />)
+
+    expect(await screen.findByText('订单服务靶场')).toBeInTheDocument()
+    // 提示常态可见，不是只在 hover 时出现——键盘用户也要能看到入口。
+    const cues = screen.getAllByText('查看详情')
+    const rows = document.querySelectorAll('.monitor-row')
+    expect(cues.length).toBe(rows.length)
+    for (const cue of cues) {
+      expect(cue.closest('button')?.className).toContain('monitor-row')
+    }
+  })
+
   it('概览接口仅展示脱敏标量，不含敏感字段（AC8）', async () => {
     open_monitor()
     render(<App />)

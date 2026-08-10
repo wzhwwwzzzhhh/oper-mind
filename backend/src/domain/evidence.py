@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.domain.diagnosis import DiagnosisSeverity
-
 
 EvidenceSourceType = Literal["tool", "log", "metric", "database", "agent", "user"]
 EvidenceAttributeValue = str | int | float | bool | None
@@ -39,7 +38,7 @@ class EvidenceFact(EvidenceModel):
         """证据观察时间仅接受 UTC aware datetime。"""
         if value is None:
             return value
-        if value.tzinfo is None or value.utcoffset() != timezone.utc.utcoffset(value):
+        if value.tzinfo is None or value.utcoffset() != UTC.utcoffset(value):
             raise ValueError("observed_at 必须是 UTC aware datetime。")
         return value
 

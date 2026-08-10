@@ -6,12 +6,12 @@ from contextlib import AbstractContextManager
 from typing import Any
 from unittest.mock import patch
 
+from data.scenarios import clear_active_scenario, set_active_scenario
 from sqlalchemy.exc import OperationalError
 
-from data.scenarios import set_active_scenario, clear_active_scenario
 from src.core.tool_gateway import ToolGateway
 from src.core.tool_registry import ToolRegistry
-from src.tools.db_tools import CheckLockStatusTool, CheckConnectionPoolTool
+from src.tools.db_tools import CheckConnectionPoolTool, CheckLockStatusTool
 
 
 class FakeResult:
@@ -43,7 +43,7 @@ class FakeConnection(AbstractContextManager[Any]):
 
     def __exit__(self, *_args: object) -> None:
         """退出连接上下文。"""
-        return None
+        return
 
     def close(self) -> None:
         """模拟关闭短生命周期连接。"""

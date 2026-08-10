@@ -1,4 +1,5 @@
-/* OperMind 服务中心 —— 服务目录表格（设计稿 service-center.html） */
+/* OperMind 服务中心 —— 服务目录表格与监控概览表。
+   每一列都必须是后端真实返回的差异化事实；每行都一样的常量说明不放进表格。 */
 
 .svc-page {
   width: min(100%, 1060px);
@@ -32,9 +33,9 @@
 .eyebrow {
   margin-bottom: 8px;
   color: var(--accent);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 750;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--tracking-kicker);
   text-transform: uppercase;
 }
 
@@ -80,13 +81,20 @@
 
 .btn.primary {
   border-color: var(--accent);
-  color: #fff;
+  color: var(--accent-on);
   background: var(--accent);
 }
 
-.context-strip {
+.btn:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+/* 名字带 svc- 前缀：Composer 里的 .context-strip 是"只读声明"胶囊，
+   两者同名会按导入顺序互相覆盖。 */
+.svc-context-strip {
   display: grid;
-  grid-template-columns: 1.35fr 1fr 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   margin-top: 18px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -95,7 +103,7 @@
 }
 
 .context-stat {
-  min-height: 65px;
+  min-height: 68px;
   padding: 12px 15px;
   border-right: 1px solid var(--border);
 }
@@ -107,13 +115,15 @@
 .context-stat small {
   display: block;
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: 11px;
+  letter-spacing: var(--tracking-label);
 }
 
 .context-stat strong {
   display: block;
   margin-top: 7px;
   font-size: 13px;
+  font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
 }
 
@@ -121,17 +131,7 @@
   display: block;
   margin-top: 3px;
   color: var(--text-muted);
-  font-size: 9px;
-}
-
-.good {
-  color: var(--success);
-  font-weight: 650;
-}
-
-.attn {
-  color: var(--warning);
-  font-weight: 650;
+  font-size: 11px;
 }
 
 .section {
@@ -153,7 +153,7 @@
 
 .section-head span {
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .service-batch-actions {
@@ -178,19 +178,20 @@
 }
 
 .catalog-head {
-  min-height: 34px;
+  min-height: 36px;
   padding: 0 15px;
   color: var(--text-muted);
   background: var(--surface-soft);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
+  letter-spacing: var(--tracking-label);
 }
 
 .service-row {
-  min-height: 75px;
+  min-height: 78px;
   padding: 0 15px;
   border-top: 1px solid var(--border);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .service-row:hover {
@@ -204,17 +205,27 @@
   min-width: 0;
 }
 
+/* 未识别类型落在结构色上；四种已识别类型走各自品牌底色。
+   品牌底色在三套主题里都是固定深色，所以这里的字色写死白。 */
 .service-logo {
-  width: 33px;
-  height: 33px;
   display: grid;
   place-items: center;
+  flex: none;
+  width: 33px;
+  height: 33px;
   border-radius: 8px;
-  color: #fff;
-  font-size: 10px;
+  color: var(--accent-on);
+  background: var(--accent);
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: -0.08em;
-  flex: none;
+}
+
+.service-logo.pg,
+.service-logo.mysql,
+.service-logo.redis,
+.service-logo.k8s {
+  color: #fff;
 }
 
 .service-logo.pg { background: #3d7198; }
@@ -238,7 +249,7 @@
   display: block;
   margin-top: 4px;
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .type {
@@ -249,7 +260,7 @@
 .type small {
   display: block;
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .state {
@@ -257,9 +268,9 @@
   align-items: center;
   gap: 5px;
   width: max-content;
-  padding: 4px 6px;
-  border-radius: 4px;
-  font-size: 9px;
+  padding: 3px 7px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -281,21 +292,23 @@
   background: var(--warning-soft);
 }
 
+/* 未配置/未知：不借用"正常"或"异常"的色相，单独走 --unknown。 */
 .state.muted {
-  color: var(--text-muted);
-  background: var(--surface-soft);
+  color: var(--unknown);
+  background: var(--unknown-soft);
 }
 
 .fact strong {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 .fact span {
   display: block;
   margin-top: 3px;
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .actions {
@@ -310,16 +323,22 @@
   border: 0;
   color: var(--accent);
   background: transparent;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 650;
 }
 
-.actions button:hover {
+.actions button:hover:not(:disabled) {
   text-decoration: underline;
 }
 
+.actions button:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* 发起调查是这张表上唯一的主动作，用信号色标出来。 */
 .actions .investigate {
-  color: var(--warning);
+  color: var(--signal);
 }
 
 .svc-empty {
@@ -332,15 +351,19 @@
   line-height: 1.7;
 }
 
-/* P7 服务监控概览页 */
+/* ---------- P7 服务监控概览页 ---------- */
+
+/* 采集边界声明：这一条说明采样频率与覆盖范围，必须读得清。 */
 .monitor-honesty-strip {
   margin-bottom: 18px;
   padding: 10px 14px;
   border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
   border-radius: 8px;
   background: var(--surface-soft);
   color: var(--text-secondary);
-  font-size: 10px;
+  font-size: 11px;
+  line-height: 1.6;
 }
 
 .monitor-table {
@@ -353,35 +376,57 @@
 .monitor-table-head,
 .monitor-row {
   display: grid;
-  grid-template-columns: minmax(180px, 1.5fr) 0.9fr 0.9fr 0.9fr 1fr 0.9fr 1.1fr;
+  /* 末列定宽 76px：整行是个按钮，需要一处稳定的"可点击"提示，
+     不能让它跟着 fr 一起伸缩，否则提示文字会换行。 */
+  grid-template-columns: minmax(180px, 1.5fr) 0.9fr 0.9fr 0.9fr 1fr 0.9fr 1.1fr 76px;
   align-items: center;
   column-gap: 14px;
 }
 
 .monitor-table-head {
-  min-height: 34px;
+  min-height: 36px;
   padding: 0 15px;
   color: var(--text-muted);
   background: var(--surface-soft);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
+  letter-spacing: var(--tracking-label);
 }
 
 .monitor-row {
   width: 100%;
-  min-height: 75px;
+  min-height: 78px;
   padding: 0 15px;
   border: 0;
   border-top: 1px solid var(--border);
   background: transparent;
   color: inherit;
   text-align: left;
-  font-size: 10px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
   cursor: pointer;
 }
 
 .monitor-row:hover {
   background: var(--surface-soft);
+}
+
+/* 行级跳转的可见提示：常态是灰的静态文字，悬停/键盘聚焦时变强调色。
+   不用 opacity 淡入淡出——只靠 hover 才出现的入口，用键盘的人找不到。 */
+.monitor-detail-cue {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  justify-self: end;
+  color: var(--text-muted);
+  font-size: 11px;
+  letter-spacing: var(--tracking-label);
+  transition: color 0.16s ease;
+}
+
+.monitor-row:hover .monitor-detail-cue,
+.monitor-row:focus-visible .monitor-detail-cue {
+  color: var(--accent);
 }
 
 .monitor-service {
@@ -393,21 +438,21 @@
 
 .monitor-anomaly {
   display: inline-flex;
-  padding: 4px 6px;
-  border-radius: 4px;
+  padding: 3px 7px;
+  border-radius: var(--radius-sm);
   color: var(--warning);
   background: var(--warning-soft);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
 }
 
 .monitor-normal {
   display: inline-flex;
-  padding: 4px 6px;
-  border-radius: 4px;
+  padding: 3px 7px;
+  border-radius: var(--radius-sm);
   color: var(--success);
   background: var(--success-soft);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -415,5 +460,5 @@
   display: block;
   margin-top: 3px;
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: 11px;
 }

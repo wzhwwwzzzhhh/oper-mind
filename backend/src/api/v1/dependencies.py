@@ -11,11 +11,12 @@ from dataclasses import dataclass
 
 from fastapi import Request
 
+from src.application.action_execution import ControlledActionExecutor
 from src.application.action_services import ActionApplicationService
 from src.application.knowledge import KnowledgeReaderService
 from src.application.model_providers import resolve_model_config
-from src.application.services import RunApplicationService, SessionApplicationService
 from src.application.service_center import ServiceCenterApplicationService
+from src.application.services import RunApplicationService, SessionApplicationService
 from src.config import (
     load_action_mode,
     load_host_metrics_settings,
@@ -24,12 +25,15 @@ from src.config import (
     load_persistence_settings,
     load_service_dsn,
 )
-from src.application.action_execution import ControlledActionExecutor
 from src.core.bootstrap import build_coordinator, build_llm_from_config
+from src.core.coordinator import CoordinatorAgent
 from src.domain.services import ServiceRegistry
+from src.infrastructure.actions.postgres_target_executor import PostgresTargetActionExecutor
 from src.infrastructure.diagnosis.coordinator_executor import CoordinatorDiagnosisExecutor
-from src.infrastructure.diagnosis.result_assembler import KernelReportResultAssembler
 from src.infrastructure.diagnosis.postgres_missing_index import PostgresMissingIndexCollector
+from src.infrastructure.diagnosis.result_assembler import KernelReportResultAssembler
+from src.infrastructure.monitoring.host_metrics import PsutilHostMetricsCollector
+from src.infrastructure.monitoring.sampler import MonitorSampler
 from src.infrastructure.persistence.database import PersistenceRuntime, SessionFactory, create_persistence_runtime
 from src.infrastructure.secrets import (
     SecretKeyNotConfiguredError,
@@ -38,9 +42,6 @@ from src.infrastructure.secrets import (
 )
 from src.infrastructure.services.postgres_connector import PostgresServiceConnector
 from src.infrastructure.services.redis_connector import RedisServiceConnector
-from src.infrastructure.actions.postgres_target_executor import PostgresTargetActionExecutor
-from src.infrastructure.monitoring.host_metrics import PsutilHostMetricsCollector
-from src.infrastructure.monitoring.sampler import MonitorSampler
 
 
 @dataclass(frozen=True)
@@ -69,11 +70,11 @@ def build_v1_services() -> V1Services:
     return build_v1_services_for_runtime(runtime, _resolved_coordinator_factory(runtime))
 
 
-def _resolved_coordinator_factory(runtime: PersistenceRuntime) -> Callable[[str | None], object]:
+def _resolved_coordinator_factory(runtime: PersistenceRuntime) -> Callable[[str | None], CoordinatorAgent]:
     """构造每 Run 解析生效模型配置的 Coordinator 工厂。"""
     secret_key = _load_secret_key_or_none()
 
-    def build(service_id: str | None) -> object:
+    def build(service_id: str | None) -> CoordinatorAgent:
         config = resolve_model_config(runtime.session_factory, secret_key)
         llm = build_llm_from_config(config)
         return build_coordinator(llm, service_id=service_id)
@@ -91,7 +92,7 @@ def _load_secret_key_or_none() -> bytes | None:
 
 def build_v1_services_for_runtime(
     runtime: PersistenceRuntime,
-    coordinator_factory: Callable[[str | None], object],
+    coordinator_factory: Callable[[str | None], CoordinatorAgent],
 ) -> V1Services:
     """用给定 Runtime 构造服务，供临时库测试安全替换。
 

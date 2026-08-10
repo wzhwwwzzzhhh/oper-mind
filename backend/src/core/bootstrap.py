@@ -4,17 +4,18 @@ app.py（FastAPI 入口）与 main.py（CLI 入口）此前各自维护了一份
 build_system()。为消除重复、保证两个入口的装配逻辑单一可信，将构建逻辑集中到此处。
 """
 
-from src.core.llm import LLMClient
-from src.core.coordinator import CoordinatorAgent
+from data.scenarios import clear_active_scenario, set_active_scenario
+
 from src.agents.db_agent import DBAgent
-from src.agents.server_agent import ServerAgent
-from src.agents.log_agent import LogAgent
 from src.agents.knowledge_agent import KnowledgeAgent
+from src.agents.log_agent import LogAgent
 from src.agents.report_agent import ReportAgent
-from src.core.debate import DebateArena
-from src.core.reflection import ReflectionEngine
+from src.agents.server_agent import ServerAgent
 from src.config import load_config, load_knowledge_settings
-from data.scenarios import set_active_scenario, clear_active_scenario
+from src.core.coordinator import CoordinatorAgent
+from src.core.debate import DebateArena
+from src.core.llm import LLMClient
+from src.core.reflection import ReflectionEngine
 
 
 def build_llm_from_config(config: dict) -> LLMClient:

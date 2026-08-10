@@ -4,15 +4,13 @@ from __future__ import annotations
 
 import base64
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TypeVar
-from uuid import UUID
 
 from pydantic import BaseModel, ValidationError
 
 from src.domain.actions import ActionEventCursor
 from src.domain.records import DiagnosisRunCursor, MessageCursor, RunEventCursor, SessionCursor
-
 
 CursorT = TypeVar("CursorT", bound=BaseModel)
 
@@ -48,7 +46,7 @@ def _normalize_cursor_datetime(cursor: CursorT) -> CursorT:
     for key, value in values.items():
         if not key.endswith("_at") or not isinstance(value, datetime):
             continue
-        values[key] = value.astimezone(timezone.utc)
+        values[key] = value.astimezone(UTC)
     return cursor.__class__.model_validate(values)
 
 

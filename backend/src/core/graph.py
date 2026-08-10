@@ -11,11 +11,14 @@ import re
 from concurrent.futures import ThreadPoolExecutor
 from typing import Literal
 
+from langgraph.graph import END, START, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 from typing_extensions import TypedDict
-from langgraph.graph import StateGraph, START, END
 
+from src.agents.report_agent import ReportAgent
+from src.core.debate import DebateArena
 from src.core.llm import LLMClient
-
+from src.core.reflection import ReflectionEngine
 
 # ===== 1. 状态定义 =====
 
@@ -118,10 +121,10 @@ def _tool_traces(agent, role: str | None = None) -> list[dict]:
 def build_diagnosis_graph(
     llm: LLMClient,
     agents: dict,
-    debate,
-    reflection,
-    report,
-):
+    debate: DebateArena,
+    reflection: ReflectionEngine,
+    report: ReportAgent,
+) -> CompiledStateGraph:
     """构建并编译诊断编排图。
 
     Args:
@@ -163,9 +166,9 @@ def build_diagnosis_graph(
         # 兜底:LLM 不可用 / mock / 解析失败
         if strategy not in ("direct", "chain", "parallel"):
             strategy = _keyword_strategy(query)
-            trace = trace + [{"node": "route", "detail": f"兜底关键词路由 → {strategy}"}]
+            trace = [*trace, {"node": "route", "detail": f"兜底关键词路由 → {strategy}"}]
         else:
-            trace = trace + [{"node": "route", "detail": f"LLM 路由 → {strategy}"}]
+            trace = [*trace, {"node": "route", "detail": f"LLM 路由 → {strategy}"}]
 
         # target 始终表示主要领域，direct 模式据此选择领域 Agent。
         target = target or _keyword_target(query) or "db"
@@ -180,14 +183,14 @@ def build_diagnosis_graph(
 
         if target not in agents:
             result = f"未找到可处理的 Agent:{target}"
-            thinking = []
+            thinking: list[dict] = []
         else:
             agent = agents[target]
             result = agent.run(query)
             thinking = agent.get_thinking() if hasattr(agent, "get_thinking") else []
             trace = trace + _tool_traces(agent, target)
 
-        trace = trace + [{"node": "direct", "detail": f"目标 Agent={target}"}]
+        trace = [*trace, {"node": "direct", "detail": f"目标 Agent={target}"}]
         return {
             "agent_results": {target: result},
             "agent_thinking": {target: thinking},
@@ -217,7 +220,7 @@ def build_diagnosis_graph(
             thinking_map[name] = agent.get_thinking() if hasattr(agent, "get_thinking") else []
             trace = trace + _tool_traces(agent, name)
             context += f"\n[{name}] {res[:200]}"
-            trace = trace + [{"node": "chain", "detail": f"逐层:{name}"}]
+            trace = [*trace, {"node": "chain", "detail": f"逐层:{name}"}]
 
         return {"agent_results": results, "agent_thinking": thinking_map, "trace": trace}
 
@@ -241,7 +244,7 @@ def build_diagnosis_graph(
                 thinking_map[name] = think
                 trace = trace + tools
 
-        trace = trace + [{"node": "parallel", "detail": f"并发 Agent={names}"}]
+        trace = [*trace, {"node": "parallel", "detail": f"并发 Agent={names}"}]
         return {"agent_results": results, "agent_thinking": thinking_map, "trace": trace}
 
     # ---- 节点:分歧检测 ----
@@ -267,7 +270,7 @@ def build_diagnosis_graph(
                 parsed = _extract_json(resp.get("content", "")) if "error" not in resp else None
                 conflict = bool(parsed.get("conflict")) if parsed else False
 
-        trace = trace + [{"node": "conflict_check", "detail": f"分歧={conflict}"}]
+        trace = [*trace, {"node": "conflict_check", "detail": f"分歧={conflict}"}]
         return {"has_conflict": conflict, "trace": trace}
 
     # ---- 节点:辩论 ----
@@ -278,7 +281,7 @@ def build_diagnosis_graph(
         trace = state.get("trace", [])
 
         consensus = debate.debate(query, results, thinking)
-        trace = trace + [{"node": "debate", "detail": "辩论裁决完成"}]
+        trace = [*trace, {"node": "debate", "detail": "辩论裁决完成"}]
         return {"debate_result": consensus, "trace": trace}
 
     # ---- 节点:报告(初稿 / 据反馈修订) ----
@@ -300,10 +303,10 @@ def build_diagnosis_graph(
         if feedback:
             # 据 Reflection 反馈修订上一版初稿
             draft = _revise_report(llm, state.get("report_draft", ""), feedback)
-            trace = trace + [{"node": "report", "detail": "据复审反馈修订"}]
+            trace = [*trace, {"node": "report", "detail": "据复审反馈修订"}]
         else:
             draft = report.generate(query, results, thinking_flat or None)
-            trace = trace + [{"node": "report", "detail": "生成初稿"}]
+            trace = [*trace, {"node": "report", "detail": "生成初稿"}]
 
         return {"report_draft": draft, "trace": trace}
 
@@ -320,10 +323,10 @@ def build_diagnosis_graph(
             issues = reflection.collect_feedback(draft, reviewers)
 
         if not issues or revision >= MAX_REVISION:
-            trace = trace + [{"node": "reflection", "detail": "复审通过" if not issues else "达修订上限,采用当前稿"}]
+            trace = [*trace, {"node": "reflection", "detail": "复审通过" if not issues else "达修订上限,采用当前稿"}]
             return {"final_report": draft, "review_feedback": [], "trace": trace}
 
-        trace = trace + [{"node": "reflection", "detail": f"发现 {len(issues)} 处问题,回退修订"}]
+        trace = [*trace, {"node": "reflection", "detail": f"发现 {len(issues)} 处问题,回退修订"}]
         return {"review_feedback": issues, "revision_count": revision + 1, "trace": trace}
 
     # ---- 条件边 ----

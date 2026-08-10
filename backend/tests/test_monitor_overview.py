@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import create_engine
@@ -11,14 +11,10 @@ from sqlalchemy.orm import sessionmaker
 from src.application.monitoring import MonitorOverviewApplicationService
 from src.domain.monitoring import MonitorHistoryStatus, ServiceMonitorSampleData
 from src.domain.services import (
-    DatabaseSignal,
     PerformanceSignal,
     ServiceAvailability,
-    ServiceDatabaseStateData,
     ServiceDefinitionData,
-    ServiceMode,
     ServiceRegistry,
-    ServiceServerMetricsData,
     ServiceSnapshotData,
     ServiceSourceStatus,
 )
@@ -114,7 +110,7 @@ def test_概览返回全部注册服务且按注册顺序() -> None:
     registry = ServiceRegistry(
         (_StubConnector("postgres-production"), _StubConnector("redis-production", kind="redis"))
     )
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     with session_factory() as session:
         repository = SqlAlchemyMonitorSampleRepository(session)
         repository.add(_sample("postgres-production", now - timedelta(minutes=5)))
@@ -136,7 +132,7 @@ def test_概览展示最新样本标量() -> None:
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine, expire_on_commit=False)
     registry = ServiceRegistry((_StubConnector("postgres-production"),))
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     with session_factory() as session:
         repository = SqlAlchemyMonitorSampleRepository(session)
         repository.add(_sample("postgres-production", now - timedelta(minutes=10), slow=0))
@@ -160,7 +156,7 @@ def test_概览异常计数与p5一致() -> None:
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine, expire_on_commit=False)
     registry = ServiceRegistry((_StubConnector("postgres-production"),))
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     with session_factory() as session:
         repository = SqlAlchemyMonitorSampleRepository(session)
         repository.add(_sample("postgres-production", now - timedelta(minutes=20)))
@@ -190,7 +186,7 @@ def test_redis异常计数按慢日志() -> None:
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine, expire_on_commit=False)
     registry = ServiceRegistry((_StubConnector("redis-production", kind="redis"),))
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     with session_factory() as session:
         repository = SqlAlchemyMonitorSampleRepository(session)
         repository.add(_sample("redis-production", now - timedelta(minutes=10)))
@@ -226,7 +222,7 @@ def test_未配置服务显示未配置() -> None:
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine, expire_on_commit=False)
     registry = ServiceRegistry((_StubConnector("unconfigured-service"),))
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     with session_factory() as session:
         repository = SqlAlchemyMonitorSampleRepository(session)
         repository.add(_not_configured_sample("unconfigured-service", now - timedelta(minutes=5)))
@@ -247,7 +243,7 @@ def test_不可用服务显示不可用() -> None:
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine, expire_on_commit=False)
     registry = ServiceRegistry((_StubConnector("flaky-service"),))
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     with session_factory() as session:
         repository = SqlAlchemyMonitorSampleRepository(session)
         repository.add(_unavailable_sample("flaky-service", now - timedelta(minutes=5)))
@@ -268,7 +264,7 @@ def test_单服务失败不影响其他服务(monkeypatch: pytest.MonkeyPatch) -
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine, expire_on_commit=False)
     registry = ServiceRegistry((_StubConnector("ok-service"), _StubConnector("broken-service")))
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     with session_factory() as session:
         repository = SqlAlchemyMonitorSampleRepository(session)
         repository.add(_sample("ok-service", now - timedelta(minutes=5)))

@@ -1,34 +1,78 @@
 /* OperMind 设计系统 —— 主题 token 与基础样式
-   来源：frontend/参考原型/opermind-deepseek.html（设计稿）
-   主题机制：:root 定义默认（steel 钢蓝）；html[data-theme=...] 切换 token。
-   只切换视觉 token，不改变页面结构。 */
+   设计命题：这是一台工程记录仪，不是营销仪表盘。
+   颜色编码"认知状态"而不是装饰：翡翠=已核实事实，琥珀=需关注，砖红=严重，
+   未知/不可用不给色相，改用斜纹填充（--hatch），让"服务端没返回"这件事本身可见。
+   主题只切换视觉 token，不改变页面结构与语义。 */
 
 :root {
   color-scheme: light;
-  --canvas: #f7f7f5;
-  --surface: #ffffff;
-  --surface-muted: #f0f1ef;
-  --surface-rail: #fafaf8;
-  --surface-soft: #f4f5f3;
-  --border: #dfe3e1;
-  --border-strong: #cfd6d3;
-  --text: #1f272b;
-  --text-secondary: #637076;
-  --text-muted: #929b9d;
-  --accent: #315f86;
-  --accent-hover: #274e70;
-  --accent-soft: #eaf0f5;
-  --success: #28745f;
-  --success-soft: #e7f2ee;
-  --warning: #b6782c;
-  --warning-soft: #fff2de;
-  --danger: #b34e54;
-  --danger-soft: #f9e9e9;
+
+  /* 字体三角色：等宽承担标签与数字，系统 CJK 栈承担正文。 */
+  --font-body: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'JetBrains Mono', 'SFMono-Regular', 'SF Mono', ui-monospace, 'Cascadia Mono', Consolas, 'Liberation Mono', monospace;
+  --tracking-label: 0.09em;
+  --tracking-kicker: 0.14em;
+
+  /* 面：冷蓝图米白打底，内容面浮在上层，明度差本身就是结构。 */
+  --canvas: #e8edec;
+  --surface: #fbfcfc;
+  --surface-soft: #f1f5f4;
+  --surface-muted: #e2e9e8;
+  --surface-rail: #f4f7f6;
+  --border: #d2dbd9;
+  --border-strong: #b6c4c1;
+
+  /* 墨：深油青黑，不是中性灰黑。 */
+  --text: #14201f;
+  --text-secondary: #566865;
+  --text-muted: #7f8e8a;
+
+  /* 结构色：深油青。--accent-on 是压在 accent 实心块上的字色，
+     暗色主题里 accent 变浅，必须换成深字，不能一律用白。 */
+  --accent: #0f5c63;
+  --accent-hover: #0a464c;
+  --accent-soft: #dfebeb;
+  --accent-line: #7fa9ac;
+  --accent-on: #ffffff;
+
+  /* 认知状态语义色。 */
+  --success: #1f6b52;
+  --success-soft: #ddece5;
+  --warning: #9c5d15;
+  --warning-soft: #f9e9d2;
+  --danger: #a3423c;
+  --danger-soft: #f6e2df;
+  --unknown: #6f7e7a;
+  --unknown-soft: #e9edec;
+
+  /* 钠灯琥珀：全局唯一高亮信号，只给"需关注"与每屏唯一主操作。 */
+  --signal: #e0912c;
+
+  /* 深色图标轨 chrome：整个应用的视觉锚点。 */
+  --rail-bg: #0e2a2b;
+  --rail-line: #1d413f;
+  --rail-text: #8aa7a3;
+  --rail-text-active: #f2f6f5;
+  --rail-active: rgba(224, 145, 44, 0.16);
+
+  /* 未知状态的斜纹填充：把"缺失"画出来，而不是留白或编造。 */
+  --hatch: repeating-linear-gradient(135deg, transparent 0 5px, rgba(111, 126, 122, 0.15) 5px 6px);
+
+  --radius-sm: 4px;
+  --radius: 7px;
+  --radius-lg: 11px;
+
   --global: 62px;
   --sidebar: 248px;
   --context: 226px;
   --content-max-width: 780px;
-  --shadow-float: 0 16px 44px rgba(28, 40, 46, 0.1);
+  /* 输入区比正文阅读宽度更宽：正文要控制行长便于阅读，
+     输入区要装得下多行问题和工具条，两者不共用一个宽度。 */
+  --composer-max-width: 900px;
+  --shadow-float: 0 14px 40px rgba(15, 40, 42, 0.16);
+
+  /* 弹窗遮罩：亮色下压深油青，暗色主题各自加浓。 */
+  --scrim: rgba(12, 31, 32, 0.38);
 }
 
 * {
@@ -44,45 +88,116 @@ body {
   margin: 0;
   color: var(--text);
   background: var(--canvas);
-  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
 }
 
 button,
-textarea {
+input,
+textarea,
+select {
   font: inherit;
+  color: inherit;
 }
 
 button {
   cursor: pointer;
 }
 
-/* 主题：不同主题只切换视觉 token，不改变页面结构。 */
-html[data-theme='indigo'] {
-  --canvas: #f6f7fb; --surface: #fff; --surface-muted: #f0f1f7; --surface-rail: #fafaff; --surface-soft: #f3f4fa;
-  --border: #dfe2eb; --border-strong: #cdd3e0; --text: #252936; --text-secondary: #656d7e; --text-muted: #969cac;
-  --accent: #5868a9; --accent-hover: #46568f; --accent-soft: #eceefd; --success: #2f8066; --success-soft: #e7f3ee;
-  --warning: #b67b2e; --warning-soft: #fff2df; --danger: #b2545d; --danger-soft: #fae9eb;
+/* 键盘焦点必须可见：不依赖颜色单独承载，用双层描边。 */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
-html[data-theme='forest'] {
-  --canvas: #f6f7f2; --surface: #fff; --surface-muted: #eef1eb; --surface-rail: #fafbf8; --surface-soft: #f2f5ef;
-  --border: #dfe5dc; --border-strong: #cbd7c7; --text: #27302b; --text-secondary: #68746c; --text-muted: #949d94;
-  --accent: #52745d; --accent-hover: #3f5f4a; --accent-soft: #eaf2eb; --success: #2f7d5d; --success-soft: #e7f3ea;
-  --warning: #b77a2b; --warning-soft: #fff2dd; --danger: #b25758; --danger-soft: #faeaea;
+::selection {
+  background: var(--accent-soft);
+  color: var(--text);
 }
 
-html[data-theme='amber'] {
-  --canvas: #faf8f4; --surface: #fff; --surface-muted: #f3efe8; --surface-rail: #fcfbf8; --surface-soft: #f7f3ed;
-  --border: #e6dfd4; --border-strong: #d8cbb9; --text: #302b26; --text-secondary: #756b60; --text-muted: #a0988d;
-  --accent: #9a6844; --accent-hover: #7d5033; --accent-soft: #f5ece4; --success: #4d8067; --success-soft: #eaf3ec;
-  --warning: #ad762a; --warning-soft: #fff1db; --danger: #b3554e; --danger-soft: #fae9e6;
+/* 尊重系统的减弱动效偏好。 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
-html[data-theme='night'] {
-  --canvas: #20262c; --surface: #252d34; --surface-muted: #1d242a; --surface-rail: #222a30; --surface-soft: #2b343c;
-  --border: #3a454e; --border-strong: #4b5964; --text: #ecf0f1; --text-secondary: #b5c0c5; --text-muted: #85939a;
-  --accent: #79a8c9; --accent-hover: #97bed9; --accent-soft: #2d414f; --success: #70bd9b; --success-soft: #29463c;
-  --warning: #dfab61; --warning-soft: #4b3b25; --danger: #dd8588; --danger-soft: #4a2e32;
-  --shadow-float: 0 18px 48px rgba(0, 0, 0, 0.28);
+/* 深油青暗色：夜间与低照度值守。 */
+html[data-theme='petrol'] {
+  color-scheme: dark;
+  --canvas: #0c1f20;
+  --surface: #14302f;
+  --surface-soft: #1a3a38;
+  --surface-muted: #102827;
+  --surface-rail: #132c2c;
+  --border: #224846;
+  --border-strong: #326460;
+  --text: #e6efed;
+  --text-secondary: #a3bbb7;
+  --text-muted: #7b9591;
+  --accent: #58b0b2;
+  --accent-hover: #7ac6c7;
+  --accent-soft: #17403f;
+  --accent-line: #3d7d7d;
+  --accent-on: #062021;
+  --success: #62bd97;
+  --success-soft: #17402f;
+  --warning: #dfa257;
+  --warning-soft: #43301a;
+  --danger: #d9827c;
+  --danger-soft: #452627;
+  --unknown: #86a09b;
+  --unknown-soft: #17302f;
+  --signal: #e8a446;
+  --rail-bg: #081617;
+  --rail-line: #16332f;
+  --rail-text: #7b9591;
+  --rail-text-active: #f2f6f5;
+  --rail-active: rgba(232, 164, 70, 0.18);
+  --hatch: repeating-linear-gradient(135deg, transparent 0 5px, rgba(134, 160, 155, 0.2) 5px 6px);
+  --shadow-float: 0 16px 44px rgba(0, 0, 0, 0.44);
+  --scrim: rgba(0, 0, 0, 0.58);
+}
+
+/* 高对比暗色：为对比度敏感场景提供更强的文字与描边对比。 */
+html[data-theme='carbon'] {
+  color-scheme: dark;
+  --canvas: #101212;
+  --surface: #1b1f1f;
+  --surface-soft: #242929;
+  --surface-muted: #161a1a;
+  --surface-rail: #191d1d;
+  --border: #353d3d;
+  --border-strong: #55605f;
+  --text: #f4f7f6;
+  --text-secondary: #bfc9c7;
+  --text-muted: #97a3a1;
+  --accent: #7fd3d3;
+  --accent-hover: #a3e4e4;
+  --accent-soft: #1f3535;
+  --accent-line: #4e8484;
+  --accent-on: #06181a;
+  --success: #79d3a7;
+  --success-soft: #17372a;
+  --warning: #f0b268;
+  --warning-soft: #3d2d18;
+  --danger: #ef958e;
+  --danger-soft: #432624;
+  --unknown: #9aa6a4;
+  --unknown-soft: #232828;
+  --signal: #f5b45c;
+  --rail-bg: #000000;
+  --rail-line: #2b3231;
+  --rail-text: #97a3a1;
+  --rail-text-active: #ffffff;
+  --rail-active: rgba(245, 180, 92, 0.2);
+  --hatch: repeating-linear-gradient(135deg, transparent 0 5px, rgba(154, 166, 164, 0.24) 5px 6px);
+  --shadow-float: 0 16px 44px rgba(0, 0, 0, 0.6);
+  --scrim: rgba(0, 0, 0, 0.68);
 }

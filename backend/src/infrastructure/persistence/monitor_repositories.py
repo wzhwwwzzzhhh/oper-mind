@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from src.domain.monitoring import ServiceMonitorSampleData
 from src.infrastructure.persistence.models import ServiceMonitorSampleRecord
+from src.infrastructure.persistence.repositories import _rowcount
 
 
 class SqlAlchemyMonitorSampleRepository:
@@ -58,7 +59,7 @@ class SqlAlchemyMonitorSampleRepository:
         result = self._session.execute(
             delete(ServiceMonitorSampleRecord).where(ServiceMonitorSampleRecord.observed_at < cutoff)
         )
-        return int(result.rowcount or 0)
+        return _rowcount(result)
 
 
 def _to_data(row: ServiceMonitorSampleRecord) -> ServiceMonitorSampleData:
@@ -66,10 +67,7 @@ def _to_data(row: ServiceMonitorSampleRecord) -> ServiceMonitorSampleData:
     from src.domain.services import PerformanceSignal, ServiceAvailability, ServiceSourceStatus
 
     observed_at = row.observed_at
-    if observed_at.tzinfo is None:
-        observed_at = observed_at.replace(tzinfo=timezone.utc)
-    else:
-        observed_at = observed_at.astimezone(timezone.utc)
+    observed_at = observed_at.replace(tzinfo=UTC) if observed_at.tzinfo is None else observed_at.astimezone(UTC)
     return ServiceMonitorSampleData(
         id=row.id,
         service_id=row.service_id,

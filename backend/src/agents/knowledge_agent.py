@@ -8,7 +8,6 @@ from src.core.llm import LLMClient
 from src.core.tool_registry import ToolRegistry
 from src.tools.knowledge_tools import SearchKnowledgeTool
 
-
 KNOWLEDGE_SYSTEM_PROMPT = """你是知识检索 Agent，负责从受管知识目录检索运维文档、SOP 和历史排障记录。
 
 ## 工具使用规则

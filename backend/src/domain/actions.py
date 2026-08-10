@@ -13,7 +13,6 @@ from pydantic import Field, JsonValue
 
 from src.domain.records import DomainRecord, TimestampedRecord, utc_now
 
-
 LOCAL_OPERATOR = "local_operator"
 APPROVAL_VALIDITY_SECONDS = 15 * 60
 ACTION_APPROVAL_ENDPOINT = "/api/v1/action-proposals/{proposal_id}/approval"

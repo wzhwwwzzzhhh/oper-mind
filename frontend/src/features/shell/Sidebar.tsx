@@ -4,13 +4,14 @@ import { useLocation, useNavigate } from 'react-router-dom'
 
 import { list_sessions_query } from '../../api/v1/queries'
 import { read_items, resource_optional_string, resource_string } from '../workbench/resource-readers'
+import { Icon } from './Icon'
 
 interface SidebarProps {
   collapsed: boolean
   on_collapse: () => void
 }
 
-/** 第二栏（会话模式）：品牌 + 新建会话 + 运维中心入口卡 + 最近会话列表（接真实 API）。 */
+/** 第二栏（会话模式）：品牌 + 新建会话 + 最近会话列表（接真实 API）；运维中心走最左侧全局导航。 */
 export function Sidebar({ collapsed, on_collapse }: SidebarProps): ReactElement {
   const navigate = useNavigate()
   const location = useLocation()
@@ -30,24 +31,13 @@ export function Sidebar({ collapsed, on_collapse }: SidebarProps): ReactElement 
           </span>
         </a>
         <button aria-label="收起侧栏" className="icon-btn" id="collapse-btn" onClick={on_collapse} type="button">
-          ‹
+          <Icon className="icon" name="chevron-left" size={15} />
         </button>
       </div>
 
       <button className="new-chat" onClick={() => navigate('/workbench')} type="button">
         <span className="plus">＋</span>
         <span className="new-chat-label">新建会话</span>
-        <span className="new-chat-shortcut">Ctrl K</span>
-      </button>
-
-      {/* 运维中心入口 */}
-      <button className="ops-entry" onClick={() => navigate('/services')} type="button">
-        <span className="ops-icon">◫</span>
-        <span className="ops-copy">
-          <strong>运维中心</strong>
-          <span>服务接入 · 监控 · 调查</span>
-        </span>
-        <span className="ops-arrow">›</span>
       </button>
 
       <div className="history-heading">
@@ -81,16 +71,6 @@ export function Sidebar({ collapsed, on_collapse }: SidebarProps): ReactElement 
           )
         })}
       </nav>
-
-      <div className="sidebar-footer">
-        <div className="user-card">
-          <span className="avatar">W</span>
-          <span className="user-copy">
-            <strong>王志海</strong>
-            <span>研发运维团队</span>
-          </span>
-        </div>
-      </div>
     </aside>
   )
 }

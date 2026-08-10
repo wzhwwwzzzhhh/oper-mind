@@ -3,7 +3,6 @@
 import sys
 from pathlib import Path
 
-
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = BACKEND_ROOT.parent
 for path in (PROJECT_ROOT, BACKEND_ROOT):
@@ -12,8 +11,8 @@ for path in (PROJECT_ROOT, BACKEND_ROOT):
         sys.path.insert(0, value)
 
 import pytest
-
 from data.scenarios import clear_active_scenario
+
 from src.project_paths import ensure_project_import_paths
 
 ensure_project_import_paths()

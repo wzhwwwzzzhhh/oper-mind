@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
+from pydantic import JsonValue
+
 from src.domain.actions import ActionMode, ActionProposalData
 
 
@@ -52,7 +54,7 @@ class ActionVerificationOutcome:
 
     mode: ActionMode
     summary: str
-    facts: dict[str, bool | int | str]
+    facts: dict[str, JsonValue]
 
 
 class ControlledActionExecutor(Protocol):

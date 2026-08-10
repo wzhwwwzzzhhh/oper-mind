@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from src.domain.monitoring import (
     MonitorHistoryData,
@@ -14,10 +13,15 @@ from src.domain.monitoring import (
     MonitorTrendSummaryData,
     ServiceMonitorSampleData,
 )
-from src.domain.services import ServiceAvailability, ServiceConnector, ServiceRegistry, ServiceSourceStatus
+from src.domain.services import (
+    ServiceAvailability,
+    ServiceConnector,
+    ServiceDefinitionData,
+    ServiceRegistry,
+    ServiceSourceStatus,
+)
 from src.infrastructure.persistence.database import SessionFactory
 from src.infrastructure.persistence.monitor_repositories import SqlAlchemyMonitorSampleRepository
-
 
 LOGGER = logging.getLogger(__name__)
 
@@ -89,7 +93,7 @@ def _window(
     max_hours: int,
 ) -> tuple[datetime, datetime]:
     """规范化 UTC 窗口并限制最大范围。"""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if hours is not None and (from_at is not None or to_at is not None):
         raise ValueError("WINDOW_CONFLICT")
     if hours is not None:
@@ -109,7 +113,7 @@ def _as_utc(value: datetime) -> datetime:
     """要求带时区的时间并统一为 UTC。"""
     if value.tzinfo is None:
         raise ValueError("WINDOW_INVALID")
-    return value.astimezone(timezone.utc)
+    return value.astimezone(UTC)
 
 
 class MonitorOverviewApplicationService:
@@ -132,7 +136,7 @@ class MonitorOverviewApplicationService:
 
         单个服务样本读取失败只将该服务降级为不可用，不阻塞其他服务展示。
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         start = now - timedelta(hours=self._retention_hours)
         items = []
         for connector in self._registry.list_connectors():
@@ -149,7 +153,7 @@ class MonitorOverviewApplicationService:
         )
 
     @staticmethod
-    def _degraded(definition: object) -> MonitorServiceOverviewData:
+    def _degraded(definition: ServiceDefinitionData) -> MonitorServiceOverviewData:
         """样本读取失败时返回不可用降级概览，不保存异常详情、不伪造数值。"""
         return MonitorServiceOverviewData(
             service_id=definition.id,

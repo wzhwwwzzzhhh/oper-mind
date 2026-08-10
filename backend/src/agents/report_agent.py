@@ -60,8 +60,8 @@ class ReportAgent:
         """汇总多 Agent 的诊断结论，给出综合根因"""
         parts = []
         for agent_name, diagnosis in diagnoses.items():
-            # 提取前三行作为摘要
-            lines = [l for l in diagnosis.split("\n") if l.strip()]
+            # 提取前五行非空行作为摘要
+            lines = [line for line in diagnosis.split("\n") if line.strip()]
             summary = "\n".join(lines[:5])
             parts.append(f"**{agent_name}**:\n{summary}")
 

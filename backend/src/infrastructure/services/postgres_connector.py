@@ -1,7 +1,7 @@
 """静态注册的 PostgreSQL 只读 Connector。"""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import text
@@ -20,6 +20,7 @@ from src.domain.services import (
     ServiceSourceStatus,
 )
 from src.infrastructure.services.postgres_engine import create_read_only_postgres_engine
+
 
 class PostgresServiceConnector:
     """只读 PostgreSQL 服务快照 Connector，实现 ServiceConnector 协议。"""
@@ -57,7 +58,7 @@ class PostgresServiceConnector:
 
     def health_snapshot(self) -> ServiceSnapshotData:
         """读取当前有限只读快照；失败/超时返回 unavailable，不抛异常。"""
-        observed = datetime.now(timezone.utc)
+        observed = datetime.now(UTC)
         if self._dsn is None:
             return self._not_configured(observed)
 
@@ -74,7 +75,10 @@ class PostgresServiceConnector:
 
     def _create_engine(self) -> Engine:
         """创建强制使用 psycopg 驱动且带三秒超时的 PostgreSQL Engine。"""
-        assert self._dsn is not None
+        # 调用方 health_snapshot 已先判 None；这里显式抛而不用 assert，
+        # 因为 python -O 会剥掉 assert，收窄就失效了。异常文本不含 DSN。
+        if self._dsn is None:
+            raise ValueError("PostgreSQL DSN 未配置")
         return create_read_only_postgres_engine(self._dsn)
 
     def _read_healthy(self, engine: Engine, observed: datetime) -> ServiceSnapshotData:
@@ -94,14 +98,17 @@ class PostgresServiceConnector:
 
             statistics = self._read_optional_statement_statistics(conn)
 
-        slow_query_count = statistics.get("slow_query_count")
+        # statistics 同时装 slow_query_count(int) 与 p50/p95(float)，值类型被推成
+        # int | float | None。这里收窄成 int | None，与 ServiceServerMetricsData 对齐。
+        raw_slow_query_count = statistics.get("slow_query_count")
+        slow_query_count = raw_slow_query_count if isinstance(raw_slow_query_count, int) else None
         return ServiceSnapshotData(
             observed_at=observed,
             mode=ServiceMode.TARGET,
             availability=ServiceAvailability.HEALTHY,
             performance_signal=(
                 PerformanceSignal.SLOW_QUERY_DETECTED
-                if isinstance(slow_query_count, int) and slow_query_count > 0
+                if slow_query_count is not None and slow_query_count > 0
                 else PerformanceSignal.NO_SLOW_QUERY_DETECTED
             ),
             server_metrics=ServiceServerMetricsData(

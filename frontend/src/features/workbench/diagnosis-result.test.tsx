@@ -82,13 +82,61 @@ describe('DiagnosisResultPanel', () => {
     expect(screen.getByText('上游连接池不足')).toBeInTheDocument()
     expect(screen.getByText('Nginx 错误日志')).toBeInTheDocument()
     expect(screen.getByText('定位信息：nginx/upstream')).toBeInTheDocument()
-    expect(screen.getByText('证据 evidence-1')).toBeInTheDocument()
+    // 根因与处置建议都会引用同一条证据，因此这里断言"至少出现一次"而不是唯一命中。
+    expect(screen.getAllByText('证据 evidence-1').length).toBeGreaterThan(0)
     expect(screen.getByText('调查角色摘要')).toBeInTheDocument()
     expect(screen.getByText('已完成服务侧摘要。')).toBeInTheDocument()
     expect(screen.getByText('调查范围与风险')).toBeInTheDocument()
     expect(screen.getByText('扩容可能影响连接数。')).toBeInTheDocument()
     expect(screen.queryByText('# 不应被面板渲染的补充 Markdown')).not.toBeInTheDocument()
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
+  })
+
+  it('渲染后端已返回的影响面与处置建议，包含优先级、风险与审批要求', () => {
+    const read = read_diagnosis_result(complete_result(), RUN_ID)
+    if (!read.result) throw new Error('测试夹具必须通过 Result reader')
+
+    render(<DiagnosisResultPanel result={read.result} />)
+
+    expect(screen.getByText('支付请求受影响。')).toBeInTheDocument()
+    expect(screen.getByText('影响范围：支付入口')).toBeInTheDocument()
+    expect(screen.getByText('gateway')).toBeInTheDocument()
+    expect(screen.getByText('调整连接池')).toBeInTheDocument()
+    expect(screen.getByText('扩容连接池。')).toBeInTheDocument()
+    expect(screen.getByText('P1 尽快处理')).toBeInTheDocument()
+    // 建议的残留风险和风险清单都会写"中风险"，所以断言"至少出现一次"。
+    expect(screen.getAllByText('中风险').length).toBeGreaterThan(0)
+    expect(screen.getByText('需人工审批后执行')).toBeInTheDocument()
+    expect(screen.getByText('整体需人工审批')).toBeInTheDocument()
+  })
+
+  it('风险清单用中文等级和存在样式规则的视觉等级类名，不泄露英文枚举值', () => {
+    const read = read_diagnosis_result(complete_result(), RUN_ID)
+    if (!read.result) throw new Error('测试夹具必须通过 Result reader')
+
+    render(<DiagnosisResultPanel result={read.result} />)
+
+    // 风险清单里的那一条：中风险 → warning，而不是没有规则的 --medium。
+    const risk_tag = screen
+      .getAllByText('中风险')
+      .find((node) => node.parentElement?.textContent?.includes('扩容可能影响连接数。'))
+    expect(risk_tag?.className).toContain('diagnosis-result-panel__tag--warning')
+    expect(risk_tag?.className).not.toContain('--medium')
+    // 英文枚举值不出现在用户可见文案里。
+    expect(screen.queryByText('风险 medium')).not.toBeInTheDocument()
+  })
+
+  it('影响面与建议缺失时显示空状态，不用占位文案假装有结论', () => {
+    const result = complete_result()
+    result.impact = null as unknown as typeof result.impact
+    result.recommendations = []
+    const read = read_diagnosis_result(result, RUN_ID)
+    if (!read.result) throw new Error('impact 为 null、建议为空数组都是合法 Result')
+
+    render(<DiagnosisResultPanel result={read.result} />)
+
+    expect(screen.getByText('服务未返回影响面评估')).toBeInTheDocument()
+    expect(screen.getByText('服务未返回处置建议')).toBeInTheDocument()
   })
 
   it('在根因引用缺失证据时显示安全页内标记，不跳转外部资源', () => {

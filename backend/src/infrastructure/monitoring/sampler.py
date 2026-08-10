@@ -5,16 +5,13 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Sequence
-from datetime import datetime, timedelta, timezone
-
-from sqlalchemy.orm import Session
+from datetime import UTC, datetime, timedelta
 
 from src.domain.host_metrics import HostMetricsCollector, HostMetricsData, HostMetricsSourceStatus
 from src.domain.monitoring import ServiceMonitorSampleData
 from src.domain.services import ServiceConnector
 from src.infrastructure.persistence.database import SessionFactory
 from src.infrastructure.persistence.monitor_repositories import SqlAlchemyMonitorSampleRepository
-
 
 LOGGER = logging.getLogger(__name__)
 
@@ -42,7 +39,7 @@ class MonitorSampler:
         results: list[ServiceMonitorSampleData] = []
         for connector in self._connectors:
             service_id = connector.definition().id
-            observed_at = datetime.now(timezone.utc)
+            observed_at = datetime.now(UTC)
             try:
                 sample = ServiceMonitorSampleData.from_snapshot(service_id, connector.health_snapshot())
             except Exception:
@@ -99,7 +96,7 @@ class MonitorSampler:
             repository = SqlAlchemyMonitorSampleRepository(session)
             for sample in results:
                 repository.add(sample)
-            repository.delete_older_than(datetime.now(timezone.utc) - timedelta(hours=self._retention_hours))
+            repository.delete_older_than(datetime.now(UTC) - timedelta(hours=self._retention_hours))
             session.commit()
         except Exception:
             session.rollback()
@@ -113,7 +110,7 @@ class MonitorSampler:
         results: list[ServiceMonitorSampleData] = []
         for connector in self._connectors:
             service_id = connector.definition().id
-            observed_at = datetime.now(timezone.utc)
+            observed_at = datetime.now(UTC)
             try:
                 snapshot = await asyncio.wait_for(asyncio.to_thread(connector.health_snapshot), timeout=3.0)
                 sample = ServiceMonitorSampleData.from_snapshot(service_id, snapshot)

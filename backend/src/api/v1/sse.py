@@ -12,7 +12,6 @@ from src.domain.records import RunEventCursor, RunEventData
 from src.infrastructure.persistence.database import SessionFactory
 from src.infrastructure.persistence.repositories import SqlAlchemyDiagnosisRunRepository, SqlAlchemyRunEventRepository
 
-
 POLL_INTERVAL_SECONDS = 0.05
 EVENT_PAGE_SIZE = 100
 

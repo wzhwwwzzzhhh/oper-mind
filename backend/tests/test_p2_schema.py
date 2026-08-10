@@ -5,20 +5,19 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
 import pytest
 from sqlalchemy import inspect, text
-from sqlalchemy.engine import Engine
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.schema import CreateTable
 
 from src.infrastructure.persistence import models
 from src.infrastructure.persistence.database import Base, create_app_engine
-
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = BACKEND_ROOT.parent
@@ -87,7 +86,7 @@ def _create_session_and_run(engine: Engine) -> tuple[str, str]:
     session_id = str(uuid4())
     input_message_id = str(uuid4())
     run_id = str(uuid4())
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     with engine.begin() as connection:
         connection.execute(
             text(
@@ -258,40 +257,38 @@ def test_p2_schema_sqlite_外键唯一与检查约束生效(tmp_path: Path) -> N
             assert connection.exec_driver_sql("PRAGMA foreign_keys").scalar_one() == 1
 
         session_id, run_id = _create_session_and_run(engine)
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
 
-        with pytest.raises(IntegrityError):
-            with engine.begin() as connection:
-                connection.execute(
-                    text(
-                        "INSERT INTO messages (id, session_id, role, content, created_at) "
-                        "VALUES (:id, :session_id, :role, :content, :created_at)"
-                    ),
-                    {
-                        "id": str(uuid4()),
-                        "session_id": str(uuid4()),
-                        "role": "user",
-                        "content": "不存在的会话",
-                        "created_at": now,
-                    },
-                )
+        with pytest.raises(IntegrityError), engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO messages (id, session_id, role, content, created_at) "
+                    "VALUES (:id, :session_id, :role, :content, :created_at)"
+                ),
+                {
+                    "id": str(uuid4()),
+                    "session_id": str(uuid4()),
+                    "role": "user",
+                    "content": "不存在的会话",
+                    "created_at": now,
+                },
+            )
 
-        with pytest.raises(IntegrityError):
-            with engine.begin() as connection:
-                connection.execute(
-                    text(
-                        "INSERT INTO run_events (id, run_id, sequence, type, occurred_at, data) "
-                        "VALUES (:id, :run_id, :sequence, :type, :occurred_at, :data)"
-                    ),
-                    {
-                        "id": str(uuid4()),
-                        "run_id": run_id,
-                        "sequence": 0,
-                        "type": "run_queued",
-                        "occurred_at": now,
-                        "data": "{}",
-                    },
-                )
+        with pytest.raises(IntegrityError), engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO run_events (id, run_id, sequence, type, occurred_at, data) "
+                    "VALUES (:id, :run_id, :sequence, :type, :occurred_at, :data)"
+                ),
+                {
+                    "id": str(uuid4()),
+                    "run_id": run_id,
+                    "sequence": 0,
+                    "type": "run_queued",
+                    "occurred_at": now,
+                    "data": "{}",
+                },
+            )
 
         with engine.begin() as connection:
             connection.execute(
@@ -309,70 +306,67 @@ def test_p2_schema_sqlite_外键唯一与检查约束生效(tmp_path: Path) -> N
                 },
             )
 
-        with pytest.raises(IntegrityError):
-            with engine.begin() as connection:
-                connection.execute(
-                    text(
-                        "INSERT INTO run_events (id, run_id, sequence, type, occurred_at, data) "
-                        "VALUES (:id, :run_id, :sequence, :type, :occurred_at, :data)"
-                    ),
-                    {
-                        "id": str(uuid4()),
-                        "run_id": run_id,
-                        "sequence": 1,
-                        "type": "run_queued",
-                        "occurred_at": now,
-                        "data": "{}",
-                    },
-                )
+        with pytest.raises(IntegrityError), engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO run_events (id, run_id, sequence, type, occurred_at, data) "
+                    "VALUES (:id, :run_id, :sequence, :type, :occurred_at, :data)"
+                ),
+                {
+                    "id": str(uuid4()),
+                    "run_id": run_id,
+                    "sequence": 1,
+                    "type": "run_queued",
+                    "occurred_at": now,
+                    "data": "{}",
+                },
+            )
 
-        with pytest.raises(IntegrityError):
-            with engine.begin() as connection:
-                connection.execute(
-                    text(
-                        "INSERT INTO diagnosis_results (id, run_id, schema_version, summary, severity, "
-                        "confidence, root_causes, evidence, recommendations, risks, requires_approval, "
-                        "agent_summary, created_at) VALUES (:id, :run_id, 1, :summary, :severity, "
-                        ":confidence, :root_causes, :evidence, :recommendations, :risks, "
-                        ":requires_approval, :agent_summary, :created_at)"
-                    ),
-                    {
-                        "id": str(uuid4()),
-                        "run_id": run_id,
-                        "summary": "无效置信度",
-                        "severity": "medium",
-                        "confidence": 1.1,
-                        "root_causes": "[]",
-                        "evidence": "[]",
-                        "recommendations": "[]",
-                        "risks": "[]",
-                        "requires_approval": False,
-                        "agent_summary": "[]",
-                        "created_at": now,
-                    },
-                )
+        with pytest.raises(IntegrityError), engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO diagnosis_results (id, run_id, schema_version, summary, severity, "
+                    "confidence, root_causes, evidence, recommendations, risks, requires_approval, "
+                    "agent_summary, created_at) VALUES (:id, :run_id, 1, :summary, :severity, "
+                    ":confidence, :root_causes, :evidence, :recommendations, :risks, "
+                    ":requires_approval, :agent_summary, :created_at)"
+                ),
+                {
+                    "id": str(uuid4()),
+                    "run_id": run_id,
+                    "summary": "无效置信度",
+                    "severity": "medium",
+                    "confidence": 1.1,
+                    "root_causes": "[]",
+                    "evidence": "[]",
+                    "recommendations": "[]",
+                    "risks": "[]",
+                    "requires_approval": False,
+                    "agent_summary": "[]",
+                    "created_at": now,
+                },
+            )
 
-        created_at = datetime.now(timezone.utc)
-        with pytest.raises(IntegrityError):
-            with engine.begin() as connection:
-                connection.execute(
-                    text(
-                        "INSERT INTO run_idempotency_keys (id, session_id, endpoint, idempotency_key, "
-                        "request_fingerprint, run_id, expires_at, created_at) VALUES "
-                        "(:id, :session_id, :endpoint, :idempotency_key, :request_fingerprint, :run_id, "
-                        ":expires_at, :created_at)"
-                    ),
-                    {
-                        "id": str(uuid4()),
-                        "session_id": session_id,
-                        "endpoint": "/api/v1/sessions/runs",
-                        "idempotency_key": str(uuid4()),
-                        "request_fingerprint": "a" * 64,
-                        "run_id": run_id,
-                        "expires_at": created_at.isoformat(),
-                        "created_at": (created_at + timedelta(seconds=1)).isoformat(),
-                    },
-                )
+        created_at = datetime.now(UTC)
+        with pytest.raises(IntegrityError), engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO run_idempotency_keys (id, session_id, endpoint, idempotency_key, "
+                    "request_fingerprint, run_id, expires_at, created_at) VALUES "
+                    "(:id, :session_id, :endpoint, :idempotency_key, :request_fingerprint, :run_id, "
+                    ":expires_at, :created_at)"
+                ),
+                {
+                    "id": str(uuid4()),
+                    "session_id": session_id,
+                    "endpoint": "/api/v1/sessions/runs",
+                    "idempotency_key": str(uuid4()),
+                    "request_fingerprint": "a" * 64,
+                    "run_id": run_id,
+                    "expires_at": created_at.isoformat(),
+                    "created_at": (created_at + timedelta(seconds=1)).isoformat(),
+                },
+            )
     finally:
         engine.dispose()
 
@@ -418,7 +412,7 @@ def test_p2_schema_sqlite_受控状态与其余唯一约束生效(tmp_path: Path
     engine = create_app_engine(f"sqlite:///{database_path.as_posix()}")
     try:
         session_id, run_id = _create_session_and_run(engine)
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         with engine.connect() as connection:
             input_message_id = connection.execute(
                 text("SELECT input_message_id FROM diagnosis_runs WHERE id = :run_id"),
@@ -494,9 +488,8 @@ def test_p2_schema_sqlite_受控状态与其余唯一约束生效(tmp_path: Path
             ),
         ]
         for statement, parameters in invalid_statements:
-            with pytest.raises(IntegrityError):
-                with engine.begin() as connection:
-                    connection.execute(text(statement), parameters)
+            with pytest.raises(IntegrityError), engine.begin() as connection:
+                connection.execute(text(statement), parameters)
 
         idempotency_key = str(uuid4())
         idempotency_parameters = {
@@ -505,7 +498,7 @@ def test_p2_schema_sqlite_受控状态与其余唯一约束生效(tmp_path: Path
             "idempotency_key": idempotency_key,
             "request_fingerprint": "b" * 64,
             "run_id": run_id,
-            "expires_at": (datetime.now(timezone.utc) + timedelta(days=1)).isoformat(),
+            "expires_at": (datetime.now(UTC) + timedelta(days=1)).isoformat(),
             "created_at": now,
         }
         statement = text(
@@ -516,9 +509,8 @@ def test_p2_schema_sqlite_受控状态与其余唯一约束生效(tmp_path: Path
         )
         with engine.begin() as connection:
             connection.execute(statement, {"id": str(uuid4()), **idempotency_parameters})
-        with pytest.raises(IntegrityError):
-            with engine.begin() as connection:
-                connection.execute(statement, {"id": str(uuid4()), **idempotency_parameters})
+        with pytest.raises(IntegrityError), engine.begin() as connection:
+            connection.execute(statement, {"id": str(uuid4()), **idempotency_parameters})
     finally:
         engine.dispose()
 
@@ -527,5 +519,5 @@ def test_p2_schema_utc_default为aware时间() -> None:
     """ORM 默认时间函数必须返回 UTC aware datetime。"""
     value = models.utc_now()
 
-    assert value.tzinfo is timezone.utc
+    assert value.tzinfo is UTC
     assert value.utcoffset() == timedelta(0)

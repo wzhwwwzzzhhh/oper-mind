@@ -2,14 +2,27 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    Uuid,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.domain.diagnosis import MessageRole, RunEventType, RunStatus, SessionStatus
+from src.domain.diagnosis import RunStatus, SessionStatus
 from src.domain.model_provider import VerifyStatus
 from src.domain.services import REGISTERED_SERVICE_IDS
 from src.infrastructure.persistence.database import Base
@@ -17,7 +30,7 @@ from src.infrastructure.persistence.database import Base
 
 def utc_now() -> datetime:
     """返回用于应用元数据的 UTC aware 当前时间。"""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class SessionRecord(Base):

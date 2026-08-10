@@ -15,7 +15,6 @@ from pydantic import BaseModel
 
 from src.core.tool_gateway import desensitize
 
-
 # 命中片段选取上下文长度（关键词前后各 60 字符）
 _SNIPPET_CONTEXT = 60
 # 单文档最多返回片段数

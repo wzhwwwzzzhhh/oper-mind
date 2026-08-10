@@ -5,13 +5,17 @@
 Run 主脊执行，Trace 只展示安全摘要，不暴露 CoT。
 """
 
+import asyncio
 import logging
-from contextlib import asynccontextmanager
+import os
+from collections.abc import Awaitable, Callable, Mapping, Sequence
+from contextlib import asynccontextmanager, suppress
+from typing import Literal
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from src.api.schemas import ErrorDetail, ErrorResponse, HealthResponse, RootResponse
 from src.api.v1.dependencies import build_v1_services
@@ -26,7 +30,6 @@ from src.infrastructure.secrets import (
     load_secret_key,
 )
 
-
 LOGGER = logging.getLogger(__name__)
 
 @asynccontextmanager
@@ -35,17 +38,14 @@ async def _lifespan(application: FastAPI):
     sampler = getattr(application.state.v1_services, "monitor_sampler", None)
     task = None
     if sampler is not None:
-        import asyncio
         task = asyncio.create_task(sampler.run_forever())
     try:
         yield
     finally:
         if task is not None:
             task.cancel()
-            try:
+            with suppress(asyncio.CancelledError):
                 await task
-            except asyncio.CancelledError:
-                pass
 
 
 app = FastAPI(
@@ -60,7 +60,7 @@ app.state.v1_services = build_v1_services()
 
 
 @app.middleware("http")
-async def v1_request_id_middleware(request: Request, call_next):
+async def v1_request_id_middleware(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
     """仅为 `/api/v1` 验证或生成 request id，并在所有 v1 响应回显。"""
     if not request.url.path.startswith("/api/v1"):
         return await call_next(request)
@@ -169,26 +169,34 @@ def _v1_response_meta(request: Request) -> ResponseMeta:
     return ResponseMeta(request_id=request_id if isinstance(request_id, UUID) else uuid4())
 
 
-def _v1_validation_details(errors: list[dict[str, object]]) -> list[FieldIssue]:
+def _v1_validation_details(errors: Sequence[Mapping[str, object]]) -> list[FieldIssue]:
     """将框架校验错误收敛为可安全展示的字段和原因。"""
     details: list[FieldIssue] = []
     for error in errors:
-        location = [str(part) for part in error.get("loc", ()) if part not in {"body", "query", "path", "header"}]
+        loc = error.get("loc", ())
+        if not isinstance(loc, (list, tuple)):
+            loc = ()
+        location = [str(part) for part in loc if part not in {"body", "query", "path", "header"}]
         field = ".".join(location) or "request"
         details.append(FieldIssue(field=field, reason=str(error.get("msg", "参数不合法"))))
     return details
 
 
-def _validation_details(errors: list[dict[str, object]]) -> list[ErrorDetail]:
+def _validation_details(errors: Sequence[Mapping[str, object]]) -> list[ErrorDetail]:
     """将 FastAPI/Pydantic 的原始校验错误转换为稳定公开契约。"""
-    return [
-        ErrorDetail(
-            location=[str(part) if not isinstance(part, int) else part for part in error.get("loc", ())],
-            message=str(error.get("msg", "参数不合法")),
-            error_type=str(error.get("type", "validation_error")),
+    details: list[ErrorDetail] = []
+    for error in errors:
+        loc = error.get("loc", ())
+        if not isinstance(loc, (list, tuple)):
+            loc = ()
+        details.append(
+            ErrorDetail(
+                location=[str(part) if not isinstance(part, int) else part for part in loc],
+                message=str(error.get("msg", "参数不合法")),
+                error_type=str(error.get("type", "validation_error")),
+            )
         )
-        for error in errors
-    ]
+    return details
 
 
 def _effective_model_config() -> dict[str, dict[str, str]]:
@@ -219,7 +227,7 @@ def _env_config_fallback() -> dict[str, dict[str, str]]:
     }
 
 
-def _service_mode(config: dict[str, dict[str, str]]) -> str:
+def _service_mode(config: dict[str, dict[str, str]]) -> Literal["mock", "real"]:
     """返回安全的运行模式标识，不泄露 API Key。"""
     api_key = (config.get("llm") or {}).get("api_key") or os.environ.get("OPERMIND_API_KEY", "")
     return "mock" if api_key == "mock" else "real"

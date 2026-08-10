@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from uuid import uuid4
 import os
 import subprocess
 import sys
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import create_engine, text
@@ -20,7 +20,6 @@ from src.domain.services import ServiceRegistry
 from src.infrastructure.diagnosis.result_assembler import ConservativeResultAssembler
 from src.infrastructure.persistence.database import Base
 from src.infrastructure.persistence.repositories import SqlAlchemySessionRepository
-
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = BACKEND_ROOT.parent
@@ -96,7 +95,7 @@ def test_服务集合校验和重复服务被拒绝(session_factory) -> None:
 def test_redis是会话服务关联表允许的已注册服务(session_factory) -> None:
     service = SessionApplicationService(session_factory, ServiceRegistry((_Connector("redis-production"),)))
 
-    created = service.create_session(CreateSessionCommand(title="Redis 调查", service_ids=("redis-production",)))
+    service.create_session(CreateSessionCommand(title="Redis 调查", service_ids=("redis-production",)))
 
     session = session_factory()
     try:

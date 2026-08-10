@@ -7,6 +7,7 @@ P6 不修改 `server_tools.py`；本文件锁定「mock 模式下各工具返回
 from __future__ import annotations
 
 from data.scenarios import set_active_scenario
+
 from src.tools.server_tools import (
     CheckCpuTool,
     CheckDiskTool,

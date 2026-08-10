@@ -5,9 +5,9 @@ from __future__ import annotations
 import asyncio
 import os
 from datetime import datetime
-from typing import Annotated, TypeVar
-from uuid import UUID
+from typing import Annotated, Literal, TypeVar
 from urllib.parse import urlparse
+from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, Query, Request, Response
 from fastapi.responses import StreamingResponse
@@ -58,17 +58,17 @@ from src.api.v1.schemas import (
     KnowledgeListResponse,
     KnowledgeSearchResponse,
     MessageListResponse,
-    ModelConfigResponse,
     ModelConfigResource,
+    ModelConfigResponse,
     ModelEndpointResource,
     ModelProviderListResponse,
     ModelProviderResponse,
     MonitorHistoryResponse,
     MonitorOverviewResponse,
     ResponseMeta,
+    RunActionProposalResponse,
     RunEventEnvelope,
     RunEventListResponse,
-    RunActionProposalResponse,
     RunResponse,
     ServiceActivityListResponse,
     ServiceListResponse,
@@ -79,23 +79,12 @@ from src.api.v1.schemas import (
     UpdateSessionRequest,
 )
 from src.api.v1.sse import parse_event_sequence, replay_run_events
-from src.application.action_services import DecideActionProposalCommand, RequestActionExecutionCommand
+from src.application.action_services import (
+    ActionApplicationService,
+    DecideActionProposalCommand,
+    RequestActionExecutionCommand,
+)
 from src.application.contracts import CreateRunCommand, CreateSessionCommand, UpdateSessionCommand
-from src.application.knowledge import KnowledgeReaderService, KnowledgeTimeoutError
-from src.knowledge.reader import _ILLEGAL_PATH_RE, _ILLEGAL_QUERY_RE
-from src.application.model_providers import (
-    ActivateModelProviderCommand,
-    CreateModelProviderCommand,
-    ModelProviderApplicationService,
-    UpdateModelProviderCommand,
-    provider_create_fingerprint,
-)
-from src.application.service_center import CreateServiceSessionCommand, ServiceCenterApplicationService
-from src.application.monitoring import (
-    MonitorHistoryApplicationService,
-    MonitorOverviewApplicationService,
-    OVERVIEW_READ_TIMEOUT_SECONDS,
-)
 from src.application.errors import (
     ActionProposalInvalidStateError,
     ApplicationError,
@@ -103,9 +92,24 @@ from src.application.errors import (
     ServiceCenterUnavailableError,
     SessionNotFoundError,
 )
+from src.application.knowledge import KnowledgeReaderService, KnowledgeTimeoutError
+from src.application.model_providers import (
+    ActivateModelProviderCommand,
+    CreateModelProviderCommand,
+    ModelProviderApplicationService,
+    UpdateModelProviderCommand,
+    provider_create_fingerprint,
+)
+from src.application.monitoring import (
+    OVERVIEW_READ_TIMEOUT_SECONDS,
+    MonitorHistoryApplicationService,
+    MonitorOverviewApplicationService,
+)
+from src.application.service_center import CreateServiceSessionCommand, ServiceCenterApplicationService
+from src.config import load_monitor_settings
 from src.domain.diagnosis import SessionStatus
 from src.domain.model_provider import ProviderEndpoint
-from src.domain.records import DiagnosisRunData, SessionData
+from src.domain.records import DiagnosisRunData, RunEventData, SessionData
 from src.infrastructure.persistence.repositories import (
     SqlAlchemyDiagnosisResultRepository,
     SqlAlchemyDiagnosisRunRepository,
@@ -115,11 +119,12 @@ from src.infrastructure.persistence.repositories import (
 )
 from src.infrastructure.secrets import (
     SecretKeyNotConfiguredError as SecretsSecretKeyNotConfiguredError,
+)
+from src.infrastructure.secrets import (
     SecretKeyTooShortError,
     load_secret_key,
 )
-from src.config import load_monitor_settings
-
+from src.knowledge.reader import _ILLEGAL_PATH_RE, _ILLEGAL_QUERY_RE, KnowledgeDocumentMeta, KnowledgeSearchHit
 
 CursorT = TypeVar("CursorT", SessionCursor, MessageCursor, DiagnosisRunCursor, RunEventCursor, ActionEventCursor)
 
@@ -221,7 +226,7 @@ def _monitor_overview(services: V1Services) -> MonitorOverviewApplicationService
     )
 
 
-def _action_service(services: V1Services):
+def _action_service(services: V1Services) -> ActionApplicationService:
     """读取已装配的 P4.2 action 服务；旧 P2 测试装配不暴露动作能力。"""
     if services.action_service is None:
         raise ActionProposalInvalidStateError("固定修复能力当前不可用。")
@@ -233,14 +238,16 @@ def _knowledge_service(services: V1Services) -> KnowledgeReaderService | None:
     return services.knowledge_service
 
 
-def _model_endpoint_resource(config: object) -> ModelEndpointResource | None:
+def _model_endpoint_resource(config: dict[str, str] | None) -> ModelEndpointResource | None:
     """把模型配置收敛为不含凭据的主机和模型名。"""
-    if not isinstance(config, dict):
+    if config is None:
         return None
     base_url = config.get("base_url")
     model = config.get("model")
     api_key = config.get("api_key")
-    if not all(isinstance(value, str) and value.strip() for value in (api_key, base_url, model)):
+    if not isinstance(base_url, str) or not isinstance(model, str) or not isinstance(api_key, str):
+        return None
+    if not (base_url.strip() and model.strip() and api_key.strip()):
         return None
     if any(value.lower().startswith("your-") for value in (api_key, base_url, model)):
         return None
@@ -269,7 +276,7 @@ def _model_config_resource(provider_service: ModelProviderApplicationService) ->
         )
     judge = _model_endpoint_resource(config.get("judge_llm"))
     api_key = config.get("llm", {}).get("api_key") if isinstance(config.get("llm"), dict) else None
-    mode = "mock" if (api_key or os.environ.get("OPERMIND_API_KEY")) == "mock" else "real"
+    mode: Literal["mock", "real"] = "mock" if (api_key or os.environ.get("OPERMIND_API_KEY")) == "mock" else "real"
     return ModelConfigResource(
         mode=mode,
         diagnostic_model=diagnostic,
@@ -580,7 +587,7 @@ async def get_monitor_overview(
             asyncio.to_thread(_monitor_overview(services).get_overview),
             timeout=OVERVIEW_READ_TIMEOUT_SECONDS,
         )
-    except asyncio.TimeoutError as error:
+    except TimeoutError as error:
         raise ApiV1Error(500, "INTERNAL_ERROR", "服务内部错误，请稍后重试") from error
     except ApplicationError as error:
         raise_application_error(error)
@@ -991,7 +998,7 @@ def stream_run_events(
 
     meta = response_meta(request, run.trace_id)
 
-    def envelope_factory(event):
+    def envelope_factory(event: RunEventData) -> RunEventEnvelope:
         return RunEventEnvelope(event=run_event_resource(event), meta=meta)
 
     return StreamingResponse(
@@ -1015,13 +1022,16 @@ def list_knowledge_documents(
 ) -> KnowledgeListResponse:
     """列出受管知识目录内的 Markdown 文档清单（标题 + 相对路径）。"""
     knowledge = _knowledge_service(services)
+    status: Literal["not_configured", "empty", "ok"]
+    items: list[KnowledgeDocumentMeta]
     if knowledge is None:
         status, items = "not_configured", []
     else:
         try:
             status, items = knowledge.list_documents()
-        except KnowledgeTimeoutError:
-            raise ApiV1Error(503, "KNOWLEDGE_TIMEOUT", "知识库读取超时，请稍后重试")
+        except KnowledgeTimeoutError as err:
+            # from err 只进服务端日志；响应体由 handler 从 code/message 构造，不含异常链。
+            raise ApiV1Error(503, "KNOWLEDGE_TIMEOUT", "知识库读取超时，请稍后重试") from err
     meta = response_meta(request)
     apply_headers(response, meta)
     return KnowledgeListResponse(
@@ -1044,13 +1054,15 @@ def search_knowledge(
     if not normalized_query or _ILLEGAL_QUERY_RE.search(query):
         raise ApiV1Error(422, "VALIDATION_ERROR", "检索词不能为空且不含路径分隔符或控制字符")
     knowledge = _knowledge_service(services)
+    status: Literal["not_configured", "empty", "no_match", "ok"]
+    items: list[KnowledgeSearchHit]
     if knowledge is None:
         status, items = "not_configured", []
     else:
         try:
             status, items = knowledge.search(normalized_query, limit)
-        except KnowledgeTimeoutError:
-            raise ApiV1Error(503, "KNOWLEDGE_TIMEOUT", "知识库检索超时，请稍后重试")
+        except KnowledgeTimeoutError as err:
+            raise ApiV1Error(503, "KNOWLEDGE_TIMEOUT", "知识库检索超时，请稍后重试") from err
     meta = response_meta(request)
     apply_headers(response, meta)
     return KnowledgeSearchResponse(
@@ -1087,8 +1099,8 @@ def get_knowledge_document(
         raise ApiV1Error(404, "KNOWLEDGE_DOCUMENT_NOT_FOUND", "知识文档不存在或不可访问")
     try:
         content = knowledge.get_document(document_path)
-    except KnowledgeTimeoutError:
-        raise ApiV1Error(503, "KNOWLEDGE_TIMEOUT", "知识库读取超时，请稍后重试")
+    except KnowledgeTimeoutError as err:
+        raise ApiV1Error(503, "KNOWLEDGE_TIMEOUT", "知识库读取超时，请稍后重试") from err
     if content is None:
         raise ApiV1Error(404, "KNOWLEDGE_DOCUMENT_NOT_FOUND", "知识文档不存在或不可访问")
     meta = response_meta(request)

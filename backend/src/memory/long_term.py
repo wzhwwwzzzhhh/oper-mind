@@ -1,11 +1,14 @@
 """长期记忆：跨会话存储和检索"""
 
 import json
+import logging
 import os
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from src.project_paths import DATA_DIR
+
+LOGGER = logging.getLogger(__name__)
 
 
 class LongTermMemory:
@@ -20,16 +23,16 @@ class LongTermMemory:
         self.records: list[dict] = []
         self.load()
 
-    def load(self):
+    def load(self) -> None:
         """从文件加载历史记录"""
         if os.path.exists(self.storage_path):
             try:
-                with open(self.storage_path, "r", encoding="utf-8") as f:
+                with open(self.storage_path, encoding="utf-8") as f:
                     self.records = json.load(f)
             except (json.JSONDecodeError, FileNotFoundError):
-                print(f"加载历史记录时出错")
+                LOGGER.warning("加载历史记录失败，按空记录继续：%s", self.storage_path)
                 self.records = []
-        print(f"[Memoryl已加载{len(self.records)}条历史记录")
+        LOGGER.info("已加载 %d 条历史诊断记录", len(self.records))
 
     def _save(self):
         """保存到文件"""
@@ -37,7 +40,7 @@ class LongTermMemory:
         with open(self.storage_path, "w", encoding="utf-8") as f:
             json.dump(self.records, f, ensure_ascii=False, indent=2)
 
-    def add_record(self, query: str, diagnosis: str, tags: list[str] = None):
+    def add_record(self, query: str, diagnosis: str, tags: list[str] | None = None) -> None:
         """
         保存一条诊断记录。
         query：用户的问题/SQLdiagnosis：诊断结论
@@ -48,11 +51,12 @@ class LongTermMemory:
             "query": query,
             "diagnosis": diagnosis,
             "tags": tags or [],
-            "timestamp": datetime.now().isoformat()
+            # 存 UTC aware：唯一读取方是 format_context 的 [:10] 取日期，格式变长不影响。
+            "timestamp": datetime.now(UTC).isoformat()
         }
         self.records.append(record)
         self._save()
-        print(f"[Memory]已保存诊断记录#{record['id']}")
+        LOGGER.info("已保存诊断记录 #%s", record["id"])
 
     def search(self, keywords: str, top_k: int = 3) -> list[dict]:
         """
@@ -92,10 +96,7 @@ class LongTermMemory:
         将检索结果格式化为LLM 能读的上下文文本。
         在Agent的 system prompt中注入这个，让LLM参考历史。
         """
-        if keyword:
-            result = self.search(keyword)
-        else:
-            result = []
+        result = self.search(keyword) if keyword else []
 
         if not result:
             # 搜索不到时，展示最近记录作为上下文

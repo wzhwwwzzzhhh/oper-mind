@@ -126,6 +126,32 @@ describe('App', () => {
     expect(screen.getByLabelText('全局导航')).toBeInTheDocument()
   })
 
+  it('全局图标轨只放正式模块，服务监控不在这里重复一个入口', () => {
+    render(<App />)
+
+    const rail = screen.getByLabelText('全局导航')
+    // 产品定义第 4 节：监控是服务中心的责任，不是独立模块。
+    expect(rail.querySelector('[aria-label="服务监控"]')).toBeNull()
+    for (const label of ['会话工作台', '服务中心', '文档知识库', '模型设置']) {
+      expect(rail.querySelector(`[aria-label="${label}"]`)).not.toBeNull()
+    }
+  })
+
+  it('在服务监控页时点亮服务中心，且监控入口只出现在第二栏子导航', async () => {
+    open_path('/monitor')
+    render(<App />)
+
+    const rail = screen.getByLabelText('全局导航')
+    expect(rail.querySelector('[aria-label="服务中心"]')?.className).toContain('active')
+
+    // 子导航里的"服务监控"是唯一入口，并且处于选中态。
+    const context_nav = await screen.findByLabelText('服务中心导航')
+    const monitor_link = Array.from(context_nav.querySelectorAll('button')).find(
+      (node) => node.textContent?.includes('服务监控'),
+    )
+    expect(monitor_link?.className).toContain('active')
+  })
+
   it('欢迎页快捷卡创建会话并进入新会话', async () => {
     const session_id = api_v1_contract_fixtures.session_id
     let create_body: unknown
@@ -528,17 +554,20 @@ describe('App', () => {
     expect(screen.getByText('定时采样 · 每 5 分钟 · 保留最近 24 小时 · 历史记录')).toBeInTheDocument()
   })
 
-  it('模型服务页展示后端真实配置并保留本地 Agent 偏好', async () => {
+  it('模型服务页只展示后端真实配置，不再渲染写死的模型卡与假策略开关', async () => {
     open_path('/models')
     render(<App />)
 
     expect(await screen.findByRole('heading', { name: '模型服务' })).toBeInTheDocument()
     expect((await screen.findAllByText('diagnostic-model')).length).toBeGreaterThan(0)
-    expect((await screen.findAllByText(/Mock 模式/)).length).toBeGreaterThan(0)
     expect(screen.getByText('未配置独立裁判模型')).toBeInTheDocument()
-    const coordinator_toggle = screen.getByRole('button', { name: 'Coordinator 策略开关' })
-    fireEvent.click(coordinator_toggle)
-    expect(JSON.parse(window.localStorage.getItem('opermind:model-policy') ?? '{}')).toMatchObject({ coordinator: false })
+    expect(screen.getByText('返回确定性样例，不出网')).toBeInTheDocument()
+
+    // 只写 localStorage 的假开关与写死的示例模型卡已删除，不应再出现。
+    expect(screen.queryByRole('button', { name: 'Coordinator 策略开关' })).not.toBeInTheDocument()
+    expect(window.localStorage.getItem('opermind:model-policy')).toBeNull()
+    expect(screen.queryByText('DeepSeek · 云端示例')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '设为当前偏好' })).not.toBeInTheDocument()
 
     expect(screen.getByRole('button', { name: '＋ 添加模型服务' })).toBeEnabled()
     expect(await screen.findByText('DeepSeek 生产')).toBeInTheDocument()
@@ -556,7 +585,7 @@ describe('App', () => {
     expect(await screen.findByText('暂时无法读取模型配置，请稍后重试。')).toBeInTheDocument()
     expect(screen.queryByText('diagnostic-model')).not.toBeInTheDocument()
     expect(screen.queryByText('示例配置')).not.toBeInTheDocument()
-    expect(screen.queryByText('本地页面偏好')).not.toBeInTheDocument()
+    expect(screen.queryByText('DeepSeek · 云端示例')).not.toBeInTheDocument()
   })
 
   it('服务中心列表展示真实服务目录，不伪装成实时监控', async () => {
@@ -566,7 +595,10 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: '服务中心' })).toBeInTheDocument()
     expect(await screen.findByText('订单服务靶场')).toBeInTheDocument()
     expect(screen.getByText('服务目录')).toBeInTheDocument()
-    expect(screen.getByText((content) => content.includes('仅展示当前工作空间授权范围内的信息'))).toBeInTheDocument()
+    expect(screen.getByText((content) => content.includes('仅展示后端已注册服务'))).toBeInTheDocument()
+    // 工作空间/团队名后端没有这个概念，页面不再编造。
+    expect(screen.queryByText('研发运维团队')).not.toBeInTheDocument()
+    expect(screen.queryByText('platform-team · 受控访问')).not.toBeInTheDocument()
   })
 
   it('服务中心列表展示多个实例并标记未配置实例', async () => {
@@ -594,7 +626,10 @@ describe('App', () => {
 
     expect(await screen.findByText('预发布 PostgreSQL 主库')).toBeInTheDocument()
     expect(screen.getByText('未配置')).toBeInTheDocument()
-    expect(screen.getByText('1 个已配置')).toBeInTheDocument()
+    expect(screen.getByText('1 个已配置快照')).toBeInTheDocument()
+    // 快照模式来自后端 ServiceMode，不是每行写死的"受控访问"。
+    expect(screen.getByText('未接入')).toBeInTheDocument()
+    expect(screen.getByText('演示快照')).toBeInTheDocument()
   })
 
   it('服务中心列表展示 Redis 实例并对无调查服务诚实标注未启用', async () => {

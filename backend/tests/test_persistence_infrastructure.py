@@ -37,7 +37,7 @@ def test_persistence_settings_环境变量覆盖本地配置(monkeypatch: pytest
 
 def test_persistence_settings_默认根数据目录_sqlite(monkeypatch: pytest.MonkeyPatch) -> None:
     """未配置 URL 时开发默认值固定在根 data 目录。"""
-    monkeypatch.setattr(config, "_load_yaml_config", lambda: {})
+    monkeypatch.setattr(config, "_load_yaml_config", dict)
     monkeypatch.delenv("OPERMIND_APP_DATABASE_URL", raising=False)
 
     settings = load_persistence_settings()

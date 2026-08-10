@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import Select, and_, or_, select
+from sqlalchemy import RowMapping, Select, and_, or_, select
 from sqlalchemy.orm import Session
 
 from src.domain.records import DiagnosisRunCursor, RepositoryPage
@@ -86,7 +86,7 @@ def _activity_select() -> Select[tuple[object, ...]]:
     )
 
 
-def _activity_data(row: object) -> ServiceActivityData:
+def _activity_data(row: RowMapping) -> ServiceActivityData:
     """将 ORM 映射行收敛为公开活动所需的安全标量。"""
     values = dict(row)
     return ServiceActivityData(
@@ -141,8 +141,8 @@ def _as_utc(value: object) -> datetime:
     if not isinstance(value, datetime):
         raise ValueError("服务活动时间无效。")
     if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _as_utc_or_none(value: object) -> datetime | None:

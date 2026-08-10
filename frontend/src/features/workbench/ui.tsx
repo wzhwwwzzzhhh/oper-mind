@@ -1,16 +1,18 @@
 import type { CSSProperties, ReactElement, ReactNode } from 'react'
 import { useState } from 'react'
 
+import { Icon, type IconName } from '../shell/Icon'
+
 /* P3-PKG7：自绘 UI 原语，替代工作台曾依赖的第三方 UI 库组件。
    仅覆盖工作台仍在使用的最小集合；样式类前缀 ui-，语义与既有 UI 库对齐但不依赖任何 UI 库。 */
 
 type UiAlertType = 'info' | 'success' | 'warning' | 'error'
 
-const ALERT_ICONS: Record<UiAlertType, string> = {
-  info: 'ℹ',
-  success: '✓',
-  warning: '⚠',
-  error: '✕',
+const ALERT_ICONS: Record<UiAlertType, IconName> = {
+  error: 'alert',
+  info: 'message',
+  success: 'check',
+  warning: 'alert',
 }
 
 interface UiAlertProps {
@@ -26,7 +28,11 @@ interface UiAlertProps {
 export function UiAlert({ action, className, description, showIcon, title, type }: UiAlertProps): ReactElement {
   return (
     <div className={`ui-alert ui-alert--${type}${className ? ` ${className}` : ''}`} role={type === 'error' ? 'alert' : undefined}>
-      {showIcon && <span aria-hidden="true" className="ui-alert__icon">{ALERT_ICONS[type]}</span>}
+      {showIcon && (
+        <span className="ui-alert__icon">
+          <Icon name={ALERT_ICONS[type]} size={14} />
+        </span>
+      )}
       <div className="ui-alert__content">
         {title != null && <div className="ui-alert__title">{title}</div>}
         {description != null && <div className="ui-alert__desc">{description}</div>}
@@ -283,7 +289,7 @@ export function UiCollapse({ className, items }: UiCollapseProps): ReactElement 
               type="button"
             >
               <span className="ui-collapse__label">{item.label}</span>
-              <span aria-hidden="true" className="ui-collapse__toggle">⌄</span>
+              <Icon className="ui-collapse__toggle" name="chevron-down" size={14} />
             </button>
             {open && <div className="ui-collapse__body">{item.children}</div>}
           </div>

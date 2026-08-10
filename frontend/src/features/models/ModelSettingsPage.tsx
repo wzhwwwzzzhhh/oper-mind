@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { FormEvent, ReactElement } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -14,23 +14,7 @@ import {
   verify_model_provider_mutation,
 } from '../../api/v1/queries'
 import type { ModelProviderResource } from '../../api/v1/client'
-
-type PolicyKey = 'coordinator' | 'db' | 'server' | 'log' | 'debate' | 'reflection' | 'report'
-
-interface ModelItem {
-  id: string
-  name: string
-  provider: string
-  description: string
-  tags: string[]
-}
-
-interface AgentPolicy {
-  key: PolicyKey
-  name: string
-  description: string
-  model: string
-}
+import { Icon } from '../shell/Icon'
 
 interface ProviderFormState {
   name: string
@@ -39,45 +23,7 @@ interface ProviderFormState {
   api_key: string
 }
 
-const models: ModelItem[] = [
-  { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner', provider: 'DeepSeek · 云端示例', description: '适合复杂问题分析、证据汇总和需要多步推理的调查。', tags: ['推理', '工具调用', '流式输出'] },
-  { id: 'deepseek-chat', name: 'DeepSeek Chat', provider: 'DeepSeek · 云端示例', description: '适合普通会话、快速问答和调查报告整理。', tags: ['对话', '工具调用', '流式输出'] },
-  { id: 'qwen3-8b', name: 'qwen3:8b', provider: 'Ollama · 本地示例', description: '本地开发模型，数据不离开当前环境；工具调用能力待验证。', tags: ['本地', '流式输出', '未验证'] },
-  { id: 'gpt-4-1', name: 'gpt-4.1', provider: '公司网关 · 示例模型', description: '适合稳定工具调用的调查任务；当前网关连接能力待确认。', tags: ['对话', '工具调用', '需确认'] },
-  { id: 'llama3-2', name: 'llama3.2:latest', provider: 'Ollama · 本地示例', description: '本地通用模型，适合开发环境中的基础对话验证。', tags: ['本地', '对话'] },
-  { id: 'deepseek-r1-14b', name: 'deepseek-r1:14b', provider: 'Ollama · 本地示例', description: '本地推理模型，适合不出网环境中的复杂问题试验。', tags: ['本地', '推理', '未验证'] },
-]
-
-const default_policy: Record<PolicyKey, boolean> = {
-  coordinator: true,
-  db: true,
-  server: true,
-  log: true,
-  debate: true,
-  reflection: true,
-  report: true,
-}
-
-const agent_policies: AgentPolicy[] = [
-  { key: 'coordinator', name: 'Coordinator', description: '动态路由、串行/并行编排', model: 'DeepSeek Reasoner' },
-  { key: 'db', name: 'DB Agent', description: '慢 SQL、索引与数据库事实', model: 'DeepSeek Reasoner' },
-  { key: 'server', name: 'Server Agent', description: 'CPU、内存、磁盘、进程、网络', model: 'DeepSeek Chat' },
-  { key: 'log', name: 'Log Agent', description: '错误日志、异常模式、慢查询日志', model: 'DeepSeek Chat' },
-  { key: 'debate', name: 'Debate Arena', description: '多 Agent 分歧裁决与证据对比', model: 'DeepSeek Reasoner' },
-  { key: 'reflection', name: 'Reflection Engine', description: '报告复审与问题反馈', model: 'DeepSeek Chat' },
-  { key: 'report', name: 'Report Agent', description: '结构化诊断报告与综合结论', model: 'DeepSeek Chat' },
-]
-
 const empty_form: ProviderFormState = { name: '', base_url: '', model: '', api_key: '' }
-
-function read_local<T>(key: string, fallback: T): T {
-  try {
-    const value = window.localStorage.getItem(key)
-    return value ? JSON.parse(value) as T : fallback
-  } catch {
-    return fallback
-  }
-}
 
 function endpoint_label(endpoint: ModelProviderResource['active_endpoint']): string | null {
   if (endpoint === 'diagnostic') return '诊断生效'
@@ -92,23 +38,18 @@ function verify_label(status: ModelProviderResource['verify_status']): string {
   return '未验证'
 }
 
-/** 模型服务页：Provider 真实配置管理（掩码展示 / 验证 / 激活 / 编辑 / 删除）；本地策略仍只属于 UI 偏好。 */
+/** 模型服务页：Provider 真实配置管理（掩码展示 / 验证 / 激活 / 编辑 / 删除）。 */
 export function ModelSettingsPage(): ReactElement {
   const navigate = useNavigate()
   const query_client = useQueryClient()
   const model_config_query = useQuery({ ...get_model_config_query() })
   const providers_query = useQuery({ ...list_model_providers_query() })
-  const [policy, set_policy] = useState<Record<PolicyKey, boolean>>(() => ({ ...default_policy, ...read_local('opermind:model-policy', {}) }))
-  const [current_model, set_current_model] = useState(() => read_local('opermind:model-current', 'deepseek-reasoner'))
   const [toast, set_toast] = useState<string | null>(null)
   const [form_open, set_form_open] = useState(false)
   const [editing, set_editing] = useState<ModelProviderResource | null>(null)
   const [form, set_form] = useState<ProviderFormState>(empty_form)
   const [deleting, set_deleting] = useState<ModelProviderResource | null>(null)
   const [clear_key, set_clear_key] = useState(false)
-
-  useEffect(() => { window.localStorage.setItem('opermind:model-policy', JSON.stringify(policy)) }, [policy])
-  useEffect(() => { window.localStorage.setItem('opermind:model-current', current_model) }, [current_model])
 
   const show_toast = (message: string): void => {
     set_toast(message)
@@ -202,8 +143,6 @@ export function ModelSettingsPage(): ReactElement {
     set_form((current) => ({ ...current, [field]: value }))
   }
 
-  const current = models.find((item) => item.id === current_model) ?? models[0]
-  const enabled_count = Object.values(policy).filter(Boolean).length
   const config = model_config_query.data?.data.config
   const diagnostic = config?.diagnostic_model
   const judge = config?.judge_model
@@ -224,10 +163,10 @@ export function ModelSettingsPage(): ReactElement {
       {providers_query.isError && <div className="model-inline-state error">暂时无法读取 Provider 列表，请稍后重试。</div>}
 
       <section className="model-summary">
-        <article><small>诊断模型</small><strong>{diagnostic?.model ?? '未配置'}</strong><span>{diagnostic ? `${diagnostic.provider} · ${config?.mode === 'mock' ? 'Mock 模式' : '真实模式'}` : '后端未返回配置'}</span></article>
+        <article><small>诊断模型</small><strong>{diagnostic?.model ?? '未配置'}</strong><span>{diagnostic ? diagnostic.provider : '后端未返回配置'}</span></article>
         <article><small>裁判模型</small><strong>{judge?.model ?? '未配置'}</strong><span>{judge ? judge.provider : '未配置独立裁判模型'}</span></article>
-        <article><small>本地偏好</small><strong>{current.name}</strong><span>仅影响当前页面，不改变后端配置</span></article>
-        <article><small>Agent 策略</small><strong>{enabled_count} <em>项开启</em></strong><span>仅保存本地 UI 偏好</span></article>
+        <article><small>运行模式</small><strong>{config == null ? '未知' : config.mode === 'mock' ? 'Mock' : '真实调用'}</strong><span>{config == null ? '后端未返回配置' : config.mode === 'mock' ? '返回确定性样例，不出网' : '按生效 Provider 真实调用'}</span></article>
+        <article><small>已配置 Provider</small><strong>{providers_query.isSuccess ? providers.length : '—'} <em>个</em></strong><span>{providers_query.isSuccess ? '来自后端安全视图' : '尚未读取到列表'}</span></article>
       </section>
 
       <section className="model-section" id="providers">
@@ -261,18 +200,22 @@ export function ModelSettingsPage(): ReactElement {
         ))}</div>
       </section>
 
-      {model_config_query.isSuccess && <section className="model-section" id="models">
-        <div className="model-section-head"><div><h2>本地页面偏好</h2><p>选择仅用于页面展示的本地偏好，不会写入或改变后端生效配置。</p></div><button className="model-link" disabled type="button">刷新模型列表未启用 →</button></div>
-        <div className="model-grid">{models.map((item) => <article className={`model-card${current_model === item.id ? ' selected' : ''}`} key={item.id}><div className="model-card-head"><div><strong>{item.name}</strong><small>{item.provider}</small></div>{current_model === item.id && <span className="default-mark">当前偏好</span>}</div><p>{item.description}</p><div className="model-tags">{item.tags.map((tag) => <i key={tag}>{tag}</i>)}</div><button className="model-card-action" onClick={() => { set_current_model(item.id); show_toast(`已将 ${item.name} 设为本地偏好。`) }} type="button">{current_model === item.id ? '当前选择' : '设为当前偏好'}</button></article>)}</div>
-      </section>}
-
-      <section className="model-section" id="policy">
-        <div className="model-section-head"><div><h2>Agent 调用策略</h2><p>对应当前项目 Coordinator、领域 Agent 和质量保障组件；开关仅保存到本地。</p></div><button className="model-link" onClick={() => { set_policy({ ...default_policy }); show_toast('Agent 策略已恢复默认。') }} type="button">恢复默认 →</button></div>
-        <div className="model-policy-layout"><div className="model-card policy-card"><div className="model-card-title"><h3>Agent 与任务路由</h3><p>本页面不改变后端 Coordinator 的真实装配。</p></div>{agent_policies.map((item) => <div className="policy-row" key={item.key}><div><strong>{item.name}</strong><small>{item.description}</small></div><span className="policy-model">{item.model}</span><button aria-label={`${item.name} 策略开关`} aria-pressed={policy[item.key]} className={`policy-toggle${policy[item.key] ? ' on' : ''}`} onClick={() => set_policy((current_policy) => ({ ...current_policy, [item.key]: !current_policy[item.key] }))} type="button"><span /></button></div>)}</div><div className="model-card boundary-card" id="security"><div className="model-card-title"><h3>运行边界</h3><p>模型角色不能绕过 Agent、Tool Gateway 和审批策略。</p></div><ul><li>Coordinator 只负责路由，不直接获得任意服务访问权</li><li>DB / Server / Log Agent 只能调用各自注册的受控 Tool</li><li>Tool 调用进入后端网关，Trace 只展示安全摘要</li><li>Debate、Reflection、Report 只处理结构化诊断结果</li><li>高风险动作仍需提案、审批、白名单执行和验证</li></ul><div className="boundary-note">Provider 与 API Key 在此页管理；Key 加密存储、掩码展示，明文不进日志、Trace 或接口响应。</div></div></div>
+      <section className="model-section" id="security">
+        <div className="model-section-head"><div><h2>运行边界</h2><p>模型角色不能绕过 Agent、Tool Gateway 和审批策略。</p></div></div>
+        <div className="model-card boundary-card">
+          <ul>
+            <li>Coordinator 只负责路由，不直接获得任意服务访问权</li>
+            <li>DB / Server / Log Agent 只能调用各自注册的受控 Tool</li>
+            <li>Tool 调用进入后端网关，Trace 只展示安全摘要</li>
+            <li>Debate、Reflection、Report 只处理结构化诊断结果</li>
+            <li>高风险动作仍需提案、审批、白名单执行和验证</li>
+          </ul>
+          <div className="boundary-note">Provider 与 API Key 在此页管理；Key 加密存储、掩码展示，明文不进日志、Trace 或接口响应。</div>
+        </div>
       </section>
 
       {form_open && <div className="model-modal" role="dialog" aria-modal="true" aria-labelledby="model-modal-title"><div className="model-dialog">
-        <div className="model-dialog-head"><div><strong id="model-modal-title">{editing != null ? `编辑 ${editing.name}` : '添加模型服务'}</strong><p>{editing != null ? '修改名称、Base URL、模型；API Key 留空保持不变，空串清除。' : '填写 OpenAI-compatible Provider 信息，保存时加密存储 API Key。'}</p></div><button aria-label="关闭" className="more-button" onClick={() => { set_form_open(false); set_editing(null); }} type="button">×</button></div>
+        <div className="model-dialog-head"><div><strong id="model-modal-title">{editing != null ? `编辑 ${editing.name}` : '添加模型服务'}</strong><p>{editing != null ? '修改名称、Base URL、模型；API Key 留空保持不变，空串清除。' : '填写 OpenAI-compatible Provider 信息，保存时加密存储 API Key。'}</p></div><button aria-label="关闭" className="icon-btn" onClick={() => { set_form_open(false); set_editing(null); }} type="button"><Icon name="x" size={14} /></button></div>
         <form className="provider-form" onSubmit={submit_form}>
           <label>名称<input aria-label="Provider 名称" required value={form.name} onChange={(event) => set_form_field('name', event.target.value)} type="text" placeholder="如 DeepSeek 生产" /></label>
           <label>Base URL<input aria-label="Base URL" required value={form.base_url} onChange={(event) => set_form_field('base_url', event.target.value)} type="url" placeholder="https://api.deepseek.com/v1" /></label>
@@ -284,7 +227,7 @@ export function ModelSettingsPage(): ReactElement {
       </div></div>}
 
       {deleting != null && <div className="model-modal" role="dialog" aria-modal="true" aria-labelledby="model-delete-title"><div className="model-dialog">
-        <div className="model-dialog-head"><div><strong id="model-delete-title">删除 Provider</strong><p>将删除「{deleting.name}」及其 API Key 密文。若为生效配置，删除后该端点回退 env/YAML 兜底。</p></div><button aria-label="关闭" className="more-button" onClick={() => set_deleting(null)} type="button">×</button></div>
+        <div className="model-dialog-head"><div><strong id="model-delete-title">删除 Provider</strong><p>将删除「{deleting.name}」及其 API Key 密文。若为生效配置，删除后该端点回退 env/YAML 兜底。</p></div><button aria-label="关闭" className="icon-btn" onClick={() => set_deleting(null)} type="button"><Icon name="x" size={14} /></button></div>
         <div className="model-dialog-footer"><button className="model-button" type="button" onClick={() => set_deleting(null)}>取消</button><button className="model-button primary" type="button" onClick={() => delete_mutation.mutate(deleting.id)} disabled={delete_mutation.isPending}>确认删除</button></div>
       </div></div>}
 

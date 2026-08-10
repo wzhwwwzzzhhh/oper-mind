@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Generic, TypeVar
 from uuid import UUID, uuid4
 
@@ -10,14 +10,13 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationInfo, fi
 
 from src.domain.diagnosis import DiagnosisSeverity, MessageRole, RunEventType, RunStatus, SessionStatus
 
-
 RecordT = TypeVar("RecordT", bound=BaseModel)
 CursorT = TypeVar("CursorT", bound=BaseModel)
 
 
 def utc_now() -> datetime:
     """返回领域持久化对象默认使用的 UTC aware 当前时间。"""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class DomainRecord(BaseModel):
@@ -33,11 +32,12 @@ class TimestampedRecord(DomainRecord):
     @classmethod
     def validate_utc_datetime(cls, value: object, info: ValidationInfo) -> object:
         """拒绝非 UTC aware 时间，避免持久化边界混入本地时间。"""
-        if not info.field_name.endswith("_at") or value is None:
+        field_name = info.field_name
+        if field_name is None or not field_name.endswith("_at") or value is None:
             return value
         if not isinstance(value, datetime):
             return value
-        if value.tzinfo is None or value.utcoffset() != timezone.utc.utcoffset(value):
+        if value.tzinfo is None or value.utcoffset() != UTC.utcoffset(value):
             raise ValueError(f"{info.field_name} 必须是 UTC aware datetime。")
         return value
 

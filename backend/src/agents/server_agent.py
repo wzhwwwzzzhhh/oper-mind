@@ -8,12 +8,11 @@ from src.core.llm import LLMClient
 from src.core.tool_registry import ToolRegistry
 from src.tools.server_tools import (
     CheckCpuTool,
-    CheckMemoryTool,
     CheckDiskTool,
-    CheckProcessTool,
+    CheckMemoryTool,
     CheckNetworkTool,
+    CheckProcessTool,
 )
-
 
 SERVER_SYSTEM_PROMPT = """你是服务器运维专家，擅长分析服务器性能问题。
 

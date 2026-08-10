@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from typing import Callable, TypeVar
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
+from typing import overload
 from uuid import UUID
 
 from sqlalchemy import Select, and_, or_, select, update
@@ -11,11 +12,13 @@ from sqlalchemy.orm import Session
 
 from src.domain.diagnosis import DiagnosisSeverity, MessageRole, RunEventType, RunStatus, SessionStatus
 from src.domain.records import (
+    CursorT,
     DiagnosisResultData,
     DiagnosisRunCursor,
     DiagnosisRunData,
     MessageCursor,
     MessageData,
+    RecordT,
     RepositoryPage,
     RunEventCursor,
     RunEventData,
@@ -34,8 +37,12 @@ from src.infrastructure.persistence.models import (
 )
 
 
-RecordT = TypeVar("RecordT")
-CursorT = TypeVar("CursorT")
+@overload
+def _as_utc(value: datetime) -> datetime: ...
+
+
+@overload
+def _as_utc(value: datetime | None) -> datetime | None: ...
 
 
 def _as_utc(value: datetime | None) -> datetime | None:
@@ -43,14 +50,24 @@ def _as_utc(value: datetime | None) -> datetime | None:
     if value is None:
         return None
     if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _validate_limit(limit: int) -> None:
     """拒绝非正页大小，避免生成非预期 SQL 查询。"""
     if limit < 1:
         raise ValueError("limit 必须大于等于 1。")
+
+
+def _rowcount(result: object) -> int:
+    """读取 UPDATE/DELETE 执行结果的影响行数。
+
+    SQLAlchemy 2.0 的 ``Session.execute`` 返回 ``Result``，``rowcount`` 仅存在于实际
+    运行时返回的 ``CursorResult`` 上；这里按运行时契约收窄，取值失败视为 0。
+    """
+    count = getattr(result, "rowcount", 0)
+    return count if isinstance(count, int) else 0
 
 
 def _page(
@@ -276,7 +293,7 @@ class SqlAlchemyDiagnosisRunRepository:
             .values(**values)
             .execution_options(synchronize_session="fetch")
         )
-        if result.rowcount != 1:
+        if _rowcount(result) != 1:
             return None
         record = self._session.get(DiagnosisRunRecord, run_id)
         return _diagnosis_run_data(record) if record is not None else None

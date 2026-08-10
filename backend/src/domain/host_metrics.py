@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Protocol
 
@@ -86,12 +86,12 @@ class HostMetricsData(HostDomainModel):
     @classmethod
     def validate_observed_at(cls, value: datetime) -> datetime:
         """采集时间必须为 UTC aware datetime。"""
-        if value.tzinfo is None or value.utcoffset() != timezone.utc.utcoffset(value):
+        if value.tzinfo is None or value.utcoffset() != UTC.utcoffset(value):
             raise ValueError("observed_at 必须是 UTC aware datetime。")
         return value
 
     @classmethod
-    def unavailable(cls, observed_at: datetime, *, mode: HostMetricsMode) -> "HostMetricsData":
+    def unavailable(cls, observed_at: datetime, *, mode: HostMetricsMode) -> HostMetricsData:
         """采集失败/psutil 不可用时收敛为不可用状态，标量全部为 null。"""
         return cls(
             mode=mode,

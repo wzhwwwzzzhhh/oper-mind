@@ -1,14 +1,15 @@
 """Coordinator Agent —— 动态路由调度器（LangGraph 编排版）。"""
 
-from collections.abc import Iterator
-from datetime import datetime, timezone
 import logging
-from typing import Any, Literal, TypedDict, cast
-from typing_extensions import NotRequired
+from collections.abc import Iterator
+from datetime import UTC, datetime
+from typing import Any, Literal, NotRequired, TypedDict, cast
 
+from src.agents.report_agent import ReportAgent
+from src.core.debate import DebateArena
 from src.core.graph import build_diagnosis_graph
 from src.core.llm import LLMClient
-
+from src.core.reflection import ReflectionEngine
 
 LOGGER = logging.getLogger(__name__)
 
@@ -107,12 +108,18 @@ class CoordinatorAgent:
     def _ensure_graph(self) -> Any:
         """在首次调用或依赖变更后编译诊断图。"""
         if self._graph is None:
+            debate = self.debate
+            reflection = self.reflection
+            report = self.report
+            if debate is None or reflection is None or report is None:
+                raise RuntimeError("诊断图需要 debate/reflection/report 质量组件均已注入。")
+            # 属性声明为 object 以允许可选注入；非空收窄后按具体契约传入编译函数。
             self._graph = build_diagnosis_graph(
                 llm=self.llm,
                 agents=self.agents,
-                debate=self.debate,
-                reflection=self.reflection,
-                report=self.report,
+                debate=cast(DebateArena, debate),
+                reflection=cast(ReflectionEngine, reflection),
+                report=cast(ReportAgent, report),
             )
         return self._graph
 
@@ -151,7 +158,7 @@ class CoordinatorAgent:
     @staticmethod
     def _timestamp() -> str:
         """生成前端可排序的 UTC ISO 8601 时间戳。"""
-        return datetime.now(timezone.utc).isoformat()
+        return datetime.now(UTC).isoformat()
 
     def _create_start_events(self, update: dict[str, Any]) -> list[TraceRecord]:
         """在路由完成后补发领域 Agent 启动事件，供 SSE 前端即时点亮节点。"""

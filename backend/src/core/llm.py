@@ -1,6 +1,12 @@
 """LLM 调用封装"""
 
+import logging
+from typing import Any, cast
+
 from openai import OpenAI
+
+LOGGER = logging.getLogger(__name__)
+
 
 class LLMClient:
     """封装LLM API 调用，支持普通对话和 Function Calling"""
@@ -36,7 +42,9 @@ class LLMClient:
             kwargs["tool_choice"] = "auto"
 
         try:
-            response = self.client.chat.completions.create(**kwargs,timeout=60)
+            # kwargs 是 SDK 参数的运行时子集，OpenAI stub 无法静态表达动态键组合；
+            # SDK 自身会校验参数名，这里按受控边界 cast 到 Any。
+            response = self.client.chat.completions.create(**cast(dict[str, Any], kwargs), timeout=60)
             message = response.choices[0].message
 
             # 累计 token 用量（供评测成本核算；usage 缺失时不计）
@@ -61,12 +69,12 @@ class LLMClient:
                 ]
             return  result
         except Exception as e:
-            print(f"LLM API 调用失败: {e}")
+            # 只记异常类型：异常文本可能带 base_url 或密钥片段。
+            LOGGER.warning("LLM API 调用失败：%s", type(e).__name__)
             return {"role": "assistant", "content": "LLM API 调用失败", "error": str(e)}
 
     def _mock_chat(self, messages, tools):
         """Mock LLM 返回，不需要 API Key"""
-        import random
 
         # 检查是否已经执行过工具（有 tool 角色的消息）
         # 如果有，说明这是 ReAct 循环的第二轮以上，直接给最终答案
@@ -116,7 +124,7 @@ class LLMClient:
         # 默认回复
         return {
             "role": "assistant",
-            "content": f"Mock回复：收到了你的消息。如果是SQL诊断，请提供完整的SQL语句。",
+            "content": "Mock回复：收到了你的消息。如果是SQL诊断，请提供完整的SQL语句。",
         }
 
     def _mock_response(self, messages: list[dict], tools: list[dict] | None = None) -> dict:

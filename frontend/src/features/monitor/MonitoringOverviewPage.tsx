@@ -3,6 +3,7 @@ import type { ReactElement } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { get_monitor_overview_query } from '../../api/v1/queries'
+import { Icon } from '../shell/Icon'
 
 function kind_label(kind: string): { short: string; label: string } {
   const value = kind.toLowerCase()
@@ -52,6 +53,18 @@ function is_redis(kind: string): boolean {
   return kind.toLowerCase().includes('redis')
 }
 
+/** 采样点的性能信号 → 中文；与服务详情页保持同一套说法。 */
+function signal_label(value: string | null | undefined): string {
+  if (value === 'slow_query_detected') return '检测到慢查询'
+  if (value === 'no_slow_query_detected') return '未检测到慢查询'
+  if (value === 'missing_index_seq_scan_detected') return '发现索引/扫描信号'
+  if (value === 'index_and_plan_confirmed') return '索引与执行计划已确认'
+  if (value === 'insufficient_data') return '数据不足'
+  if (value === 'not_configured') return '未配置'
+  if (value === 'unavailable') return '不可用'
+  return '暂无信号'
+}
+
 /** 服务监控概览页：聚合所有已接入服务的定时采样概览，只读历史记录，不伪造实时监控。 */
 export function MonitoringOverviewPage(): ReactElement {
   const navigate = useNavigate()
@@ -76,7 +89,10 @@ export function MonitoringOverviewPage(): ReactElement {
           <p>聚合所有已接入服务的定时采样概览，帮助快速判断当前哪些服务出现异常。</p>
         </div>
         <div className="head-actions">
-          <button className="btn" onClick={() => void overview_query.refetch()} type="button">↻ 刷新状态</button>
+          <button className="btn" disabled={overview_query.isFetching} onClick={() => void overview_query.refetch()} type="button">
+            <Icon name="refresh" size={13} />
+            {overview_query.isFetching ? '读取中…' : '刷新状态'}
+          </button>
         </div>
       </section>
 
@@ -111,12 +127,14 @@ export function MonitoringOverviewPage(): ReactElement {
           <div className="monitor-table">
             <div className="monitor-table-head">
               <span>服务</span>
-              <span>类型 / 环境</span>
+              <span>类型 / 采样信号</span>
               <span>连接状态</span>
               <span>最新延迟</span>
               <span>慢查询 / 超时</span>
               <span>异常标记</span>
               <span>主机指标摘要</span>
+              {/* 末列表头留空：下面每行是"查看详情"提示，表头再写一遍是重复。 */}
+              <span />
             </div>
             {items.map((item) => {
               const info = kind_label(item.kind)
@@ -139,7 +157,7 @@ export function MonitoringOverviewPage(): ReactElement {
                   </div>
                   <div className="type">
                     {info.label}
-                    <small>{is_redis_service ? '只读监控' : '受控访问'}</small>
+                    <small>{signal_label(latest?.performance_signal)}</small>
                   </div>
                   <div>
                     <span className={`state ${connection_class(item.connection_status)}`}>
@@ -169,6 +187,10 @@ export function MonitoringOverviewPage(): ReactElement {
                     <strong>{display_number(latest?.host_cpu_percent, '%')} / {display_number(latest?.host_memory_percent, '%')} / {display_number(latest?.host_disk_used_percent, '%')}</strong>
                     <span>后端所在主机 · 单主机采集 · {display_time(latest?.observed_at)}</span>
                   </div>
+                  <span className="monitor-detail-cue">
+                    查看详情
+                    <Icon name="chevron-right" size={12} />
+                  </span>
                 </button>
               )
             })}

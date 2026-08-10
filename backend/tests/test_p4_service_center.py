@@ -6,8 +6,8 @@ from collections.abc import Iterator
 from contextlib import AbstractContextManager
 from typing import Any
 
-from src.api.v1.resources import service_resource
 from src.api.v1.dependencies import build_v1_services_for_runtime
+from src.api.v1.resources import service_resource
 from src.application.service_center import ServiceCenterApplicationService
 from src.domain.services import ServiceAvailability, ServiceRegistry
 from src.infrastructure.services.postgres_connector import PostgresServiceConnector
@@ -40,12 +40,12 @@ class FakeConnection(AbstractContextManager[Any]):
 
     def __exit__(self, *_args: object) -> None:
         """退出连接上下文。"""
-        return None
+        return
 
     def execute(self, statement: object) -> FakeResult:
         """忽略查询文本，只返回预置的结构化结果。"""
         sql = str(statement)
-        if sql.startswith("SET TRANSACTION READ ONLY") or sql.startswith("SELECT 1"):
+        if sql.startswith(("SET TRANSACTION READ ONLY", "SELECT 1")):
             return FakeResult()
         return next(self._results)
 

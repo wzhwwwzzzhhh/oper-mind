@@ -6,14 +6,13 @@ import asyncio
 import os
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy import create_engine, inspect, select
 from sqlalchemy.orm import sessionmaker
 
 from src.domain.host_metrics import (
-    HostMetricsCollector,
     HostMetricsData,
     HostMetricsMode,
     HostMetricsSourceStatus,
@@ -29,10 +28,9 @@ from src.domain.services import (
     ServiceSnapshotData,
     ServiceSourceStatus,
 )
+from src.infrastructure.monitoring.sampler import MonitorSampler
 from src.infrastructure.persistence.database import Base, create_app_engine
 from src.infrastructure.persistence.models import ServiceMonitorSampleRecord
-from src.infrastructure.persistence.monitor_repositories import SqlAlchemyMonitorSampleRepository
-from src.infrastructure.monitoring.sampler import MonitorSampler
 from src.project_paths import BACKEND_ROOT
 
 
@@ -41,7 +39,7 @@ def _snapshot(
     availability: ServiceAvailability = ServiceAvailability.HEALTHY,
     source_status: ServiceSourceStatus = ServiceSourceStatus.AVAILABLE,
 ) -> ServiceSnapshotData:
-    observed_at = datetime.now(timezone.utc)
+    observed_at = datetime.now(UTC)
     return ServiceSnapshotData(
         observed_at=observed_at,
         mode=ServiceMode.TARGET,
@@ -140,7 +138,7 @@ def test_采样器持久化redis专用标量而pg语义字段为null() -> None:
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine, expire_on_commit=False)
     snapshot = ServiceSnapshotData(
-        observed_at=datetime.now(timezone.utc),
+        observed_at=datetime.now(UTC),
         mode=ServiceMode.TARGET,
         availability=ServiceAvailability.HEALTHY,
         performance_signal=PerformanceSignal.SLOW_QUERY_DETECTED,
@@ -257,7 +255,7 @@ def _host_metrics() -> HostMetricsData:
     return HostMetricsData(
         mode=HostMetricsMode.TARGET,
         source_status=HostMetricsSourceStatus.AVAILABLE,
-        observed_at=datetime(2026, 8, 5, 12, 0, tzinfo=timezone.utc),
+        observed_at=datetime(2026, 8, 5, 12, 0, tzinfo=UTC),
         cpu_percent=42.5,
         memory_percent=61.0,
         memory_used_bytes=10 * 1024**3,

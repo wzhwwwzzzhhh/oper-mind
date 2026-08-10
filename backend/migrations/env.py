@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import sys
 from logging.config import fileConfig
 from pathlib import Path
-import sys
 
 from alembic import context
 
@@ -17,9 +17,8 @@ for path in (PROJECT_ROOT, BACKEND_ROOT):
         sys.path.insert(0, value)
 
 from src.config import load_persistence_settings
-from src.infrastructure.persistence.database import Base, create_app_engine
 from src.infrastructure.persistence import models  # noqa: F401
-
+from src.infrastructure.persistence.database import Base, create_app_engine
 
 config = context.config
 if config.config_file_name is not None:

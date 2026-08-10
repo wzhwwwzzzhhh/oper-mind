@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import TypeVar
 from uuid import UUID
 
@@ -158,6 +158,8 @@ class ModelProviderApplicationService:
                     has_api_key=encrypted is not None,
                 )
             )
+            if created.id is None:
+                raise ProviderNotFoundError()
             idempotency_repository.add(
                 ModelProviderIdempotencyKeyData(
                     idempotency_key=command.idempotency_key,
@@ -303,7 +305,7 @@ def resolve_model_config(
         finally:
             session.close()
     except SQLAlchemyError:
-        providers = ()
+        providers = []
     for endpoint, section in (("diagnostic", "llm"), ("judge", "judge_llm")):
         provider = next(
             (provider for provider in providers if provider.active_endpoint is ProviderEndpoint(endpoint)),
@@ -370,4 +372,4 @@ def _in_transaction(session_factory: SessionFactory, operation: Callable[[Sessio
 
 def _utc_now() -> datetime:
     """返回应用服务使用的 UTC aware 当前时间。"""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)

@@ -2,20 +2,20 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-import json
 import asyncio
+import json
+from collections.abc import Callable, Sequence
 from typing import Any
 
-from sqlalchemy import text
+from sqlalchemy import RowMapping, text
 from sqlalchemy.engine import Engine
 
 from src.application.action_execution import (
     ActionExecutionAttempt,
     ActionPreconditionBlockedError,
-    ControlledActionError,
     ActionVerificationFailedError,
     ActionVerificationOutcome,
+    ControlledActionError,
 )
 from src.application.action_services import (
     COMPOUND_INDEX_ACTION_ID,
@@ -28,7 +28,6 @@ from src.application.action_services import (
 )
 from src.domain.actions import ActionProposalData, action_digest
 from src.infrastructure.services.postgres_engine import create_read_write_postgres_engine
-
 
 EngineFactory = Callable[[str], Engine]
 
@@ -152,7 +151,8 @@ class PostgresTargetActionExecutor:
 
     @staticmethod
     def _table_exists(connection: Any) -> bool:
-        return connection.execute(text("SELECT to_regclass('public.orders')")).scalar() == "public.orders"
+        # to_regclass 返回 regclass：PG 按 search_path 简化为 "orders"，只能判断非 None。
+        return connection.execute(text("SELECT to_regclass('public.orders')")).scalar() is not None
 
     @staticmethod
     def _index_state(connection: Any) -> bool | str | None:
@@ -184,7 +184,7 @@ _CREATE_INDEX_SQL = "CREATE INDEX CONCURRENTLY idx_orders_customer_created_at ON
 _VERIFY_INDEX_SQL = "EXPLAIN (FORMAT JSON) SELECT customer_id, created_at FROM public.orders WHERE customer_id = 1 ORDER BY created_at"
 
 
-def _plan_uses_target_index(rows: list[dict[str, object]]) -> bool:
+def _plan_uses_target_index(rows: Sequence[RowMapping]) -> bool:
     """从 EXPLAIN JSON 计划中确认目标索引被使用。"""
     for row in rows:
         payload = row.get("QUERY PLAN") or row.get("query plan")
