@@ -1,11 +1,10 @@
-"""P6 模型 Provider 配置应用服务：读写 / 激活 / 生效配置解析。
+﻿"""P6 模型 Provider 配置应用服务：读写 / 激活 / 生效配置解析。
 
 明文 API Key 只在本服务内的加密/掩码瞬间出现，绝不进入日志 / Trace / 接口响应。
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import TypeVar
 from uuid import UUID
@@ -20,6 +19,7 @@ from src.application.errors import (
     ProviderNotFoundError,
     SecretKeyNotConfiguredError,
 )
+from src.application.transaction import in_transaction
 from src.config import load_config
 from src.domain.model_provider import (
     ModelProviderData,
@@ -171,7 +171,7 @@ class ModelProviderApplicationService:
             )
             return created
 
-        return _with_mask(_in_transaction(self._session_factory, operation), self._secret_key)
+        return _with_mask(in_transaction(self._session_factory, operation), self._secret_key)
 
     def update(self, command: UpdateModelProviderCommand) -> ModelProviderData:
         """编辑 Provider；api_key 不传=保留，空串=清空，否则重新加密。"""
@@ -206,7 +206,7 @@ class ModelProviderApplicationService:
                 raise ProviderNotFoundError()
             return updated
 
-        return _with_mask(_in_transaction(self._session_factory, operation), self._secret_key)
+        return _with_mask(in_transaction(self._session_factory, operation), self._secret_key)
 
     def activate(self, command: ActivateModelProviderCommand) -> ModelProviderData:
         """单事务原子替换：目标端点只保留当前激活 Provider。"""
@@ -217,7 +217,7 @@ class ModelProviderApplicationService:
                 raise ProviderNotFoundError()
             return activated
 
-        return _with_mask(_in_transaction(self._session_factory, operation), self._secret_key)
+        return _with_mask(in_transaction(self._session_factory, operation), self._secret_key)
 
     def verify(self, provider_id: UUID) -> ModelProviderData:
         """受控、限时验证 Provider 连通并写入脱敏结果；无 Key 时诚实失败。"""
@@ -238,7 +238,7 @@ class ModelProviderApplicationService:
                 raise ProviderNotFoundError()
             return updated
 
-        return _with_mask(_in_transaction(self._session_factory, operation), self._secret_key)
+        return _with_mask(in_transaction(self._session_factory, operation), self._secret_key)
 
     def _verify_against(self, data: ModelProviderData) -> ProviderVerifyOutcome:
         """对单个 Provider 执行受控验证；解密失败或无 Key / 主密钥缺失时诚实分类。"""
@@ -260,7 +260,7 @@ class ModelProviderApplicationService:
             if not deleted:
                 raise ProviderNotFoundError()
 
-        _in_transaction(self._session_factory, operation)
+        in_transaction(self._session_factory, operation)
 
     def effective_config(self) -> dict[str, dict[str, str]]:
         """返回当前生效模型配置（DB 激活 Provider 优先，env/YAML 兜底）。"""
@@ -354,20 +354,6 @@ def _with_mask(data: ModelProviderData, secret_key: bytes | None) -> ModelProvid
     if len(plaintext) < MIN_API_KEY_LENGTH:
         return data.model_copy(update={"masked_tail": None})
     return data.model_copy(update={"masked_tail": plaintext[-4:]})
-
-
-def _in_transaction(session_factory: SessionFactory, operation: Callable[[Session], TransactionT]) -> TransactionT:
-    """创建短生命周期 Session 并由 Application Service 统一控制事务。"""
-    session = session_factory()
-    try:
-        result = operation(session)
-        session.commit()
-        return result
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
 
 
 def _utc_now() -> datetime:
