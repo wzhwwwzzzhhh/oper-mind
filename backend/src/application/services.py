@@ -34,6 +34,7 @@ from src.application.errors import (
     SessionArchivedError,
     SessionNotFoundError,
 )
+from src.application.message_routing import requires_database_context
 from src.domain.actions import ActionMode
 from src.domain.diagnosis import MessageRole, RunEventType, RunStatus, SessionStatus
 from src.domain.records import (
@@ -235,7 +236,7 @@ class RunApplicationService:
         if session_data.status == SessionStatus.ARCHIVED:
             raise SessionArchivedError()
         target_service_id = _resolve_run_service_id(session_data, command)
-        if target_service_id is None and _requires_database_context(command.query):
+        if target_service_id is None and requires_database_context(command.query):
             raise ServiceContextRequiredError()
 
         existing = idempotency_repository.get_by_scope(
@@ -478,21 +479,6 @@ def _stream_with_context(
     return stream(query)
 
 
-def _requires_database_context(query: str) -> bool:
-    """识别需要数据库服务上下文的明确调查问题。"""
-    lowered = query.lower()
-    database_keywords = (
-        "select", "sql", "explain", "索引", "慢查询", "数据库", "postgres",
-        "连接池", "pg_stat", "schema",
-    )
-    if any(keyword in lowered for keyword in ("日志", "log", "错误", "异常", "报错", "超时")):
-        return any(keyword in lowered for keyword in database_keywords)
-    return any(
-        keyword in lowered
-        for keyword in (*database_keywords, "查询", "表")
-    )
-
-
 def _resolve_run_service_id(session: SessionData, command: CreateRunCommand) -> str | None:
     """为单个 Run 解析显式服务，绝不在多服务数据库调查中猜测目标。"""
     if command.service_id is not None:
@@ -501,7 +487,7 @@ def _resolve_run_service_id(session: SessionData, command: CreateRunCommand) -> 
         return command.service_id
     if len(session.service_ids) == 1:
         return session.service_ids[0]
-    if len(session.service_ids) > 1 and _requires_database_context(command.query):
+    if len(session.service_ids) > 1 and requires_database_context(command.query):
         raise ServiceContextRequiredError("数据库调查需要指定目标服务。")
     return None
 

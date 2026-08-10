@@ -65,11 +65,13 @@ from src.api.v1.schemas import (
     ModelProviderResponse,
     MonitorHistoryResponse,
     MonitorOverviewResponse,
+    PlainMessageResponse,
     ResponseMeta,
     RunActionProposalResponse,
     RunEventEnvelope,
     RunEventListResponse,
     RunResponse,
+    SendPlainMessageRequest,
     ServiceActivityListResponse,
     ServiceListResponse,
     ServiceResponse,
@@ -105,6 +107,7 @@ from src.application.monitoring import (
     MonitorHistoryApplicationService,
     MonitorOverviewApplicationService,
 )
+from src.application.plain_messages import PlainMessageApplicationService, SendPlainMessageCommand
 from src.application.service_center import CreateServiceSessionCommand, ServiceCenterApplicationService
 from src.config import load_monitor_settings
 from src.domain.diagnosis import SessionStatus
@@ -136,6 +139,7 @@ APPLICATION_ERROR_STATUS = {
     "RUN_NOT_FOUND": 404,
     "SESSION_ARCHIVED": 409,
     "RUN_ALREADY_TERMINAL": 409,
+    "INVESTIGATION_REQUIRED": 409,
     "IDEMPOTENCY_KEY_REUSED": 409,
     "RUN_INPUT_MESSAGE_INVALID": 409,
     "ACTION_PROPOSAL_NOT_FOUND": 404,
@@ -729,6 +733,38 @@ def list_messages(
     return MessageListResponse(
         items=[message_resource(item) for item in page.items],
         page=CursorPage(next_cursor=encode_cursor(page.next_cursor) if page.next_cursor else None, has_more=page.has_more),
+        meta=meta,
+    )
+
+
+@router.post("/sessions/{session_id}/messages", response_model=PlainMessageResponse, status_code=201)
+def send_plain_message(
+    session_id: UUID,
+    payload: SendPlainMessageRequest,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> PlainMessageResponse:
+    """普通对话消息走轻量回复，不创建 Run、不触发多 Agent 调查。
+
+    服务端权威判定意图：调查类问题返回 409 INVESTIGATION_REQUIRED，
+    由前端回退到既有 ``POST /sessions/{id}/runs`` 主链路。
+    """
+    plain = services.plain_message_service
+    if plain is None:
+        raise ApiV1Error(409, "PLAIN_MESSAGE_UNAVAILABLE", "普通消息通道当前不可用。")
+    try:
+        result = plain.send_plain_message(
+            session_id,
+            SendPlainMessageCommand(content=payload.content),
+        )
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return PlainMessageResponse(
+        user_message=message_resource(result.user_message),
+        assistant_message=message_resource(result.assistant_message),
         meta=meta,
     )
 

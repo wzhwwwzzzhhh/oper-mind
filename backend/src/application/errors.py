@@ -57,6 +57,13 @@ class RunInputMessageInvalidError(ApplicationError):
     message = "诊断运行的输入消息无效。"
 
 
+class InvestigationRequiredError(ApplicationError):
+    """消息命中调查意图，应由调用方回退到 Run 主链路。"""
+
+    code = "INVESTIGATION_REQUIRED"
+    message = "这属于调查类问题，请使用调查发起。"
+
+
 class ActionProposalNotFoundError(ApplicationError):
     """指定固定修复提案不存在。"""
 

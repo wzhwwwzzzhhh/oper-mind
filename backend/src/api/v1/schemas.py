@@ -636,6 +636,29 @@ class MessageListResponse(ApiV1Model):
     meta: ResponseMeta
 
 
+class SendPlainMessageRequest(ApiV1Model):
+    """发送普通对话消息的请求。"""
+
+    content: str = Field(min_length=1, max_length=4000)
+
+    @field_validator("content")
+    @classmethod
+    def normalize_content(cls, value: str) -> str:
+        """去除内容首尾空白并拒绝纯空白消息。"""
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("不能为空")
+        return normalized
+
+
+class PlainMessageResponse(ApiV1Model):
+    """普通消息通道响应：user + assistant 两条消息。"""
+
+    user_message: MessageResource
+    assistant_message: MessageResource
+    meta: ResponseMeta
+
+
 class SessionListResponse(ApiV1Model):
     """会话列表响应。"""
 
