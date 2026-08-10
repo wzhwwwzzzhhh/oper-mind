@@ -35,6 +35,9 @@
 | P7 | 文档知识库页面——知识目录浏览与确定性检索 | `knowledge/P7-knowledge-page.md` | 完成 |
 | P7 | 数据库深度只读诊断——锁与连接池（慢查询深化第一切片） | `session/P7-db-lock-connection-diagnostics.md` | 完成 |
 | P7 | 服务监控概览页——多服务监控聚合（导航"服务监控"落地） | `monitor/P7-monitoring-overview-page.md` | 完成 |
+| P8 | 服务中心服务注册——动态接入、管理与连接测试 | `service-center/P8-service-registration.md` | 已确认 |
+| P8 | 会话工作台闭环——独立消息、取消 Run 与全局提案列表 | `session/P8-workbench-loop-closure.md` | 已确认 |
+| P8 | 模型设置——运行时切换 mock / real 模式 | `model/P8-model-mode-switch.md` | 已确认 |
 
 ## 执行 AI 如何使用
 - 拿到 PRD 后：只实现「范围」内能力，逐条过「验收标准」，达到「完成定义」。

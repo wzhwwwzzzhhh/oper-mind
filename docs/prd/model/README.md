@@ -6,3 +6,4 @@
 |---|---|---|
 | [P4.3-model-settings-real.md](P4.3-model-settings-real.md) | 模型设置页读取真实生效配置 | 完成 |
 | [P6-model-provider-key-management.md](P6-model-provider-key-management.md) | 模型 Provider 与 API Key 管理 | 完成 |
+| [P8-model-mode-switch.md](P8-model-mode-switch.md) | 模型设置——运行时切换 mock / real 模式 | 已确认 |
