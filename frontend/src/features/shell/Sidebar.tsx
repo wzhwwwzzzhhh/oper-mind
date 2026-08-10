@@ -31,7 +31,7 @@ export function Sidebar({ collapsed, on_collapse }: SidebarProps): ReactElement 
           </span>
         </a>
         <button aria-label="收起侧栏" className="icon-btn" id="collapse-btn" onClick={on_collapse} type="button">
-          <Icon name="chevron-left" size={15} />
+          <Icon className="icon" name="chevron-left" size={15} />
         </button>
       </div>
 

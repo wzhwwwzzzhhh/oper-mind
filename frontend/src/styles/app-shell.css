@@ -24,6 +24,11 @@
   --left-offset: calc(var(--global) + var(--context));
 }
 
+/* 第二栏收起时，固定输入区的左边界跟随窄条宽度。 */
+.app-shell:has(.second.collapsed) {
+  --left-offset: calc(var(--global) + 62px);
+}
+
 /* ===== 最左：62px 深色图标轨 ===== */
 /* 高度跟着 .app-shell 定的一屏走，不再自己声明 100vh。 */
 .global {
@@ -130,6 +135,38 @@
   display: flex;
   flex-direction: column;
   width: var(--sidebar);
+}
+
+/* 收起侧栏：只留图标轨外的窄条与品牌区，会话列表隐藏；
+   折叠是显式交互结果，宽度直接覆盖布局变量。 */
+.second.collapsed {
+  width: 62px;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.second.collapsed .brand-copy,
+.second.collapsed .new-chat-label,
+.second.collapsed .history-heading,
+.second.collapsed .history-list {
+  display: none;
+}
+
+.second.collapsed .brand-row {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.second.collapsed .new-chat {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* 收起时折叠按钮图标从左箭头翻转为右箭头（展开语义）。 */
+.second.collapsed .icon-btn .icon {
+  transform: scaleX(-1);
 }
 
 .app-shell.mode-service .second {
