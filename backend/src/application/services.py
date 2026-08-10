@@ -202,6 +202,9 @@ class RunApplicationService:
             current_run = self._load_run(run_id)
             for item in _stream_with_context(self._executor, query or "", current_run.service_id):
                 if isinstance(item, DiagnosisExecutionEvent):
+                    # 协作式取消检查点：cancel 端点已把 Run 置为 cancelled 时停止后续事件写入。
+                    if self._is_cancelled(run_id):
+                        return self._load_run(run_id)
                     self._append_event(
                         run_id,
                         item.type,
@@ -217,6 +220,46 @@ class RunApplicationService:
             raise
         except Exception:
             return self._complete_failure(run_id, *_safe_failure())
+
+    def cancel_run(self, run_id: UUID) -> DiagnosisRunData:
+        """取消运行中的 Run；已结束（succeeded/failed）不可取消，已取消幂等返回。"""
+
+        def operation(session: Session) -> DiagnosisRunData:
+            run_repository = SqlAlchemyDiagnosisRunRepository(session)
+            run = run_repository.get_by_id(run_id)
+            if run is None:
+                raise RunNotFoundError()
+            if run.status in {RunStatus.SUCCEEDED, RunStatus.FAILED}:
+                raise RunAlreadyTerminalError()
+            if run.status == RunStatus.CANCELLED:
+                return run
+            now = _utc_now()
+            updated = run_repository.transition_status(
+                run_id,
+                expected_statuses={RunStatus.QUEUED, RunStatus.RUNNING},
+                status=RunStatus.CANCELLED,
+                finished_at=now,
+            )
+            if updated is None:
+                raise RunAlreadyTerminalError()
+            self._append_event_in_transaction(
+                session,
+                run_id,
+                RunEventType.RUN_CANCELLED,
+                {"state": RunStatus.CANCELLED.value},
+            )
+            _touch_session(SqlAlchemySessionRepository(session), run.session_id, now)
+            return updated
+
+        return _in_transaction(self._session_factory, operation)
+
+    def _is_cancelled(self, run_id: UUID) -> bool:
+        """读取 Run 取消状态，供执行循环在事件检查点判断是否停止。"""
+        session = self._session_factory()
+        try:
+            return SqlAlchemyDiagnosisRunRepository(session).is_cancelled(run_id)
+        finally:
+            session.close()
 
     def _accept_run_in_transaction(
         self,

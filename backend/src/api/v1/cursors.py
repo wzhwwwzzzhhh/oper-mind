@@ -10,7 +10,13 @@ from typing import TypeVar
 from pydantic import BaseModel, ValidationError
 
 from src.domain.actions import ActionEventCursor
-from src.domain.records import DiagnosisRunCursor, MessageCursor, RunEventCursor, SessionCursor
+from src.domain.records import (
+    ActionProposalCursor,
+    DiagnosisRunCursor,
+    MessageCursor,
+    RunEventCursor,
+    SessionCursor,
+)
 
 CursorT = TypeVar("CursorT", bound=BaseModel)
 
@@ -52,6 +58,7 @@ def _normalize_cursor_datetime(cursor: CursorT) -> CursorT:
 
 __all__ = [
     "ActionEventCursor",
+    "ActionProposalCursor",
     "DiagnosisRunCursor",
     "InvalidCursorError",
     "MessageCursor",

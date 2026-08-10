@@ -151,6 +151,13 @@ class DiagnosisRunCursor(TimestampedRecord):
     id: UUID
 
 
+class ActionProposalCursor(TimestampedRecord):
+    """ActionProposal 固定排序查询的已解码游标（创建时间倒序）。"""
+
+    created_at: datetime
+    id: UUID
+
+
 class RunEventCursor(DomainRecord):
     """RunEvent 固定排序查询的已解码游标。"""
 

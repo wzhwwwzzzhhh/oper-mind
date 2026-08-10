@@ -308,6 +308,13 @@ class SqlAlchemyDiagnosisRunRepository:
         )
         return int(next_sequence) - 1 if next_sequence is not None else None
 
+    def is_cancelled(self, run_id: UUID) -> bool:
+        """按主键读取 Run 是否已取消（只查状态列，供执行循环协作式取消检查）。"""
+        status = self._session.scalar(
+            select(DiagnosisRunRecord.status).where(DiagnosisRunRecord.id == run_id)
+        )
+        return status == RunStatus.CANCELLED.value
+
     def list_by_session(
         self,
         session_id: UUID,
