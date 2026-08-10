@@ -118,3 +118,10 @@ class ProviderIdempotencyReusedError(ApplicationError):
 
     code = "PROVIDER_IDEMPOTENCY_REUSED"
     message = "幂等键已用于不同的 Provider 创建请求。"
+
+
+class ModelModePersistenceError(ApplicationError):
+    """模型运行时模式写入应用库失败。"""
+
+    code = "MODEL_MODE_PERSISTENCE_FAILED"
+    message = "模型运行模式保存失败，请稍后重试。"

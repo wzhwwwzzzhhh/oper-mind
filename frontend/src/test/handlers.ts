@@ -487,6 +487,9 @@ export const api_v1_handlers = [
   http.get('/api/v1/model/config', ({ request }) => response(request, {
     config: {
       mode: 'mock',
+      mode_source: 'env',
+      mode_available: true,
+      mode_unavailable_reason: null,
       diagnostic_model: {
         provider: 'mock.example',
         base_url_host: 'mock.example',
@@ -496,6 +499,25 @@ export const api_v1_handlers = [
       judge_model: null,
     },
   })),
+  http.put('/api/v1/model/mode', async ({ request }) => {
+    const body = (await request.json()) as { mode?: 'mock' | 'real' }
+    const mode = body.mode === 'real' ? 'real' : 'mock'
+    return response(request, {
+      config: {
+        mode,
+        mode_source: 'runtime',
+        mode_available: mode === 'mock' ? true : false,
+        mode_unavailable_reason: mode === 'real' ? '无可用 Provider/API Key' : null,
+        diagnostic_model: {
+          provider: 'mock.example',
+          base_url_host: 'mock.example',
+          model: 'diagnostic-model',
+          status: 'configured',
+        },
+        judge_model: null,
+      },
+    })
+  }),
   http.get('/api/v1/model/providers', ({ request }) => response(request, { items: [provider_fixture] })),
   http.post('/api/v1/model/providers', async ({ request }) => {
     const body = (await request.json()) as ProviderFixturePayload

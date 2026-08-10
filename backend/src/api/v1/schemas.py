@@ -47,6 +47,9 @@ class ModelConfigResource(ApiV1Model):
     """模型配置的安全视图，不包含 API Key 或完整连接 URL。"""
 
     mode: Literal["mock", "real"]
+    mode_source: Literal["runtime", "env"]
+    mode_available: bool
+    mode_unavailable_reason: str | None = None
     diagnostic_model: ModelEndpointResource
     judge_model: ModelEndpointResource | None = None
 
@@ -139,6 +142,12 @@ class ActivateModelProviderRequest(ApiV1Model):
     """激活 Provider 为指定端点生效配置。"""
 
     endpoint: Literal["diagnostic", "judge"]
+
+
+class UpdateModelModeRequest(ApiV1Model):
+    """运行时切换 mock / real 模式的写请求。"""
+
+    mode: Literal["mock", "real"]
 
 
 class CursorPage(ApiV1Model):

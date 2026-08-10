@@ -1,22 +1,57 @@
 """模型设置只读安全配置接口测试。"""
 
+from __future__ import annotations
+
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
+from src.api.v1.dependencies import V1Services
+from src.application.services import RunApplicationService, SessionApplicationService
+from src.infrastructure.persistence.database import Base, create_persistence_runtime
+
+
+class _NoopExecutor:
+    """配置接口测试不触发的确定性执行器占位。"""
+
+    def stream(self, _query: str, _service_id: str | None = None):
+        yield from ()
+        return None
+
+
+class _StubAssembler:
+    """配置接口测试不触发的结果组装占位。"""
+
+    def assemble(self, run: object, result: object) -> object:
+        """配置接口测试不应触发 Run 完成。"""
+        raise AssertionError("配置接口测试不应触发 Run 完成。")
+
 
 @pytest.fixture
-def api_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
-    """使用确定性的 mock 模型配置隔离应用启动。"""
+def api_client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[TestClient]:
+    """使用确定性的 mock 模型配置与已迁移临时应用库隔离应用启动。"""
     monkeypatch.setenv("OPERMIND_API_KEY", "mock")
     monkeypatch.setenv("OPERMIND_BASE_URL", "https://mock.example/v1")
     monkeypatch.setenv("OPERMIND_MODEL", "diagnostic-model")
 
+    database_path = tmp_path / "config-api.sqlite3"
+    runtime = create_persistence_runtime(f"sqlite:///{database_path.as_posix()}")
+    Base.metadata.create_all(runtime.engine)
+    services = V1Services(
+        session_factory=runtime.session_factory,
+        session_service=SessionApplicationService(runtime.session_factory),
+        run_service=RunApplicationService(runtime.session_factory, _NoopExecutor(), _StubAssembler()),
+    )
+    monkeypatch.setenv("OPERMIND_APP_DATABASE_URL", f"sqlite:///{database_path.as_posix()}")
+
     from src import app as api_module
 
+    monkeypatch.setattr(api_module.app.state, "v1_services", services)
     with TestClient(api_module.app, raise_server_exceptions=False) as client:
         yield client
+    runtime.engine.dispose()
 
 
 def test_模型配置接口返回安全的诊断和裁判配置(api_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -31,6 +66,9 @@ def test_模型配置接口返回安全的诊断和裁判配置(api_client: Test
     body = response.json()
     assert body["config"] == {
         "mode": "mock",
+        "mode_source": "env",
+        "mode_available": True,
+        "mode_unavailable_reason": None,
         "diagnostic_model": {
             "provider": "mock.example",
             "base_url_host": "mock.example",

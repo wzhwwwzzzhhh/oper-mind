@@ -73,10 +73,30 @@ export interface paths {
         };
         /**
          * Get Model Config
-         * @description 读取当前生效模型配置的脱敏视图（DB 激活 Provider 优先，env/YAML 兜底）。
+         * @description 读取当前生效模型配置的脱敏视图（运行时模式 + DB 激活 Provider 优先，env/YAML 兜底）。
          */
         get: operations["get_model_config_api_v1_model_config_get"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/model/mode": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Model Mode
+         * @description 运行时切换 mock / real 模式并返回更新后的完整安全配置视图（幂等，无需 Idempotency-Key）。
+         */
+        put: operations["update_model_mode_api_v1_model_mode_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -262,6 +282,8 @@ export interface paths {
         /**
          * Get Monitor Overview
          * @description 读取全部已注册服务的监控概览，只读历史样本、不触发目标连接。
+         *
+         *     读库限时 3 秒（复用网关超时模式），超时返回 INTERNAL_ERROR 安全错误，不影响既有接口。
          */
         get: operations["get_monitor_overview_api_v1_monitor_overview_get"];
         put?: never;
@@ -1121,6 +1143,12 @@ export interface components {
         ModelConfigResource: {
             /** Mode */
             mode: unknown;
+            /** Mode Source */
+            mode_source: unknown;
+            /** Mode Available */
+            mode_available: unknown;
+            /** Mode Unavailable Reason */
+            mode_unavailable_reason?: unknown;
             diagnostic_model: unknown;
             judge_model?: unknown;
         };
@@ -1620,6 +1648,17 @@ export interface components {
          */
         SessionStatus: "active" | "archived";
         /**
+         * UpdateModelModeRequest
+         * @description 运行时切换 mock / real 模式的写请求。
+         */
+        UpdateModelModeRequest: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "mock" | "real";
+        };
+        /**
          * UpdateModelProviderRequest
          * @description 编辑 Provider 请求；api_key 不传=不改，空串=清空。
          */
@@ -1741,6 +1780,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ModelConfigResponse"];
+                };
+            };
+        };
+    };
+    update_model_mode_api_v1_model_mode_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateModelModeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelConfigResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

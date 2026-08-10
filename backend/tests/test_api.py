@@ -91,8 +91,8 @@ def test_模式判定在空密钥下不抛异常(monkeypatch: pytest.MonkeyPatch
 
     from src import app as api_module
 
-    # 空 api_key 且环境变量缺失：判定为 real，且不得抛异常。
-    assert api_module._service_mode({"llm": {"api_key": ""}}) == "real"
+    # 空 api_key 且环境变量缺失：判定为 mock（诚实空态，无可用 Key），且不得抛异常。
+    assert api_module._service_mode({"llm": {"api_key": ""}}) == "mock"
 
     monkeypatch.setenv("OPERMIND_API_KEY", "mock")
     assert api_module._service_mode({"llm": {}}) == "mock"
