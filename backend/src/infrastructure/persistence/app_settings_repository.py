@@ -42,10 +42,3 @@ class SqlAlchemyAppSettingsRepository:
             row.value = value
             row.updated_at = _utc_now()
         self._session.flush()
-
-    def delete(self, key: str) -> None:
-        """按键删除设置；不存在时静默返回。"""
-        row = self._session.get(AppSettingRecord, key)
-        if row is not None:
-            self._session.delete(row)
-            self._session.flush()

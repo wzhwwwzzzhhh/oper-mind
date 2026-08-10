@@ -32,21 +32,10 @@ _NO_USABLE_KEY_REASON = "无可用 Provider/API Key"
 
 
 class ModelModeApplicationService:
-    """模型运行时模式的读取与写入用例。"""
+    """模型运行时模式的写入用例。"""
 
     def __init__(self, session_factory: SessionFactory) -> None:
         self._session_factory = session_factory
-
-    def get_mode(self) -> ModelRuntimeMode | None:
-        """读取持久化模式；从未切换或应用库不可用返回 None（由解析层兜底 env）。"""
-        session = self._session_factory()
-        try:
-            value = SqlAlchemyAppSettingsRepository(session).get(MODEL_RUNTIME_MODE_KEY)
-        finally:
-            session.close()
-        if value not in _MODE_VALUES:
-            return None
-        return value  # type: ignore[return-value]
 
     def set_mode(self, mode: ModelRuntimeMode) -> None:
         """持久化模式；写失败抛 ModelModePersistenceError，不产生半状态。"""

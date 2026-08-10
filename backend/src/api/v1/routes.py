@@ -298,11 +298,7 @@ def _load_secret_key_or_none() -> bytes | None:
 
 def _model_provider_service(services: V1Services) -> ModelProviderApplicationService:
     """装配 Provider 应用服务；主密钥未配置时允许只读与无 Key 元数据保存。"""
-    try:
-        secret_key = load_secret_key()
-    except (SecretsSecretKeyNotConfiguredError, SecretKeyTooShortError):
-        secret_key = None
-    return ModelProviderApplicationService(services.session_factory, secret_key)
+    return ModelProviderApplicationService(services.session_factory, _load_secret_key_or_none())
 
 
 def _load_session(services: V1Services, session_id: UUID) -> SessionData:

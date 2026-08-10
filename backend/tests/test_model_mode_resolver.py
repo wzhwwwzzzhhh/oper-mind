@@ -109,3 +109,24 @@ def test_模式切换不影响Provider生效配置解析(session_factory: sessio
     config = resolve_model_config(session_factory, None)
     assert config["llm"]["api_key"] == "mock"
     assert config["llm"]["base_url"] == "http://env-base"
+
+
+def test_会话链路按生效模式构造LLM(session_factory: sessionmaker, monkeypatch: pytest.MonkeyPatch) -> None:
+    """会话链路（coordinator factory 等价路径）应消费 resolve_runtime_mode 的 config 构造 LLM。"""
+    from data.scenarios import get_active_scenario
+    from src.core.bootstrap import build_llm_from_config
+
+    # env 有真实 Key，但显式切到 mock → LLM 必须走 mock 场景
+    monkeypatch.setenv("OPERMIND_API_KEY", "sk-real-key-1234567890abcdef")
+    ModelModeApplicationService(session_factory).set_mode("mock")
+    resolution = resolve_runtime_mode(session_factory, None)
+    llm = build_llm_from_config(resolution["config"])
+    assert llm.client.api_key == "mock"
+    assert get_active_scenario() is not None
+
+    # 切到 real 且 env 有 Key → LLM 必须拿到真实 Key，清除 mock 场景
+    ModelModeApplicationService(session_factory).set_mode("real")
+    resolution = resolve_runtime_mode(session_factory, None)
+    llm = build_llm_from_config(resolution["config"])
+    assert llm.client.api_key == "sk-real-key-1234567890abcdef"
+    assert get_active_scenario() is None

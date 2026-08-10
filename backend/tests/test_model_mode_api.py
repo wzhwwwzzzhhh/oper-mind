@@ -135,3 +135,21 @@ def test_切换接口不暴露凭据(api_client: TestClient, monkeypatch: pytest
     assert "sk-real-key-1234567890abcdef" not in response.text
     assert "api_key" not in response.text
     assert "postgresql://" not in response.text
+
+
+def test_持久化失败返回500且不产生半状态(api_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """应用库写失败时返回 500，且后续 GET 仍可读取（未产生半状态）。"""
+    from sqlalchemy.exc import SQLAlchemyError
+
+    monkeypatch.setattr(
+        "src.infrastructure.persistence.app_settings_repository.SqlAlchemyAppSettingsRepository.set",
+        lambda _self, _key, _value: (_ for _ in ()).throw(SQLAlchemyError("磁盘写失败")),
+    )
+
+    response = _put_mode(api_client, "real")
+    assert response.status_code == 500, response.text
+    assert response.json()["error"]["code"] == "MODEL_MODE_PERSISTENCE_FAILED"
+
+    after = api_client.get("/api/v1/model/config")
+    assert after.status_code == 200
+    assert after.json()["config"]["mode"] == "mock"
