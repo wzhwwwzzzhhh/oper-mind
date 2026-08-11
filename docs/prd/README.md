@@ -37,7 +37,7 @@
 | P7 | 数据库深度只读诊断——锁与连接池（慢查询深化第一切片） | `session/P7-db-lock-connection-diagnostics.md` | 完成 |
 | P7 | 服务监控概览页——多服务监控聚合（导航"服务监控"落地） | `monitor/P7-monitoring-overview-page.md` | 完成 |
 | P8 | 服务中心服务注册——动态接入、管理与连接测试 | `service-center/P8-service-registration.md` | 已确认 |
-| P8 | 会话工作台闭环——独立消息、取消 Run 与全局提案列表 | `session/P8-workbench-loop-closure.md` | 进行中 |
+| P8 | 会话工作台闭环——独立消息、取消 Run 与全局提案列表 | `session/P8-workbench-loop-closure.md` | 完成 |
 | P8 | 模型设置——运行时切换 mock / real 模式 | `model/P8-model-mode-switch.md` | 完成 |
 | P8 | 审计操作记录——跨服务跨会话的活动检索 | `audit/P8-audit-activity-log.md` | 草稿 |
 | P8 | 模型可用列表探测——Provider 侧模型枚举 | `model/P8-model-list-enumeration.md` | 草稿 |
