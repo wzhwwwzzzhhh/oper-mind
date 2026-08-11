@@ -71,6 +71,10 @@ export function Sidebar({ collapsed, on_collapse }: SidebarProps): ReactElement 
           )
         })}
       </nav>
+      <button className="approvals-entry" onClick={() => navigate('/workbench/approvals')} type="button">
+        <Icon className="icon" name="stack" size={15} />
+        <span>待审批</span>
+      </button>
     </aside>
   )
 }

@@ -204,7 +204,7 @@ describe('App', () => {
     const session_id = api_v1_contract_fixtures.session_id
     const run_id = '99999999-9999-4999-8999-999999999991'
     const input_message_id = '99999999-9999-4999-8999-999999999992'
-    const submitted_query = '请检查支付网关近期的 5xx。'
+    const submitted_query = '请检查订单库近期的慢查询。'
     let accepted = false
     let captured_key: string | null = null
 
@@ -290,7 +290,7 @@ describe('App', () => {
     render(<App />)
 
     const input = await screen.findByRole('textbox', { name: '调查问题' })
-    fireEvent.change(input, { target: { value: '请检查首次问题。' } })
+    fireEvent.change(input, { target: { value: '请排查首次连接池问题。' } })
     fireEvent.click(screen.getByRole('button', { name: '发送' }))
 
     expect(await screen.findByText('IDEMPOTENCY_KEY_REUSED：幂等键已用于不同问题。')).toBeInTheDocument()
@@ -304,7 +304,7 @@ describe('App', () => {
     const session_id = api_v1_contract_fixtures.session_id
     const run_id = '99999999-9999-4999-8999-999999999993'
     const input_message_id = '99999999-9999-4999-8999-999999999994'
-    const submitted_query = '请检查网关连接。'
+    const submitted_query = '请检查网关连接池。'
     const idempotency_keys: string[] = []
     let post_attempts = 0
     let accepted = false
@@ -685,6 +685,67 @@ describe('App', () => {
 
     expect((await screen.findAllByText('未配置')).length).toBeGreaterThan(0)
     expect(screen.getByText('服务状态：未配置')).toBeInTheDocument()
+  })
+
+  it('普通消息只走轻量回复通道，不创建 Run', async () => {
+    const session_id = api_v1_contract_fixtures.session_id
+    let run_posted = 0
+    server.use(
+      http.post(new RegExp(`/api/v1/sessions/${session_id}/runs$`), ({ request }) => {
+        run_posted += 1
+        return response(request, { error: { code: 'INTERNAL_ERROR', message: '不应创建 Run', details: null } }, 500)
+      }),
+    )
+    open_path(`/workbench/sessions/${session_id}`)
+    render(<App />)
+
+    const input = await screen.findByRole('textbox', { name: '调查问题' })
+    fireEvent.change(input, { target: { value: '谢谢' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
+
+    await waitFor(() => expect(request_paths.filter((path) => path.endsWith('/messages')).length).toBeGreaterThanOrEqual(2))
+    expect(run_posted).toBe(0)
+  })
+
+  it('运行中的调查可点击停止并取消 Run', async () => {
+    const session_id = api_v1_contract_fixtures.session_id
+    const run_id = api_v1_contract_fixtures.run_id
+    let cancel_posted = 0
+    use_conversation_handlers(conversation_resources({ include_output: false, run_status: 'running' }))
+    server.use(
+      http.post(new RegExp(`/api/v1/runs/${run_id}/cancel$`), () => {
+        cancel_posted += 1
+        return HttpResponse.json(null, { status: 204 })
+      }),
+    )
+    open_path(`/workbench/sessions/${session_id}`)
+    render(<App />)
+
+    expect(await screen.findByRole('button', { name: '停止调查' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '停止调查' }))
+
+    await waitFor(() => expect(cancel_posted).toBe(1))
+  })
+
+  it('会话侧栏待审批入口导航到提案列表', async () => {
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: '待审批' }))
+
+    expect(await screen.findByRole('heading', { name: '待审批提案' })).toBeInTheDocument()
+    expect(await screen.findByText('重建受控靶场联合索引')).toBeInTheDocument()
+  })
+
+  it('待审批列表进入提案详情并复用审批面板', async () => {
+    open_path('/workbench/approvals')
+    render(<App />)
+
+    const rows = await screen.findAllByText('重建受控靶场联合索引')
+    fireEvent.click(rows[0]!)
+
+    expect(await screen.findByRole('heading', { name: '提案详情' })).toBeInTheDocument()
+    expect(await screen.findByText('固定修复提案')).toBeInTheDocument()
+    expect(screen.getByText('本地人工审批限制')).toBeInTheDocument()
   })
 
 })

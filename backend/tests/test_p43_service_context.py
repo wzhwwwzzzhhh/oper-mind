@@ -10,7 +10,8 @@ import pytest
 
 from src.application.contracts import CreateSessionCommand, DiagnosisExecutionEvent
 from src.application.errors import ServiceNotFoundError
-from src.application.services import SessionApplicationService, _requires_database_context, _safe_event_data
+from src.application.message_routing import requires_database_context
+from src.application.services import SessionApplicationService, _safe_event_data
 from src.domain.diagnosis import RunEventType
 from src.domain.records import SessionData
 from src.domain.services import ServiceRegistry
@@ -34,10 +35,10 @@ def test_未绑定服务的数据库工具诚实拒绝() -> None:
 
 def test_明确数据库调查需要服务上下文() -> None:
     """受理层能识别未绑定会话不能直接发起的数据库调查。"""
-    assert _requires_database_context("请检查 orders 表的索引") is True
-    assert _requires_database_context("请检查接口 5xx 日志") is False
-    assert _requires_database_context("请查看日志表中的错误记录") is False
-    assert _requires_database_context("请检查数据库日志中的慢查询") is True
+    assert requires_database_context("请检查 orders 表的索引") is True
+    assert requires_database_context("请检查接口 5xx 日志") is False
+    assert requires_database_context("请查看日志表中的错误记录") is False
+    assert requires_database_context("请检查数据库日志中的慢查询") is True
 
 
 def test_工具事件携带绑定服务且仍只保留安全摘要() -> None:

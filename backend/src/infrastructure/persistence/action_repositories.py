@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Literal, cast
 from uuid import UUID
 
-from sqlalchemy import Select, select, update
+from sqlalchemy import Select, and_, or_, select, update
 from sqlalchemy.orm import Session
 
 from src.domain.actions import (
@@ -23,7 +23,7 @@ from src.domain.actions import (
     ActionVerificationData,
     ActionVerificationStatus,
 )
-from src.domain.records import RepositoryPage
+from src.domain.records import ActionProposalCursor, RepositoryPage
 from src.infrastructure.persistence.models import (
     ActionApprovalRecord,
     ActionEventRecord,
@@ -64,6 +64,44 @@ class SqlAlchemyActionProposalRepository:
     def get_by_source_run_id(self, run_id: UUID) -> ActionProposalData | None:
         record = self._session.scalar(select(ActionProposalRecord).where(ActionProposalRecord.source_run_id == run_id))
         return _action_proposal_data(record) if record is not None else None
+
+    def list_page(
+        self,
+        cursor: ActionProposalCursor | None,
+        limit: int,
+        status: ActionProposalStatus | None = None,
+    ) -> RepositoryPage[ActionProposalData, ActionProposalCursor]:
+        """跨会话跨 Run 按创建时间倒序读取提案安全摘要页（可选状态过滤）。"""
+        _validate_limit(limit)
+        statement: Select[tuple[ActionProposalRecord]] = select(ActionProposalRecord)
+        filters = []
+        if status is not None:
+            filters.append(ActionProposalRecord.status == status.value)
+        if cursor is not None:
+            filters.append(
+                or_(
+                    ActionProposalRecord.created_at < cursor.created_at,
+                    and_(
+                        ActionProposalRecord.created_at == cursor.created_at,
+                        ActionProposalRecord.id < cursor.id,
+                    ),
+                )
+            )
+        if filters:
+            statement = statement.where(*filters)
+        records = list(
+            self._session.scalars(
+                statement.order_by(
+                    ActionProposalRecord.created_at.desc(),
+                    ActionProposalRecord.id.desc(),
+                ).limit(limit + 1)
+            )
+        )
+        return _page(
+            [_action_proposal_data(record) for record in records],
+            limit,
+            lambda item: ActionProposalCursor(created_at=item.created_at, id=item.id),
+        )
 
     def transition_status(
         self, proposal_id: UUID, expected_statuses: set[ActionProposalStatus], status: ActionProposalStatus,

@@ -1352,3 +1352,37 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* P8：普通对话回复（无 Run 关联的 assistant 消息）——与调查结果区分的轻量气泡。 */
+.message.plain-reply .bubble {
+  border-style: dashed;
+  border-color: var(--border-strong);
+}
+
+.investigation-process-actions {
+  margin-top: 8px;
+}
+
+/* P8：待审批提案列表页。 */
+.approvals-page {
+  padding: 4px 2px 24px;
+}
+
+.proposal-filters {
+  margin-bottom: 14px;
+}
+
+.proposal-row {
+  width: 100%;
+  border: none;
+  padding: 2px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.proposal-row:hover {
+  opacity: 0.82;
+}

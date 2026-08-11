@@ -28,11 +28,14 @@ export interface ConversationInvestigation {
 export interface ConversationTurn {
   input: ConversationMessage
   investigations: Array<{ investigation: ConversationInvestigation; output?: ConversationMessage }>
+  /** 普通对话回复（无 Run 关联的 assistant 消息），仅普通消息通道产生。 */
+  plain_reply?: ConversationMessage
 }
 
 export type ConversationTimelineItem =
   | { kind: 'system'; message: ConversationMessage }
   | { kind: 'turn'; turn: ConversationTurn }
+  | { kind: 'plain_reply'; message: ConversationMessage }
 
 export interface ConversationProjection {
   issues: string[]
@@ -128,6 +131,7 @@ export function project_conversation_turns(
   const message_by_id = new Map(messages.map((message) => [message.id, message]))
   const investigation_by_input_id = new Map<string, ConversationInvestigation>()
   const output_by_run_id = new Map<string, ConversationMessage>()
+  const plain_replies: ConversationMessage[] = []
 
   for (const investigation of investigations) {
     if (!message_by_id.has(investigation.input_message_id)) {
@@ -144,7 +148,8 @@ export function project_conversation_turns(
   for (const message of messages) {
     if (message.role !== 'assistant') continue
     if (!message.run_id) {
-      issues.push(`ASSISTANT_MESSAGE_RUN_MISSING：助手消息 ${message.id} 未关联调查。`)
+      // P8 独立消息通道：无 Run 关联的 assistant 消息是普通对话回复，不再视为协议异常。
+      plain_replies.push(message)
       continue
     }
     if (!investigations.some((investigation) => investigation.id === message.run_id)) {
@@ -159,6 +164,7 @@ export function project_conversation_turns(
   }
 
   const timeline: ConversationTimelineItem[] = []
+  let next_plain_reply = 0
   for (const message of messages) {
     if (message.role === 'system') {
       timeline.push({ kind: 'system', message })
@@ -167,13 +173,32 @@ export function project_conversation_turns(
     if (message.role !== 'user') continue
 
     const investigation = investigation_by_input_id.get(message.id)
+    if (investigation) {
+      timeline.push({
+        kind: 'turn',
+        turn: {
+          input: message,
+          investigations: [{ investigation, output: output_by_run_id.get(investigation.id) }],
+        },
+      })
+      continue
+    }
+    // 普通消息：按出现顺序就近配对后续的普通回复（后端保证回复严格晚于其 user 消息）。
+    const plain_reply = plain_replies[next_plain_reply]
+    if (plain_reply) next_plain_reply += 1
     timeline.push({
       kind: 'turn',
       turn: {
         input: message,
-        investigations: investigation ? [{ investigation, output: output_by_run_id.get(investigation.id) }] : [],
+        investigations: [],
+        plain_reply,
       },
     })
+  }
+
+  // 无前驱 user 消息的普通回复（如分页边界）作为独立回复展示，不静默丢弃。
+  for (let index = next_plain_reply; index < plain_replies.length; index += 1) {
+    timeline.push({ kind: 'plain_reply', message: plain_replies[index]! })
   }
 
   // Each Run persists its own user message. Only adjacent equal questions form one multi-service turn.

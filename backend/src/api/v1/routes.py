@@ -13,6 +13,7 @@ from fastapi.responses import StreamingResponse
 
 from src.api.v1.cursors import (
     ActionEventCursor,
+    ActionProposalCursor,
     DiagnosisRunCursor,
     InvalidCursorError,
     MessageCursor,
@@ -27,6 +28,7 @@ from src.api.v1.resources import (
     action_event_resource,
     action_execution_resource,
     action_proposal_resource,
+    action_proposal_summary_resource,
     knowledge_document_resource,
     knowledge_search_hit_resource,
     message_resource,
@@ -44,6 +46,7 @@ from src.api.v1.schemas import (
     ActionEventListResponse,
     ActionExecutionRequest,
     ActionExecutionResponse,
+    ActionProposalListResponse,
     ActionProposalResponse,
     ActivateModelProviderRequest,
     CreateModelProviderRequest,
@@ -64,11 +67,13 @@ from src.api.v1.schemas import (
     ModelProviderResponse,
     MonitorHistoryResponse,
     MonitorOverviewResponse,
+    PlainMessageResponse,
     ResponseMeta,
     RunActionProposalResponse,
     RunEventEnvelope,
     RunEventListResponse,
     RunResponse,
+    SendPlainMessageRequest,
     ServiceActivityListResponse,
     ServiceListResponse,
     ServiceResponse,
@@ -106,8 +111,10 @@ from src.application.monitoring import (
     MonitorHistoryApplicationService,
     MonitorOverviewApplicationService,
 )
+from src.application.plain_messages import SendPlainMessageCommand
 from src.application.service_center import CreateServiceSessionCommand, ServiceCenterApplicationService
 from src.config import load_monitor_settings
+from src.domain.actions import ActionProposalStatus
 from src.domain.diagnosis import SessionStatus
 from src.domain.model_provider import ProviderEndpoint
 from src.domain.records import DiagnosisRunData, RunEventData, SessionData
@@ -127,7 +134,15 @@ from src.infrastructure.secrets import (
 )
 from src.knowledge.reader import _ILLEGAL_PATH_RE, _ILLEGAL_QUERY_RE, KnowledgeDocumentMeta, KnowledgeSearchHit
 
-CursorT = TypeVar("CursorT", SessionCursor, MessageCursor, DiagnosisRunCursor, RunEventCursor, ActionEventCursor)
+CursorT = TypeVar(
+    "CursorT",
+    SessionCursor,
+    MessageCursor,
+    DiagnosisRunCursor,
+    RunEventCursor,
+    ActionEventCursor,
+    ActionProposalCursor,
+)
 
 router = APIRouter(prefix="/api/v1", tags=["v1"])
 DEFAULT_PAGE_SIZE = 20
@@ -137,6 +152,7 @@ APPLICATION_ERROR_STATUS = {
     "RUN_NOT_FOUND": 404,
     "SESSION_ARCHIVED": 409,
     "RUN_ALREADY_TERMINAL": 409,
+    "INVESTIGATION_REQUIRED": 409,
     "IDEMPOTENCY_KEY_REUSED": 409,
     "RUN_INPUT_MESSAGE_INVALID": 409,
     "ACTION_PROPOSAL_NOT_FOUND": 404,
@@ -758,6 +774,38 @@ def list_messages(
     )
 
 
+@router.post("/sessions/{session_id}/messages", response_model=PlainMessageResponse, status_code=201)
+def send_plain_message(
+    session_id: UUID,
+    payload: SendPlainMessageRequest,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> PlainMessageResponse:
+    """普通对话消息走轻量回复，不创建 Run、不触发多 Agent 调查。
+
+    服务端权威判定意图：调查类问题返回 409 INVESTIGATION_REQUIRED，
+    由前端回退到既有 ``POST /sessions/{id}/runs`` 主链路。
+    """
+    plain = services.plain_message_service
+    if plain is None:
+        raise ApiV1Error(409, "PLAIN_MESSAGE_UNAVAILABLE", "普通消息通道当前不可用。")
+    try:
+        result = plain.send_plain_message(
+            session_id,
+            SendPlainMessageCommand(content=payload.content),
+        )
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return PlainMessageResponse(
+        user_message=message_resource(result.user_message),
+        assistant_message=message_resource(result.assistant_message),
+        meta=meta,
+    )
+
+
 @router.get("/sessions/{session_id}/runs", response_model=DiagnosisRunListResponse)
 def list_session_runs(
     session_id: UUID,
@@ -840,6 +888,22 @@ def get_run(
     return RunResponse(run=resource, meta=meta)
 
 
+@router.post("/runs/{run_id}/cancel", status_code=204)
+def cancel_run(
+    run_id: UUID,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> Response:
+    """取消运行中的 Run（queued/running）；已结束 Run 返回 409，重复取消幂等 204。"""
+    try:
+        services.run_service.cancel_run(run_id)
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    return Response(status_code=204, headers={"X-Request-Id": str(meta.request_id)})
+
+
 @router.get("/runs/{run_id}/action-proposal", response_model=RunActionProposalResponse)
 def get_run_action_proposal(
     run_id: UUID,
@@ -857,6 +921,30 @@ def get_run_action_proposal(
     apply_headers(response, meta)
     return RunActionProposalResponse(
         proposal=action_proposal_resource(detail) if detail is not None else None,
+        meta=meta,
+    )
+
+
+@router.get("/action-proposals", response_model=ActionProposalListResponse)
+def list_action_proposals(
+    request: Request,
+    response: Response,
+    cursor: str | None = None,
+    limit: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
+    status: ActionProposalStatus | None = None,
+    services: V1Services = Depends(get_v1_services),
+) -> ActionProposalListResponse:
+    """跨会话跨 Run 读取提案安全摘要页（cursor 分页 + 可选状态过滤）。"""
+    decoded_cursor = parse_page_cursor(cursor, ActionProposalCursor)
+    try:
+        page = _action_service(services).list_proposals(decoded_cursor, limit, status)
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return ActionProposalListResponse(
+        items=[action_proposal_summary_resource(item) for item in page.items],
+        page=CursorPage(next_cursor=encode_cursor(page.next_cursor) if page.next_cursor else None, has_more=page.has_more),
         meta=meta,
     )
 

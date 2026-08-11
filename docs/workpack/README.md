@@ -20,7 +20,7 @@ docs/workpack/
 
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
-| （无活跃工作包） | | | | | |
+| P8 | workbench-loop-closure | 已审查 PASS，待交付 | [plan.md](P8-workbench-loop-closure/plan.md) | [review.md](P8-workbench-loop-closure/review.md) | [evidence.md](P8-workbench-loop-closure/evidence.md) |
 
 ## 已归档
 

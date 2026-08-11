@@ -14,12 +14,14 @@ import {
 } from '../../api/v1/client'
 import {
   api_v1_query_keys,
+  cancel_run_mutation,
   create_run_mutation,
   create_session_mutation,
   default_session_list_query,
   get_session_query,
   list_run_events_query,
   list_services_query,
+  send_plain_message_mutation,
 } from '../../api/v1/queries'
 import {
   investigation_status_text,
@@ -30,6 +32,12 @@ import {
 } from './conversation-turns'
 import { ActionProposalPanel } from './ActionProposalPanel'
 import { DiagnosisResultPanel } from './DiagnosisResultPanel'
+import { is_investigation_message } from './message-intent'
+import {
+  clear_pending_plain_message,
+  load_pending_plain_message,
+  save_pending_plain_message,
+} from './plain-message-intent'
 import { Composer } from '../shell/Composer'
 import { WelcomePanel } from '../shell/WelcomePanel'
 import { TraceCard } from './TraceCard'
@@ -165,6 +173,7 @@ function LoadMoreButton({
 function InvestigationProcess({ investigation, session_id }: { investigation: ConversationInvestigation; session_id: string }): ReactElement {
   const query_client = useQueryClient()
   const [events, set_events] = useState<PersistedRunEvent[]>([])
+  const [cancel_error, set_cancel_error] = useState<unknown>()
   const events_query = useQuery({
     ...list_run_events_query(investigation.id, { limit: 100 }),
     enabled: Boolean(investigation.id),
@@ -186,6 +195,11 @@ function InvestigationProcess({ investigation, session_id }: { investigation: Co
       query_client.invalidateQueries({ queryKey: api_v1_query_keys.session_messages(session_id, { limit: API_V1_DEFAULT_PAGE_SIZE }) }),
     ])
   }, [query_client, session_id])
+  const cancel_mutation = useMutation({
+    ...cancel_run_mutation(),
+    onSuccess: () => void on_terminal(),
+    onError: set_cancel_error,
+  })
   const stream_state = use_run_event_stream({
     enabled: investigation.status === 'queued' || investigation.status === 'running',
     on_event: set_events,
@@ -193,12 +207,23 @@ function InvestigationProcess({ investigation, session_id }: { investigation: Co
     on_terminal,
     run_id: investigation.id,
   })
+  const is_live = investigation.status === 'queued' || investigation.status === 'running' || stream_state === 'connected'
 
   return (
-    <TraceCard
-      events={events}
-      running={investigation.status === 'queued' || investigation.status === 'running' || stream_state === 'connected'}
-    />
+    <div className="investigation-process">
+      <TraceCard
+        events={events}
+        running={is_live}
+      />
+      {is_live && (
+        <UiSpace wrap className="investigation-process-actions">
+          <UiButton danger disabled={cancel_mutation.isPending} loading={cancel_mutation.isPending} onClick={() => cancel_mutation.mutate(investigation.id)}>
+            停止调查
+          </UiButton>
+        </UiSpace>
+      )}
+      {cancel_mutation.isError && <UiAlert description={safe_error(cancel_error).title} showIcon title="停止调查未完成" type="error" />}
+    </div>
   )
 }
 function AssistantReply({ investigation, output, session_id }: { investigation: ConversationInvestigation; output?: ConversationMessage; session_id: string }): ReactElement {
@@ -302,6 +327,15 @@ function ConversationTurnCard({ turn, session_id, services_by_id }: { turn: Conv
           <div className="bubble">{turn.input.content}</div>
         </div>
       </article>
+      {turn.plain_reply && (
+        <article aria-label="助手回复" className="message assistant plain-reply">
+          <div className="message-avatar">O</div>
+          <div className="message-body">
+            <div className="message-label">OperMind · 普通对话</div>
+            <div className="bubble">{turn.plain_reply.content}</div>
+          </div>
+        </article>
+      )}
       {turn.investigations.map(({ investigation, output }) => {
         const is_live = investigation.status === 'queued' || investigation.status === 'running'
         const Container = is_live || output ? 'article' : 'div'
@@ -344,6 +378,17 @@ function ConversationTimeline({ messages, runs, services_by_id, session_id }: { 
               title={`系统提醒 · ${item.message.created_at}`}
               type="info"
             />
+          )
+        }
+        if (item.kind === 'plain_reply') {
+          return (
+            <article aria-label="助手回复" className="message assistant plain-reply" key={item.message.id}>
+              <div className="message-avatar">O</div>
+              <div className="message-body">
+                <div className="message-label">OperMind · 普通对话</div>
+                <div className="bubble">{item.message.content}</div>
+              </div>
+            </article>
           )
         }
         return <ConversationTurnCard key={item.turn.input.id} services_by_id={services_by_id} session_id={session_id} turn={item.turn} />
@@ -539,6 +584,56 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
     void submit_next().catch(() => undefined)
   }
 
+  const send_plain = useMutation({ ...send_plain_message_mutation() })
+
+  /** 统一发送路由：调查意图走既有 Run 幂等链路；普通消息走独立消息通道（服务端权威 409 兜底）。 */
+  const submit_text = (composer_value: string): void => {
+    if (send_plain.isPending || create_run.isPending) return
+    const normalized = composer_value.trim()
+    if (!normalized) {
+      set_recovery_error(new Error('消息内容不能为空。'))
+      return
+    }
+    set_recovery_error(undefined)
+    if (is_investigation_message(normalized)) {
+      submit_investigation(normalized)
+      return
+    }
+    send_plain.mutate(
+      { session_id, content: normalized },
+      {
+        onSuccess: async () => {
+          if (storage) clear_pending_plain_message(storage, session_id)
+          set_query('')
+          await Promise.all([
+            query_client.invalidateQueries({ queryKey: messages_query_key }),
+            query_client.invalidateQueries({ queryKey: runs_query_key }),
+          ])
+        },
+        onError: (error) => {
+          if (error instanceof ApiClientError && error.code === 'INVESTIGATION_REQUIRED') {
+            submit_investigation(normalized)
+            return
+          }
+          if (error instanceof ApiClientError && error.code === 'SESSION_ARCHIVED') {
+            void query_client.invalidateQueries({ queryKey: api_v1_query_keys.session(session_id) })
+          }
+          set_recovery_error(error)
+        },
+      },
+    )
+  }
+
+  // 从欢迎页创建会话时预写的普通消息：进入会话页后自动发送一次。
+  const pending_plain_attempted = useRef(false)
+  useEffect(() => {
+    if (!session_query.isSuccess || send_plain.isPending || create_run.isPending) return
+    const pending = storage ? load_pending_plain_message(storage, session_id) : undefined
+    if (!pending || pending_plain_attempted.current) return
+    pending_plain_attempted.current = true
+    submit_text(pending.query)
+  }, [create_run.isPending, send_plain.isPending, session_id, session_query.isSuccess])
+
   if (session_query.isPending) return <LoadingBlock label="正在恢复会话" />
   if (session_query.isError) {
     return (
@@ -606,12 +701,12 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
       )}
       {can_send && (
         <Composer
-          disabled={create_run.isPending || has_idempotency_key_conflict}
+          disabled={create_run.isPending || send_plain.isPending || has_idempotency_key_conflict}
           onChange={(text) => {
             set_query(text)
             if (is_validation_error(recovery_error)) set_recovery_error(undefined)
           }}
-          onSubmit={(text) => submit_investigation(text)}
+          onSubmit={submit_text}
           value={query}
         />
       )}
@@ -671,11 +766,16 @@ function ConversationHome(): ReactElement {
       const created = read_record(response.data.session)
       const created_id = resource_optional_string(created, 'id')
       if (!created_id) return
-      // 预写发送意图，让会话页加载后自动提交调查，避免"创建会话后消息丢失"。
+      // 预写发送意图，让会话页加载后自动发送，避免"创建会话后消息丢失"。
+      // 调查意图走 Run 幂等链路；普通消息走独立消息通道（不创建 Run）。
       const prompt = pending_prompt.current
       if (storage && prompt) {
-        const intent = create_session_run_send_intent(created_id, prompt, { service_ids: selected_service_ids })
-        save_session_run_send_intent(storage, intent)
+        if (is_investigation_message(prompt)) {
+          const intent = create_session_run_send_intent(created_id, prompt, { service_ids: selected_service_ids })
+          save_session_run_send_intent(storage, intent)
+        } else {
+          save_pending_plain_message(storage, created_id, prompt)
+        }
       }
       pending_prompt.current = null
       await query_client.invalidateQueries({ queryKey: api_v1_query_keys.sessions(default_session_list_query) })

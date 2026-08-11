@@ -645,6 +645,29 @@ class MessageListResponse(ApiV1Model):
     meta: ResponseMeta
 
 
+class SendPlainMessageRequest(ApiV1Model):
+    """发送普通对话消息的请求。"""
+
+    content: str = Field(min_length=1, max_length=4000)
+
+    @field_validator("content")
+    @classmethod
+    def normalize_content(cls, value: str) -> str:
+        """去除内容首尾空白并拒绝纯空白消息。"""
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("不能为空")
+        return normalized
+
+
+class PlainMessageResponse(ApiV1Model):
+    """普通消息通道响应：user + assistant 两条消息。"""
+
+    user_message: MessageResource
+    assistant_message: MessageResource
+    meta: ResponseMeta
+
+
 class SessionListResponse(ApiV1Model):
     """会话列表响应。"""
 
@@ -808,6 +831,30 @@ class ActionProposalResponse(ApiV1Model):
     """单个 Proposal 安全快照。"""
 
     proposal: ActionProposalResource
+    meta: ResponseMeta
+
+
+class ActionProposalSummaryResource(ApiV1Model):
+    """全局提案列表的安全摘要资源（不含证据原文或未脱敏明细）。"""
+
+    id: UUID
+    source_run_id: UUID
+    action_id: Literal["postgres.orders_compound_index_rebuild.v1"]
+    status: Literal[
+        "pending_approval", "approved", "rejected", "expired", "executing", "verifying",
+        "verified", "blocked", "failed",
+    ]
+    mode: Literal["mock", "target"]
+    title: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class ActionProposalListResponse(ApiV1Model):
+    """全局提案安全摘要分页响应。"""
+
+    items: list[ActionProposalSummaryResource]
+    page: CursorPage
     meta: ResponseMeta
 
 

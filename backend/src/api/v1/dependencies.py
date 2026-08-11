@@ -15,6 +15,7 @@ from src.application.action_execution import ControlledActionExecutor
 from src.application.action_services import ActionApplicationService
 from src.application.knowledge import KnowledgeReaderService
 from src.application.model_mode import resolve_runtime_mode
+from src.application.plain_messages import PlainMessageApplicationService
 from src.application.service_center import ServiceCenterApplicationService
 from src.application.services import RunApplicationService, SessionApplicationService
 from src.config import (
@@ -35,6 +36,7 @@ from src.infrastructure.diagnosis.result_assembler import KernelReportResultAsse
 from src.infrastructure.monitoring.host_metrics import PsutilHostMetricsCollector
 from src.infrastructure.monitoring.sampler import MonitorSampler
 from src.infrastructure.persistence.database import PersistenceRuntime, SessionFactory, create_persistence_runtime
+from src.infrastructure.persistence.plain_message_writer import SqlAlchemyPlainMessageWriter
 from src.infrastructure.secrets import (
     SecretKeyNotConfiguredError,
     SecretKeyTooShortError,
@@ -51,6 +53,7 @@ class V1Services:
     session_factory: SessionFactory
     session_service: SessionApplicationService
     run_service: RunApplicationService
+    plain_message_service: PlainMessageApplicationService | None = None
     action_service: ActionApplicationService | None = None
     service_center: ServiceCenterApplicationService | None = None
     monitor_sampler: MonitorSampler | None = None
@@ -151,6 +154,7 @@ def build_v1_services_for_runtime(
             action_service=action_service,
             action_mode=action_mode,
         ),
+        plain_message_service=PlainMessageApplicationService(SqlAlchemyPlainMessageWriter(session_factory)),
         action_service=action_service,
         service_center=ServiceCenterApplicationService(
             session_factory,

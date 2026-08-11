@@ -359,7 +359,14 @@ export interface paths {
          */
         get: operations["list_messages_api_v1_sessions__session_id__messages_get"];
         put?: never;
-        post?: never;
+        /**
+         * Send Plain Message
+         * @description 普通对话消息走轻量回复，不创建 Run、不触发多 Agent 调查。
+         *
+         *     服务端权威判定意图：调查类问题返回 409 INVESTIGATION_REQUIRED，
+         *     由前端回退到既有 ``POST /sessions/{id}/runs`` 主链路。
+         */
+        post: operations["send_plain_message_api_v1_sessions__session_id__messages_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -410,6 +417,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/runs/{run_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Run
+         * @description 取消运行中的 Run（queued/running）；已结束 Run 返回 409，重复取消幂等 204。
+         */
+        post: operations["cancel_run_api_v1_runs__run_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs/{run_id}/action-proposal": {
         parameters: {
             query?: never;
@@ -422,6 +449,26 @@ export interface paths {
          * @description 按成功 Run 读取可选的不可编辑固定修复提案。
          */
         get: operations["get_run_action_proposal_api_v1_runs__run_id__action_proposal_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/action-proposals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Action Proposals
+         * @description 跨会话跨 Run 读取提案安全摘要页（cursor 分页 + 可选状态过滤）。
+         */
+        get: operations["list_action_proposals_api_v1_action_proposals_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -717,6 +764,16 @@ export interface components {
             meta: unknown;
         };
         /**
+         * ActionProposalListResponse
+         * @description 全局提案安全摘要分页响应。
+         */
+        ActionProposalListResponse: {
+            /** Items */
+            items: unknown;
+            page: unknown;
+            meta: unknown;
+        };
+        /**
          * ActionProposalResource
          * @description 来源 Run 的不可编辑固定修复提案。
          */
@@ -774,6 +831,34 @@ export interface components {
         ActionProposalResponse: {
             proposal: unknown;
             meta: unknown;
+        };
+        /**
+         * ActionProposalStatus
+         * @description 不可重开的固定修复提案状态。
+         * @enum {string}
+         */
+        ActionProposalStatus: "pending_approval" | "approved" | "rejected" | "expired" | "executing" | "verifying" | "verified" | "blocked" | "failed";
+        /**
+         * ActionProposalSummaryResource
+         * @description 全局提案列表的安全摘要资源（不含证据原文或未脱敏明细）。
+         */
+        ActionProposalSummaryResource: {
+            /** Id */
+            id: unknown;
+            /** Source Run Id */
+            source_run_id: unknown;
+            /** Action Id */
+            action_id: unknown;
+            /** Status */
+            status: unknown;
+            /** Mode */
+            mode: unknown;
+            /** Title */
+            title: unknown;
+            /** Created At */
+            created_at: unknown;
+            /** Updated At */
+            updated_at: unknown;
         };
         /**
          * ActionVerificationResource
@@ -1328,6 +1413,15 @@ export interface components {
             anomaly_sample_count: unknown;
         };
         /**
+         * PlainMessageResponse
+         * @description 普通消息通道响应：user + assistant 两条消息。
+         */
+        PlainMessageResponse: {
+            user_message: unknown;
+            assistant_message: unknown;
+            meta: unknown;
+        };
+        /**
          * RecommendationResource
          * @description 诊断建议。
          */
@@ -1456,6 +1550,14 @@ export interface components {
         RunResponse: {
             run: unknown;
             meta: unknown;
+        };
+        /**
+         * SendPlainMessageRequest
+         * @description 发送普通对话消息的请求。
+         */
+        SendPlainMessageRequest: {
+            /** Content */
+            content: string;
         };
         /**
          * ServiceActivityListResponse
@@ -2348,6 +2450,41 @@ export interface operations {
             };
         };
     };
+    send_plain_message_api_v1_sessions__session_id__messages_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendPlainMessageRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlainMessageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_session_runs_api_v1_sessions__session_id__runs_get: {
         parameters: {
             query?: {
@@ -2450,6 +2587,35 @@ export interface operations {
             };
         };
     };
+    cancel_run_api_v1_runs__run_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_run_action_proposal_api_v1_runs__run_id__action_proposal_get: {
         parameters: {
             query?: never;
@@ -2468,6 +2634,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunActionProposalResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_action_proposals_api_v1_action_proposals_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+                status?: components["schemas"]["ActionProposalStatus"] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionProposalListResponse"];
                 };
             };
             /** @description Validation Error */
