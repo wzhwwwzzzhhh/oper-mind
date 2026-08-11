@@ -96,6 +96,9 @@ class ServiceDefinitionData(ServiceDomainModel):
     supported_investigations: tuple[ServiceInvestigationData, ...]
     action_boundary: str = Field(min_length=1, max_length=280)
     session_title: str = Field(min_length=1, max_length=200)
+    # P8 动态注册服务的凭据安全视图：只表意不泄露。
+    has_dsn: bool = False
+    dsn_masked_tail: str | None = Field(default=None, max_length=8)
 
 
 class ServiceServerMetricsData(ServiceDomainModel):
@@ -191,7 +194,13 @@ class ServiceConnector(Protocol):
 
 
 class ServiceRegistry:
-    """只保存经过设计审查的静态 Connector，不提供运行时写入能力。"""
+    """已注册服务的运行时注册表。
+
+    由「启动时硬编码实例（env DSN）」与「运行时经白名单类型注册的动态服务」
+    共同组成；动态注册走 P8 应用服务（DSN 加密落库），只接受 postgres/redis
+    类型。读方经 list_connectors()/get_connector() 取快照；写方复制当前表后
+    整体替换（单次 dict 赋值），CPython GIL 下读不阻塞写、不因 resize 抛错。
+    """
 
     def __init__(self, connectors: tuple[ServiceConnector, ...]) -> None:
         definitions = tuple(connector.definition() for connector in connectors)
@@ -201,13 +210,61 @@ class ServiceRegistry:
         self._connectors = {connector.definition().id: connector for connector in connectors}
 
     def list_connectors(self) -> tuple[ServiceConnector, ...]:
-        """按固定注册顺序返回 Connector。"""
+        """按固定注册顺序返回 Connector 的当前快照。"""
         return tuple(self._connectors.values())
 
     def get_connector(self, service_id: str) -> ServiceConnector | None:
-        """按静态服务键读取 Connector，不解析 URL 或连接配置。"""
+        """按服务键读取 Connector，不解析 URL 或连接配置。"""
         return self._connectors.get(service_id)
 
     def service_ids(self) -> frozenset[str]:
-        """返回当前静态注册表中的合法服务键。"""
+        """返回当前注册表中的合法服务键。"""
         return frozenset(self._connectors)
+
+    def register(self, connector: ServiceConnector) -> None:
+        """运行时注册一个 Connector；实例 ID 冲突时抛 ValueError。"""
+        definition = connector.definition()
+        current = self._connectors
+        if definition.id in current:
+            raise ValueError(f"服务实例 ID 已存在：{definition.id}")
+        next_table = dict(current)
+        next_table[definition.id] = connector
+        self._connectors = next_table
+
+    def replace(self, connector: ServiceConnector) -> bool:
+        """运行时替换一个已注册 Connector；不存在时注册并返回 False。"""
+        definition = connector.definition()
+        next_table = dict(self._connectors)
+        existed = definition.id in next_table
+        next_table[definition.id] = connector
+        self._connectors = next_table
+        return existed
+
+    def remove(self, service_id: str) -> bool:
+        """从注册表移除一个服务；不存在返回 False（幂等）。"""
+        current = self._connectors
+        if service_id not in current:
+            return False
+        next_table = dict(current)
+        del next_table[service_id]
+        self._connectors = next_table
+        return True
+
+
+class ServiceRegistrationData(ServiceDomainModel):
+    """P8 动态注册服务的持久化安全视图。
+
+    DSN 以密文流转：``dsn_encrypted`` / ``dsn_nonce`` 仅为应用层与仓储之间的
+    密文流转，对外资源映射只取 ``has_dsn`` 与 ``dsn_masked_tail``；明文 DSN
+    绝不进入本模型之外的任何层。
+    """
+
+    instance_id: str = Field(min_length=1, max_length=64)
+    kind: str = Field(min_length=1, max_length=80)
+    title: str = Field(min_length=1, max_length=120)
+    dsn_encrypted: str | None = None
+    dsn_nonce: str | None = None
+    has_dsn: bool = False
+    dsn_masked_tail: str | None = Field(default=None, max_length=8)
+    created_at: datetime | None = None
+    updated_at: datetime | None = None

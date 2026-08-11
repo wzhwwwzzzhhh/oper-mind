@@ -148,12 +148,14 @@ class RunApplicationService:
         result_assembler: ResultAssembler,
         action_service: ActionApplicationService | None = None,
         action_mode: ActionMode | None = None,
+        registry: ServiceRegistry | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._executor = executor
         self._result_assembler = result_assembler
         self._action_service = action_service
         self._action_mode = action_mode
+        self._registry = registry
 
     def accept_run(self, command: CreateRunCommand) -> AcceptedRun:
         """原子受理 Run，并处理同键重放与冲突。"""
@@ -200,6 +202,9 @@ class RunApplicationService:
 
             execution_result: DiagnosisExecutionResult | None = None
             current_run = self._load_run(run_id)
+            registered_ids = (
+                self._registry.service_ids() if self._registry is not None else REGISTERED_SERVICE_IDS
+            )
             for item in _stream_with_context(self._executor, query or "", current_run.service_id):
                 if isinstance(item, DiagnosisExecutionEvent):
                     # 协作式取消检查点：cancel 端点已把 Run 置为 cancelled 时停止后续事件写入。
@@ -209,7 +214,7 @@ class RunApplicationService:
                         run_id,
                         item.type,
                         item.occurred_at,
-                        _safe_event_data(item),
+                        _safe_event_data(item, registered_ids),
                     )
                 else:
                     execution_result = item
@@ -546,8 +551,14 @@ def _safe_failure() -> tuple[str, str]:
     return "DIAGNOSIS_FAILED", "诊断执行失败，请稍后重试"
 
 
-def _safe_event_data(event: DiagnosisExecutionEvent) -> dict[str, JsonValue]:
-    """只持久化最小过程摘要白名单，拒绝执行器提供的任意原始读取。"""
+def _safe_event_data(
+    event: DiagnosisExecutionEvent,
+    registered_service_ids: frozenset[str] = REGISTERED_SERVICE_IDS,
+) -> dict[str, JsonValue]:
+    """只持久化最小过程摘要白名单，拒绝执行器提供的任意原始读取。
+
+    service_id 白名单来自运行时注册表（含动态注册服务）；registry 缺失时退回静态集合。
+    """
     data: dict[str, JsonValue] = {"node": event.node}
     summary = event.data.get("summary")
     if isinstance(summary, str) and 0 < len(summary) <= 280:
@@ -565,7 +576,7 @@ def _safe_event_data(event: DiagnosisExecutionEvent) -> dict[str, JsonValue]:
     if mode in {"mock", "target"}:
         data["mode"] = mode
     service_id = event.data.get("service_id")
-    if isinstance(service_id, str) and service_id in REGISTERED_SERVICE_IDS:
+    if isinstance(service_id, str) and service_id in registered_service_ids:
         data["service_id"] = service_id
     return data
 

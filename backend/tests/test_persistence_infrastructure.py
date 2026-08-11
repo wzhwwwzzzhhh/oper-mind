@@ -190,6 +190,7 @@ def test_alembic_upgrade_head_仅创建迁移版本元数据(tmp_path: Path) -> 
             "service_monitor_samples",
             "model_providers",
             "model_provider_idempotency_keys",
+            "service_registry",
             "app_settings",
         }
     finally:

@@ -24,7 +24,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from src.domain.diagnosis import RunStatus, SessionStatus
 from src.domain.model_provider import VerifyStatus
-from src.domain.services import REGISTERED_SERVICE_IDS
 from src.infrastructure.persistence.database import Base
 
 
@@ -41,12 +40,6 @@ class SessionRecord(Base):
         CheckConstraint(
             "status IN ('active', 'archived')",
             name="session_status_valid",
-        ),
-        CheckConstraint(
-            "service_id IS NULL OR service_id IN ("
-            + ", ".join(repr(service_id) for service_id in sorted(REGISTERED_SERVICE_IDS))
-            + ")",
-            name="session_service_id_valid",
         ),
         Index("ix_sessions_updated_at_id", "updated_at", "id"),
         Index("ix_sessions_service_updated_at_id", "service_id", "updated_at", "id"),
@@ -73,10 +66,6 @@ class SessionServiceRecord(Base):
 
     __tablename__ = "session_services"
     __table_args__ = (
-        CheckConstraint(
-            "service_id IN (" + ", ".join(repr(service_id) for service_id in sorted(REGISTERED_SERVICE_IDS)) + ")",
-            name="session_services_service_id_valid",
-        ),
         Index("ix_session_services_service_id", "service_id"),
     )
 
@@ -516,6 +505,35 @@ class ModelProviderIdempotencyKeyRecord(Base):
     request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+
+class ServiceRegistryRecord(Base):
+    """P8 动态注册服务；DSN 仅存密文，绝不存明文。"""
+
+    __tablename__ = "service_registry"
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('postgres', 'redis')",
+            name="service_registry_kind_valid",
+        ),
+        CheckConstraint(
+            "(dsn_encrypted IS NULL) = (dsn_nonce IS NULL)",
+            name="service_registry_dsn_pair",
+        ),
+        UniqueConstraint("instance_id", name="uq_service_registry_instance_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    instance_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    kind: Mapped[str] = mapped_column(String(80), nullable=False)
+    title: Mapped[str] = mapped_column(String(120), nullable=False)
+    dsn_encrypted: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    dsn_nonce: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    dsn_masked_tail: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now
+    )
 
 
 class AppSettingRecord(Base):

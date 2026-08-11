@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from fastapi import Request
@@ -17,6 +17,7 @@ from src.application.knowledge import KnowledgeReaderService
 from src.application.model_mode import resolve_runtime_mode
 from src.application.plain_messages import PlainMessageApplicationService
 from src.application.service_center import ServiceCenterApplicationService
+from src.application.service_registration import ServiceRegistrationApplicationService
 from src.application.services import RunApplicationService, SessionApplicationService
 from src.config import (
     load_action_mode,
@@ -28,7 +29,7 @@ from src.config import (
 )
 from src.core.bootstrap import build_coordinator, build_llm_from_config
 from src.core.coordinator import CoordinatorAgent
-from src.domain.services import ServiceRegistry
+from src.domain.services import ServiceRegistrationData, ServiceRegistry
 from src.infrastructure.actions.postgres_target_executor import PostgresTargetActionExecutor
 from src.infrastructure.diagnosis.coordinator_executor import CoordinatorDiagnosisExecutor
 from src.infrastructure.diagnosis.postgres_missing_index import PostgresMissingIndexCollector
@@ -40,10 +41,15 @@ from src.infrastructure.persistence.plain_message_writer import SqlAlchemyPlainM
 from src.infrastructure.secrets import (
     SecretKeyNotConfiguredError,
     SecretKeyTooShortError,
+    decrypt_dsn,
     load_secret_key,
 )
 from src.infrastructure.services.postgres_connector import PostgresServiceConnector
 from src.infrastructure.services.redis_connector import RedisServiceConnector
+from src.infrastructure.services.service_connector_factory import (
+    build_service_connector,
+    load_registered_services,
+)
 
 
 @dataclass(frozen=True)
@@ -59,6 +65,7 @@ class V1Services:
     monitor_sampler: MonitorSampler | None = None
     service_registry: ServiceRegistry | None = None
     knowledge_service: KnowledgeReaderService | None = None
+    service_registration: ServiceRegistrationApplicationService | None = None
 
 
 def build_v1_services() -> V1Services:
@@ -71,7 +78,11 @@ def build_v1_services() -> V1Services:
     """
     persistence_settings = load_persistence_settings()
     runtime = create_persistence_runtime(persistence_settings.database_url)
-    return build_v1_services_for_runtime(runtime, _resolved_coordinator_factory(runtime))
+    return build_v1_services_for_runtime(
+        runtime,
+        _resolved_coordinator_factory(runtime),
+        registry_loader=lambda: load_registered_services(runtime.session_factory),
+    )
 
 
 def _resolved_coordinator_factory(runtime: PersistenceRuntime) -> Callable[[str | None], CoordinatorAgent]:
@@ -97,11 +108,13 @@ def _load_secret_key_or_none() -> bytes | None:
 def build_v1_services_for_runtime(
     runtime: PersistenceRuntime,
     coordinator_factory: Callable[[str | None], CoordinatorAgent],
+    registry_loader: Callable[[], Sequence[ServiceRegistrationData]] | None = None,
 ) -> V1Services:
     """用给定 Runtime 构造服务，供临时库测试安全替换。
 
     诊断执行固定使用多 Agent 内核（每 Run 现造）；结果用 KernelReportResultAssembler，
-    报告作答复、结构化字段保守留空。审批执行器仍为空骨架，服务注册表显式装配已确认的 Connector。
+    报告作答复、结构化字段保守留空。审批执行器仍为空骨架，服务注册表显式装配已确认的
+    硬编码 Connector，并可选加载已落库动态注册服务（registry_loader 注入，避免装配直连库）。
     """
     session_factory = runtime.session_factory
     monitor_settings = load_monitor_settings()
@@ -141,6 +154,25 @@ def build_v1_services_for_runtime(
             for instance_id, title in redis_instances
         )
     )
+    secret_key = _load_secret_key_or_none()
+    if registry_loader is not None:
+        for item in registry_loader():
+            dsn = _resolve_registered_dsn(item, secret_key)
+            registry.register(
+                build_service_connector(
+                    item.kind,
+                    dsn,
+                    item.instance_id,
+                    item.title,
+                    item.dsn_masked_tail,
+                )
+            )
+    service_registration = ServiceRegistrationApplicationService(
+        session_factory,
+        registry,
+        secret_key,
+        connector_factory=build_service_connector,
+    )
     return V1Services(
         session_factory=session_factory,
         session_service=SessionApplicationService(session_factory, registry=registry),
@@ -153,6 +185,7 @@ def build_v1_services_for_runtime(
             KernelReportResultAssembler(),
             action_service=action_service,
             action_mode=action_mode,
+            registry=registry,
         ),
         plain_message_service=PlainMessageApplicationService(SqlAlchemyPlainMessageWriter(session_factory)),
         action_service=action_service,
@@ -163,14 +196,27 @@ def build_v1_services_for_runtime(
         ),
         monitor_sampler=MonitorSampler(
             session_factory=session_factory,
-            connectors=registry.list_connectors(),
+            registry=registry,
             retention_hours=monitor_settings.retention_hours,
             sample_interval_seconds=monitor_settings.sample_interval_seconds,
             host_collector=host_collector,
         ),
         service_registry=registry,
         knowledge_service=KnowledgeReaderService(load_knowledge_settings().directory),
+        service_registration=service_registration,
     )
+
+
+def _resolve_registered_dsn(item: ServiceRegistrationData, secret_key: bytes | None) -> str | None:
+    """把动态注册服务的 DSN 密文解析为明文；主密钥缺失或不可解时诚实返回 None。"""
+    if item.dsn_encrypted is None or item.dsn_nonce is None:
+        return None
+    if secret_key is None:
+        return None
+    try:
+        return decrypt_dsn(item.dsn_encrypted, item.dsn_nonce, secret_key)
+    except Exception:
+        return None
 
 
 def get_v1_services(request: Request) -> V1Services:

@@ -57,7 +57,59 @@ export interface paths {
          */
         get: operations["list_services_api_v1_services_get"];
         put?: never;
+        /**
+         * Register Service
+         * @description 注册服务；DSN 加密落库并注册进运行时 registry，主密钥未配置时拒绝。
+         */
+        post: operations["register_service_api_v1_services_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/services/{service_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Service
+         * @description 读取一个静态服务的身份、能力边界和当前有限快照。
+         */
+        get: operations["get_service_api_v1_services__service_id__get"];
+        /**
+         * Update Service
+         * @description 编辑服务标题/DSN；dsn 不传=不改，能力声明不可改，更新后连接状态重置为未验证。
+         */
+        put: operations["update_service_api_v1_services__service_id__put"];
         post?: never;
+        /**
+         * Delete Service
+         * @description 移除服务；从注册表移除并删除加密凭据，已有关联留痕保留；不存在仍 204。
+         */
+        delete: operations["delete_service_api_v1_services__service_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/services/{service_id}/test-connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Service Connection
+         * @description 对目标服务发起显式只读连接测试；返回当前状态与脱敏分类码。
+         */
+        post: operations["test_service_connection_api_v1_services__service_id__test_connection_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -226,26 +278,6 @@ export interface paths {
          * @description 创建服务上下文会话；不创建调查、外部读取或任何修复动作。
          */
         post: operations["create_service_session_api_v1_services__service_id__sessions_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/services/{service_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Service
-         * @description 读取一个静态服务的身份、能力边界和当前有限快照。
-         */
-        get: operations["get_service_api_v1_services__service_id__get"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -906,6 +938,19 @@ export interface components {
             duration_ms?: unknown;
         };
         /**
+         * ConnectionTestResponse
+         * @description 显式连接测试响应；只含脱敏分类码。
+         */
+        ConnectionTestResponse: {
+            /** Service Id */
+            service_id: unknown;
+            /** Availability */
+            availability: unknown;
+            /** Error Code */
+            error_code?: unknown;
+            meta: unknown;
+        };
+        /**
          * CreateModelProviderRequest
          * @description 新增 Provider 请求。
          */
@@ -928,6 +973,20 @@ export interface components {
             query: string;
             /** Service Id */
             service_id?: string | null;
+        };
+        /**
+         * CreateServiceRequest
+         * @description 注册服务请求；DSN 为敏感凭据，仅加密落库。
+         */
+        CreateServiceRequest: {
+            /** Kind */
+            kind: string;
+            /** Instance Id */
+            instance_id: string;
+            /** Title */
+            title: string;
+            /** Dsn */
+            dsn: string;
         };
         /**
          * CreateSessionRequest
@@ -1631,6 +1690,34 @@ export interface components {
             meta: unknown;
         };
         /**
+         * ServiceRegistrationResource
+         * @description 动态注册服务的安全视图；不含 DSN 明文。
+         */
+        ServiceRegistrationResource: {
+            /** Id */
+            id: unknown;
+            /** Kind */
+            kind: unknown;
+            /** Title */
+            title: unknown;
+            /** Has Dsn */
+            has_dsn: unknown;
+            /** Dsn Masked Tail */
+            dsn_masked_tail?: unknown;
+            /** Created At */
+            created_at?: unknown;
+            /** Updated At */
+            updated_at?: unknown;
+        };
+        /**
+         * ServiceRegistrationResponse
+         * @description 动态注册服务读写响应。
+         */
+        ServiceRegistrationResponse: {
+            service: unknown;
+            meta: unknown;
+        };
+        /**
          * ServiceResource
          * @description 静态注册服务与其当前安全快照、共享主机指标。
          */
@@ -1647,6 +1734,10 @@ export interface components {
             action_boundary: unknown;
             snapshot: unknown;
             host_metrics: unknown;
+            /** Has Dsn */
+            has_dsn?: unknown;
+            /** Dsn Masked Tail */
+            dsn_masked_tail?: unknown;
         };
         /**
          * ServiceResponse
@@ -1775,6 +1866,16 @@ export interface components {
             api_key?: string | null;
         };
         /**
+         * UpdateServiceRequest
+         * @description 编辑服务请求；dsn 不传=不改，能力声明不可改。
+         */
+        UpdateServiceRequest: {
+            /** Title */
+            title: string;
+            /** Dsn */
+            dsn?: string | null;
+        };
+        /**
          * UpdateSessionRequest
          * @description 更新会话标题或逻辑归档状态的请求。
          */
@@ -1862,6 +1963,165 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ServiceListResponse"];
+                };
+            };
+        };
+    };
+    register_service_api_v1_services_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateServiceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceRegistrationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_service_api_v1_services__service_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                service_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_service_api_v1_services__service_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                service_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateServiceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceRegistrationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_service_api_v1_services__service_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                service_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_service_connection_api_v1_services__service_id__test_connection_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                service_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionTestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -2156,37 +2416,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SessionResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_service_api_v1_services__service_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                service_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ServiceResponse"];
                 };
             };
             /** @description Validation Error */
