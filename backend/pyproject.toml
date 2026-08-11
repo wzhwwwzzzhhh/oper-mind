@@ -77,6 +77,7 @@ banned-api = { "src.infrastructure".msg = "application/domain 层不得依赖 in
 # 但保留仓储/加密的直连以复用 P6 的既有豁免模式；connector 装配在 dependencies.py。
 "src/application/action_services.py" = ["TID251"]
 "src/application/model_providers.py" = ["TID251"]
+"src/application/model_mode.py" = ["TID251"]
 "src/application/monitoring.py" = ["TID251"]
 "src/application/services.py" = ["TID251"]
 "src/application/service_center.py" = ["TID251"]

@@ -45,7 +45,7 @@ from src.domain.actions import (
     ActionVerificationStatus,
     action_digest,
 )
-from src.domain.records import DiagnosisResultData, DiagnosisRunData, RepositoryPage
+from src.domain.records import ActionProposalCursor, DiagnosisResultData, DiagnosisRunData, RepositoryPage
 from src.infrastructure.persistence.action_repositories import (
     SqlAlchemyActionApprovalRepository,
     SqlAlchemyActionEventRepository,
@@ -176,6 +176,19 @@ class ActionApplicationService:
         try:
             proposal = SqlAlchemyActionProposalRepository(session).get_by_source_run_id(run_id)
             return self._detail(session, proposal) if proposal is not None else None
+        finally:
+            session.close()
+
+    def list_proposals(
+        self,
+        cursor: ActionProposalCursor | None,
+        limit: int,
+        status: ActionProposalStatus | None = None,
+    ) -> RepositoryPage[ActionProposalData, ActionProposalCursor]:
+        """跨会话跨 Run 读取提案安全摘要页（只读，可选状态过滤）。"""
+        session = self._session_factory()
+        try:
+            return SqlAlchemyActionProposalRepository(session).list_page(cursor, limit, status)
         finally:
             session.close()
 

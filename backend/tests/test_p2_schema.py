@@ -40,6 +40,7 @@ BUSINESS_TABLES = {
     "model_providers",
     "model_provider_idempotency_keys",
     "service_registry",
+    "app_settings",
 }
 EXPECTED_TABLES = BUSINESS_TABLES | {"alembic_version"}
 
@@ -380,7 +381,9 @@ def test_p2_schema_postgresql_orm与迁移ddl可离线编译(tmp_path: Path) -> 
         for table in Base.metadata.sorted_tables
     }
     assert set(ddl_by_table) == BUSINESS_TABLES
-    assert all("UUID" in ddl for ddl in ddl_by_table.values())
+    uuid_tables = {name for name in ddl_by_table if name != "app_settings"}
+    assert all("UUID" in ddl for name, ddl in ddl_by_table.items() if name in uuid_tables)
+    assert "VARCHAR(100)" in ddl_by_table["app_settings"]
     assert "FOREIGN KEY(session_id) REFERENCES sessions (id) ON DELETE RESTRICT" in ddl_by_table["messages"]
     assert "FOREIGN KEY(input_message_id) REFERENCES messages (id) ON DELETE RESTRICT" in ddl_by_table[
         "diagnosis_runs"

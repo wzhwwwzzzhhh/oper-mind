@@ -24,18 +24,22 @@ description: Use when delivering a completed, reviewed workpack — pushing the 
 1. `git remote get-url origin`、`gh auth status`、`gh repo view` 预检全部通过；任一失败即 STOP。
 2. **合前拉 main（关键）**：push 前先 `git fetch origin main && git merge origin/main`（或 rebase），
    在本地解掉冲突并重跑相关测试；确保 PR 不会"合后又矛盾"。若 main 有新提交而本地未合入，不得 push。
-3. `git push -u origin <分支>`，不得 force push。
-4. 用 `gh pr create --base main` 建 PR；body 必须含范围、AC 映射、review 结论、验证证据、相关 PRD/Design 路径和未执行项。
-5. 用 `gh pr view <number> --json baseRefName,headRefName,files,statusCheckRollup` 核对 base、head 和文件范围；不符合即 STOP。
-6. 等待 GitHub CI / checks；不过则修复（回 `dev-execute`）或说明，不强行合并。
-7. 只有用户明确要求合并且 checks 全绿后，才执行 squash merge；不得自动批准自己的 PR 或绕过 required review。
-8. 记录 PR URL、CI 结果、合并 commit；随后执行 `git switch main`、`git pull --ff-only origin main`。
+3. **收尾并进实现 PR（推荐，避免 follow-up PR）**：push 前在当前功能分支上完成 Phase 7 的文档收尾
+   （PRD frontmatter → 完成、`docs/prd/README.md` 双写、工作包 `git mv` 归档、`docs/workpack/README.md` 更新），
+   与实现同一个 PR 合并。这样合并后 main 即完成状态，无需再开收尾 PR。
+4. `git push -u origin <分支>`，不得 force push。
+5. 用 `gh pr create --base main` 建 PR；body 必须含范围、AC 映射、review 结论、验证证据、相关 PRD/Design 路径和未执行项。
+6. 用 `gh pr view <number> --json baseRefName,headRefName,files,statusCheckRollup` 核对 base、head 和文件范围；不符合即 STOP。
+7. 等待 GitHub CI / checks；不过则修复（回 `dev-execute`）或说明，不强行合并。
+8. 只有用户明确要求合并且 checks 全绿后，才执行 squash merge；不得自动批准自己的 PR 或绕过 required review。
+9. 记录 PR URL、CI 结果、合并 commit；随后执行 `git switch main`、`git pull --ff-only origin main`。
 
 ### Phase 7 收尾归档
+> 推荐在 Phase 6 step 3 于功能分支上**提前完成**以下文档改动（与实现同 PR 合并）；仅在实现 PR 已合并且遗漏收尾时，才另开 follow-up 分支/PR。
 1. **收尾文档不能直接改本地 `main`**：`docs/prd/README.md`、PRD 文件 frontmatter、`docs/workpack/README.md` 和归档移动必须在功能分支上完成，并纳入同一个 PR；合并后发现遗漏必须另开 follow-up 分支/PR。
 2. 更新 `docs/prd/README.md` 当前进展：阶段状态 → 完成（或迁移到对应域 README）。
-3. **同步更新 PRD 文件 frontmatter**：把本工作包对应的 PRD 文件顶部 `status: 已确认` 改为 `status: 完成`，`updated` 改为合并日期。**必须与第 2 步的 README 双写一致**——两处都要是「完成」，不得只改一处。
-4. **关闭 GitHub issue**：用 `gh issue close <编号>` 关闭 PRD 关联的 issue（编号来自 PRD frontmatter `issue` 字段），并注明交付完成、指向 PRD/归档 workpack 路径；issue 状态与 PRD 状态保持一致（完成=closed）。
+3. **同步更新 PRD 文件 frontmatter**：把本工作包对应的 PRD 文件顶部 `status: 进行中` 改为 `status: 完成`，`updated` 改为合并日期。**必须与第 2 步的 README 双写一致**——两处都要是「完成」，不得只改一处。
+4. **关闭 GitHub issue**：用 `gh issue close <编号>` 关闭 PRD 关联的 issue（编号来自 PRD frontmatter `issue` 字段），并注明交付完成、指向 PRD/归档 workpack 路径；issue 状态与 PRD 状态保持一致（完成=closed）。**issue 关闭在合并后执行**（合并确认前不关闭）。
 5. 归档工作包：`git mv docs/workpack/<阶段>-<切片>/ docs/workpack/归档/<阶段>-<切片>/`（保留 plan/review/evidence，只读不删）。
 6. 若存在明确后续事项，在工作包移交记录中写明（回到 roadmap / dev-plan）。
 7. 更新 `docs/workpack/README.md` 索引，并在 PR diff 中复核收尾文件仍属于本工作包。
@@ -66,7 +70,7 @@ description: Use when delivering a completed, reviewed workpack — pushing the 
 | 只改 README 没改 PRD frontmatter | frontmatter `status: 完成` 与 README 必须双写一致，一处完成两处都是完成 |
 | 工作包不归档 | 移到 docs/workpack/归档/ |
 | PR 混入范围外文件 | 检查 PR diff 只含工作包文件 |
-| 合并后直接在 main 补文档 | 回到功能分支，另开 follow-up PR |
+| 合并后直接在 main 补文档 | 回到功能分支，另开 follow-up PR；**更优：push 前在功能分支完成收尾，与实现同 PR 合并** |
 | push 前没合 main | 先 `git fetch origin main && git merge origin/main` 本地解冲突 |
 | 合完不删 worktree/分支 | `git worktree remove <切片>` + `git branch -d <分支>` + `git worktree prune` |
 | PRD 完成但 issue 没关 | `gh issue close <编号>`，PRD 状态与 issue 状态一致 |

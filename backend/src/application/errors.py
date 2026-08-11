@@ -57,6 +57,13 @@ class RunInputMessageInvalidError(ApplicationError):
     message = "诊断运行的输入消息无效。"
 
 
+class InvestigationRequiredError(ApplicationError):
+    """消息命中调查意图，应由调用方回退到 Run 主链路。"""
+
+    code = "INVESTIGATION_REQUIRED"
+    message = "这属于调查类问题，请使用调查发起。"
+
+
 class ActionProposalNotFoundError(ApplicationError):
     """指定固定修复提案不存在。"""
 
@@ -132,3 +139,10 @@ class ProviderIdempotencyReusedError(ApplicationError):
 
     code = "PROVIDER_IDEMPOTENCY_REUSED"
     message = "幂等键已用于不同的 Provider 创建请求。"
+
+
+class ModelModePersistenceError(ApplicationError):
+    """模型运行时模式写入应用库失败。"""
+
+    code = "MODEL_MODE_PERSISTENCE_FAILED"
+    message = "模型运行模式保存失败，请稍后重试。"

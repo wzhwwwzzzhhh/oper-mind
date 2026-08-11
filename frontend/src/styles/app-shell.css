@@ -818,3 +818,37 @@
     display: none;
   }
 }
+
+/* P8：会话侧栏「待审批」入口（审批属会话工作台模块，放在会话模式第二栏底部）。 */
+.approvals-entry {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 38px;
+  margin-top: auto;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text-secondary);
+  background: var(--surface-muted);
+  font-size: 13px;
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+
+.approvals-entry:hover {
+  border-color: var(--accent-line);
+  color: var(--accent);
+}
+
+.second.collapsed .approvals-entry {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+.second.collapsed .approvals-entry span {
+  display: none;
+}

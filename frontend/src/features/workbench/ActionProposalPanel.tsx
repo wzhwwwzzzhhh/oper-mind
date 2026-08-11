@@ -164,13 +164,18 @@ function terminal(status: ProposalStatus): boolean {
 
 /**
  * P4.2 最小产品面板：只读取服务器快照，用户不能编辑 SQL、目标或动作参数。
+ * 支持两种取数方式：按 run_id 读取该 Run 产生的提案；或按 proposal_id 直达提案详情。
  */
-export function ActionProposalPanel({ run_id }: { run_id: string }): ReactElement | null {
+export function ActionProposalPanel({ run_id, proposal_id }: { run_id?: string; proposal_id?: string }): ReactElement | null {
   const query_client = useQueryClient()
   const [confirm, set_confirm] = useState<'approve' | 'execute' | null>(null)
   const proposal_query = useQuery({
-    queryKey: ['api-v1', 'run-action-proposal', run_id],
-    queryFn: ({ signal }) => api_v1_client.get_run_action_proposal(run_id, { signal }).then((response) => response.data),
+    queryKey: ['api-v1', 'action-proposal', proposal_id ?? run_id ?? ''],
+    queryFn: ({ signal }) =>
+      proposal_id
+        ? api_v1_client.get_action_proposal(proposal_id, { signal }).then((response) => response.data)
+        : api_v1_client.get_run_action_proposal(run_id ?? '', { signal }).then((response) => response.data),
+    enabled: Boolean(proposal_id ?? run_id),
     refetchInterval: (query) => {
       const latest = read_proposal(query.state.data)
       return latest && !terminal(latest.status) ? 1500 : false
@@ -183,6 +188,12 @@ export function ActionProposalPanel({ run_id }: { run_id: string }): ReactElemen
     enabled: Boolean(proposal?.id),
     refetchInterval: proposal && !terminal(proposal.status) ? 1500 : false,
   })
+  const invalidate_proposal = async (): Promise<void> => {
+    await query_client.invalidateQueries({ queryKey: ['api-v1', 'action-proposal', proposal_id ?? run_id ?? ''] })
+    if (run_id) {
+      await query_client.invalidateQueries({ queryKey: ['api-v1', 'run-action-proposal', run_id] })
+    }
+  }
   const approve_mutation = useMutation({
     mutationFn: () => api_v1_client.decide_action_proposal(
       proposal?.id ?? '',
@@ -191,7 +202,7 @@ export function ActionProposalPanel({ run_id }: { run_id: string }): ReactElemen
     ),
     onSuccess: async () => {
       set_confirm(null)
-      await query_client.invalidateQueries({ queryKey: ['api-v1', 'run-action-proposal', run_id] })
+      await invalidate_proposal()
     },
   })
   const reject_mutation = useMutation({
@@ -200,7 +211,7 @@ export function ActionProposalPanel({ run_id }: { run_id: string }): ReactElemen
       { decision: 'reject', comment: '本地操作者暂不批准该固定修复。' } satisfies ActionApprovalRequest,
       { idempotency_key: globalThis.crypto.randomUUID() },
     ),
-    onSuccess: async () => query_client.invalidateQueries({ queryKey: ['api-v1', 'run-action-proposal', run_id] }),
+    onSuccess: async () => invalidate_proposal(),
   })
   const execute_mutation = useMutation({
     mutationFn: () => api_v1_client.request_action_execution(
@@ -210,7 +221,7 @@ export function ActionProposalPanel({ run_id }: { run_id: string }): ReactElemen
     ),
     onSuccess: async () => {
       set_confirm(null)
-      await query_client.invalidateQueries({ queryKey: ['api-v1', 'run-action-proposal', run_id] })
+      await invalidate_proposal()
     },
   })
 

@@ -1,6 +1,6 @@
 ---
 title: 模型设置——运行时切换 mock / real 模式
-status: 已确认
+status: 完成
 domain: model
 phase: P8
 issue: 55

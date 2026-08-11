@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import os
 from datetime import datetime
 from typing import Annotated, Literal, TypeVar, cast
 from urllib.parse import urlparse
@@ -15,6 +14,7 @@ from pydantic import ValidationError
 
 from src.api.v1.cursors import (
     ActionEventCursor,
+    ActionProposalCursor,
     DiagnosisRunCursor,
     InvalidCursorError,
     MessageCursor,
@@ -29,6 +29,7 @@ from src.api.v1.resources import (
     action_event_resource,
     action_execution_resource,
     action_proposal_resource,
+    action_proposal_summary_resource,
     knowledge_document_resource,
     knowledge_search_hit_resource,
     message_resource,
@@ -47,6 +48,7 @@ from src.api.v1.schemas import (
     ActionEventListResponse,
     ActionExecutionRequest,
     ActionExecutionResponse,
+    ActionProposalListResponse,
     ActionProposalResponse,
     ActivateModelProviderRequest,
     ConnectionTestResponse,
@@ -69,17 +71,20 @@ from src.api.v1.schemas import (
     ModelProviderResponse,
     MonitorHistoryResponse,
     MonitorOverviewResponse,
+    PlainMessageResponse,
     ResponseMeta,
     RunActionProposalResponse,
     RunEventEnvelope,
     RunEventListResponse,
     RunResponse,
+    SendPlainMessageRequest,
     ServiceActivityListResponse,
     ServiceListResponse,
     ServiceRegistrationResponse,
     ServiceResponse,
     SessionListResponse,
     SessionResponse,
+    UpdateModelModeRequest,
     UpdateModelProviderRequest,
     UpdateServiceRequest,
     UpdateSessionRequest,
@@ -99,6 +104,7 @@ from src.application.errors import (
     SessionNotFoundError,
 )
 from src.application.knowledge import KnowledgeReaderService, KnowledgeTimeoutError
+from src.application.model_mode import ModelModeApplicationService, resolve_runtime_mode
 from src.application.model_providers import (
     ActivateModelProviderCommand,
     CreateModelProviderCommand,
@@ -111,6 +117,7 @@ from src.application.monitoring import (
     MonitorHistoryApplicationService,
     MonitorOverviewApplicationService,
 )
+from src.application.plain_messages import SendPlainMessageCommand
 from src.application.service_center import CreateServiceSessionCommand, ServiceCenterApplicationService
 from src.application.service_registration import (
     RegisterServiceCommand,
@@ -118,6 +125,7 @@ from src.application.service_registration import (
     UpdateServiceCommand,
 )
 from src.config import load_monitor_settings
+from src.domain.actions import ActionProposalStatus
 from src.domain.diagnosis import SessionStatus
 from src.domain.model_provider import ProviderEndpoint
 from src.domain.records import DiagnosisRunData, RunEventData, SessionData
@@ -137,7 +145,15 @@ from src.infrastructure.secrets import (
 )
 from src.knowledge.reader import _ILLEGAL_PATH_RE, _ILLEGAL_QUERY_RE, KnowledgeDocumentMeta, KnowledgeSearchHit
 
-CursorT = TypeVar("CursorT", SessionCursor, MessageCursor, DiagnosisRunCursor, RunEventCursor, ActionEventCursor)
+CursorT = TypeVar(
+    "CursorT",
+    SessionCursor,
+    MessageCursor,
+    DiagnosisRunCursor,
+    RunEventCursor,
+    ActionEventCursor,
+    ActionProposalCursor,
+)
 
 router = APIRouter(prefix="/api/v1", tags=["v1"])
 DEFAULT_PAGE_SIZE = 20
@@ -147,6 +163,7 @@ APPLICATION_ERROR_STATUS = {
     "RUN_NOT_FOUND": 404,
     "SESSION_ARCHIVED": 409,
     "RUN_ALREADY_TERMINAL": 409,
+    "INVESTIGATION_REQUIRED": 409,
     "IDEMPOTENCY_KEY_REUSED": 409,
     "RUN_INPUT_MESSAGE_INVALID": 409,
     "ACTION_PROPOSAL_NOT_FOUND": 404,
@@ -159,6 +176,7 @@ APPLICATION_ERROR_STATUS = {
     "PROVIDER_NOT_FOUND": 404,
     "SECRET_KEY_NOT_CONFIGURED": 409,
     "PROVIDER_IDEMPOTENCY_REUSED": 409,
+    "MODEL_MODE_PERSISTENCE_FAILED": 500,
     "KNOWLEDGE_TIMEOUT": 503,
     "KNOWLEDGE_DOCUMENT_NOT_FOUND": 404,
 }
@@ -282,9 +300,10 @@ def _model_endpoint_resource(config: dict[str, str] | None) -> ModelEndpointReso
     )
 
 
-def _model_config_resource(provider_service: ModelProviderApplicationService) -> ModelConfigResource:
-    """读取当前生效配置并构建安全模型配置资源（DB 激活 Provider 优先，env/YAML 兜底）。"""
-    config = provider_service.effective_config()
+def _model_config_resource(services: V1Services) -> ModelConfigResource:
+    """读取当前生效配置并构建安全模型配置资源（运行时模式 + DB 激活 Provider 优先，env/YAML 兜底）。"""
+    runtime = resolve_runtime_mode(services.session_factory, _load_secret_key_or_none())
+    config = runtime["config"]
     diagnostic = _model_endpoint_resource(config.get("llm"))
     if diagnostic is None:
         diagnostic = ModelEndpointResource(
@@ -294,22 +313,27 @@ def _model_config_resource(provider_service: ModelProviderApplicationService) ->
             status="not_configured",
         )
     judge = _model_endpoint_resource(config.get("judge_llm"))
-    api_key = config.get("llm", {}).get("api_key") if isinstance(config.get("llm"), dict) else None
-    mode: Literal["mock", "real"] = "mock" if (api_key or os.environ.get("OPERMIND_API_KEY")) == "mock" else "real"
     return ModelConfigResource(
-        mode=mode,
+        mode=runtime["mode"],
+        mode_source=runtime["mode_source"],
+        mode_available=runtime["mode_available"],
+        mode_unavailable_reason=runtime["mode_unavailable_reason"],
         diagnostic_model=diagnostic,
         judge_model=judge,
     )
 
 
+def _load_secret_key_or_none() -> bytes | None:
+    """读取 Provider API Key 主密钥；未配置或过短时返回 None，允许只读与无 Key 保存。"""
+    try:
+        return load_secret_key()
+    except (SecretsSecretKeyNotConfiguredError, SecretKeyTooShortError):
+        return None
+
+
 def _model_provider_service(services: V1Services) -> ModelProviderApplicationService:
     """装配 Provider 应用服务；主密钥未配置时允许只读与无 Key 元数据保存。"""
-    try:
-        secret_key = load_secret_key()
-    except (SecretsSecretKeyNotConfiguredError, SecretKeyTooShortError):
-        secret_key = None
-    return ModelProviderApplicationService(services.session_factory, secret_key)
+    return ModelProviderApplicationService(services.session_factory, _load_secret_key_or_none())
 
 
 def _load_session(services: V1Services, session_id: UUID) -> SessionData:
@@ -460,10 +484,27 @@ def get_model_config(
     response: Response,
     services: V1Services = Depends(get_v1_services),
 ) -> ModelConfigResponse:
-    """读取当前生效模型配置的脱敏视图（DB 激活 Provider 优先，env/YAML 兜底）。"""
+    """读取当前生效模型配置的脱敏视图（运行时模式 + DB 激活 Provider 优先，env/YAML 兜底）。"""
     meta = response_meta(request)
     apply_headers(response, meta)
-    return ModelConfigResponse(config=_model_config_resource(_model_provider_service(services)), meta=meta)
+    return ModelConfigResponse(config=_model_config_resource(services), meta=meta)
+
+
+@router.put("/model/mode", response_model=ModelConfigResponse)
+def update_model_mode(
+    payload: UpdateModelModeRequest,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> ModelConfigResponse:
+    """运行时切换 mock / real 模式并返回更新后的完整安全配置视图（幂等，无需 Idempotency-Key）。"""
+    try:
+        ModelModeApplicationService(services.session_factory).set_mode(payload.mode)
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return ModelConfigResponse(config=_model_config_resource(services), meta=meta)
 
 
 @router.get("/model/providers", response_model=ModelProviderListResponse)
@@ -844,6 +885,38 @@ def list_messages(
     )
 
 
+@router.post("/sessions/{session_id}/messages", response_model=PlainMessageResponse, status_code=201)
+def send_plain_message(
+    session_id: UUID,
+    payload: SendPlainMessageRequest,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> PlainMessageResponse:
+    """普通对话消息走轻量回复，不创建 Run、不触发多 Agent 调查。
+
+    服务端权威判定意图：调查类问题返回 409 INVESTIGATION_REQUIRED，
+    由前端回退到既有 ``POST /sessions/{id}/runs`` 主链路。
+    """
+    plain = services.plain_message_service
+    if plain is None:
+        raise ApiV1Error(409, "PLAIN_MESSAGE_UNAVAILABLE", "普通消息通道当前不可用。")
+    try:
+        result = plain.send_plain_message(
+            session_id,
+            SendPlainMessageCommand(content=payload.content),
+        )
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return PlainMessageResponse(
+        user_message=message_resource(result.user_message),
+        assistant_message=message_resource(result.assistant_message),
+        meta=meta,
+    )
+
+
 @router.get("/sessions/{session_id}/runs", response_model=DiagnosisRunListResponse)
 def list_session_runs(
     session_id: UUID,
@@ -926,6 +999,22 @@ def get_run(
     return RunResponse(run=resource, meta=meta)
 
 
+@router.post("/runs/{run_id}/cancel", status_code=204)
+def cancel_run(
+    run_id: UUID,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> Response:
+    """取消运行中的 Run（queued/running）；已结束 Run 返回 409，重复取消幂等 204。"""
+    try:
+        services.run_service.cancel_run(run_id)
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    return Response(status_code=204, headers={"X-Request-Id": str(meta.request_id)})
+
+
 @router.get("/runs/{run_id}/action-proposal", response_model=RunActionProposalResponse)
 def get_run_action_proposal(
     run_id: UUID,
@@ -943,6 +1032,30 @@ def get_run_action_proposal(
     apply_headers(response, meta)
     return RunActionProposalResponse(
         proposal=action_proposal_resource(detail) if detail is not None else None,
+        meta=meta,
+    )
+
+
+@router.get("/action-proposals", response_model=ActionProposalListResponse)
+def list_action_proposals(
+    request: Request,
+    response: Response,
+    cursor: str | None = None,
+    limit: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
+    status: ActionProposalStatus | None = None,
+    services: V1Services = Depends(get_v1_services),
+) -> ActionProposalListResponse:
+    """跨会话跨 Run 读取提案安全摘要页（cursor 分页 + 可选状态过滤）。"""
+    decoded_cursor = parse_page_cursor(cursor, ActionProposalCursor)
+    try:
+        page = _action_service(services).list_proposals(decoded_cursor, limit, status)
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return ActionProposalListResponse(
+        items=[action_proposal_summary_resource(item) for item in page.items],
+        page=CursorPage(next_cursor=encode_cursor(page.next_cursor) if page.next_cursor else None, has_more=page.has_more),
         meta=meta,
     )
 

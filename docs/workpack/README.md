@@ -26,6 +26,8 @@ docs/workpack/
 
 | 阶段 | 切片 | PR | 完成日期 |
 |---|---|---|---|
+| P8 | workbench-loop-closure | #57 | 2026-08-10 |
+| P8 | model-mode-switch | #56 | 2026-08-10 |
 | P4.2 | db-agent-real | #1 | 2026-08-05 |
 | P4.3 | model-settings-real | #2 | 2026-08-05 |
 | P4.3 | service-context | #19 | 2026-08-06 |

@@ -9,6 +9,7 @@ from src.api.v1.schemas import (
     ActionEventResource,
     ActionExecutionResource,
     ActionProposalResource,
+    ActionProposalSummaryResource,
     ActionVerificationResource,
     AgentSummaryResource,
     DiagnosisResultResource,
@@ -44,6 +45,7 @@ from src.domain.actions import (
     ActionApprovalData,
     ActionEventData,
     ActionExecutionData,
+    ActionProposalData,
     ActionProposalDetail,
     ActionVerificationData,
 )
@@ -160,6 +162,16 @@ def action_proposal_resource(value: ActionProposalDetail) -> ActionProposalResou
         approval=action_approval_resource(value.approval) if value.approval is not None else None,
         execution=action_execution_resource(value.execution) if value.execution is not None else None,
         verification=action_verification_resource(value.verification) if value.verification is not None else None,
+    )
+
+
+def action_proposal_summary_resource(value: ActionProposalData) -> ActionProposalSummaryResource:
+    """将不可编辑 Proposal 收敛为全局列表的安全摘要（不含明细与证据原文）。"""
+    return ActionProposalSummaryResource(
+        id=value.id, source_run_id=value.source_run_id,
+        action_id=cast(Literal["postgres.orders_compound_index_rebuild.v1"], value.action_id),
+        status=value.status.value, mode=value.mode, title=value.title,
+        created_at=value.created_at, updated_at=value.updated_at,
     )
 
 

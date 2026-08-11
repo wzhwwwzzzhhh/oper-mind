@@ -34,6 +34,7 @@ from src.application.errors import (
     SessionArchivedError,
     SessionNotFoundError,
 )
+from src.application.message_routing import requires_database_context
 from src.domain.actions import ActionMode
 from src.domain.diagnosis import MessageRole, RunEventType, RunStatus, SessionStatus
 from src.domain.records import (
@@ -206,6 +207,9 @@ class RunApplicationService:
             )
             for item in _stream_with_context(self._executor, query or "", current_run.service_id):
                 if isinstance(item, DiagnosisExecutionEvent):
+                    # 协作式取消检查点：cancel 端点已把 Run 置为 cancelled 时停止后续事件写入。
+                    if self._is_cancelled(run_id):
+                        return self._load_run(run_id)
                     self._append_event(
                         run_id,
                         item.type,
@@ -221,6 +225,46 @@ class RunApplicationService:
             raise
         except Exception:
             return self._complete_failure(run_id, *_safe_failure())
+
+    def cancel_run(self, run_id: UUID) -> DiagnosisRunData:
+        """取消运行中的 Run；已结束（succeeded/failed）不可取消，已取消幂等返回。"""
+
+        def operation(session: Session) -> DiagnosisRunData:
+            run_repository = SqlAlchemyDiagnosisRunRepository(session)
+            run = run_repository.get_by_id(run_id)
+            if run is None:
+                raise RunNotFoundError()
+            if run.status in {RunStatus.SUCCEEDED, RunStatus.FAILED}:
+                raise RunAlreadyTerminalError()
+            if run.status == RunStatus.CANCELLED:
+                return run
+            now = _utc_now()
+            updated = run_repository.transition_status(
+                run_id,
+                expected_statuses={RunStatus.QUEUED, RunStatus.RUNNING},
+                status=RunStatus.CANCELLED,
+                finished_at=now,
+            )
+            if updated is None:
+                raise RunAlreadyTerminalError()
+            self._append_event_in_transaction(
+                session,
+                run_id,
+                RunEventType.RUN_CANCELLED,
+                {"state": RunStatus.CANCELLED.value},
+            )
+            _touch_session(SqlAlchemySessionRepository(session), run.session_id, now)
+            return updated
+
+        return _in_transaction(self._session_factory, operation)
+
+    def _is_cancelled(self, run_id: UUID) -> bool:
+        """读取 Run 取消状态，供执行循环在事件检查点判断是否停止。"""
+        session = self._session_factory()
+        try:
+            return SqlAlchemyDiagnosisRunRepository(session).is_cancelled(run_id)
+        finally:
+            session.close()
 
     def _accept_run_in_transaction(
         self,
@@ -240,7 +284,7 @@ class RunApplicationService:
         if session_data.status == SessionStatus.ARCHIVED:
             raise SessionArchivedError()
         target_service_id = _resolve_run_service_id(session_data, command)
-        if target_service_id is None and _requires_database_context(command.query):
+        if target_service_id is None and requires_database_context(command.query):
             raise ServiceContextRequiredError()
 
         existing = idempotency_repository.get_by_scope(
@@ -483,21 +527,6 @@ def _stream_with_context(
     return stream(query)
 
 
-def _requires_database_context(query: str) -> bool:
-    """识别需要数据库服务上下文的明确调查问题。"""
-    lowered = query.lower()
-    database_keywords = (
-        "select", "sql", "explain", "索引", "慢查询", "数据库", "postgres",
-        "连接池", "pg_stat", "schema",
-    )
-    if any(keyword in lowered for keyword in ("日志", "log", "错误", "异常", "报错", "超时")):
-        return any(keyword in lowered for keyword in database_keywords)
-    return any(
-        keyword in lowered
-        for keyword in (*database_keywords, "查询", "表")
-    )
-
-
 def _resolve_run_service_id(session: SessionData, command: CreateRunCommand) -> str | None:
     """为单个 Run 解析显式服务，绝不在多服务数据库调查中猜测目标。"""
     if command.service_id is not None:
@@ -506,7 +535,7 @@ def _resolve_run_service_id(session: SessionData, command: CreateRunCommand) -> 
         return command.service_id
     if len(session.service_ids) == 1:
         return session.service_ids[0]
-    if len(session.service_ids) > 1 and _requires_database_context(command.query):
+    if len(session.service_ids) > 1 and requires_database_context(command.query):
         raise ServiceContextRequiredError("数据库调查需要指定目标服务。")
     return None
 

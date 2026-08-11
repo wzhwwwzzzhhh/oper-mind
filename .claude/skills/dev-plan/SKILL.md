@@ -24,6 +24,7 @@ description: Use when starting development against a written OperMind PRD — se
 1. 定位唯一当前 PRD：域、阶段、状态、范围。找不到匹配 PRD，或需求明显超出 PRD → 停在需求层，不写代码。**PRD 状态必须是「已确认」（或本工作包已建的「进行中」）才能建 workpack**；草稿 PRD 先回 `prd-reviewing`，推进为「已确认」后再来。**读 PRD frontmatter 的 `issue` 字段**（协作入口，对应 GitHub issue）；issue 与 PRD 状态应一致，不一致先核对。
 2. 输出「本工作包只做」和「明确不做」两张清单，逐项映射到 PRD 的功能需求或 AC 编号。
 3. 检查工程闸门：新服务类型、Connector、真实连接、凭据、公开 API、数据库迁移、监控、权限、审批/执行能力、破坏性改动 → 必须已有 Design（`arch-design` 产出）→ Review（`arch-review` 审查 PASS）→ 用户确认；未确认就 STOP。Design 只能作为已确认技术决策的补充，不能悄悄改写产品范围（若某 Design 隐含扩 PRD 范围，先停下把冲突交用户，不据此开发）。
+4. **复用已确认架构决策**：写计划前先扫 `docs/design/<域>/` 已确认的 Design，若本 PRD 场景与既有决策同构（如运行时持久化 → `app_settings` 键值表、生效配置覆盖 → `resolve_*` 解析层、错误映射 → `APPLICATION_ERROR_STATUS`），直接在 plan.md 引用该决策，避免重复论证、缩短 Design/计划时间。注意：引用不等于自动适用，仍需在 plan.md 里写明"沿用 X Design 的 Y 决策"及其适用性。
 
 ### Phase 1 写开发文档
 目录：
@@ -72,6 +73,9 @@ docs/workpack/
   - 基线默认 `main`；用户明确指定其他基线时记录基线和理由。
   - 进入 worktree 开发：`cd "D:/market-handsome/oper-mind-worktrees/<切片>"`（后续命令都在 worktree 内执行）。
 - **worktree 是全新 checkout**：仓库根的 `.venv`、`node_modules` 不会带过去，需在 worktree 内重建（后端 venv、前端 `npm install`）。
+  - **环境已知坑（Windows）**：
+    - `backend/requirements.txt` 已保持**纯 ASCII 注释**（历史：中文注释在 Windows GBK 下会让 `pip install -r` 报 `UnicodeDecodeError`）。**不要给 requirements.txt 加回非 ASCII 注释**；若再遇编码错误，先 `$env:PYTHONUTF8=1; $env:PYTHONIOENCODING="utf-8"` 再执行。详见 `AGENTS.md`。
+    - `npm run generate:api` 依赖 8000 端口有活后端；若被占用/未启动，可先 `python -c "import json; from src.app import app; json.dump(app.openapi(), open('openapi.json','w'))"` 落盘，再 `npx openapi-typescript openapi.json -o src/api/v1/generated.ts`，不占端口。
 - 主仓库工作区可能被其他 Agent / PM 占用：**绝不在主仓库工作区直接开发**；只在那里管理分支、建 worktree、跑 PR 相关操作。
 - 建 worktree 前先 `git worktree list`，确认该切片没有已存在的 worktree/分支，避免重复建。
 - 若历史遗留的改动已在主仓库工作区且属于本工作包：在当前状态创建专用分支保留改动，再逐文件核对后**迁移进 worktree 或提交**；若混合了其他任务，必须建立「隔离提交清单」，逐文件或逐代码块核对，不得使用 `git add .`。
@@ -79,8 +83,8 @@ docs/workpack/
 
 ### Phase 3 停审阅点
 - 将计划交用户确认：范围、切片、改动面、验证方法。
-- **用户确认后才进入 `dev-execute`。** 未经确认不写业务代码。
-- 用户确认计划后，**推进 PRD 状态为「进行中」**：双写 PRD 文件顶部 frontmatter `status: 进行中` 与 `docs/prd/README.md`（及所在域 README）索引，两处一致；这是「已确认 → 进行中」的唯一推进点（对齐 `prd-writing` 状态矩阵）。
+- **捆绑确认（推荐，省一次往返）**：若本工作包的 Design 刚在本会话完成 arch-review PASS，把「已确认的 Design 决策摘要 + 计划切片」放**同一条消息**交用户一次确认——用户只停一次，Design 与计划同时放行。确认后把 Design 状态置为「已确认」（若尚未）与 PRD 置为「进行中」。
+- 未走捆绑路径时（如 Design 早前已确认、或用户要求分开确认），则单独确认计划；两种路径确认后，**推进 PRD 状态为「进行中」**：双写 PRD 文件顶部 frontmatter `status: 进行中` 与 `docs/prd/README.md`（及所在域 README）索引，两处一致；这是「已确认 → 进行中」的唯一推进点（对齐 `prd-writing` 状态矩阵）。
 - **同步 issue**：用 `gh issue edit <编号> --add-label in-progress` 把关联 issue 标为进行中（编号来自 PRD frontmatter `issue` 字段）；若 PRD 已有关联 Design，在 issue 评论补一条指向 Design 路径，方便协作方从 issue 直达设计。
 - 若 Phase 2 未完成，必须停在这里；"当前分支看起来能用"不等于专用 worktree 已建立。
 

@@ -1,6 +1,6 @@
 ---
 title: 会话工作台闭环——独立消息、取消 Run 与全局提案列表
-status: 已确认
+status: 完成
 domain: session
 phase: P8
 issue: 54

@@ -14,7 +14,8 @@ from fastapi import Request
 from src.application.action_execution import ControlledActionExecutor
 from src.application.action_services import ActionApplicationService
 from src.application.knowledge import KnowledgeReaderService
-from src.application.model_providers import resolve_model_config
+from src.application.model_mode import resolve_runtime_mode
+from src.application.plain_messages import PlainMessageApplicationService
 from src.application.service_center import ServiceCenterApplicationService
 from src.application.service_registration import ServiceRegistrationApplicationService
 from src.application.services import RunApplicationService, SessionApplicationService
@@ -36,6 +37,7 @@ from src.infrastructure.diagnosis.result_assembler import KernelReportResultAsse
 from src.infrastructure.monitoring.host_metrics import PsutilHostMetricsCollector
 from src.infrastructure.monitoring.sampler import MonitorSampler
 from src.infrastructure.persistence.database import PersistenceRuntime, SessionFactory, create_persistence_runtime
+from src.infrastructure.persistence.plain_message_writer import SqlAlchemyPlainMessageWriter
 from src.infrastructure.secrets import (
     SecretKeyNotConfiguredError,
     SecretKeyTooShortError,
@@ -57,6 +59,7 @@ class V1Services:
     session_factory: SessionFactory
     session_service: SessionApplicationService
     run_service: RunApplicationService
+    plain_message_service: PlainMessageApplicationService | None = None
     action_service: ActionApplicationService | None = None
     service_center: ServiceCenterApplicationService | None = None
     monitor_sampler: MonitorSampler | None = None
@@ -69,8 +72,9 @@ def build_v1_services() -> V1Services:
     """装配默认持久化 Runtime 与按生效配置每 Run 解析的 Coordinator 工厂。
 
     coordinator 工厂每 Run 现造一套内核，隔离并发 Run 的 Agent 状态；模型生效配置
-    在每次构建时经 ``resolve_model_config`` 解析（DB 激活 Provider 优先，env/YAML 兜底），
-    因此 Provider 保存 / 激活 / 删除后下一次 Run 即生效，无需重启。
+    与运行时模式在每次构建时经 ``resolve_runtime_mode`` 解析（运行时模式覆盖优先，
+    DB 激活 Provider 优先、env/YAML 兜底），因此 Provider 保存 / 激活 / 删除与模式
+    切换后下一次 Run 即生效，无需重启。
     """
     persistence_settings = load_persistence_settings()
     runtime = create_persistence_runtime(persistence_settings.database_url)
@@ -82,12 +86,12 @@ def build_v1_services() -> V1Services:
 
 
 def _resolved_coordinator_factory(runtime: PersistenceRuntime) -> Callable[[str | None], CoordinatorAgent]:
-    """构造每 Run 解析生效模型配置的 Coordinator 工厂。"""
+    """构造每 Run 解析生效模型配置与运行时模式的 Coordinator 工厂。"""
     secret_key = _load_secret_key_or_none()
 
     def build(service_id: str | None) -> CoordinatorAgent:
-        config = resolve_model_config(runtime.session_factory, secret_key)
-        llm = build_llm_from_config(config)
+        resolution = resolve_runtime_mode(runtime.session_factory, secret_key)
+        llm = build_llm_from_config(resolution["config"])
         return build_coordinator(llm, service_id=service_id)
 
     return build
@@ -183,6 +187,7 @@ def build_v1_services_for_runtime(
             action_mode=action_mode,
             registry=registry,
         ),
+        plain_message_service=PlainMessageApplicationService(SqlAlchemyPlainMessageWriter(session_factory)),
         action_service=action_service,
         service_center=ServiceCenterApplicationService(
             session_factory,

@@ -3,6 +3,7 @@ import { mutationOptions, queryOptions } from '@tanstack/react-query'
 import {
   API_V1_DEFAULT_PAGE_SIZE,
   api_v1_client,
+  type ListActionProposalsQuery,
   type ListSessionMessagesQuery,
   type ListSessionRunsQuery,
   type ListRunEventsQuery,
@@ -16,6 +17,7 @@ import {
   type ListServiceActivitiesQuery,
   type CreateServiceRequest,
   type UpdateServiceRequest,
+  type SendPlainMessageRequest,
 } from './client'
 
 export const api_v1_query_keys = {
@@ -35,6 +37,8 @@ export const api_v1_query_keys = {
     ['api-v1', 'session-runs', session_id, query] as const,
   run: (run_id: string) => ['api-v1', 'run', run_id] as const,
   run_events: (run_id: string, query: ListRunEventsQuery) => ['api-v1', 'run-events', run_id, query] as const,
+  action_proposals: (query: ListActionProposalsQuery) => ['api-v1', 'action-proposals', query] as const,
+  action_proposal: (proposal_id: string) => ['api-v1', 'action-proposal', proposal_id] as const,
   knowledge_documents: () => ['api-v1', 'knowledge-documents'] as const,
   knowledge_search: (query: string) => ['api-v1', 'knowledge-search', query] as const,
   knowledge_document: (document_path: string) => ['api-v1', 'knowledge-document', document_path] as const,
@@ -44,6 +48,16 @@ export function get_model_config_query() {
   return queryOptions({
     queryKey: api_v1_query_keys.model_config(),
     queryFn: ({ signal }) => api_v1_client.get_model_config({ signal }),
+  })
+}
+
+export interface UpdateModelModeMutationVariables {
+  mode: 'mock' | 'real'
+}
+
+export function update_model_mode_mutation() {
+  return mutationOptions({
+    mutationFn: ({ mode }: UpdateModelModeMutationVariables) => api_v1_client.update_model_mode({ mode }),
   })
 }
 
@@ -129,6 +143,38 @@ export function list_run_events_query(run_id: string, query: ListRunEventsQuery 
   return queryOptions({
     queryKey: api_v1_query_keys.run_events(run_id, query),
     queryFn: ({ signal }) => api_v1_client.list_run_events(run_id, query, { signal }),
+  })
+}
+
+export function list_action_proposals_query(query: ListActionProposalsQuery = {}) {
+  return queryOptions({
+    queryKey: api_v1_query_keys.action_proposals(query),
+    queryFn: ({ signal }) => api_v1_client.list_action_proposals(query, { signal }),
+  })
+}
+
+export function get_action_proposal_query(proposal_id: string) {
+  return queryOptions({
+    queryKey: api_v1_query_keys.action_proposal(proposal_id),
+    queryFn: ({ signal }) => api_v1_client.get_action_proposal(proposal_id, { signal }),
+  })
+}
+
+export interface SendPlainMessageMutationVariables {
+  content: SendPlainMessageRequest['content']
+  session_id: string
+}
+
+export function send_plain_message_mutation() {
+  return mutationOptions({
+    mutationFn: ({ session_id, content }: SendPlainMessageMutationVariables) =>
+      api_v1_client.send_plain_message(session_id, { content }),
+  })
+}
+
+export function cancel_run_mutation() {
+  return mutationOptions({
+    mutationFn: (run_id: string) => api_v1_client.cancel_run(run_id),
   })
 }
 

@@ -90,4 +90,29 @@ describe('ModelSettingsPage', () => {
     expect(screen.queryByText('DeepSeek 官方 API')).not.toBeInTheDocument()
     expect(screen.queryByText('本地页面偏好')).not.toBeInTheDocument()
   })
+
+  it('切换到 real 保存后如实提示不可用', async () => {
+    open_models()
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /真实调用/ }))
+    fireEvent.click(screen.getByRole('button', { name: '保存模式' }))
+
+    expect(await screen.findByText(/请先在下方配置并激活带 API Key 的 Provider/)).toBeInTheDocument()
+    expect(screen.getAllByText(/real 模式已保存但当前不可用/).length).toBeGreaterThan(0)
+  })
+
+  it('切回 mock 后显示确定性样例说明', async () => {
+    open_models()
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /真实调用/ }))
+    fireEvent.click(screen.getByRole('button', { name: '保存模式' }))
+    expect(await screen.findByText(/请先在下方配置并激活带 API Key 的 Provider/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Mock/ }))
+    fireEvent.click(screen.getByRole('button', { name: '保存模式' }))
+
+    expect(await screen.findByText('运行模式已切换为 Mock。')).toBeInTheDocument()
+  })
 })
