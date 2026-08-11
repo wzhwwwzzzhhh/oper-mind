@@ -73,9 +73,11 @@ docs/workpack/
   - 基线默认 `main`；用户明确指定其他基线时记录基线和理由。
   - 进入 worktree 开发：`cd "D:/market-handsome/oper-mind-worktrees/<切片>"`（后续命令都在 worktree 内执行）。
 - **worktree 是全新 checkout**：仓库根的 `.venv`、`node_modules` 不会带过去，需在 worktree 内重建（后端 venv、前端 `npm install`）。
+  - **环境预热脚本（推荐）**：新 worktree 建好后，在其根目录执行 `.claude/scripts/init-worktree.ps1`（Windows）或 `.claude/scripts/init-worktree.sh`（Unix），一把梭建 venv、设 UTF-8、装依赖，消除重复踩坑。详见 `.claude/scripts/README.md`。
   - **环境已知坑（Windows）**：
     - `backend/requirements.txt` 已保持**纯 ASCII 注释**（历史：中文注释在 Windows GBK 下会让 `pip install -r` 报 `UnicodeDecodeError`）。**不要给 requirements.txt 加回非 ASCII 注释**；若再遇编码错误，先 `$env:PYTHONUTF8=1; $env:PYTHONIOENCODING="utf-8"` 再执行。详见 `AGENTS.md`。
     - `npm run generate:api` 依赖 8000 端口有活后端；若被占用/未启动，可先 `python -c "import json; from src.app import app; json.dump(app.openapi(), open('openapi.json','w'))"` 落盘，再 `npx openapi-typescript openapi.json -o src/api/v1/generated.ts`，不占端口。
+- **并发识别与建议**：若本批次有多个 PRD 明确标注"零依赖、可并发"（不同域、不碰同批文件、无依赖关系），应**主动建议用户并发执行**（开多个 worktree / 派多个 AI 并行）而非串行。并发可大幅减少总耗时。识别关键：PRD 写作时已标注、或通过改动面分析发现零交集。
 - 主仓库工作区可能被其他 Agent / PM 占用：**绝不在主仓库工作区直接开发**；只在那里管理分支、建 worktree、跑 PR 相关操作。
 - 建 worktree 前先 `git worktree list`，确认该切片没有已存在的 worktree/分支，避免重复建。
 - 若历史遗留的改动已在主仓库工作区且属于本工作包：在当前状态创建专用分支保留改动，再逐文件核对后**迁移进 worktree 或提交**；若混合了其他任务，必须建立「隔离提交清单」，逐文件或逐代码块核对，不得使用 `git add .`。

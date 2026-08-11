@@ -107,6 +107,8 @@ desktop.ini
 !/.claude/commands/**
 !/.claude/agents/
 !/.claude/agents/**
+!/.claude/scripts/
+!/.claude/scripts/**
 /.claude/settings.json
 !/.claude/settings.example.json
 /.claude/settings.local.json
