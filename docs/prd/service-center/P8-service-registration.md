@@ -1,10 +1,10 @@
 ---
 title: 服务中心服务注册——动态接入、管理与连接测试
-status: 进行中
+status: 完成
 domain: service-center
 phase: P8
 issue: 53
-updated: 2026-08-10
+updated: 2026-08-11
 ---
 
 # 服务中心服务注册——动态接入、管理与连接测试 · PRD
