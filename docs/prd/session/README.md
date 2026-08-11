@@ -10,5 +10,5 @@
 | [P6-cross-service-investigation.md](P6-cross-service-investigation.md) | 跨服务联合调查——会话多服务 + 多 Run 聚合 | 完成 |
 | [P6-log-source-real.md](P6-log-source-real.md) | 日志真实源接入 | 完成 |
 | [P7-db-lock-connection-diagnostics.md](P7-db-lock-connection-diagnostics.md) | 数据库深度只读诊断——锁与连接池（慢查询深化第一切片） | 完成 |
-| [P8-workbench-loop-closure.md](P8-workbench-loop-closure.md) | 会话工作台闭环——独立消息、取消 Run 与全局提案列表 | 进行中 |
+| [P8-workbench-loop-closure.md](P8-workbench-loop-closure.md) | 会话工作台闭环——独立消息、取消 Run 与全局提案列表 | 完成 |
 | [P8-session-management.md](P8-session-management.md) | 会话管理——全局 Run 列表与会话搜索 | 草稿 |
