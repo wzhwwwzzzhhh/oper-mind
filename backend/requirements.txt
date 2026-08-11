@@ -1,5 +1,6 @@
-# ===== 核心运行时依赖（2026-07-18 已验证环境） =====
-# 在 Python 3.11.9 虚拟环境中安装，并于 2026-07-18 执行 pytest tests -q：34 passed。
+# ===== Core runtime dependencies (verified 2026-07-18) =====
+# Installed in a Python 3.11.9 venv; `pytest tests -q` -> 34 passed on 2026-07-18.
+# NOTE: keep this file ASCII-only so pip works under Windows GBK locale.
 openai==2.46.0
 fastapi==0.139.2
 uvicorn==0.51.0
@@ -9,27 +10,27 @@ langchain-openai==1.3.5
 langchain-core==1.4.9
 typing-extensions==4.16.0
 
-# ===== 配置与本机诊断 =====
-PyYAML==6.0.3       # src/config.py 读取 YAML 配置
-psutil==7.2.2       # Server Agent 采集 CPU、内存、磁盘、进程和网络指标；缺失时回退 mock
+# ===== Config & local diagnostics =====
+PyYAML==6.0.3       # src/config.py reads YAML config
+psutil==7.2.2       # Server Agent collects CPU/memory/disk/process/network metrics; falls back to mock when missing
 
-# ===== 实验评测与统计（M3） =====
-numpy==2.4.6        # src/eval/stats.py 数值计算
-scipy==1.17.1       # src/eval/stats.py 的 t 分布、Wilcoxon 与 Friedman 检验
+# ===== Experiment eval & stats (M3) =====
+numpy==2.4.6        # src/eval/stats.py numeric computation
+scipy==1.17.1       # src/eval/stats.py t-distribution / Wilcoxon / Friedman tests
 
-# ===== 开发、测试与文档脚本 =====
-pytest==9.1.1       # tests/ 测试套件
-fpdf==1.7.2         # scripts/ 生成方案 PDF
-mypy==2.3.0         # 静态类型检查（pyproject.toml 分层配置）
-ruff==0.16.2        # linter/formatter（pyproject.toml 规则配置）
+# ===== Dev, test & doc scripts =====
+pytest==9.1.1       # tests/ suite
+fpdf==1.7.2         # scripts/ generate proposal PDFs
+mypy==2.3.0         # static type check (per-layer config in pyproject.toml)
+ruff==0.16.2        # linter/formatter (rules in pyproject.toml)
 
-# ===== 应用持久化与迁移（P1.1d） =====
-SQLAlchemy==2.0.51  # 同步 ORM；P2 应用元数据持久化基础
-alembic==1.18.5     # 显式 schema migration；服务启动不自动迁移
-psycopg[binary]==3.3.4  # PostgreSQL 应用数据库驱动；本地测试仍使用 SQLite
-cryptography==44.0.0  # P6 模型 Provider API Key 的 AES-256-GCM 加密
-httpx==0.28.1       # P6 模型 Provider 连接验证的受控 HTTP 客户端（FastAPI TestClient 亦依赖）
+# ===== App persistence & migrations (P1.1d) =====
+SQLAlchemy==2.0.51  # sync ORM; base for P2 app metadata persistence
+alembic==1.18.5     # explicit schema migration; app does NOT auto-migrate on startup
+psycopg[binary]==3.3.4  # PostgreSQL app DB driver; local tests still use SQLite
+cryptography==44.0.0  # P6 model Provider API Key AES-256-GCM encryption
+httpx==0.28.1       # P6 Provider connection verify HTTP client (also used by FastAPI TestClient)
 
-# ===== 真实诊断数据源（后续接入 MySQL 时启用） =====
+# ===== Real diagnosis data sources (enable when MySQL connects later) =====
 # pymysql>=1.1.0
-redis==8.1.0  # Redis 只读服务 Connector（P6）
+redis==8.1.0  # Redis read-only service Connector (P6)

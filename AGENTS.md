@@ -17,6 +17,14 @@
 - API 类型生成需要后端在 `8000` 提供 OpenAPI：`npm run generate:api`；生成的 `frontend/src/api/v1/generated.ts` 禁止手工编辑。
 - 提交前至少运行相关测试、前端 `typecheck`/`test`/`build`（若涉及前端），以及 `git diff --check`；只检查和暂存本次改动文件，禁止无检查的 `git add .`。
 
+## 环境已知坑（Windows）
+
+- `backend/requirements.txt` 已保持**纯 ASCII 注释**（此前中文注释在 Windows GBK 下会让 `pip install -r` 报 `UnicodeDecodeError`）。若再遇到编码错误，先 `$env:PYTHONUTF8=1; $env:PYTHONIOENCODING="utf-8"` 再执行；**不要给 requirements.txt 加回非 ASCII 注释**。
+- 在全新 worktree 内重建后端环境时：`python -m venv .venv` 后执行 `$env:PYTHONUTF8=1` + `pip install -r backend/requirements.txt`；前端 `npm install`。
+- `npm run generate:api` 依赖 8000 端口有活后端；若端口被占用或未启动，可免端口落盘再生成：
+  `python -c "import json; from src.app import app; json.dump(app.openapi(), open('openapi.json','w',encoding='utf-8'), ensure_ascii=False)"`（后端目录下），
+  再 `npx openapi-typescript openapi.json -o src/api/v1/generated.ts`（前端目录下）。
+
 ## 代码边界
 
 - 后端主要按 `api`、`application`、`domain`、`core`、`agents`、`infrastructure` 分层；跨层数据使用 Pydantic 或 TypedDict，禁止隐式字典协议。
