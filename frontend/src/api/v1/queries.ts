@@ -14,6 +14,8 @@ import {
   type ProviderCreateOptions,
   type ListSessionsQuery,
   type ListServiceActivitiesQuery,
+  type CreateServiceRequest,
+  type UpdateServiceRequest,
 } from './client'
 
 export const api_v1_query_keys = {
@@ -234,6 +236,45 @@ export function verify_model_provider_mutation() {
 export function delete_model_provider_mutation() {
   return mutationOptions({
     mutationFn: (provider_id: string) => api_v1_client.delete_model_provider(provider_id),
+  })
+}
+
+export interface CreateServiceMutationVariables {
+  kind: CreateServiceRequest['kind']
+  instance_id: CreateServiceRequest['instance_id']
+  title: CreateServiceRequest['title']
+  dsn: CreateServiceRequest['dsn']
+}
+
+export function create_service_mutation() {
+  return mutationOptions({
+    mutationFn: ({ kind, instance_id, title, dsn }: CreateServiceMutationVariables) =>
+      api_v1_client.register_service({ kind, instance_id, title, dsn }),
+  })
+}
+
+export interface UpdateServiceMutationVariables {
+  service_id: string
+  title: UpdateServiceRequest['title']
+  dsn?: UpdateServiceRequest['dsn']
+}
+
+export function update_service_mutation() {
+  return mutationOptions({
+    mutationFn: ({ service_id, title, dsn }: UpdateServiceMutationVariables) =>
+      api_v1_client.update_service(service_id, { title, dsn }),
+  })
+}
+
+export function delete_service_mutation() {
+  return mutationOptions({
+    mutationFn: (service_id: string) => api_v1_client.delete_service(service_id),
+  })
+}
+
+export function test_service_connection_mutation() {
+  return mutationOptions({
+    mutationFn: (service_id: string) => api_v1_client.test_service_connection(service_id),
   })
 }
 

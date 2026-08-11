@@ -1,10 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
-import type { ReactElement } from 'react'
+import type { FormEvent, ReactElement } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { api_v1_client } from '../../api/v1/client'
-import { list_services_query } from '../../api/v1/queries'
+import {
+  create_service_mutation,
+  delete_service_mutation,
+  list_services_query,
+  test_service_connection_mutation,
+  update_service_mutation,
+} from '../../api/v1/queries'
 import { Icon } from '../shell/Icon'
 import {
   read_array,
@@ -14,6 +20,15 @@ import {
   resource_string,
   resource_value,
 } from '../workbench/resource-readers'
+
+interface ServiceFormState {
+  kind: string
+  instance_id: string
+  title: string
+  dsn: string
+}
+
+const empty_form: ServiceFormState = { kind: 'postgres', instance_id: '', title: '', dsn: '' }
 
 function service_kind_label(kind: unknown): { short: string; label: string } {
   const text = String(kind ?? '').toLowerCase()
@@ -66,11 +81,69 @@ export function ServiceCenterPage(): ReactElement {
   const query_client = useQueryClient()
   const pending_intent = useRef<string | null>(null)
   const [selected_service_ids, set_selected_service_ids] = useState<string[]>([])
+  const [toast, set_toast] = useState<string | null>(null)
+  const [form_open, set_form_open] = useState(false)
+  const [editing, set_editing] = useState<{ id: string; title: string; kind: string } | null>(null)
+  const [form, set_form] = useState<ServiceFormState>(empty_form)
+  const [deleting, set_deleting] = useState<{ id: string; title: string } | null>(null)
   const services_query = useQuery({ ...list_services_query() })
   const services = services_query.data ? read_items(services_query.data.data) : []
   const configured_count = services.filter(
     (service) => resource_optional_string(resource_value(service, 'snapshot'), 'availability') !== 'not_configured',
   ).length
+
+  const show_toast = (message: string): void => {
+    set_toast(message)
+    window.setTimeout(() => set_toast(null), 1800)
+  }
+
+  const refresh = (): void => {
+    void query_client.invalidateQueries({ queryKey: ['api-v1', 'services'] })
+  }
+
+  const create_mutation = useMutation({
+    ...create_service_mutation(),
+    onSuccess: () => {
+      set_form_open(false)
+      set_form(empty_form)
+      refresh()
+      show_toast('服务已接入。')
+    },
+    onError: (error) => show_toast(error instanceof Error ? error.message : '接入服务失败。'),
+  })
+
+  const update_mutation = useMutation({
+    ...update_service_mutation(),
+    onSuccess: () => {
+      set_form_open(false)
+      set_editing(null)
+      set_form(empty_form)
+      refresh()
+      show_toast('服务已更新。')
+    },
+    onError: (error) => show_toast(error instanceof Error ? error.message : '更新服务失败。'),
+  })
+
+  const delete_mutation = useMutation({
+    ...delete_service_mutation(),
+    onSuccess: () => {
+      set_deleting(null)
+      refresh()
+      show_toast('服务已移除。')
+    },
+    onError: (error) => show_toast(error instanceof Error ? error.message : '移除服务失败。'),
+  })
+
+  const test_connection_mutation = useMutation({
+    ...test_service_connection_mutation(),
+    onSuccess: (response) => {
+      const availability = resource_optional_string(read_record(response.data), 'availability')
+      const label = availability === 'healthy' ? '连接正常' : availability === 'not_configured' ? '未配置' : '不可达'
+      refresh()
+      show_toast(`连接测试：${label}。`)
+    },
+    onError: (error) => show_toast(error instanceof Error ? error.message : '连接测试失败。'),
+  })
 
   const create_investigation = useMutation({
     mutationFn: ({ service_id, intent }: { service_id: string; intent: string | null }) => {
@@ -100,6 +173,37 @@ export function ServiceCenterPage(): ReactElement {
     },
   })
 
+  const open_create = (): void => {
+    set_editing(null)
+    set_form(empty_form)
+    set_form_open(true)
+  }
+
+  const open_edit = (service: { id: string; title: string; kind: string }): void => {
+    set_editing(service)
+    set_form({ kind: service.kind, instance_id: service.id, title: service.title, dsn: '' })
+    set_form_open(true)
+  }
+
+  const set_form_field = (field: keyof ServiceFormState, value: string): void => {
+    set_form((current) => ({ ...current, [field]: value }))
+  }
+
+  const submit_form = (event: FormEvent): void => {
+    event.preventDefault()
+    const kind = form.kind.trim()
+    const instance_id = form.instance_id.trim()
+    const title = form.title.trim()
+    const dsn = form.dsn.trim()
+    if (editing != null) {
+      update_mutation.mutate({ service_id: editing.id, title, dsn: dsn === '' ? undefined : dsn })
+    } else {
+      create_mutation.mutate({ kind, instance_id, title, dsn })
+    }
+  }
+
+  const saving = create_mutation.isPending || update_mutation.isPending
+
   return (
     <div className="svc-page">
       <div className="breadcrumb">
@@ -118,6 +222,9 @@ export function ServiceCenterPage(): ReactElement {
           <button className="btn" disabled={services_query.isFetching} onClick={() => void services_query.refetch()} type="button">
             <Icon name="refresh" size={13} />
             {services_query.isFetching ? '读取中…' : '刷新状态'}
+          </button>
+          <button className="btn primary" onClick={open_create} type="button">
+            ＋ 添加服务
           </button>
         </div>
       </section>
@@ -165,7 +272,7 @@ export function ServiceCenterPage(): ReactElement {
 
         {services_query.isSuccess && services.length === 0 && (
           <div className="svc-empty">
-            当前还没有已接入的服务。服务接入能力（PostgreSQL / MySQL / Redis 等）将在后续工作包提供；
+            当前还没有已接入的服务。点击「＋ 添加服务」接入 PostgreSQL / Redis 实例；
             页面不会用示例数据伪装真实服务。
           </div>
         )}
@@ -188,6 +295,8 @@ export function ServiceCenterPage(): ReactElement {
               const snapshot = resource_value(service, 'snapshot')
               const availability = resource_optional_string(snapshot, 'availability')
               const state = availability_state(availability)
+              const has_dsn = resource_value(service, 'has_dsn')
+              const masked_tail = resource_optional_string(service, 'dsn_masked_tail')
               const investigations = read_array(resource_value(service, 'supported_investigations'))
               const first_investigation = read_record(investigations[0])
               const intent = resource_optional_string(first_investigation, 'id') ?? null
@@ -215,6 +324,7 @@ export function ServiceCenterPage(): ReactElement {
                   <div className="type">
                     {info.label}
                     <small>{mode_text(resource_optional_string(snapshot, 'mode'))}</small>
+                    {has_dsn === true && masked_tail != null && <small>DSN 已存 · 尾号 {masked_tail}</small>}
                   </div>
                   <div>
                     <span className={`state ${state}`}>{availability_text(availability)}</span>
@@ -227,6 +337,25 @@ export function ServiceCenterPage(): ReactElement {
                     {service_id && (
                       <>
                         <button onClick={() => navigate(`/services/${encodeURIComponent(service_id)}`)} type="button">查看详情</button>
+                        <button
+                          disabled={test_connection_mutation.isPending}
+                          onClick={() => test_connection_mutation.mutate(service_id)}
+                          type="button"
+                        >
+                          测试连接
+                        </button>
+                        <button
+                          onClick={() => open_edit({ id: service_id, title, kind: kind ?? '' })}
+                          type="button"
+                        >
+                          编辑
+                        </button>
+                        <button
+                          onClick={() => set_deleting({ id: service_id, title })}
+                          type="button"
+                        >
+                          移除
+                        </button>
                         <button
                           className="investigate"
                           disabled={create_investigation.isPending || intent === null}
@@ -245,6 +374,35 @@ export function ServiceCenterPage(): ReactElement {
           </div>
         )}
       </section>
+
+      {form_open && <div className="model-modal" role="dialog" aria-modal="true" aria-labelledby="svc-modal-title"><div className="model-dialog">
+        <div className="model-dialog-head">
+          <div>
+            <strong id="svc-modal-title">{editing != null ? `编辑 ${editing.title}` : '接入服务'}</strong>
+            <p>{editing != null ? '修改标题或 DSN。DSN 留空保持不变；能力声明由服务类型决定。' : '填写服务类型、实例 ID、标题与 DSN。DSN 加密保存、绝不回显明文。'}</p>
+          </div>
+          <button aria-label="关闭" className="icon-btn" onClick={() => { set_form_open(false); set_editing(null); }} type="button"><Icon name="x" size={14} /></button>
+        </div>
+        <form className="provider-form" onSubmit={submit_form}>
+          <label>服务类型
+            <select aria-label="服务类型" value={form.kind} onChange={(event) => set_form_field('kind', event.target.value)} disabled={editing != null}>
+              <option value="postgres">PostgreSQL</option>
+              <option value="redis">Redis</option>
+            </select>
+          </label>
+          <label>实例 ID<input aria-label="实例 ID" required value={form.instance_id} onChange={(event) => set_form_field('instance_id', event.target.value)} type="text" placeholder="如 postgres-orders" disabled={editing != null} /></label>
+          <label>标题<input aria-label="标题" required value={form.title} onChange={(event) => set_form_field('title', event.target.value)} type="text" placeholder="订单 PostgreSQL" /></label>
+          <label>DSN<input aria-label="DSN" required={editing == null} value={form.dsn} onChange={(event) => set_form_field('dsn', event.target.value)} type="text" autoComplete="off" placeholder={editing != null ? '留空保持不变' : 'postgresql://user:pass@host:5432/db'} /></label>
+          <div className="model-dialog-footer"><button className="model-button" type="button" onClick={() => { set_form_open(false); set_editing(null); }}>取消</button><button className="model-button primary" type="submit" disabled={saving}>{editing != null ? '保存修改' : '接入服务'}</button></div>
+        </form>
+      </div></div>}
+
+      {deleting != null && <div className="model-modal" role="dialog" aria-modal="true" aria-labelledby="svc-delete-title"><div className="model-dialog">
+        <div className="model-dialog-head"><div><strong id="svc-delete-title">移除服务</strong><p>将移除「{deleting.title}」及其加密凭据。已有关联的会话 / 监控 / 活动留痕不会删除。</p></div><button aria-label="关闭" className="icon-btn" onClick={() => set_deleting(null)} type="button"><Icon name="x" size={14} /></button></div>
+        <div className="model-dialog-footer"><button className="model-button" type="button" onClick={() => set_deleting(null)}>取消</button><button className="model-button primary" type="button" onClick={() => delete_mutation.mutate(deleting.id)} disabled={delete_mutation.isPending}>确认移除</button></div>
+      </div></div>}
+
+      {toast && <div className="model-toast" role="status">{toast}</div>}
     </div>
   )
 }

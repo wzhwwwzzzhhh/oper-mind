@@ -24,6 +24,11 @@ export type ActionExecutionResponse = components['schemas']['ActionExecutionResp
 export type ServiceResource = components['schemas']['ServiceResource']
 export type ServiceResponse = components['schemas']['ServiceResponse']
 export type ServiceListResponse = components['schemas']['ServiceListResponse']
+export type ServiceRegistrationResource = components['schemas']['ServiceRegistrationResource']
+export type ServiceRegistrationResponse = components['schemas']['ServiceRegistrationResponse']
+export type CreateServiceRequest = components['schemas']['CreateServiceRequest']
+export type UpdateServiceRequest = components['schemas']['UpdateServiceRequest']
+export type ConnectionTestResponse = components['schemas']['ConnectionTestResponse']
 export type ServiceActivityResource = components['schemas']['ServiceActivityResource']
 export type ServiceActivityListResponse = components['schemas']['ServiceActivityListResponse']
 export type KnowledgeDocumentResource = components['schemas']['KnowledgeDocumentResource']
@@ -272,6 +277,20 @@ export interface ApiV1Client {
   ): Promise<ApiResponse<void>>
   list_services(options?: ApiRequestOptions): Promise<ApiResponse<ServiceListResponse>>
   get_service(service_id: string, options?: ApiRequestOptions): Promise<ApiResponse<ServiceResponse>>
+  register_service(
+    payload: CreateServiceRequest,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<ServiceRegistrationResponse>>
+  update_service(
+    service_id: string,
+    payload: UpdateServiceRequest,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<ServiceRegistrationResponse>>
+  delete_service(service_id: string, options?: ApiRequestOptions): Promise<ApiResponse<void>>
+  test_service_connection(
+    service_id: string,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<ConnectionTestResponse>>
   get_service_monitor_history(
     service_id: string,
     query?: { from?: string; to?: string; hours?: number },
@@ -608,6 +627,42 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
         base_url,
         `/api/v1/services/${encodeURIComponent(service_id)}`,
         request_options,
+      ),
+    register_service: (payload, request_options) =>
+      request_json<ServiceRegistrationResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        '/api/v1/services',
+        request_options,
+        { body: payload, method: 'POST' },
+      ),
+    update_service: (service_id, payload, request_options) =>
+      request_json<ServiceRegistrationResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        `/api/v1/services/${encodeURIComponent(service_id)}`,
+        request_options,
+        { body: payload, method: 'PUT' },
+      ),
+    delete_service: (service_id, request_options) =>
+      request_json<void>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        `/api/v1/services/${encodeURIComponent(service_id)}`,
+        request_options,
+        { method: 'DELETE' },
+      ),
+    test_service_connection: (service_id, request_options) =>
+      request_json<ConnectionTestResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        `/api/v1/services/${encodeURIComponent(service_id)}/test-connection`,
+        request_options,
+        { method: 'POST' },
       ),
     get_service_monitor_history: (service_id, query = {}, request_options) =>
       request_json<MonitorHistoryResponse>(
