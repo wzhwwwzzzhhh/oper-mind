@@ -101,6 +101,9 @@ export interface ModelEndpointResource {
 export interface ModelConfigResponse {
   config: {
     mode: 'mock' | 'real'
+    mode_source: 'runtime' | 'env'
+    mode_available: boolean
+    mode_unavailable_reason: string | null
     diagnostic_model: ModelEndpointResource
     judge_model: ModelEndpointResource | null
   }
@@ -148,6 +151,10 @@ export interface UpdateModelProviderRequest {
 
 export interface ActivateModelProviderRequest {
   endpoint: 'diagnostic' | 'judge'
+}
+
+export interface UpdateModelModeRequest {
+  mode: 'mock' | 'real'
 }
 
 export type ListSessionsQuery = NonNullable<
@@ -255,6 +262,10 @@ export class ApiClientError extends Error {
 
 export interface ApiV1Client {
   get_model_config(options?: ApiRequestOptions): Promise<ApiResponse<ModelConfigResponse>>
+  update_model_mode(
+    payload: UpdateModelModeRequest,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<ModelConfigResponse>>
   list_model_providers(options?: ApiRequestOptions): Promise<ApiResponse<ModelProviderListResponse>>
   create_model_provider(
     payload: CreateModelProviderRequest,
@@ -557,6 +568,15 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
         base_url,
         '/api/v1/model/config',
         request_options,
+      ),
+    update_model_mode: (payload, request_options) =>
+      request_json<ModelConfigResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        '/api/v1/model/mode',
+        request_options,
+        { body: payload, method: 'PUT' },
       ),
     list_model_providers: (request_options) =>
       request_json<ModelProviderListResponse>(

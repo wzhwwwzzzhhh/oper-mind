@@ -49,6 +49,16 @@ export function get_model_config_query() {
   })
 }
 
+export interface UpdateModelModeMutationVariables {
+  mode: 'mock' | 'real'
+}
+
+export function update_model_mode_mutation() {
+  return mutationOptions({
+    mutationFn: ({ mode }: UpdateModelModeMutationVariables) => api_v1_client.update_model_mode({ mode }),
+  })
+}
+
 export function list_services_query() {
   return queryOptions({
     queryKey: api_v1_query_keys.services(),

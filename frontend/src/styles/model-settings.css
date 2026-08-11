@@ -334,6 +334,63 @@
   overflow: hidden;
 }
 
+/* 运行模式切换：两态选项 + 保存，选项外观不冒充"已生效"。 */
+.mode-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+}
+
+.mode-switch-options {
+  display: flex;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+.mode-option {
+  display: grid;
+  gap: 4px;
+  min-width: 200px;
+  padding: 11px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  background: var(--surface-soft);
+  text-align: left;
+}
+
+.mode-option:hover {
+  border-color: var(--accent);
+}
+
+.mode-option.selected {
+  border-color: var(--accent);
+  color: var(--text);
+  background: var(--accent-soft);
+}
+
+.mode-option strong {
+  font-size: 12px;
+}
+
+.mode-option span {
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.mode-unavailable {
+  margin: 0 16px 16px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--warning);
+  border-radius: var(--radius-sm);
+  color: var(--warning);
+  background: var(--warning-soft);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 .boundary-card ul {
   display: grid;
   gap: 10px;

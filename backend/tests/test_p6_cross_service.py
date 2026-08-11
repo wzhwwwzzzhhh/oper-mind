@@ -175,7 +175,7 @@ def test_迁移在存在关联数据时拒绝降级(tmp_path: Path) -> None:
     finally:
         engine.dispose()
     downgrade = subprocess.run(
-        [sys.executable, "-m", "alembic", "-c", str(ALEMBIC_INI), "downgrade", "-1"],
+        [sys.executable, "-m", "alembic", "-c", str(ALEMBIC_INI), "downgrade", "20260807_08_p6_host_metrics"],
         cwd=tmp_path,
         env=environment,
         check=False,

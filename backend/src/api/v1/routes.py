@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import os
 from datetime import datetime
 from typing import Annotated, Literal, TypeVar
 from urllib.parse import urlparse
@@ -80,6 +79,7 @@ from src.api.v1.schemas import (
     ServiceResponse,
     SessionListResponse,
     SessionResponse,
+    UpdateModelModeRequest,
     UpdateModelProviderRequest,
     UpdateSessionRequest,
 )
@@ -98,6 +98,7 @@ from src.application.errors import (
     SessionNotFoundError,
 )
 from src.application.knowledge import KnowledgeReaderService, KnowledgeTimeoutError
+from src.application.model_mode import ModelModeApplicationService, resolve_runtime_mode
 from src.application.model_providers import (
     ActivateModelProviderCommand,
     CreateModelProviderCommand,
@@ -163,6 +164,7 @@ APPLICATION_ERROR_STATUS = {
     "PROVIDER_NOT_FOUND": 404,
     "SECRET_KEY_NOT_CONFIGURED": 409,
     "PROVIDER_IDEMPOTENCY_REUSED": 409,
+    "MODEL_MODE_PERSISTENCE_FAILED": 500,
     "KNOWLEDGE_TIMEOUT": 503,
     "KNOWLEDGE_DOCUMENT_NOT_FOUND": 404,
 }
@@ -279,9 +281,10 @@ def _model_endpoint_resource(config: dict[str, str] | None) -> ModelEndpointReso
     )
 
 
-def _model_config_resource(provider_service: ModelProviderApplicationService) -> ModelConfigResource:
-    """读取当前生效配置并构建安全模型配置资源（DB 激活 Provider 优先，env/YAML 兜底）。"""
-    config = provider_service.effective_config()
+def _model_config_resource(services: V1Services) -> ModelConfigResource:
+    """读取当前生效配置并构建安全模型配置资源（运行时模式 + DB 激活 Provider 优先，env/YAML 兜底）。"""
+    runtime = resolve_runtime_mode(services.session_factory, _load_secret_key_or_none())
+    config = runtime["config"]
     diagnostic = _model_endpoint_resource(config.get("llm"))
     if diagnostic is None:
         diagnostic = ModelEndpointResource(
@@ -291,22 +294,27 @@ def _model_config_resource(provider_service: ModelProviderApplicationService) ->
             status="not_configured",
         )
     judge = _model_endpoint_resource(config.get("judge_llm"))
-    api_key = config.get("llm", {}).get("api_key") if isinstance(config.get("llm"), dict) else None
-    mode: Literal["mock", "real"] = "mock" if (api_key or os.environ.get("OPERMIND_API_KEY")) == "mock" else "real"
     return ModelConfigResource(
-        mode=mode,
+        mode=runtime["mode"],
+        mode_source=runtime["mode_source"],
+        mode_available=runtime["mode_available"],
+        mode_unavailable_reason=runtime["mode_unavailable_reason"],
         diagnostic_model=diagnostic,
         judge_model=judge,
     )
 
 
+def _load_secret_key_or_none() -> bytes | None:
+    """读取 Provider API Key 主密钥；未配置或过短时返回 None，允许只读与无 Key 保存。"""
+    try:
+        return load_secret_key()
+    except (SecretsSecretKeyNotConfiguredError, SecretKeyTooShortError):
+        return None
+
+
 def _model_provider_service(services: V1Services) -> ModelProviderApplicationService:
     """装配 Provider 应用服务；主密钥未配置时允许只读与无 Key 元数据保存。"""
-    try:
-        secret_key = load_secret_key()
-    except (SecretsSecretKeyNotConfiguredError, SecretKeyTooShortError):
-        secret_key = None
-    return ModelProviderApplicationService(services.session_factory, secret_key)
+    return ModelProviderApplicationService(services.session_factory, _load_secret_key_or_none())
 
 
 def _load_session(services: V1Services, session_id: UUID) -> SessionData:
@@ -365,10 +373,27 @@ def get_model_config(
     response: Response,
     services: V1Services = Depends(get_v1_services),
 ) -> ModelConfigResponse:
-    """读取当前生效模型配置的脱敏视图（DB 激活 Provider 优先，env/YAML 兜底）。"""
+    """读取当前生效模型配置的脱敏视图（运行时模式 + DB 激活 Provider 优先，env/YAML 兜底）。"""
     meta = response_meta(request)
     apply_headers(response, meta)
-    return ModelConfigResponse(config=_model_config_resource(_model_provider_service(services)), meta=meta)
+    return ModelConfigResponse(config=_model_config_resource(services), meta=meta)
+
+
+@router.put("/model/mode", response_model=ModelConfigResponse)
+def update_model_mode(
+    payload: UpdateModelModeRequest,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> ModelConfigResponse:
+    """运行时切换 mock / real 模式并返回更新后的完整安全配置视图（幂等，无需 Idempotency-Key）。"""
+    try:
+        ModelModeApplicationService(services.session_factory).set_mode(payload.mode)
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return ModelConfigResponse(config=_model_config_resource(services), meta=meta)
 
 
 @router.get("/model/providers", response_model=ModelProviderListResponse)

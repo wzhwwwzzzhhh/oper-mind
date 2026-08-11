@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent, ReactElement } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -10,6 +10,7 @@ import {
   delete_model_provider_mutation,
   get_model_config_query,
   list_model_providers_query,
+  update_model_mode_mutation,
   update_model_provider_mutation,
   verify_model_provider_mutation,
 } from '../../api/v1/queries'
@@ -50,6 +51,7 @@ export function ModelSettingsPage(): ReactElement {
   const [form, set_form] = useState<ProviderFormState>(empty_form)
   const [deleting, set_deleting] = useState<ModelProviderResource | null>(null)
   const [clear_key, set_clear_key] = useState(false)
+  const [mode_selection, set_mode_selection] = useState<'mock' | 'real'>('mock')
 
   const show_toast = (message: string): void => {
     set_toast(message)
@@ -112,6 +114,17 @@ export function ModelSettingsPage(): ReactElement {
     onError: (error) => show_toast(error instanceof Error ? error.message : '删除 Provider 失败。'),
   })
 
+  const mode_mutation = useMutation({
+    ...update_model_mode_mutation(),
+    onSuccess: (response) => {
+      const config = response.data.config
+      query_client.setQueryData(api_v1_query_keys.model_config(), response)
+      set_mode_selection(config.mode)
+      show_toast(config.mode === 'real' && !config.mode_available ? 'real 模式已保存但当前不可用。' : `运行模式已切换为 ${config.mode === 'mock' ? 'Mock' : '真实调用'}。`)
+    },
+    onError: (error) => show_toast(error instanceof Error ? error.message : '切换运行模式失败。'),
+  })
+
   const open_create = (): void => {
     set_editing(null)
     set_form(empty_form)
@@ -149,6 +162,12 @@ export function ModelSettingsPage(): ReactElement {
   const providers = providers_query.data?.data.items ?? []
   const saving = create_mutation.isPending || update_mutation.isPending
 
+  useEffect(() => {
+    if (config != null) {
+      set_mode_selection(config.mode)
+    }
+  }, [config])
+
   return (
     <div className="model-page">
       <div className="model-breadcrumb"><button onClick={() => navigate('/workbench')} type="button">会话工作台</button><span>/</span><strong>模型服务</strong></div>
@@ -167,6 +186,32 @@ export function ModelSettingsPage(): ReactElement {
         <article><small>裁判模型</small><strong>{judge?.model ?? '未配置'}</strong><span>{judge ? judge.provider : '未配置独立裁判模型'}</span></article>
         <article><small>运行模式</small><strong>{config == null ? '未知' : config.mode === 'mock' ? 'Mock' : '真实调用'}</strong><span>{config == null ? '后端未返回配置' : config.mode === 'mock' ? '返回确定性样例，不出网' : '按生效 Provider 真实调用'}</span></article>
         <article><small>已配置 Provider</small><strong>{providers_query.isSuccess ? providers.length : '—'} <em>个</em></strong><span>{providers_query.isSuccess ? '来自后端安全视图' : '尚未读取到列表'}</span></article>
+      </section>
+
+      <section className="model-section" id="mode">
+        <div className="model-section-head"><div><h2>运行模式</h2><p>切换 mock / real 模式并保存，保存后下一次会话立即生效，无需重启。模式选择持久化在后端，重启后保持。</p></div></div>
+        <div className="model-card boundary-card">
+          {config == null
+            ? <div className="model-inline-state">正在读取当前生效配置…</div>
+            : (
+              <>
+                <div className="mode-switch-row">
+                  <div className="mode-switch-options">
+                    <button className={`mode-option ${mode_selection === 'mock' ? 'selected' : ''}`} onClick={() => set_mode_selection('mock')} disabled={mode_mutation.isPending} type="button">
+                      <strong>Mock</strong><span>返回确定性样例，不出网，零消耗</span>
+                    </button>
+                    <button className={`mode-option ${mode_selection === 'real' ? 'selected' : ''}`} onClick={() => set_mode_selection('real')} disabled={mode_mutation.isPending} type="button">
+                      <strong>真实调用</strong><span>按生效 Provider 真实调用</span>
+                    </button>
+                  </div>
+                  <button className="model-button primary" onClick={() => mode_mutation.mutate({ mode: mode_selection })} disabled={mode_mutation.isPending || mode_selection === config.mode} type="button">保存模式</button>
+                </div>
+                {config.mode === 'real' && !config.mode_available && (
+                  <div className="mode-unavailable">real 模式已保存但当前不可用：{config.mode_unavailable_reason ?? '无可用 Provider/API Key'}。请先在下方配置并激活带 API Key 的 Provider，或切回 Mock。</div>
+                )}
+              </>
+            )}
+        </div>
       </section>
 
       <section className="model-section" id="providers">

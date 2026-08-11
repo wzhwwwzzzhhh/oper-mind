@@ -75,6 +75,7 @@ banned-api = { "src.infrastructure".msg = "application/domain 层不得依赖 in
 # 清理进度见 docs/接口清单.md。
 "src/application/action_services.py" = ["TID251"]
 "src/application/model_providers.py" = ["TID251"]
+"src/application/model_mode.py" = ["TID251"]
 "src/application/monitoring.py" = ["TID251"]
 "src/application/services.py" = ["TID251"]
 "src/application/service_center.py" = ["TID251"]

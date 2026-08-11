@@ -23,7 +23,7 @@ from src.api.v1.errors import ApiV1Error
 from src.api.v1.routes import router as v1_router
 from src.api.v1.schemas import ApiError as V1ApiError
 from src.api.v1.schemas import ErrorEnvelope, FieldIssue, ResponseMeta
-from src.application.model_providers import resolve_model_config
+from src.application.model_mode import ModelRuntimeResolution, resolve_runtime_mode
 from src.infrastructure.secrets import (
     SecretKeyNotConfiguredError,
     SecretKeyTooShortError,
@@ -199,20 +199,24 @@ def _validation_details(errors: Sequence[Mapping[str, object]]) -> list[ErrorDet
     return details
 
 
-def _effective_model_config() -> dict[str, dict[str, str]]:
-    """返回当前生效模型配置（DB 激活优先，env/YAML 兜底），供健康检查展示。
-
-    应用库不可用或未迁移时由解析层回退到 env/YAML，健康探针不因数据库问题而崩溃。
-    """
+def _effective_runtime() -> ModelRuntimeResolution:
+    """解析生效运行时模式与配置；应用未装配时回退纯环境变量事实。"""
     services = getattr(app.state, "v1_services", None)
     session_factory = getattr(services, "session_factory", None)
     if session_factory is None:
-        return _env_config_fallback()
+        config = _env_config_fallback()
+        return {
+            "mode": _service_mode(config),
+            "mode_source": "env",
+            "mode_available": True,
+            "mode_unavailable_reason": None,
+            "config": config,
+        }
     try:
         secret_key = load_secret_key()
     except (SecretKeyNotConfiguredError, SecretKeyTooShortError):
         secret_key = None
-    return resolve_model_config(session_factory, secret_key)
+    return resolve_runtime_mode(session_factory, secret_key)
 
 
 def _env_config_fallback() -> dict[str, dict[str, str]]:
@@ -228,9 +232,9 @@ def _env_config_fallback() -> dict[str, dict[str, str]]:
 
 
 def _service_mode(config: dict[str, dict[str, str]]) -> Literal["mock", "real"]:
-    """返回安全的运行模式标识，不泄露 API Key。"""
+    """返回安全的运行模式标识，不泄露 API Key；空/缺失 Key 视为 mock。"""
     api_key = (config.get("llm") or {}).get("api_key") or os.environ.get("OPERMIND_API_KEY", "")
-    return "mock" if api_key == "mock" else "real"
+    return "mock" if api_key in {"", "mock"} else "real"
 
 
 @app.get("/", response_model=RootResponse)
@@ -250,11 +254,11 @@ def root() -> RootResponse:
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     """返回可用于前端状态栏的非敏感服务状态。"""
-    config = _effective_model_config()
+    runtime = _effective_runtime()
     return HealthResponse(
         status="ok",
-        mode=_service_mode(config),
-        model=(config.get("llm") or {}).get("model") or "unknown",
+        mode=runtime["mode"],
+        model=(runtime["config"].get("llm") or {}).get("model") or "unknown",
     )
 
 
