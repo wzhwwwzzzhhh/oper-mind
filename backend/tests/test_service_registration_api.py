@@ -12,7 +12,6 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
-from sqlalchemy.orm import Session
 
 from src.api.v1.dependencies import build_v1_services_for_runtime
 from src.infrastructure.persistence.database import Base, create_persistence_runtime
