@@ -5,12 +5,13 @@ from __future__ import annotations
 import asyncio
 import os
 from datetime import datetime
-from typing import Annotated, Literal, TypeVar
+from typing import Annotated, Literal, TypeVar, cast
 from urllib.parse import urlparse
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, Query, Request, Response
 from fastapi.responses import StreamingResponse
+from pydantic import ValidationError
 
 from src.api.v1.cursors import (
     ActionEventCursor,
@@ -37,6 +38,7 @@ from src.api.v1.resources import (
     run_event_resource,
     run_resource,
     service_activity_resource,
+    service_registration_resource,
     service_resource,
     session_resource,
 )
@@ -47,8 +49,10 @@ from src.api.v1.schemas import (
     ActionExecutionResponse,
     ActionProposalResponse,
     ActivateModelProviderRequest,
+    ConnectionTestResponse,
     CreateModelProviderRequest,
     CreateRunRequest,
+    CreateServiceRequest,
     CreateSessionRequest,
     CursorPage,
     DiagnosisRunListResponse,
@@ -72,10 +76,12 @@ from src.api.v1.schemas import (
     RunResponse,
     ServiceActivityListResponse,
     ServiceListResponse,
+    ServiceRegistrationResponse,
     ServiceResponse,
     SessionListResponse,
     SessionResponse,
     UpdateModelProviderRequest,
+    UpdateServiceRequest,
     UpdateSessionRequest,
 )
 from src.api.v1.sse import parse_event_sequence, replay_run_events
@@ -106,6 +112,11 @@ from src.application.monitoring import (
     MonitorOverviewApplicationService,
 )
 from src.application.service_center import CreateServiceSessionCommand, ServiceCenterApplicationService
+from src.application.service_registration import (
+    RegisterServiceCommand,
+    ServiceRegistrationApplicationService,
+    UpdateServiceCommand,
+)
 from src.config import load_monitor_settings
 from src.domain.diagnosis import SessionStatus
 from src.domain.model_provider import ProviderEndpoint
@@ -144,6 +155,7 @@ APPLICATION_ERROR_STATUS = {
     "SERVICE_NOT_FOUND": 404,
     "SERVICE_CENTER_UNAVAILABLE": 503,
     "SERVICE_CONTEXT_REQUIRED": 409,
+    "SERVICE_INSTANCE_CONFLICT": 409,
     "PROVIDER_NOT_FOUND": 404,
     "SECRET_KEY_NOT_CONFIGURED": 409,
     "PROVIDER_IDEMPOTENCY_REUSED": 409,
@@ -197,6 +209,13 @@ def _service_center(services: V1Services) -> ServiceCenterApplicationService:
     if services.service_center is None:
         raise ServiceCenterUnavailableError()
     return services.service_center
+
+
+def _service_registration(services: V1Services) -> ServiceRegistrationApplicationService:
+    """读取已装配的 P8 服务注册应用服务；未装配安全拒绝。"""
+    if services.service_registration is None:
+        raise ServiceCenterUnavailableError()
+    return services.service_registration
 
 
 def _monitor_history(services: V1Services) -> MonitorHistoryApplicationService:
@@ -341,6 +360,98 @@ def list_services(
     meta = response_meta(request)
     apply_headers(response, meta)
     return ServiceListResponse(items=[service_resource(item) for item in items], meta=meta)
+
+
+@router.post("/services", response_model=ServiceRegistrationResponse, status_code=201)
+def register_service(
+    payload: CreateServiceRequest,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> ServiceRegistrationResponse:
+    """注册服务；DSN 加密落库并注册进运行时 registry，主密钥未配置时拒绝。"""
+    try:
+        created = _service_registration(services).create(
+            RegisterServiceCommand(
+                kind=payload.kind,
+                instance_id=payload.instance_id,
+                title=payload.title,
+                dsn=payload.dsn,
+            )
+        )
+    except ValidationError as error:
+        raise ApiV1Error(422, "VALIDATION_ERROR", "请求参数不合法") from error
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return ServiceRegistrationResponse(service=service_registration_resource(created), meta=meta)
+
+
+@router.put("/services/{service_id}", response_model=ServiceRegistrationResponse)
+def update_service(
+    service_id: str,
+    payload: UpdateServiceRequest,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> ServiceRegistrationResponse:
+    """编辑服务标题/DSN；dsn 不传=不改，能力声明不可改，更新后连接状态重置为未验证。"""
+    try:
+        updated = _service_registration(services).update(
+            UpdateServiceCommand(
+                instance_id=service_id,
+                title=payload.title,
+                dsn=payload.dsn,
+            )
+        )
+    except ValidationError as error:
+        raise ApiV1Error(422, "VALIDATION_ERROR", "请求参数不合法") from error
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return ServiceRegistrationResponse(service=service_registration_resource(updated), meta=meta)
+
+
+@router.delete("/services/{service_id}", status_code=204)
+def delete_service(
+    service_id: str,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> Response:
+    """移除服务；从注册表移除并删除加密凭据，已有关联留痕保留；不存在仍 204。"""
+    try:
+        _service_registration(services).delete(service_id)
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    return Response(status_code=204, headers={"X-Request-Id": str(meta.request_id)})
+
+
+@router.post("/services/{service_id}/test-connection", response_model=ConnectionTestResponse)
+def test_service_connection(
+    service_id: str,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> ConnectionTestResponse:
+    """对目标服务发起显式只读连接测试；返回当前状态与脱敏分类码。"""
+    try:
+        result = _service_registration(services).test_connection(service_id)
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return ConnectionTestResponse(
+        service_id=service_id,
+        availability=cast(
+            Literal["healthy", "unavailable", "not_configured"], result.availability.value
+        ),
+        error_code=result.error_code,
+        meta=meta,
+    )
 
 
 @router.get("/model/config", response_model=ModelConfigResponse)

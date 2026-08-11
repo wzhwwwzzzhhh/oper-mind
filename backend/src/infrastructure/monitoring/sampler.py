@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 
 from src.domain.host_metrics import HostMetricsCollector, HostMetricsData, HostMetricsSourceStatus
 from src.domain.monitoring import ServiceMonitorSampleData
-from src.domain.services import ServiceConnector
+from src.domain.services import ServiceConnector, ServiceRegistry
 from src.infrastructure.persistence.database import SessionFactory
 from src.infrastructure.persistence.monitor_repositories import SqlAlchemyMonitorSampleRepository
 
@@ -17,27 +17,41 @@ LOGGER = logging.getLogger(__name__)
 
 
 class MonitorSampler:
-    """逐个调用静态 Connector 并写入脱敏样本，每轮附一次主机指标。"""
+    """逐个调用 Connector 并写入脱敏样本，每轮附一次主机指标。
+
+    持 registry 引用、每轮采样读 ``list_connectors()``，因此运行时动态注册的服务
+    会在下一个采样周期进入历史监控；移除的服务立即停止采样。
+    """
 
     def __init__(
         self,
         session_factory: SessionFactory,
-        connectors: Sequence[ServiceConnector],
-        retention_hours: int,
+        connectors: Sequence[ServiceConnector] | None = None,
+        registry: ServiceRegistry | None = None,
+        retention_hours: int = 24,
         sample_interval_seconds: int = 300,
         host_collector: HostMetricsCollector | None = None,
     ) -> None:
         self._session_factory = session_factory
-        self._connectors = tuple(connectors)
+        self._connectors = tuple(connectors) if connectors is not None else None
+        self._registry = registry
         self._retention_hours = retention_hours
         self._sample_interval_seconds = sample_interval_seconds
         self._host_collector = host_collector
+
+    def _current_connectors(self) -> tuple[ServiceConnector, ...]:
+        """每轮读取当前注册表快照；无 registry 时退回构造时传入的静态 Connector。"""
+        if self._registry is not None:
+            return self._registry.list_connectors()
+        if self._connectors is not None:
+            return self._connectors
+        return ()
 
     def sample_once(self) -> list[ServiceMonitorSampleData]:
         """执行一轮采样，单服务失败不影响其他服务；每轮附一次主机指标。"""
         host_data = self._collect_host_sync()
         results: list[ServiceMonitorSampleData] = []
-        for connector in self._connectors:
+        for connector in self._current_connectors():
             service_id = connector.definition().id
             observed_at = datetime.now(UTC)
             try:
@@ -108,7 +122,7 @@ class MonitorSampler:
         """异步执行一轮采样，为每个 Connector 单独施加 3 秒超时；每轮附一次主机指标。"""
         host_data = await self._collect_host_async()
         results: list[ServiceMonitorSampleData] = []
-        for connector in self._connectors:
+        for connector in self._current_connectors():
             service_id = connector.definition().id
             observed_at = datetime.now(UTC)
             try:

@@ -31,10 +31,12 @@ class PostgresServiceConnector:
         engine: Engine | None = None,
         instance_id: str = "postgres-production",
         title: str = "生产 PostgreSQL 主库",
+        dsn_masked_tail: str | None = None,
     ) -> None:
         self._dsn = dsn
         self._instance_id = instance_id
         self._title = title
+        self._dsn_masked_tail = dsn_masked_tail
         # engine 注入点：测试传假 engine；生产传 create_engine(dsn)。
         self._engine = engine
 
@@ -54,6 +56,8 @@ class PostgresServiceConnector:
             ),
             action_boundary="只读调查，不执行任何写入或结构变更。",
             session_title="PostgreSQL 慢查询调查",
+            has_dsn=self._dsn is not None,
+            dsn_masked_tail=self._dsn_masked_tail,
         )
 
     def health_snapshot(self) -> ServiceSnapshotData:

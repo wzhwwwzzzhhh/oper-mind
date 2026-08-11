@@ -295,6 +295,90 @@ class ServiceResource(ApiV1Model):
     action_boundary: str
     snapshot: ServiceSnapshotResource
     host_metrics: HostMetricsResource
+    has_dsn: bool = False
+    dsn_masked_tail: str | None = Field(default=None, max_length=8)
+
+
+class ServiceRegistrationResource(ApiV1Model):
+    """动态注册服务的安全视图；不含 DSN 明文。"""
+
+    id: str = Field(min_length=1, max_length=64)
+    kind: str = Field(min_length=1, max_length=80)
+    title: str
+    has_dsn: bool
+    dsn_masked_tail: str | None = Field(default=None, max_length=8)
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class ServiceRegistrationResponse(ApiV1Model):
+    """动态注册服务读写响应。"""
+
+    service: ServiceRegistrationResource
+    meta: ResponseMeta
+
+
+class ConnectionTestResponse(ApiV1Model):
+    """显式连接测试响应；只含脱敏分类码。"""
+
+    service_id: str = Field(min_length=1, max_length=64)
+    availability: Literal["healthy", "unavailable", "not_configured"]
+    error_code: str | None = None
+    meta: ResponseMeta
+
+
+class CreateServiceRequest(ApiV1Model):
+    """注册服务请求；DSN 为敏感凭据，仅加密落库。"""
+
+    kind: str = Field(min_length=1, max_length=80)
+    instance_id: str = Field(min_length=1, max_length=64)
+    title: str = Field(min_length=1, max_length=120)
+    dsn: str = Field(min_length=8, max_length=2000)
+
+    @field_validator("kind")
+    @classmethod
+    def validate_kind(cls, value: str) -> str:
+        """只接受有真实 Connector 的服务类型。"""
+        normalized = value.strip().lower()
+        if normalized not in {"postgres", "redis"}:
+            raise ValueError("暂不支持该服务类型，仅支持 postgres / redis。")
+        return normalized
+
+    @field_validator("instance_id")
+    @classmethod
+    def validate_instance_id(cls, value: str) -> str:
+        """实例 ID 只允许小写字母/数字/点/下划线/连字符。"""
+        import re
+
+        normalized = value.strip()
+        if not re.fullmatch(r"^[a-z0-9][a-z0-9._-]*$", normalized):
+            raise ValueError("实例 ID 只允许小写字母、数字、点、下划线或连字符。")
+        return normalized
+
+    @field_validator("title")
+    @classmethod
+    def validate_title(cls, value: str) -> str:
+        """去除标题首尾空白。"""
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("标题不能为空。")
+        return normalized
+
+
+class UpdateServiceRequest(ApiV1Model):
+    """编辑服务请求；dsn 不传=不改，能力声明不可改。"""
+
+    title: str = Field(min_length=1, max_length=120)
+    dsn: str | None = Field(default=None, min_length=8, max_length=2000)
+
+    @field_validator("title")
+    @classmethod
+    def validate_title(cls, value: str) -> str:
+        """去除标题首尾空白。"""
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("标题不能为空。")
+        return normalized
 
 
 class ServiceActivityResource(ApiV1Model):

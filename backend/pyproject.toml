@@ -73,11 +73,14 @@ banned-api = { "src.infrastructure".msg = "application/domain 层不得依赖 in
 # 这 5 个文件内联 new 具体 SqlAlchemy* 实现共 67 处，绕过了 domain 的 Protocol 端口。
 # 新增代码不得再犯：写新 application service 时构造注入 Protocol，装配放 dependencies.py。
 # 清理进度见 docs/接口清单.md。
+# service_registration.py 与 model_providers.py 同构（P6 先例）：依赖注入 connector_factory，
+# 但保留仓储/加密的直连以复用 P6 的既有豁免模式；connector 装配在 dependencies.py。
 "src/application/action_services.py" = ["TID251"]
 "src/application/model_providers.py" = ["TID251"]
 "src/application/monitoring.py" = ["TID251"]
 "src/application/services.py" = ["TID251"]
 "src/application/service_center.py" = ["TID251"]
+"src/application/service_registration.py" = ["TID251"]
 
 # src/api/v1/sse.py 同属上述欠账：内联 new SqlAlchemy*Repository。
 "src/api/v1/sse.py" = ["TID251"]

@@ -85,6 +85,20 @@ class ServiceNotFoundError(ApplicationError):
     message = "已注册服务不存在。"
 
 
+class ServiceInstanceConflictError(ApplicationError):
+    """注册的服务实例 ID 与既有实例冲突。"""
+
+    code = "SERVICE_INSTANCE_CONFLICT"
+    message = "服务实例 ID 已存在。"
+
+
+class ServiceRegistrationNotFoundError(ApplicationError):
+    """请求的动态注册服务不存在。"""
+
+    code = "SERVICE_NOT_FOUND"
+    message = "动态注册服务不存在。"
+
+
 class ServiceCenterUnavailableError(ApplicationError):
     """服务中心依赖尚未装配时安全拒绝。"""
 

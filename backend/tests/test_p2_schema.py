@@ -39,6 +39,7 @@ BUSINESS_TABLES = {
     "service_monitor_samples",
     "model_providers",
     "model_provider_idempotency_keys",
+    "service_registry",
 }
 EXPECTED_TABLES = BUSINESS_TABLES | {"alembic_version"}
 
@@ -199,8 +200,8 @@ def test_p2_schema_alembic_fresh_db_约束降级与再次升级(tmp_path: Path) 
         }
         session_columns = {item["name"]: item for item in inspector.get_columns("sessions")}
         assert session_columns["service_id"]["nullable"] is True
+        # P8 决策 8：service_id CHECK 白名单已放宽，sessions 只保留状态约束。
         assert {item["name"] for item in inspector.get_check_constraints("sessions")} == {
-            "ck_sessions_session_service_id_valid",
             "ck_sessions_session_status_valid",
         }
         assert {item["name"] for item in inspector.get_indexes("sessions")} == {
@@ -420,13 +421,6 @@ def test_p2_schema_sqlite_受控状态与其余唯一约束生效(tmp_path: Path
             ).scalar_one()
 
         invalid_statements = [
-            (
-                "UPDATE sessions SET service_id = :service_id WHERE id = :session_id",
-                {
-                    "service_id": "not-registered",
-                    "session_id": session_id,
-                },
-            ),
             (
                 "INSERT INTO messages (id, session_id, role, content, created_at) "
                 "VALUES (:id, :session_id, :role, :content, :created_at)",

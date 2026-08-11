@@ -33,6 +33,7 @@ from src.api.v1.schemas import (
     ServiceActivityResource,
     ServiceDatabaseResource,
     ServiceInvestigationResource,
+    ServiceRegistrationResource,
     ServiceResource,
     ServiceServerMetricsResource,
     ServiceSnapshotResource,
@@ -51,7 +52,7 @@ from src.domain.host_metrics import HostMetricsData
 from src.domain.model_provider import ModelProviderData
 from src.domain.monitoring import MonitorHistoryData, MonitorOverviewData, MonitorServiceOverviewData
 from src.domain.records import DiagnosisResultData, DiagnosisRunData, MessageData, RunEventData, SessionData
-from src.domain.services import ServiceActivityData, ServiceViewData
+from src.domain.services import ServiceActivityData, ServiceRegistrationData, ServiceViewData
 from src.knowledge.reader import KnowledgeDocumentMeta, KnowledgeSearchHit
 
 
@@ -237,6 +238,8 @@ def service_resource(value: ServiceViewData) -> ServiceResource:
             ),
         ),
         host_metrics=host_metrics_resource(value.host_metrics),
+        has_dsn=definition.has_dsn,
+        dsn_masked_tail=definition.dsn_masked_tail,
     )
 
 
@@ -392,4 +395,17 @@ def knowledge_search_hit_resource(value: KnowledgeSearchHit) -> KnowledgeSearchH
         snippet_count=value.snippet_count,
         title_hit=value.title_hit,
         snippets=[desensitize(snippet) for snippet in value.snippets],
+    )
+
+
+def service_registration_resource(value: ServiceRegistrationData) -> ServiceRegistrationResource:
+    """把动态注册服务收敛为安全资源；不含 DSN 明文。"""
+    return ServiceRegistrationResource(
+        id=value.instance_id,
+        kind=value.kind,
+        title=value.title,
+        has_dsn=value.has_dsn,
+        dsn_masked_tail=value.dsn_masked_tail,
+        created_at=value.created_at,
+        updated_at=value.updated_at,
     )

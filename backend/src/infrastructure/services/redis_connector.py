@@ -37,10 +37,12 @@ class RedisServiceConnector:
         client: Redis | Any | None = None,
         instance_id: str = "redis-production",
         title: str = "生产 Redis 缓存",
+        dsn_masked_tail: str | None = None,
     ) -> None:
         self._dsn = dsn
         self._instance_id = instance_id
         self._title = title
+        self._dsn_masked_tail = dsn_masked_tail
         # client 注入点：测试传假客户端；生产用 from_url(dsn) 现建。
         self._client = client
 
@@ -53,6 +55,8 @@ class RedisServiceConnector:
             supported_investigations=(),
             action_boundary="只读监控，不执行任何写入、配置变更或键空间访问。",
             session_title="Redis 缓存健康调查",
+            has_dsn=self._dsn is not None,
+            dsn_masked_tail=self._dsn_masked_tail,
         )
 
     def health_snapshot(self) -> ServiceSnapshotData:
