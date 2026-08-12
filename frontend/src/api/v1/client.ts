@@ -11,6 +11,8 @@ export type CreateSessionRequest = components['schemas']['CreateSessionRequest']
 export type SessionListResponse = components['schemas']['SessionListResponse']
 export type MessageListResponse = components['schemas']['MessageListResponse']
 export type DiagnosisRunListResponse = components['schemas']['DiagnosisRunListResponse']
+export type GlobalRunSummaryResource = components['schemas']['GlobalRunSummaryResource']
+export type GlobalRunListResponse = components['schemas']['GlobalRunListResponse']
 export type RunResponse = components['schemas']['RunResponse']
 export type RunEventResource = components['schemas']['RunEventResource']
 export type RunEventListResponse = components['schemas']['RunEventListResponse']
@@ -18,6 +20,7 @@ export type CreateRunRequest = components['schemas']['CreateRunRequest']
 export type SendPlainMessageRequest = components['schemas']['SendPlainMessageRequest']
 export type PlainMessageResponse = components['schemas']['PlainMessageResponse']
 export type ActionProposalStatus = components['schemas']['ActionProposalStatus']
+export type RunStatus = components['schemas']['RunStatus']
 export type ActionProposalSummaryResource = components['schemas']['ActionProposalSummaryResource']
 export type ActionProposalListResponse = components['schemas']['ActionProposalListResponse']
 export type ActionApprovalRequest = components['schemas']['ActionApprovalRequest']
@@ -176,6 +179,9 @@ export type ListRunEventsQuery = NonNullable<
 >
 export type ListActionProposalsQuery = NonNullable<
   operations['list_action_proposals_api_v1_action_proposals_get']['parameters']['query']
+>
+export type ListRunsQuery = NonNullable<
+  operations['list_runs_api_v1_runs_get']['parameters']['query']
 >
 export type ListActionEventsQuery = NonNullable<
   operations['list_action_events_api_v1_action_proposals__proposal_id__events_get']['parameters']['query']
@@ -357,6 +363,7 @@ export interface ApiV1Client {
     query?: ListSessionRunsQuery,
     options?: ApiRequestOptions,
   ): Promise<ApiResponse<DiagnosisRunListResponse>>
+  list_runs(query?: ListRunsQuery, options?: ApiRequestOptions): Promise<ApiResponse<GlobalRunListResponse>>
   get_run(run_id: string, options?: ApiRequestOptions): Promise<ApiResponse<RunResponse>>
   list_run_events(
     run_id: string,
@@ -800,6 +807,14 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
         request_id_factory,
         base_url,
         append_query(`/api/v1/sessions/${encodeURIComponent(session_id)}/runs`, query),
+        request_options,
+      ),
+    list_runs: (query = {}, request_options) =>
+      request_json<GlobalRunListResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        append_query('/api/v1/runs', query),
         request_options,
       ),
     get_run: (run_id, request_options) =>

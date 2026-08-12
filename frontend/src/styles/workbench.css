@@ -1372,6 +1372,23 @@
   margin-bottom: 14px;
 }
 
+/* P8：最近调查页的服务过滤下拉。 */
+.run-service-filter {
+  min-height: 30px;
+  padding: 3px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  color: var(--text-secondary);
+  background: var(--surface);
+  font-size: 12px;
+  outline: none;
+  cursor: pointer;
+}
+
+.run-service-filter:focus {
+  border-color: var(--accent-line);
+}
+
 .proposal-row {
   width: 100%;
   border: none;
