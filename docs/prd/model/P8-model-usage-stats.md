@@ -1,10 +1,10 @@
 ---
 title: 用量与成本统计——token 计数与花费查询
-status: 草稿
+status: 已确认
 domain: model
 phase: P8
-issue:
-updated: 2026-08-11
+issue: 67
+updated: 2026-08-12
 ---
 
 # 用量与成本统计——token 计数与花费查询 · PRD
@@ -48,7 +48,7 @@ updated: 2026-08-11
 
 ### 1. 用量采集落库
 - **输入**：真实 LLM 调用完成的响应（含 usage）。
-- **行为**：记录 input/output/total tokens、模型名、时间戳到应用库；mock 调用不采集（恒 0）。
+- **行为**：在 `LLMClient` 真实调用完成后，把 input/output/total tokens、模型名、时间戳**写入应用库**；mock 调用不采集（恒 0）。采集不依赖实例级 `total_tokens`（每 Run 新造 Coordinator/LLMClient，实例内存会随 Run 结束丢失）——落库是采集的持久化载体，采集点位于调用返回处。
 - **输出**：用量记录持久化（跨进程可追溯）。
 
 ### 2. 用量统计接口（GET /model/usage）
@@ -107,5 +107,5 @@ updated: 2026-08-11
 3. **采集异步化**：用量落库是否异步（不阻塞调用返回）？→ 推荐异步或同事务轻量写，Design 定。
 
 ## GitHub Issue（已确认后回填）
-- issue：（待 prd-reviewing 审查 + 用户确认后建）
+- issue：#67（https://github.com/wzhwwwzzzhhh/oper-mind/issues/67）
 - 状态同步：issue 状态与 PRD 状态一致（已确认=open，完成=closed）；中间过程留在 workpack。

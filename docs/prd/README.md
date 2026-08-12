@@ -39,12 +39,12 @@
 | P8 | 服务中心服务注册——动态接入、管理与连接测试 | `service-center/P8-service-registration.md` | 完成 |
 | P8 | 会话工作台闭环——独立消息、取消 Run 与全局提案列表 | `session/P8-workbench-loop-closure.md` | 完成 |
 | P8 | 模型设置——运行时切换 mock / real 模式 | `model/P8-model-mode-switch.md` | 完成 |
-| P8 | 审计操作记录——跨服务跨会话的活动检索 | `audit/P8-audit-activity-log.md` | 已确认 |
-| P8 | 模型可用列表探测——Provider 侧模型枚举 | `model/P8-model-list-enumeration.md` | 已确认 |
-| P8 | 会话管理——全局 Run 列表与会话搜索 | `session/P8-session-management.md` | 已确认 |
-| P8 | 调查重跑——重新生成并关联原 Run | `session/P8-rerun-investigation.md` | 草稿 |
-| P8 | 模型调用参数暴露——temperature 等运行参数的受控配置 | `model/P8-model-params-config.md` | 草稿 |
-| P8 | 用量与成本统计——token 计数与花费查询 | `model/P8-model-usage-stats.md` | 草稿 |
+| P8 | 审计操作记录——跨服务跨会话的活动检索 | `audit/P8-audit-activity-log.md` | 进行中 |
+| P8 | 模型可用列表探测——Provider 侧模型枚举 | `model/P8-model-list-enumeration.md` | 进行中 |
+| P8 | 会话管理——全局 Run 列表与会话搜索 | `session/P8-session-management.md` | 进行中 |
+| P8 | 调查重跑——重新生成并关联原 Run | `session/P8-rerun-investigation.md` | 已确认 |
+| P8 | 模型调用参数暴露——temperature 等运行参数的受控配置 | `model/P8-model-params-config.md` | 已确认 |
+| P8 | 用量与成本统计——token 计数与花费查询 | `model/P8-model-usage-stats.md` | 已确认 |
 
 ## 执行 AI 如何使用
 - 拿到 PRD 后：只实现「范围」内能力，逐条过「验收标准」，达到「完成定义」。
