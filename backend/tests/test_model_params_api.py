@@ -9,8 +9,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.api.v1.dependencies import V1Services
+from src.application.model_params import resolve_model_params
 from src.application.services import RunApplicationService, SessionApplicationService
+from src.domain.model_params import MODEL_PARAMS_KEY
+from src.infrastructure.persistence.app_settings_repository import AppSettingRecord
 from src.infrastructure.persistence.database import Base, create_persistence_runtime
+from sqlalchemy.exc import SQLAlchemyError
 
 MASTER_MATERIAL = "test-secret-key-0123456789abcdef0123456789abcdef"
 PLAINTEXT_VALUE = "sk-test-provider-secret-1234"
@@ -171,8 +175,6 @@ def test_接口不暴露凭据(api_client: TestClient, monkeypatch: pytest.Monke
 
 def test_持久化失败返回500且不产生半状态(api_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     """应用库写失败时返回 500，且后续 GET 仍可读取（未产生半状态）。"""
-    from sqlalchemy.exc import SQLAlchemyError
-
     monkeypatch.setattr(
         "src.infrastructure.persistence.app_settings_repository.SqlAlchemyAppSettingsRepository.set",
         lambda _self, _key, _value: (_ for _ in ()).throw(SQLAlchemyError("磁盘写失败")),
@@ -194,3 +196,31 @@ def test_mock模式下参数保存成功且模式不变(api_client: TestClient) 
     config = response.json()["config"]
     assert config["mode"] == "mock"
     assert config["params"] == {"temperature": 0.5, "max_tokens": 4096}
+
+
+def test_损坏的存储JSON诚实降级为未配置(api_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """app_settings 中存储值损坏时，解析层应降级为未配置默认，不崩不伪造。"""
+    def corrupted_set(_self, _key: str, _value: str) -> None:
+        _self._session.merge(AppSettingRecord(key=MODEL_PARAMS_KEY, value="不是JSON{"))
+
+    monkeypatch.setattr(
+        "src.infrastructure.persistence.app_settings_repository.SqlAlchemyAppSettingsRepository.set",
+        corrupted_set,
+    )
+    api_client.put("/api/v1/model/params", json={"temperature": 0.5, "max_tokens": 4096})
+
+    config = api_client.get("/api/v1/model/config").json()["config"]
+    assert config["params"] == {"temperature": None, "max_tokens": None}
+    assert config["params_defaults"] == {"temperature": 0.0, "max_tokens": None}
+
+
+def test_解析层应用库不可用时回退默认不raise() -> None:
+    """AC2 降级：resolve_model_params 在应用库不可用时返回默认值，永不 raise。"""
+    def broken_session_factory():
+        raise SQLAlchemyError("应用库不可用")
+
+    resolution = resolve_model_params(broken_session_factory)
+    assert resolution["temperature"] is None
+    assert resolution["max_tokens"] is None
+    assert resolution["temperature_default"] == 0.0
+    assert resolution["max_tokens_default"] is None

@@ -3,7 +3,7 @@
 ## S1 参数持久化 + 解析层 + 读写 API（已完成）
 
 验证记录：
-- `pytest tests/test_model_params_api.py -q` → 20 passed（保存/清除/校验 422/边界值/幂等/重启持久/凭据/持久化失败/mock 独立）
+- `pytest tests/test_model_params_api.py -q` → 22 passed（含审查后补测：损坏 JSON 诚实降级、解析层应用库不可用回退默认不 raise）
 - `pytest tests/test_model_config_api.py -q` → 4 passed（含新契约字段断言更新：params/params_defaults；脱敏断言精确化为 `token=secret`）
 - `pytest tests/test_model_mode_api.py tests/test_model_mode_resolver.py tests/test_model_provider_api.py tests/test_model_provider_resolver.py -q` → 56 passed（回归）
 - `git diff --check` 干净
