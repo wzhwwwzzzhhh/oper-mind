@@ -20,12 +20,13 @@ docs/workpack/
 
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
-| P8 | session-management | 开发完成·审查 PASS（待交付） | [plan.md](P8-session-management/plan.md) | [review.md](P8-session-management/review.md) | [evidence.md](P8-session-management/evidence.md) |
+| （无活跃工作包） | | | | | |
 
 ## 已归档
 
 | 阶段 | 切片 | PR | 完成日期 |
 |---|---|---|---|
+| P8 | session-management | #69 | 2026-08-12 |
 | P8 | service-registration | #60 | 2026-08-11 |
 | P8 | workbench-loop-closure | #57 | 2026-08-10 |
 | P8 | model-mode-switch | #56 | 2026-08-10 |

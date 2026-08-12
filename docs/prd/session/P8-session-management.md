@@ -1,6 +1,6 @@
 ---
 title: 会话管理——全局 Run 列表与会话搜索
-status: 进行中
+status: 完成
 domain: session
 phase: P8
 issue: 64
