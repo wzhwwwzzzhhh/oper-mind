@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from datetime import datetime
-from uuid import UUID
 
 from sqlalchemy import RowMapping, Select, and_, or_, select
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.elements import ColumnElement
 
 from src.domain.audit import (
     APPROVAL_ACTOR_UNRECORDED,
@@ -54,6 +54,10 @@ class SqlAlchemyAuditActivityRepository:
 
     def __init__(self, session: Session) -> None:
         self._session = session
+
+    def close(self) -> None:
+        """释放本次调用持有的数据库会话。"""
+        self._session.close()
 
     def list_activities(
         self,
@@ -107,7 +111,7 @@ class SqlAlchemyAuditActivityRepository:
             if not statuses:
                 return []
         statement = _run_select()
-        filters: list[object] = []
+        filters: list[ColumnElement[bool]] = []
         if from_at is not None:
             filters.append(DiagnosisRunRecord.created_at >= from_at)
         if to_at is not None:
@@ -164,7 +168,7 @@ class SqlAlchemyAuditActivityRepository:
         if event_type is not None and event_type not in AUDIT_ACTION_TYPES:
             return []
         statement = _action_select()
-        filters: list[object] = [
+        filters: list[ColumnElement[bool]] = [
             ActionEventRecord.type.in_([item.value for item in AUDIT_ACTION_TYPES])
         ]
         if from_at is not None:

@@ -37,6 +37,7 @@ from src.infrastructure.diagnosis.postgres_missing_index import PostgresMissingI
 from src.infrastructure.diagnosis.result_assembler import KernelReportResultAssembler
 from src.infrastructure.monitoring.host_metrics import PsutilHostMetricsCollector
 from src.infrastructure.monitoring.sampler import MonitorSampler
+from src.infrastructure.persistence.audit_repositories import SqlAlchemyAuditActivityRepository
 from src.infrastructure.persistence.database import PersistenceRuntime, SessionFactory, create_persistence_runtime
 from src.infrastructure.persistence.plain_message_writer import SqlAlchemyPlainMessageWriter
 from src.infrastructure.secrets import (
@@ -206,7 +207,9 @@ def build_v1_services_for_runtime(
         service_registry=registry,
         knowledge_service=KnowledgeReaderService(load_knowledge_settings().directory),
         service_registration=service_registration,
-        audit_service=AuditApplicationService(session_factory),
+        audit_service=AuditApplicationService(
+            lambda: SqlAlchemyAuditActivityRepository(session_factory())
+        ),
     )
 
 

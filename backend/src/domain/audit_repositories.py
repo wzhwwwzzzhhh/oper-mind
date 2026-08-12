@@ -24,3 +24,6 @@ class AuditActivityRepository(Protocol):
         outcome: AuditOutcome | None = None,
     ) -> RepositoryPage[AuditActivityData, AuditActivityCursor]:
         """按 (time desc, id desc) 键集读取一页审计活动。"""
+
+    def close(self) -> None:
+        """释放本次调用持有的数据库会话。"""

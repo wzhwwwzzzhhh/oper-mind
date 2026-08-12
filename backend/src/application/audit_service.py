@@ -2,19 +2,19 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 
 from src.domain.audit import AuditActivityCursor, AuditActivityData, AuditActivityType, AuditOutcome
+from src.domain.audit_repositories import AuditActivityRepository
 from src.domain.records import RepositoryPage
-from src.infrastructure.persistence.audit_repositories import SqlAlchemyAuditActivityRepository
-from src.infrastructure.persistence.database import SessionFactory
 
 
 class AuditApplicationService:
-    """统一审计流的只读分页检索；窗口校验在路由层映射为明确错误。"""
+    """统一审计流的只读分页检索；仓储经端口注入，装配在 dependencies.py。"""
 
-    def __init__(self, session_factory: SessionFactory) -> None:
-        self._session_factory = session_factory
+    def __init__(self, repository_factory: Callable[[], AuditActivityRepository]) -> None:
+        self._repository_factory = repository_factory
 
     def list_activities(
         self,
@@ -28,9 +28,9 @@ class AuditApplicationService:
         outcome: AuditOutcome | None = None,
     ) -> RepositoryPage[AuditActivityData, AuditActivityCursor]:
         """读取统一审计流的一页安全摘要（Run + action 事件双源归并）。"""
-        session = self._session_factory()
+        repository = self._repository_factory()
         try:
-            return SqlAlchemyAuditActivityRepository(session).list_activities(
+            return repository.list_activities(
                 cursor=cursor,
                 limit=limit,
                 from_at=from_at,
@@ -40,4 +40,4 @@ class AuditApplicationService:
                 outcome=outcome,
             )
         finally:
-            session.close()
+            repository.close()
