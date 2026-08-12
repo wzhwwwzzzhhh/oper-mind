@@ -20,7 +20,7 @@ docs/workpack/
 
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
-| P8 | session-management | 待用户确认计划 | [plan.md](P8-session-management/plan.md) | — | — |
+| P8 | session-management | 开发完成·审查 PASS（待交付） | [plan.md](P8-session-management/plan.md) | [review.md](P8-session-management/review.md) | [evidence.md](P8-session-management/evidence.md) |
 
 ## 已归档
 
