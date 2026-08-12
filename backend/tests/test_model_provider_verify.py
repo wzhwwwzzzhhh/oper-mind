@@ -6,8 +6,8 @@ import httpx
 
 from src.domain.model_provider import VerifyStatus
 from src.infrastructure.model_provider_verify import (
-    MAX_MODELS,
     MAX_MODEL_NAME_LENGTH,
+    MAX_MODELS,
     MAX_RESPONSE_BYTES,
     fetch_provider_models,
     verify_provider_connection,

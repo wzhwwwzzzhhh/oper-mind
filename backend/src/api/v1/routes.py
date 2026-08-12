@@ -635,7 +635,7 @@ def list_provider_models(
     apply_headers(response, meta)
     return ModelProviderModelsResponse(
         provider_id=provider_id,
-        status=result.status.value,
+        status=cast(Literal["ok", "failed", "timeout", "unsupported"], result.status.value),
         models=result.models,
         error_code=result.error_code,
         meta=meta,
