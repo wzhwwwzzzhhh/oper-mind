@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 from src.core.llm import LLMClient
 
-REAL_KEY = "sk-test-key-1234567890abcdef"
+REAL_KEY = "test-key-1234567890abcdef"
 
 
 class _FakeResponse:

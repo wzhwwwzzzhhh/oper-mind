@@ -137,6 +137,7 @@ from src.domain.diagnosis import RunStatus, SessionStatus
 from src.domain.model_params import ModelParams
 from src.domain.model_provider import ProviderEndpoint
 from src.domain.records import DiagnosisRunData, RunEventData, SessionData
+from src.infrastructure.persistence.app_settings_repository import SqlAlchemyAppSettingsStore
 from src.infrastructure.persistence.repositories import (
     SqlAlchemyDiagnosisResultRepository,
     SqlAlchemyDiagnosisRunRepository,
@@ -332,7 +333,7 @@ def _model_config_resource(services: V1Services) -> ModelConfigResource:
             status="not_configured",
         )
     judge = _model_endpoint_resource(config.get("judge_llm"))
-    params = resolve_model_params(services.session_factory)
+    params = resolve_model_params(SqlAlchemyAppSettingsStore(services.session_factory))
     return ModelConfigResource(
         mode=runtime["mode"],
         mode_source=runtime["mode_source"],
@@ -544,7 +545,7 @@ def update_model_params(
 ) -> ModelConfigResponse:
     """保存模型运行参数并返回更新后的完整安全配置视图（null=清除该项，幂等，无需 Idempotency-Key）。"""
     try:
-        ModelParamsApplicationService(services.session_factory).set(
+        ModelParamsApplicationService(SqlAlchemyAppSettingsStore(services.session_factory)).set(
             ModelParams(temperature=payload.temperature, max_tokens=payload.max_tokens)
         )
     except ApplicationError as error:

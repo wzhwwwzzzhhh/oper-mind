@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import SQLAlchemyError
 
 from src.api.v1.dependencies import V1Services
 from src.application.model_params import resolve_model_params
@@ -14,7 +15,6 @@ from src.application.services import RunApplicationService, SessionApplicationSe
 from src.domain.model_params import MODEL_PARAMS_KEY
 from src.infrastructure.persistence.app_settings_repository import AppSettingRecord
 from src.infrastructure.persistence.database import Base, create_persistence_runtime
-from sqlalchemy.exc import SQLAlchemyError
 
 MASTER_MATERIAL = "test-secret-key-0123456789abcdef0123456789abcdef"
 PLAINTEXT_VALUE = "sk-test-provider-secret-1234"
@@ -176,7 +176,7 @@ def test_接口不暴露凭据(api_client: TestClient, monkeypatch: pytest.Monke
 def test_持久化失败返回500且不产生半状态(api_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     """应用库写失败时返回 500，且后续 GET 仍可读取（未产生半状态）。"""
     monkeypatch.setattr(
-        "src.infrastructure.persistence.app_settings_repository.SqlAlchemyAppSettingsRepository.set",
+        "src.infrastructure.persistence.app_settings_repository.SqlAlchemyAppSettingsStore.set",
         lambda _self, _key, _value: (_ for _ in ()).throw(SQLAlchemyError("磁盘写失败")),
     )
 
@@ -216,10 +216,16 @@ def test_损坏的存储JSON诚实降级为未配置(api_client: TestClient, mon
 
 def test_解析层应用库不可用时回退默认不raise() -> None:
     """AC2 降级：resolve_model_params 在应用库不可用时返回默认值，永不 raise。"""
-    def broken_session_factory():
-        raise SQLAlchemyError("应用库不可用")
+    class _BrokenStore:
+        """get 抛应用库错误的端口假实现。"""
 
-    resolution = resolve_model_params(broken_session_factory)
+        def get(self, _key: str) -> str | None:
+            raise SQLAlchemyError("应用库不可用")
+
+        def set(self, _key: str, _value: str) -> None:
+            raise AssertionError("解析路径不应写入。")
+
+    resolution = resolve_model_params(_BrokenStore())
     assert resolution["temperature"] is None
     assert resolution["max_tokens"] is None
     assert resolution["temperature_default"] == 0.0

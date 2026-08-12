@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import json
-from typing import TypedDict
+from typing import Protocol, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -19,6 +19,18 @@ DEFAULT_TEMPERATURE = 0.0
 
 #: max_tokens 未配置时不传 SDK（用模型自身默认）。
 DEFAULT_MAX_TOKENS: int | None = None
+
+
+class AppSettingsStore(Protocol):
+    """应用库键值存储端口：application 层只依赖此端口，装配在 api 层完成。"""
+
+    def get(self, key: str) -> str | None:
+        """按键读取；不存在返回 None。"""
+        ...
+
+    def set(self, key: str, value: str) -> None:
+        """按键写入（upsert）；失败抛 SQLAlchemyError。"""
+        ...
 
 
 class ModelParams(BaseModel):
