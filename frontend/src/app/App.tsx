@@ -7,6 +7,7 @@ import { ServiceDetailPage } from '../features/services/ServiceDetailPage'
 import { MonitoringOverviewPage } from '../features/monitor/MonitoringOverviewPage'
 import { KnowledgePage } from '../features/knowledge/KnowledgePage'
 import { ModelSettingsPage } from '../features/models/ModelSettingsPage'
+import { AuditPage } from '../features/audit/AuditPage'
 import { ApprovalDetailPage, ApprovalsPage } from '../features/approvals/ApprovalsPage'
 import { GlobalNav } from '../features/shell/GlobalNav'
 import { ServiceContextNav } from '../features/shell/ServiceContextNav'
@@ -25,7 +26,8 @@ function ProductShell(): ReactElement {
   const is_models = location.pathname.startsWith('/models')
   const is_monitor = location.pathname.startsWith('/monitor')
   const is_knowledge = location.pathname.startsWith('/knowledge')
-  const is_operations = is_services || is_models || is_monitor || is_knowledge
+  const is_audit = location.pathname.startsWith('/audit')
+  const is_operations = is_services || is_models || is_monitor || is_knowledge || is_audit
 
   const show_toast = (message: string): void => {
     set_toast(message)
@@ -64,6 +66,7 @@ export function App(): ReactElement {
               <Route element={<ServiceDetailPage />} path=":service_id" />
             </Route>
             <Route element={<MonitoringOverviewPage />} path="/monitor" />
+            <Route element={<AuditPage />} path="/audit" />
             <Route element={<ModelSettingsPage />} path="/models" />
             <Route element={<KnowledgePage />} path="/knowledge" />
             <Route path="/workbench">

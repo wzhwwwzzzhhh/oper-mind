@@ -36,6 +36,9 @@ export type UpdateServiceRequest = components['schemas']['UpdateServiceRequest']
 export type ConnectionTestResponse = components['schemas']['ConnectionTestResponse']
 export type ServiceActivityResource = components['schemas']['ServiceActivityResource']
 export type ServiceActivityListResponse = components['schemas']['ServiceActivityListResponse']
+export type AuditActivityType = components['schemas']['AuditActivityType']
+export type AuditOutcome = components['schemas']['AuditOutcome']
+export type AuditActivityListResponse = components['schemas']['AuditActivityListResponse']
 export type KnowledgeDocumentResource = components['schemas']['KnowledgeDocumentResource']
 export type KnowledgeListResponse = components['schemas']['KnowledgeListResponse']
 export type KnowledgeSearchHitResource = components['schemas']['KnowledgeSearchHitResource']
@@ -183,6 +186,9 @@ export type ListActionEventsQuery = NonNullable<
 export type ListServiceActivitiesQuery = NonNullable<
   operations['list_service_activities_api_v1_services__service_id__activities_get']['parameters']['query']
 >
+export type ListAuditActivitiesQuery = NonNullable<
+  operations['list_audit_activities_api_v1_audit_activities_get']['parameters']['query']
+>
 export type ListKnowledgeDocumentsQuery = NonNullable<
   operations['list_knowledge_documents_api_v1_knowledge_documents_get']['parameters']['query']
 >
@@ -321,6 +327,10 @@ export interface ApiV1Client {
     query?: ListServiceActivitiesQuery,
     options?: ApiRequestOptions,
   ): Promise<ApiResponse<ServiceActivityListResponse>>
+  list_audit_activities(
+    query?: ListAuditActivitiesQuery,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<AuditActivityListResponse>>
   create_service_session(
     service_id: string,
     options?: ApiRequestOptions,
@@ -724,6 +734,14 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
         request_id_factory,
         base_url,
         append_query(`/api/v1/services/${encodeURIComponent(service_id)}/activities`, query),
+        request_options,
+      ),
+    list_audit_activities: (query = {}, request_options) =>
+      request_json<AuditActivityListResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        append_query('/api/v1/audit/activities', query),
         request_options,
       ),
     create_service_session: (service_id, request_options) =>

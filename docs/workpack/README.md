@@ -20,7 +20,7 @@ docs/workpack/
 
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
-| （无活跃工作包） | | | | | |
+| P8 | audit-activity-log | 开发中 | [plan.md](P8-audit-activity-log/plan.md) | [review.md](P8-audit-activity-log/review.md) | [evidence.md](P8-audit-activity-log/evidence.md) |
 
 ## 已归档
 

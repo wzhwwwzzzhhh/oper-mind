@@ -25,3 +25,17 @@
 - `git diff --check` → 干净
 - 独立审查：review.md PASS（P2 组合过滤语义已修复；P3 项均为对齐既有模式或已记录偏差）
 - 实现说明：`audit_service` 以可选字段 + 路由守卫装配进 `V1Services`（对齐 `action_service`/`service_center` 既有模式；生产装配恒非空，旧测试装配安全拒绝）
+
+## S2 前端审计入口页（AC10）
+
+| AC | 验收标准 | 证据 | 状态 |
+|---|---|---|---|
+| AC10 | 前端审计入口可访问、支持过滤、空态/失败态诚实；typecheck/test/build 通过 | `AuditPage.tsx`（/audit 路由 + 过滤条 + 分页列表 + 跳转）+ `App.tsx`/`GlobalNav.tsx`/`ServiceContextNav.tsx` 接线 + `AuditPage.test.tsx`（7 用例：入口/列表/审批人"未记录"/空态/失败态/过滤参数/跳转）；浏览器实测（Playwright）：入口、列表、类型过滤、行跳转均正常 | ✅ |
+
+### 验证记录（S2）
+
+- `npm run typecheck` → 通过；`npm run build` → 通过（tsc -b + vite build）
+- `npm run test` → **120 passed**（16 文件，含 AuditPage 7 用例）
+- 浏览器实测（2026-08-12）：真实后端（8000）+ 种子数据 + vite（5174）→ `/audit` 页面渲染 7 行活动（run + action、服务标题、会话、时间、脱敏摘要）、审批人"未记录"、未绑定服务行、类型过滤"调查失败"只余 1 行、点击审批行跳转提案详情页；唯一 console 错误为 favicon 404（dev 噪音）
+- 文档：`docs/接口清单.md`（第五部分审计标注已交付 + 汇总表同步 v1 合计 41）、`docs/路线图.md`（当前阶段登记审计工作包）
+- `git diff --check` → 干净
