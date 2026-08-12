@@ -81,6 +81,8 @@ def test_模型配置接口返回安全的诊断和裁判配置(api_client: Test
             "model": "judge-model",
             "status": "configured",
         },
+        "params": {"temperature": None, "max_tokens": None},
+        "params_defaults": {"temperature": 0.0, "max_tokens": None},
     }
     serialized = response.text
     assert "judge-secret" not in serialized
@@ -117,7 +119,7 @@ def test_模型配置接口脱敏完整连接串中的凭据(api_client: TestCli
     assert config["provider"] == "private.example"
     assert config["base_url_host"] == "private.example"
     assert "password" not in response.text
-    assert "token" not in response.text
+    assert "token=secret" not in response.text
     assert "private.example/v1" not in response.text
 
 

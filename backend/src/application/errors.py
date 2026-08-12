@@ -146,3 +146,10 @@ class ModelModePersistenceError(ApplicationError):
 
     code = "MODEL_MODE_PERSISTENCE_FAILED"
     message = "模型运行模式保存失败，请稍后重试。"
+
+
+class ModelParamsPersistenceError(ApplicationError):
+    """模型运行参数写入应用库失败。"""
+
+    code = "MODEL_PARAMS_PERSISTENCE_FAILED"
+    message = "模型运行参数保存失败，请稍后重试。"
