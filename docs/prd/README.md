@@ -42,7 +42,7 @@
 | P8 | 审计操作记录——跨服务跨会话的活动检索 | `audit/P8-audit-activity-log.md` | 进行中 |
 | P8 | 模型可用列表探测——Provider 侧模型枚举 | `model/P8-model-list-enumeration.md` | 完成 |
 | P8 | 会话管理——全局 Run 列表与会话搜索 | `session/P8-session-management.md` | 完成 |
-| P8 | 调查重跑——重新生成并关联原 Run | `session/P8-rerun-investigation.md` | 已确认 |
+| P8 | 调查重跑——重新生成并关联原 Run | `session/P8-rerun-investigation.md` | 进行中 |
 | P8 | 模型调用参数暴露——temperature 等运行参数的受控配置 | `model/P8-model-params-config.md` | 已确认 |
 | P8 | 用量与成本统计——token 计数与花费查询 | `model/P8-model-usage-stats.md` | 已确认 |
 

@@ -1,6 +1,6 @@
 ---
 title: 调查重跑——重新生成并关联原 Run
-status: 已确认
+status: 进行中
 domain: session
 phase: P8
 issue: 65
