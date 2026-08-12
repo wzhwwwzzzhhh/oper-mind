@@ -14,6 +14,7 @@ import {
   type ActivateModelProviderRequest,
   type ProviderCreateOptions,
   type ListSessionsQuery,
+  type ListRunsQuery,
   type ListServiceActivitiesQuery,
   type ListAuditActivitiesQuery,
   type CreateServiceRequest,
@@ -38,6 +39,7 @@ export const api_v1_query_keys = {
     ['api-v1', 'session-messages', session_id, query] as const,
   session_runs: (session_id: string, query: ListSessionRunsQuery) =>
     ['api-v1', 'session-runs', session_id, query] as const,
+  runs: (query: ListRunsQuery) => ['api-v1', 'runs', query] as const,
   run: (run_id: string) => ['api-v1', 'run', run_id] as const,
   run_events: (run_id: string, query: ListRunEventsQuery) => ['api-v1', 'run-events', run_id, query] as const,
   action_proposals: (query: ListActionProposalsQuery) => ['api-v1', 'action-proposals', query] as const,
@@ -139,6 +141,13 @@ export function list_session_runs_query(session_id: string, query: ListSessionRu
   return queryOptions({
     queryKey: api_v1_query_keys.session_runs(session_id, query),
     queryFn: ({ signal }) => api_v1_client.list_session_runs(session_id, query, { signal }),
+  })
+}
+
+export function list_runs_query(query: ListRunsQuery = {}) {
+  return queryOptions({
+    queryKey: api_v1_query_keys.runs(query),
+    queryFn: ({ signal }) => api_v1_client.list_runs(query, { signal }),
   })
 }
 

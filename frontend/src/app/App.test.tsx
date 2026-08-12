@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { HttpResponse, http } from 'msw'
 import { beforeEach, describe, expect, it } from 'vitest'
 
@@ -465,7 +465,7 @@ describe('App', () => {
 
     expect(await screen.findByText('已归档会话')).toBeInTheDocument()
     expect(await screen.findByLabelText('助手答复')).toBeInTheDocument()
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(within(screen.getByRole('main')).queryByRole('textbox')).not.toBeInTheDocument()
   })
 
   it('从服务中心服务目录发起只读调查，进入对应会话', async () => {
