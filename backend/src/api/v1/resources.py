@@ -12,6 +12,7 @@ from src.api.v1.schemas import (
     ActionProposalSummaryResource,
     ActionVerificationResource,
     AgentSummaryResource,
+    AuditActivityResource,
     DiagnosisResultResource,
     DiagnosisRunResource,
     EvidenceResource,
@@ -53,6 +54,7 @@ from src.domain.diagnosis import RunStatus
 from src.domain.host_metrics import HostMetricsData
 from src.domain.model_provider import ModelProviderData
 from src.domain.monitoring import MonitorHistoryData, MonitorOverviewData, MonitorServiceOverviewData
+from src.domain.audit import AuditActivityData
 from src.domain.records import DiagnosisResultData, DiagnosisRunData, MessageData, RunEventData, SessionData
 from src.domain.services import ServiceActivityData, ServiceRegistrationData, ServiceViewData
 from src.knowledge.reader import KnowledgeDocumentMeta, KnowledgeSearchHit
@@ -324,6 +326,75 @@ def service_activity_resource(value: ServiceActivityData) -> ServiceActivityReso
             value.proposal_status,
         ),
         verification_status=cast(Literal["verified", "failed"] | None, value.verification_status),
+    )
+
+
+def audit_activity_resource(value: AuditActivityData) -> AuditActivityResource:
+    """将统一审计流领域模型收敛为公开安全资源；run/action 专属字段诚实置空。"""
+    return AuditActivityResource(
+        id=value.id,
+        kind=cast(Literal["run", "action"], value.kind.value),
+        type=cast(
+            Literal[
+                "run_created",
+                "run_running",
+                "run_completed",
+                "run_failed",
+                "run_cancelled",
+                "proposal_created",
+                "approval_recorded",
+                "execution_completed",
+                "verification_completed",
+                "action_blocked",
+                "action_failed",
+            ],
+            value.type.value,
+        ),
+        occurred_at=value.occurred_at,
+        service_id=value.service_id,
+        session_id=value.session_id,
+        session_title=value.session_title,
+        outcome=cast(
+            Literal[
+                "running",
+                "succeeded",
+                "failed",
+                "cancelled",
+                "pending_approval",
+                "approved",
+                "rejected",
+                "expired",
+                "blocked",
+                "verified",
+            ],
+            value.outcome.value,
+        ),
+        summary=value.summary,
+        run_id=value.run_id,
+        severity=cast(
+            Literal["info", "low", "medium", "high", "critical"] | None, value.severity
+        ),
+        confidence=value.confidence,
+        proposal_status=cast(
+            Literal[
+                "pending_approval",
+                "approved",
+                "rejected",
+                "expired",
+                "executing",
+                "verifying",
+                "verified",
+                "blocked",
+                "failed",
+            ]
+            | None,
+            value.proposal_status,
+        ),
+        verification_status=cast(Literal["verified", "failed"] | None, value.verification_status),
+        proposal_id=value.proposal_id,
+        action_id=value.action_id,
+        mode=cast(Literal["mock", "target"] | None, value.mode),
+        approval_actor=cast(Literal["未记录"] | None, value.approval_actor),
     )
 
 

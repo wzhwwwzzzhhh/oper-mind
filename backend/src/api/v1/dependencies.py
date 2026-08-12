@@ -13,6 +13,7 @@ from fastapi import Request
 
 from src.application.action_execution import ControlledActionExecutor
 from src.application.action_services import ActionApplicationService
+from src.application.audit_service import AuditApplicationService
 from src.application.knowledge import KnowledgeReaderService
 from src.application.model_mode import resolve_runtime_mode
 from src.application.plain_messages import PlainMessageApplicationService
@@ -66,6 +67,7 @@ class V1Services:
     service_registry: ServiceRegistry | None = None
     knowledge_service: KnowledgeReaderService | None = None
     service_registration: ServiceRegistrationApplicationService | None = None
+    audit_service: AuditApplicationService | None = None
 
 
 def build_v1_services() -> V1Services:
@@ -204,6 +206,7 @@ def build_v1_services_for_runtime(
         service_registry=registry,
         knowledge_service=KnowledgeReaderService(load_knowledge_settings().directory),
         service_registration=service_registration,
+        audit_service=AuditApplicationService(session_factory),
     )
 
 
