@@ -24,11 +24,17 @@ from src.config import load_config
 from src.domain.model_provider import (
     ModelProviderData,
     ModelProviderIdempotencyKeyData,
+    ModelProviderModelsData,
     ProviderEndpoint,
     VerifyStatus,
     validate_provider_base_url,
 )
-from src.infrastructure.model_provider_verify import ProviderVerifyOutcome, verify_provider_connection
+from src.infrastructure.model_provider_verify import (
+    ProviderModelsOutcome,
+    ProviderVerifyOutcome,
+    fetch_provider_models,
+    verify_provider_connection,
+)
 from src.infrastructure.persistence.database import SessionFactory
 from src.infrastructure.persistence.model_provider_repository import (
     SqlAlchemyModelProviderIdempotencyRepository,
@@ -240,17 +246,47 @@ class ModelProviderApplicationService:
 
         return _with_mask(in_transaction(self._session_factory, operation), self._secret_key)
 
+    def list_models(self, provider_id: UUID) -> ModelProviderModelsData:
+        """枚举 Provider 可用模型名；受控只读、无副作用、不落库，失败诚实分类。"""
+        session = self._session_factory()
+        try:
+            provider = SqlAlchemyModelProviderRepository(session).get_by_id(provider_id)
+        finally:
+            session.close()
+        if provider is None:
+            raise ProviderNotFoundError()
+        outcome = self._enumerate_against(provider)
+        return ModelProviderModelsData(
+            provider_id=provider_id,
+            status=outcome.status,
+            models=outcome.models,
+            error_code=outcome.error_code,
+        )
+
+    def _provider_plaintext_or_error(self, data: ModelProviderData) -> tuple[str | None, str | None]:
+        """解密 Provider 的 API Key：(明文, None) 或 (None, 脱敏错误码)。"""
+        if not data.has_api_key or data.api_key_encrypted is None or data.api_key_nonce is None:
+            return None, "NO_API_KEY"
+        if self._secret_key is None:
+            return None, "SECRET_KEY_NOT_CONFIGURED"
+        try:
+            return decrypt_api_key(data.api_key_encrypted, data.api_key_nonce, self._secret_key), None
+        except (InvalidTag, ValueError):
+            return None, "KEY_DECRYPT_FAILED"
+
     def _verify_against(self, data: ModelProviderData) -> ProviderVerifyOutcome:
         """对单个 Provider 执行受控验证；解密失败或无 Key / 主密钥缺失时诚实分类。"""
-        if not data.has_api_key or data.api_key_encrypted is None or data.api_key_nonce is None:
-            return ProviderVerifyOutcome(status=VerifyStatus.FAILED, error_code="NO_API_KEY")
-        if self._secret_key is None:
-            return ProviderVerifyOutcome(status=VerifyStatus.FAILED, error_code="SECRET_KEY_NOT_CONFIGURED")
-        try:
-            plaintext = decrypt_api_key(data.api_key_encrypted, data.api_key_nonce, self._secret_key)
-        except (InvalidTag, ValueError):
-            return ProviderVerifyOutcome(status=VerifyStatus.FAILED, error_code="KEY_DECRYPT_FAILED")
+        plaintext, error_code = self._provider_plaintext_or_error(data)
+        if plaintext is None:
+            return ProviderVerifyOutcome(status=VerifyStatus.FAILED, error_code=error_code)
         return verify_provider_connection(data.base_url, plaintext)
+
+    def _enumerate_against(self, data: ModelProviderData) -> ProviderModelsOutcome:
+        """对单个 Provider 执行受控模型枚举；解密失败或无 Key / 主密钥缺失时诚实分类。"""
+        plaintext, error_code = self._provider_plaintext_or_error(data)
+        if plaintext is None:
+            return ProviderModelsOutcome(status=VerifyStatus.FAILED, models=None, error_code=error_code)
+        return fetch_provider_models(data.base_url, plaintext)
 
     def delete(self, provider_id: UUID) -> None:
         """删除 Provider；不存在时抛 ProviderNotFoundError。"""

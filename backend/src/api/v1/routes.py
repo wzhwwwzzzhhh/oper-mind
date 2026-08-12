@@ -68,6 +68,7 @@ from src.api.v1.schemas import (
     ModelConfigResponse,
     ModelEndpointResource,
     ModelProviderListResponse,
+    ModelProviderModelsResponse,
     ModelProviderResponse,
     MonitorHistoryResponse,
     MonitorOverviewResponse,
@@ -616,6 +617,29 @@ def verify_model_provider(
     meta = response_meta(request)
     apply_headers(response, meta)
     return ModelProviderResponse(provider=provider_resource(verified), meta=meta)
+
+
+@router.get("/model/providers/{provider_id}/models", response_model=ModelProviderModelsResponse)
+def list_provider_models(
+    provider_id: UUID,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> ModelProviderModelsResponse:
+    """枚举 Provider 可用模型名；受控只读、限时、脱敏，不落库、无副作用。"""
+    try:
+        result = _model_provider_service(services).list_models(provider_id)
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return ModelProviderModelsResponse(
+        provider_id=provider_id,
+        status=cast(Literal["ok", "failed", "timeout", "unsupported"], result.status.value),
+        models=result.models,
+        error_code=result.error_code,
+        meta=meta,
+    )
 
 
 @router.delete("/model/providers/{provider_id}", status_code=204)
