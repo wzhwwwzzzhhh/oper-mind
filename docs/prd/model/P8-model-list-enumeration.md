@@ -1,10 +1,10 @@
 ---
 title: 模型可用列表探测——Provider 侧模型枚举
-status: 已确认
+status: 完成
 domain: model
 phase: P8
 issue: 63
-updated: 2026-08-11
+updated: 2026-08-12
 ---
 
 # 模型可用列表探测——Provider 侧模型枚举 · PRD

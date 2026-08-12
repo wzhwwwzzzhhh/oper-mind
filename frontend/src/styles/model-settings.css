@@ -513,6 +513,38 @@
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
+/* 模型字段横排：手填输入 + 刷新模型列表按钮。 */
+.model-field-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.model-field-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.model-models-select {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: var(--surface);
+  font-size: 12px;
+}
+
+.model-models-select:focus {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.provider-form .model-inline-state {
+  margin: 0;
+}
+
 /* 清除 Key 是破坏性操作，横排 checkbox 并用告警色标出。 */
 .provider-clear-key {
   display: flex;

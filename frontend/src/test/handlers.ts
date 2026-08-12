@@ -624,6 +624,14 @@ export const api_v1_handlers = [
       },
     }),
   ),
+  http.get('/api/v1/model/providers/:provider_id/models', ({ request, params }) =>
+    response(request, {
+      provider_id: String(params.provider_id),
+      status: 'ok',
+      models: ['deepseek-chat', 'deepseek-reasoner'],
+      error_code: null,
+    }),
+  ),
   http.delete('/api/v1/model/providers/:provider_id', () =>
     HttpResponse.json(null, { status: 204 }),
   ),

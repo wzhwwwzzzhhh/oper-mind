@@ -10,6 +10,7 @@ import {
   delete_model_provider_mutation,
   get_model_config_query,
   list_model_providers_query,
+  list_provider_models_mutation,
   update_model_mode_mutation,
   update_model_provider_mutation,
   verify_model_provider_mutation,
@@ -23,6 +24,8 @@ interface ProviderFormState {
   model: string
   api_key: string
 }
+
+type ModelsStatus = 'idle' | 'loading' | 'ok' | 'failed'
 
 const empty_form: ProviderFormState = { name: '', base_url: '', model: '', api_key: '' }
 
@@ -39,6 +42,26 @@ function verify_label(status: ModelProviderResource['verify_status']): string {
   return '未验证'
 }
 
+function models_error_message(error_code: string | null): string {
+  switch (error_code) {
+    case 'TIMEOUT': return '连接超时，请稍后重试'
+    case 'CONNECTION_FAILED': return '无法连接 Provider 服务'
+    case 'HTTP_401':
+    case 'HTTP_403': return '鉴权失败，请检查 API Key'
+    case 'HTTP_404': return '服务未返回模型列表，请检查 Base URL'
+    case 'NO_API_KEY': return '未配置 API Key，保存 API Key 后再枚举'
+    case 'SECRET_KEY_NOT_CONFIGURED': return '加密主密钥未配置'
+    case 'KEY_DECRYPT_FAILED': return '无法解密已保存的 API Key'
+    case 'MODELS_PARSE_FAILED': return '服务返回了无法解析的响应'
+    case 'INVALID_URL':
+    case 'DNS_RESOLUTION_FAILED':
+    case 'PRIVATE_ADDRESS_REJECTED': return '地址校验失败'
+    default: return error_code != null && error_code.startsWith('HTTP_')
+      ? `服务返回 HTTP ${error_code.slice('HTTP_'.length)}`
+      : (error_code != null ? `枚举失败（${error_code}）` : '枚举失败')
+  }
+}
+
 /** 模型服务页：Provider 真实配置管理（掩码展示 / 验证 / 激活 / 编辑 / 删除）。 */
 export function ModelSettingsPage(): ReactElement {
   const navigate = useNavigate()
@@ -52,6 +75,9 @@ export function ModelSettingsPage(): ReactElement {
   const [deleting, set_deleting] = useState<ModelProviderResource | null>(null)
   const [clear_key, set_clear_key] = useState(false)
   const [mode_selection, set_mode_selection] = useState<'mock' | 'real'>('mock')
+  const [models_status, set_models_status] = useState<ModelsStatus>('idle')
+  const [model_options, set_model_options] = useState<string[]>([])
+  const [models_error, set_models_error] = useState<string | null>(null)
 
   const show_toast = (message: string): void => {
     set_toast(message)
@@ -104,6 +130,34 @@ export function ModelSettingsPage(): ReactElement {
     onError: (error) => show_toast(error instanceof Error ? error.message : '连接验证失败。'),
   })
 
+  const models_mutation = useMutation({
+    ...list_provider_models_mutation(),
+    onMutate: () => set_models_status('loading'),
+    onSuccess: (response) => {
+      const result = response.data
+      if (result.status === 'ok') {
+        set_models_status('ok')
+        set_model_options(result.models ?? [])
+        set_models_error(null)
+      } else {
+        set_models_status('failed')
+        set_model_options([])
+        set_models_error(models_error_message(result.error_code))
+      }
+    },
+    onError: (error) => {
+      set_models_status('failed')
+      set_model_options([])
+      set_models_error(error instanceof Error ? error.message : '枚举模型列表失败。')
+    },
+  })
+
+  const refresh_models = (): void => {
+    if (editing != null) {
+      models_mutation.mutate(editing.id)
+    }
+  }
+
   const delete_mutation = useMutation({
     ...delete_model_provider_mutation(),
     onSuccess: () => {
@@ -125,10 +179,17 @@ export function ModelSettingsPage(): ReactElement {
     onError: (error) => show_toast(error instanceof Error ? error.message : '切换运行模式失败。'),
   })
 
+  const reset_models_picker = (): void => {
+    set_models_status('idle')
+    set_model_options([])
+    set_models_error(null)
+  }
+
   const open_create = (): void => {
     set_editing(null)
     set_form(empty_form)
     set_clear_key(false)
+    reset_models_picker()
     set_form_open(true)
   }
 
@@ -136,6 +197,7 @@ export function ModelSettingsPage(): ReactElement {
     set_editing(provider)
     set_form({ name: provider.name, base_url: provider.base_url, model: provider.model, api_key: '' })
     set_clear_key(false)
+    reset_models_picker()
     set_form_open(true)
   }
 
@@ -264,7 +326,23 @@ export function ModelSettingsPage(): ReactElement {
         <form className="provider-form" onSubmit={submit_form}>
           <label>名称<input aria-label="Provider 名称" required value={form.name} onChange={(event) => set_form_field('name', event.target.value)} type="text" placeholder="如 DeepSeek 生产" /></label>
           <label>Base URL<input aria-label="Base URL" required value={form.base_url} onChange={(event) => set_form_field('base_url', event.target.value)} type="url" placeholder="https://api.deepseek.com/v1" /></label>
-          <label>模型<input aria-label="模型" required value={form.model} onChange={(event) => set_form_field('model', event.target.value)} type="text" placeholder="deepseek-chat" /></label>
+          <label>模型
+            <div className="model-field-row">
+              <input aria-label="模型" required value={form.model} onChange={(event) => set_form_field('model', event.target.value)} type="text" placeholder="deepseek-chat" />
+              <button className="model-button" type="button" onClick={refresh_models} disabled={editing == null || models_mutation.isPending}>刷新模型列表</button>
+            </div>
+            {editing == null && <small className="model-inline-state">保存 Provider 后可刷新模型列表。</small>}
+            {models_status === 'ok' && model_options.length > 0 && (
+              <select aria-label="选择模型" className="model-models-select" value={form.model} onChange={(event) => set_form_field('model', event.target.value)}>
+                {editing != null && form.model !== '' && !model_options.includes(form.model) && (
+                  <option value={form.model}>{form.model}（当前值）</option>
+                )}
+                {model_options.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
+            )}
+            {models_status === 'ok' && model_options.length === 0 && <small className="model-inline-state">该 Provider 未返回可用模型。</small>}
+            {models_status === 'failed' && <div className="model-inline-state error">{models_error}</div>}
+          </label>
           <label>API Key<input aria-label="API Key" value={form.api_key} onChange={(event) => set_form_field('api_key', event.target.value)} type="password" autoComplete="off" placeholder={editing != null ? '留空保持不变' : '可选，未配置时仅保存元数据'} /></label>
           {editing != null && editing.has_api_key && <label className="provider-clear-key"><input aria-label="清除已保存的 API Key" type="checkbox" checked={clear_key} onChange={(event) => set_clear_key(event.target.checked)} /> 清除已保存的 API Key</label>}
           <div className="model-dialog-footer"><button className="model-button" type="button" onClick={() => { set_form_open(false); set_editing(null); }}>取消</button><button className="model-button primary" type="submit" disabled={saving}>{editing != null ? '保存修改' : '保存 Provider'}</button></div>
