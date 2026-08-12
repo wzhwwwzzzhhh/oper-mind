@@ -20,12 +20,13 @@ docs/workpack/
 
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
-| P8 | audit-activity-log | 开发中 | [plan.md](P8-audit-activity-log/plan.md) | [review.md](P8-audit-activity-log/review.md) | [evidence.md](P8-audit-activity-log/evidence.md) |
+| （无活跃工作包） | | | | | |
 
 ## 已归档
 
 | 阶段 | 切片 | PR | 完成日期 |
 |---|---|---|---|
+| P8 | audit-activity-log | 本 PR（#62） | 2026-08-12 |
 | P8 | service-registration | #60 | 2026-08-11 |
 | P8 | workbench-loop-closure | #57 | 2026-08-10 |
 | P8 | model-mode-switch | #56 | 2026-08-10 |
