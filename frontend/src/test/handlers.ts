@@ -89,6 +89,55 @@ const service_activity = {
   verification_status: 'verified',
 }
 
+const audit_activities = [
+  {
+    id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1',
+    kind: 'action',
+    type: 'approval_recorded',
+    occurred_at: '2026-07-31T03:05:00.000Z',
+    service_id: 'postgres-production',
+    session_id: service_session_id,
+    session_title: '订单服务慢查询调查',
+    outcome: 'approved',
+    summary: '本地操作者已批准固定修复。',
+    proposal_id: 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1',
+    action_id: null,
+    mode: null,
+    approval_actor: '未记录',
+  },
+  {
+    id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2',
+    kind: 'action',
+    type: 'proposal_created',
+    occurred_at: '2026-07-31T03:03:00.000Z',
+    service_id: 'postgres-production',
+    session_id: service_session_id,
+    session_title: '订单服务慢查询调查',
+    outcome: 'pending_approval',
+    summary: '已生成受控靶场固定动作提案。',
+    proposal_id: 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1',
+    action_id: 'postgres.orders_compound_index_rebuild.v1',
+    mode: 'target',
+    approval_actor: null,
+  },
+  {
+    id: service_run_id,
+    kind: 'run',
+    type: 'run_completed',
+    occurred_at: '2026-07-31T03:02:00.000Z',
+    service_id: 'postgres-production',
+    session_id: service_session_id,
+    session_title: '订单服务慢查询调查',
+    outcome: 'succeeded',
+    summary: '已确认固定慢查询根因。',
+    run_id: service_run_id,
+    severity: 'high',
+    confidence: 0.95,
+    proposal_status: 'verified',
+    verification_status: 'verified',
+  },
+]
+
 const service_monitor_overview = {
   items: [
     {
@@ -649,6 +698,9 @@ export const api_v1_handlers = [
   http.get('/api/v1/services/redis-production/activities', ({ request }) =>
     response(request, { items: [], page: { next_cursor: null, has_more: false } }),
   ),
+  http.get('/api/v1/audit/activities', ({ request }) =>
+    response(request, { items: audit_activities, page: { next_cursor: null, has_more: false } }),
+  ),
   http.post('/api/v1/services/postgres-production/sessions', ({ request }) =>
     response(request, { session: service_session }, 201),
   ),
@@ -816,4 +868,4 @@ export const api_v1_contract_scenarios = {
   network_interruption: http.get(/\/api\/v1\/sessions$/, () => HttpResponse.error()),
 }
 
-export const api_v1_contract_fixtures = { accepted_run_id, archived_session_id, cancelled_run_id, empty_result_run_id, failed_run_id, order_service, protocol_error_run_id, provider_fixture, redis_monitor_history, redis_service, run_events, run_id, service_activity, service_monitor_history, service_monitor_overview, service_run_id, service_session, service_session_id, session_id, trace_id }
+export const api_v1_contract_fixtures = { accepted_run_id, archived_session_id, audit_activities, cancelled_run_id, empty_result_run_id, failed_run_id, order_service, protocol_error_run_id, provider_fixture, redis_monitor_history, redis_service, run_events, run_id, service_activity, service_monitor_history, service_monitor_overview, service_run_id, service_session, service_session_id, session_id, trace_id }

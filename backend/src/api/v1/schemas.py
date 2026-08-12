@@ -429,6 +429,62 @@ class ServiceActivityResource(ApiV1Model):
     verification_status: Literal["verified", "failed"] | None = None
 
 
+class AuditActivityResource(ApiV1Model):
+    """统一审计流的一行安全摘要：Run 或 action 事件，run/action 专属字段可空。"""
+
+    id: UUID
+    kind: Literal["run", "action"]
+    type: Literal[
+        "run_created",
+        "run_running",
+        "run_completed",
+        "run_failed",
+        "run_cancelled",
+        "proposal_created",
+        "approval_recorded",
+        "execution_completed",
+        "verification_completed",
+        "action_blocked",
+        "action_failed",
+    ]
+    occurred_at: datetime
+    service_id: str | None = Field(default=None, max_length=64)
+    session_id: UUID
+    session_title: str = Field(min_length=1, max_length=200)
+    outcome: Literal[
+        "running",
+        "succeeded",
+        "failed",
+        "cancelled",
+        "pending_approval",
+        "approved",
+        "rejected",
+        "expired",
+        "blocked",
+        "verified",
+    ]
+    summary: str | None = Field(default=None, max_length=800)
+    run_id: UUID | None = None
+    severity: Literal["info", "low", "medium", "high", "critical"] | None = None
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    proposal_status: Literal[
+        "pending_approval",
+        "approved",
+        "rejected",
+        "expired",
+        "executing",
+        "verifying",
+        "verified",
+        "blocked",
+        "failed",
+    ] | None = None
+    verification_status: Literal["verified", "failed"] | None = None
+    proposal_id: UUID | None = None
+    action_id: str | None = Field(default=None, max_length=120)
+    mode: Literal["mock", "target"] | None = None
+    approval_actor: Literal["未记录"] | None = None
+
+
 class CreateSessionRequest(ApiV1Model):
     """创建会话请求。"""
 
@@ -655,6 +711,14 @@ class ServiceActivityListResponse(ApiV1Model):
     """服务活动 cursor 分页响应。"""
 
     items: list[ServiceActivityResource]
+    page: CursorPage
+    meta: ResponseMeta
+
+
+class AuditActivityListResponse(ApiV1Model):
+    """跨服务跨会话审计活动 cursor 分页响应。"""
+
+    items: list[AuditActivityResource]
     page: CursorPage
     meta: ResponseMeta
 

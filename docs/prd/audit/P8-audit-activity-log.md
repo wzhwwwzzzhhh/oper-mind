@@ -1,10 +1,10 @@
 ---
 title: 审计操作记录——跨服务跨会话的活动检索
-status: 已确认
+status: 完成
 domain: audit
 phase: P8
 issue: 62
-updated: 2026-08-11
+updated: 2026-08-12
 ---
 
 # 审计操作记录——跨服务跨会话的活动检索 · PRD
