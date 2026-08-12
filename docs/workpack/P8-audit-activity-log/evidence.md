@@ -37,5 +37,6 @@
 - `npm run typecheck` → 通过；`npm run build` → 通过（tsc -b + vite build）
 - `npm run test` → **120 passed**（16 文件，含 AuditPage 7 用例）
 - 浏览器实测（2026-08-12）：真实后端（8000）+ 种子数据 + vite（5174）→ `/audit` 页面渲染 7 行活动（run + action、服务标题、会话、时间、脱敏摘要）、审批人"未记录"、未绑定服务行、类型过滤"调查失败"只余 1 行、点击审批行跳转提案详情页；唯一 console 错误为 favicon 404（dev 噪音）
-- 文档：`docs/接口清单.md`（第五部分审计标注已交付 + 汇总表同步 v1 合计 41）、`docs/路线图.md`（当前阶段登记审计工作包）
+- 文档：`docs/接口清单.md`（第五部分审计标注已交付 + 汇总表同步 v1 合计 42）、`docs/路线图.md`（当前阶段登记审计工作包）
 - `git diff --check` → 干净
+- 合并 main（2026-08-12）：合并 #68（模型列表探测）后解 `docs/接口清单.md` 冲突（计数同步 v1 合计 42、模型设置 9）；合并后复验：后端 audit + model_provider 66 passed、前端 typecheck + 123 passed 全绿
