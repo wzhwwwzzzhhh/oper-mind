@@ -39,7 +39,7 @@
 | P8 | 服务中心服务注册——动态接入、管理与连接测试 | `service-center/P8-service-registration.md` | 完成 |
 | P8 | 会话工作台闭环——独立消息、取消 Run 与全局提案列表 | `session/P8-workbench-loop-closure.md` | 完成 |
 | P8 | 模型设置——运行时切换 mock / real 模式 | `model/P8-model-mode-switch.md` | 完成 |
-| P8 | 审计操作记录——跨服务跨会话的活动检索 | `audit/P8-audit-activity-log.md` | 进行中 |
+| P8 | 审计操作记录——跨服务跨会话的活动检索 | `audit/P8-audit-activity-log.md` | 完成 |
 | P8 | 模型可用列表探测——Provider 侧模型枚举 | `model/P8-model-list-enumeration.md` | 完成 |
 | P8 | 会话管理——全局 Run 列表与会话搜索 | `session/P8-session-management.md` | 完成 |
 | P8 | 调查重跑——重新生成并关联原 Run | `session/P8-rerun-investigation.md` | 已确认 |

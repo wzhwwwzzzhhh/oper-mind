@@ -13,7 +13,11 @@ export function ServiceContextNav(): ReactElement {
   const is_models = location.pathname.startsWith('/models')
   const is_monitor = location.pathname.startsWith('/monitor')
   const is_knowledge = location.pathname.startsWith('/knowledge')
-  const services_query = useQuery({ ...list_services_query(), enabled: !is_models && !is_monitor && !is_knowledge })
+  const is_audit = location.pathname.startsWith('/audit')
+  const services_query = useQuery({
+    ...list_services_query(),
+    enabled: !is_models && !is_monitor && !is_knowledge && !is_audit,
+  })
   const service_count = services_query.data ? read_items(services_query.data.data).length : 0
 
   if (is_knowledge) {
@@ -90,7 +94,7 @@ export function ServiceContextNav(): ReactElement {
       </div>
       <p className="svc-label">服务中心</p>
       <nav className="svc-nav">
-        <button className={`svc-link${!is_monitor ? ' active' : ''}`} onClick={() => navigate('/services')} type="button">
+        <button className={`svc-link${!is_monitor && !is_audit ? ' active' : ''}`} onClick={() => navigate('/services')} type="button">
           <i><Icon name="stack" size={13} /></i>
           已接入服务
           {service_count > 0 && <span className="svc-count">{service_count}</span>}
@@ -99,6 +103,10 @@ export function ServiceContextNav(): ReactElement {
           <i><Icon name="pulse" size={13} /></i>
           服务监控
           <span className="svc-link-note">定时采样</span>
+        </button>
+        <button className={`svc-link${is_audit ? ' active' : ''}`} onClick={() => navigate('/audit')} type="button">
+          <i><Icon name="shield" size={13} /></i>
+          审计操作记录
         </button>
       </nav>
       <div className="svc-divider" />

@@ -13,6 +13,7 @@ from fastapi import Request
 
 from src.application.action_execution import ControlledActionExecutor
 from src.application.action_services import ActionApplicationService
+from src.application.audit_service import AuditApplicationService
 from src.application.knowledge import KnowledgeReaderService
 from src.application.model_mode import resolve_runtime_mode
 from src.application.model_params import resolve_model_params
@@ -39,6 +40,7 @@ from src.infrastructure.diagnosis.result_assembler import KernelReportResultAsse
 from src.infrastructure.monitoring.host_metrics import PsutilHostMetricsCollector
 from src.infrastructure.monitoring.sampler import MonitorSampler
 from src.infrastructure.persistence.app_settings_repository import SqlAlchemyAppSettingsStore
+from src.infrastructure.persistence.audit_repositories import SqlAlchemyAuditActivityRepository
 from src.infrastructure.persistence.database import PersistenceRuntime, SessionFactory, create_persistence_runtime
 from src.infrastructure.persistence.plain_message_writer import SqlAlchemyPlainMessageWriter
 from src.infrastructure.secrets import (
@@ -69,6 +71,7 @@ class V1Services:
     service_registry: ServiceRegistry | None = None
     knowledge_service: KnowledgeReaderService | None = None
     service_registration: ServiceRegistrationApplicationService | None = None
+    audit_service: AuditApplicationService | None = None
 
 
 def build_v1_services() -> V1Services:
@@ -211,6 +214,9 @@ def build_v1_services_for_runtime(
         service_registry=registry,
         knowledge_service=KnowledgeReaderService(load_knowledge_settings().directory),
         service_registration=service_registration,
+        audit_service=AuditApplicationService(
+            lambda: SqlAlchemyAuditActivityRepository(session_factory())
+        ),
     )
 
 
