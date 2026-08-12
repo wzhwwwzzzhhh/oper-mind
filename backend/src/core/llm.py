@@ -11,35 +11,53 @@ LOGGER = logging.getLogger(__name__)
 class LLMClient:
     """封装LLM API 调用，支持普通对话和 Function Calling"""
 
-    def __init__(self , api_key: str, base_url: str ,model: str = "qwen2.5:7b"):
+    def __init__(
+        self,
+        api_key: str,
+        base_url: str,
+        model: str = "qwen2.5:7b",
+        default_temperature: float = 0.0,
+        default_max_tokens: int | None = None,
+    ):
         self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.model = model
+        # 运行参数默认值：装配时从应用库配置解析注入，未配置时保持 0.0 / 不传。
+        self.default_temperature = default_temperature
+        self.default_max_tokens = default_max_tokens
         self.total_tokens = 0  # 累计 token 用量（真实调用累加，mock 恒为 0，供评测成本核算）
 
-    def chat(self,
-             messages: list[dict],
-             tools: list[dict] | None = None,
-             temperature: float = 0.0,
+    def chat(
+        self,
+        messages: list[dict],
+        tools: list[dict] | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
     ) -> dict:
         """
         调用LLM，返回完整响应。
 
         tools参数是FunctionCalling的工具定义列表。
-        temperature=0.0让LLM 输出确定，保证实验可复现（见 M3 复现性基础设施）。
+        temperature=None 时用实例默认（默认 0.0，保证实验可复现，见 M3 复现性基础设施）；
+        max_tokens=None 时用实例默认（默认不传，用模型自身限制）。
         """
         # Mock 模式：api_key 为 "mock" 时不调真实 API
         if self.client.api_key == "mock":
             return self._mock_chat(messages, tools)
 
+        resolved_temperature = self.default_temperature if temperature is None else temperature
         kwargs = {
             "model": self.model,
             "messages": messages,
-            "temperature": temperature,
+            "temperature": resolved_temperature,
         }
         if tools:
             kwargs["tools"] = tools
             # tool_choice="auto"让LLM自己决定是否调工具
             kwargs["tool_choice"] = "auto"
+        if max_tokens is not None:
+            kwargs["max_tokens"] = max_tokens
+        elif self.default_max_tokens is not None:
+            kwargs["max_tokens"] = self.default_max_tokens
 
         try:
             # kwargs 是 SDK 参数的运行时子集，OpenAI stub 无法静态表达动态键组合；
