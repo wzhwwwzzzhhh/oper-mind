@@ -14,6 +14,8 @@ regexes = [
   # 后端单测中的假 key 字面量（model-key 工作包），非真实凭据
   '''sk-test-provider-secret-1234''',
   '''sk-replacement-secret-5678''',
+  # LLM 客户端单测的假 key（model-params-config 工作包），非真实凭据
+  '''test-key-[a-z0-9]+''',
   '''password=hunter2''',
   # 测试桩/文档中的占位连接串:凭据部分是明显占位词,不带真实凭据
   '''postgresql''',

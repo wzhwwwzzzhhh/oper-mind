@@ -38,6 +38,7 @@ from src.infrastructure.diagnosis.postgres_missing_index import PostgresMissingI
 from src.infrastructure.diagnosis.result_assembler import KernelReportResultAssembler
 from src.infrastructure.monitoring.host_metrics import PsutilHostMetricsCollector
 from src.infrastructure.monitoring.sampler import MonitorSampler
+from src.infrastructure.persistence.app_settings_repository import SqlAlchemyAppSettingsStore
 from src.infrastructure.persistence.database import PersistenceRuntime, SessionFactory, create_persistence_runtime
 from src.infrastructure.persistence.plain_message_writer import SqlAlchemyPlainMessageWriter
 from src.infrastructure.secrets import (
@@ -93,7 +94,7 @@ def _resolved_coordinator_factory(runtime: PersistenceRuntime) -> Callable[[str 
 
     def build(service_id: str | None) -> CoordinatorAgent:
         resolution = resolve_runtime_mode(runtime.session_factory, secret_key)
-        params = resolve_model_params(runtime.session_factory)
+        params = resolve_model_params(SqlAlchemyAppSettingsStore(runtime.session_factory))
         llm = build_llm_from_config(
             resolution["config"],
             params=ModelParams(temperature=params["temperature"], max_tokens=params["max_tokens"]),
