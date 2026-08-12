@@ -148,7 +148,8 @@
 .second.collapsed .brand-copy,
 .second.collapsed .new-chat-label,
 .second.collapsed .history-heading,
-.second.collapsed .history-list {
+.second.collapsed .history-list,
+.second.collapsed .history-search-wrap {
   display: none;
 }
 
@@ -273,6 +274,60 @@
   background: var(--accent);
   font-size: 16px;
   line-height: 1;
+}
+
+/* 会话搜索框：输入 300ms debounce 走服务端标题搜索；Ctrl K 聚焦（真实键盘监听）。 */
+.history-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.history-search-icon {
+  position: absolute;
+  left: 10px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.history-search {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 30px 6px 32px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  color: var(--text);
+  background: var(--surface);
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.12s;
+}
+
+.history-search:focus {
+  border-color: var(--accent-line);
+}
+
+.history-search::placeholder {
+  color: var(--text-muted);
+}
+
+.history-search-clear {
+  position: absolute;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 5px;
+  color: var(--text-muted);
+  background: transparent;
+}
+
+.history-search-clear:hover {
+  color: var(--text);
+  background: var(--surface-muted);
 }
 
 .history-heading {

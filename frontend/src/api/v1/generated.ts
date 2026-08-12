@@ -355,7 +355,7 @@ export interface paths {
         };
         /**
          * List Sessions
-         * @description 按更新时间倒序读取 Session 页面。
+         * @description 按更新时间倒序读取 Session 页面；q 按标题做字面关键词匹配（兼容扩展）。
          */
         get: operations["list_sessions_api_v1_sessions_get"];
         put?: never;
@@ -443,6 +443,26 @@ export interface paths {
          * @description 原子受理 Run，成功受理后在 HTTP 响应完成后启动后台执行。
          */
         post: operations["create_run_api_v1_sessions__session_id__runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Runs
+         * @description 跨会话跨服务读取最近调查 Run 的安全摘要页，供全局「最近调查」入口使用。
+         */
+        get: operations["list_runs_api_v1_runs_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1125,6 +1145,35 @@ export interface components {
             /** Attributes */
             attributes?: unknown;
         };
+        /**
+         * GlobalRunListResponse
+         * @description 全局 Run 列表的固定排序分页响应。
+         */
+        GlobalRunListResponse: {
+            /** Items */
+            items: unknown;
+            page: unknown;
+            meta: unknown;
+        };
+        /**
+         * GlobalRunSummaryResource
+         * @description 跨会话全局 Run 的安全摘要（不含证据原文与未审查错误文本）。
+         */
+        GlobalRunSummaryResource: {
+            /** Id */
+            id: unknown;
+            /** Session Id */
+            session_id: unknown;
+            /** Session Title */
+            session_title: unknown;
+            /** Service Id */
+            service_id?: unknown;
+            /** Status */
+            status: unknown;
+            /** Created At */
+            created_at: unknown;
+            error?: unknown;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1647,6 +1696,12 @@ export interface components {
             run: unknown;
             meta: unknown;
         };
+        /**
+         * RunStatus
+         * @description 诊断运行状态。
+         * @enum {string}
+         */
+        RunStatus: "queued" | "running" | "succeeded" | "failed" | "cancelled";
         /**
          * SendPlainMessageRequest
          * @description 发送普通对话消息的请求。
@@ -2558,6 +2613,7 @@ export interface operations {
                 cursor?: string | null;
                 limit?: number;
                 status?: components["schemas"]["SessionStatus"] | null;
+                q?: string | null;
             };
             header?: never;
             path?: never;
@@ -2840,6 +2896,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_runs_api_v1_runs_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+                status?: components["schemas"]["RunStatus"] | null;
+                service_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GlobalRunListResponse"];
                 };
             };
             /** @description Validation Error */

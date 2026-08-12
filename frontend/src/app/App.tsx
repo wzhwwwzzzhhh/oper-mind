@@ -8,6 +8,7 @@ import { MonitoringOverviewPage } from '../features/monitor/MonitoringOverviewPa
 import { KnowledgePage } from '../features/knowledge/KnowledgePage'
 import { ModelSettingsPage } from '../features/models/ModelSettingsPage'
 import { ApprovalDetailPage, ApprovalsPage } from '../features/approvals/ApprovalsPage'
+import { RunsPage } from '../features/runs/RunsPage'
 import { GlobalNav } from '../features/shell/GlobalNav'
 import { ServiceContextNav } from '../features/shell/ServiceContextNav'
 import { Sidebar } from '../features/shell/Sidebar'
@@ -70,6 +71,7 @@ export function App(): ReactElement {
               <Route element={<WorkbenchPage />} index />
               <Route element={<WorkbenchPage />} path="sessions/:session_id" />
               <Route element={<WorkbenchPage />} path="sessions/:session_id/runs/:run_id" />
+              <Route element={<RunsPage />} path="runs" />
               <Route element={<ApprovalsPage />} path="approvals" />
               <Route element={<ApprovalDetailPage />} path="approvals/:proposal_id" />
             </Route>

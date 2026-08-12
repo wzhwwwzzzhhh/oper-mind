@@ -425,6 +425,36 @@ const proposal_summaries = [
   },
 ]
 
+const global_runs = [
+  {
+    id: run_id,
+    session_id,
+    session_title: 'Nginx 5xx 排查',
+    service_id: null,
+    status: 'succeeded',
+    created_at: '2026-07-27T01:00:30.000Z',
+    error: null,
+  },
+  {
+    id: failed_run_id,
+    session_id,
+    session_title: 'Nginx 5xx 排查',
+    service_id: 'postgres-production',
+    status: 'failed',
+    created_at: '2026-07-27T01:01:00.000Z',
+    error: { code: 'DIAGNOSIS_FAILED', message: '诊断执行失败，请稍后重试' },
+  },
+  {
+    id: cancelled_run_id,
+    session_id,
+    session_title: 'Nginx 5xx 排查',
+    service_id: null,
+    status: 'cancelled',
+    created_at: '2026-07-27T01:02:00.000Z',
+    error: null,
+  },
+]
+
 function correlation(request: Request) {
   const request_id = request.headers.get('X-Request-Id') ?? 'missing-client-request-id'
   return {
@@ -623,14 +653,17 @@ export const api_v1_handlers = [
     response(request, { session: service_session }, 201),
   ),
   http.get(/\/api\/v1\/sessions$/, ({ request }) => {
-    const cursor = new URL(request.url).searchParams.get('cursor')
+    const url = new URL(request.url)
+    const cursor = url.searchParams.get('cursor')
+    const q = url.searchParams.get('q')
     if (cursor === 'empty-page') {
       return response(request, { items: [], page: { next_cursor: null, has_more: false } })
     }
     if (cursor === 'session-page-2') {
       return response(request, { items: [paged_active_session], page: { next_cursor: null, has_more: false } })
     }
-    return response(request, { items: [session], page: { next_cursor: 'session-page-2', has_more: true } })
+    const items = q ? [session].filter((item) => item.title.includes(q)) : [session]
+    return response(request, { items, page: { next_cursor: q ? null : 'session-page-2', has_more: !q } })
   }),
   http.get(/\/api\/v1\/sessions\/([^/]+)$/, ({ request }) => {
     const requested_session_id = new URL(request.url).pathname.split('/').at(-1)
@@ -688,6 +721,15 @@ export const api_v1_handlers = [
       items: cursor ? [run_events[1]] : [run_events[0]],
       page: cursor ? { next_cursor: null, has_more: false } : { next_cursor: 'run-event-page-2', has_more: true },
     })
+  }),
+  http.get('/api/v1/runs', ({ request }) => {
+    const url = new URL(request.url)
+    const status = url.searchParams.get('status')
+    const service_id = url.searchParams.get('service_id')
+    let items = global_runs
+    if (status) items = items.filter((item) => item.status === status)
+    if (service_id) items = items.filter((item) => item.service_id === service_id)
+    return response(request, { items, page: { next_cursor: null, has_more: false } })
   }),
   http.get(/\/api\/v1\/runs\/([^/]+)$/, ({ request }) => {
     const requested_run_id = new URL(request.url).pathname.split('/').at(-1)
