@@ -422,3 +422,103 @@ def test_未激活Provider时配置回退env(api_client: TestClient) -> None:
     config = response.json()["config"]
     # fixture 设置 env mock → mode mock
     assert config["mode"] == "mock"
+
+
+def _stub_list_models(
+    monkeypatch: pytest.MonkeyPatch, status: str, models: list[str] | None = None, error_code: str | None = None
+) -> None:
+    """以确定性结果替换模型枚举，避免测试发真实请求。"""
+    from src.domain.model_provider import VerifyStatus
+    from src.infrastructure.model_provider_verify import ProviderModelsOutcome
+
+    monkeypatch.setattr(
+        "src.application.model_providers.fetch_provider_models",
+        lambda _base_url, _api_key: ProviderModelsOutcome(
+            status=VerifyStatus(status), models=models, error_code=error_code
+        ),
+    )
+
+
+def test_枚举成功返回模型列表(api_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Provider 可连通时枚举应返回可用模型名列表（AC1）。"""
+    _stub_list_models(monkeypatch, "ok", models=["deepseek-chat", "deepseek-reasoner"])
+    provider = _create_provider(api_client, api_key=PLAINTEXT_VALUE)
+
+    response = api_client.get(f"/api/v1/model/providers/{provider['id']}/models")
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["provider_id"] == provider["id"]
+    assert body["status"] == "ok"
+    assert body["models"] == ["deepseek-chat", "deepseek-reasoner"]
+    assert body["error_code"] is None
+
+
+def test_枚举失败返回脱敏状态不暴露响应体(api_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """枚举失败应返回脱敏状态码，不暴露响应体或凭据（AC2/AC4）。"""
+    _stub_list_models(monkeypatch, "failed", error_code="HTTP_401")
+    provider = _create_provider(api_client, api_key=PLAINTEXT_VALUE)
+
+    response = api_client.get(f"/api/v1/model/providers/{provider['id']}/models")
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] == "failed"
+    assert body["models"] is None
+    assert body["error_code"] == "HTTP_401"
+    assert PLAINTEXT_VALUE not in response.text
+
+
+def test_枚举超时返回timeout(api_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """枚举超时应返回 timeout 状态（AC6）。"""
+    _stub_list_models(monkeypatch, "timeout", error_code="TIMEOUT")
+    provider = _create_provider(api_client, api_key=PLAINTEXT_VALUE)
+
+    response = api_client.get(f"/api/v1/model/providers/{provider['id']}/models")
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] == "timeout"
+    assert body["error_code"] == "TIMEOUT"
+
+
+def test_枚举无Key的Provider诚实失败(api_client: TestClient) -> None:
+    """未配置 API Key 的 Provider 无法枚举，应诚实标记失败（AC3）。"""
+    provider = _create_provider(api_client)
+
+    response = api_client.get(f"/api/v1/model/providers/{provider['id']}/models")
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] == "failed"
+    assert body["error_code"] == "NO_API_KEY"
+
+
+def test_枚举主密钥缺失诚实失败(api_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """主密钥缺失时无法解密 Key，应诚实标记失败。"""
+    provider = _create_provider(api_client, api_key=PLAINTEXT_VALUE)
+    monkeypatch.delenv("OPERMIND_SECRET_KEY", raising=False)
+
+    response = api_client.get(f"/api/v1/model/providers/{provider['id']}/models")
+
+    assert response.status_code == 200, response.text
+    assert response.json()["error_code"] == "SECRET_KEY_NOT_CONFIGURED"
+
+
+def test_枚举不存在的Provider返回404(api_client: TestClient) -> None:
+    """枚举不存在的 Provider 应返回 404。"""
+    response = api_client.get(f"/api/v1/model/providers/{uuid4()}/models")
+    assert response.status_code == 404, response.text
+
+
+def test_枚举为无副作用只读探测(api_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """枚举不应改动 verify_status（Design：无副作用、不落库）。"""
+    _stub_list_models(monkeypatch, "ok", models=["deepseek-chat"])
+    provider = _create_provider(api_client, api_key=PLAINTEXT_VALUE)
+
+    response = api_client.get(f"/api/v1/model/providers/{provider['id']}/models")
+
+    assert response.json()["status"] == "ok"
+    listed = api_client.get("/api/v1/model/providers").json()["items"][0]
+    assert listed["verify_status"] == "unknown"
+    assert listed["last_verified_at"] is None

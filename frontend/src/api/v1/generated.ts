@@ -244,6 +244,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/model/providers/{provider_id}/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Provider Models
+         * @description 枚举 Provider 可用模型名；受控只读、限时、脱敏，不落库、无副作用。
+         */
+        get: operations["list_provider_models_api_v1_model_providers__provider_id__models_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/services/{service_id}/activities": {
         parameters: {
             query?: never;
@@ -1412,6 +1432,23 @@ export interface components {
             meta: unknown;
         };
         /**
+         * ModelProviderModelsResponse
+         * @description Provider 模型枚举响应；只含模型名列表与脱敏状态，无凭据/响应体。
+         *
+         *     ``unsupported`` 为契约预留（未来非 OpenAI-compatible Provider 类型分支），当前不产生。
+         */
+        ModelProviderModelsResponse: {
+            /** Provider Id */
+            provider_id: unknown;
+            /** Status */
+            status: unknown;
+            /** Models */
+            models?: unknown;
+            /** Error Code */
+            error_code?: unknown;
+            meta: unknown;
+        };
+        /**
          * ModelProviderResource
          * @description 单个 Provider 配置的安全视图；不含 API Key 明文。
          */
@@ -2435,6 +2472,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ModelProviderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_provider_models_api_v1_model_providers__provider_id__models_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelProviderModelsResponse"];
                 };
             };
             /** @description Validation Error */

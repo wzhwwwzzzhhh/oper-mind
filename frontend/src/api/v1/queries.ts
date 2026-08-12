@@ -290,6 +290,12 @@ export function verify_model_provider_mutation() {
   })
 }
 
+export function list_provider_models_mutation() {
+  return mutationOptions({
+    mutationFn: (provider_id: string) => api_v1_client.list_model_provider_models(provider_id),
+  })
+}
+
 export function delete_model_provider_mutation() {
   return mutationOptions({
     mutationFn: (provider_id: string) => api_v1_client.delete_model_provider(provider_id),

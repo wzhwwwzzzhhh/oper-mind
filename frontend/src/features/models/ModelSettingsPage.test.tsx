@@ -115,4 +115,52 @@ describe('ModelSettingsPage', () => {
 
     expect(await screen.findByText('运行模式已切换为 Mock。')).toBeInTheDocument()
   })
+
+  it('编辑 Provider 时刷新模型列表并选择模型', async () => {
+    open_models()
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: '编辑' }))
+    fireEvent.click(await screen.findByRole('button', { name: '刷新模型列表' }))
+
+    const select = await screen.findByLabelText('选择模型')
+    fireEvent.change(select, { target: { value: 'deepseek-reasoner' } })
+
+    expect(screen.getByLabelText('模型')).toHaveValue('deepseek-reasoner')
+  })
+
+  it('刷新模型列表失败时展示脱敏原因', async () => {
+    server.use(
+      http.get('/api/v1/model/providers/:provider_id/models', () =>
+        HttpResponse.json(
+          {
+            provider_id: 'p',
+            status: 'failed',
+            models: null,
+            error_code: 'HTTP_401',
+            meta: { request_id: 'r' },
+          },
+          { status: 200, headers: { 'X-Request-Id': 'r' } },
+        ),
+      ),
+    )
+    open_models()
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: '编辑' }))
+    fireEvent.click(await screen.findByRole('button', { name: '刷新模型列表' }))
+
+    expect(await screen.findByText(/鉴权失败，请检查 API Key/)).toBeInTheDocument()
+  })
+
+  it('新建态刷新按钮禁用并提示先保存', async () => {
+    open_models()
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: '＋ 添加模型服务' }))
+    expect(await screen.findByLabelText('Provider 名称')).toBeInTheDocument()
+
+    expect(screen.getByRole('button', { name: '刷新模型列表' })).toBeDisabled()
+    expect(screen.getByText(/保存 Provider 后可刷新模型列表/)).toBeInTheDocument()
+  })
 })

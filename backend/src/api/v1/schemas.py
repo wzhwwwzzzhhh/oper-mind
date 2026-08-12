@@ -92,6 +92,19 @@ class ModelProviderResponse(ApiV1Model):
     meta: ResponseMeta
 
 
+class ModelProviderModelsResponse(ApiV1Model):
+    """Provider 模型枚举响应；只含模型名列表与脱敏状态，无凭据/响应体。
+
+    ``unsupported`` 为契约预留（未来非 OpenAI-compatible Provider 类型分支），当前不产生。
+    """
+
+    provider_id: UUID
+    status: Literal["ok", "failed", "timeout", "unsupported"]
+    models: list[str] | None = None
+    error_code: str | None = None
+    meta: ResponseMeta
+
+
 class CreateModelProviderRequest(ApiV1Model):
     """新增 Provider 请求。"""
 

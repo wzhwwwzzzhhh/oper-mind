@@ -102,3 +102,12 @@ class ModelProviderIdempotencyKeyData(ModelProviderDomainModel):
     request_fingerprint: str = Field(min_length=1, max_length=64)
     expires_at: datetime
     created_at: datetime
+
+
+class ModelProviderModelsData(ModelProviderDomainModel):
+    """Provider 模型枚举的跨层结果；模型名列表或脱敏失败分类。"""
+
+    provider_id: UUID | None = None
+    status: VerifyStatus
+    models: list[str] | None = None
+    error_code: str | None = None
