@@ -550,6 +550,8 @@ export const api_v1_handlers = [
         status: 'configured',
       },
       judge_model: null,
+      params: { temperature: null, max_tokens: null },
+      params_defaults: { temperature: 0.0, max_tokens: null },
     },
   })),
   http.put('/api/v1/model/mode', async ({ request }) => {
@@ -568,6 +570,28 @@ export const api_v1_handlers = [
           status: 'configured',
         },
         judge_model: null,
+        params: { temperature: null, max_tokens: null },
+        params_defaults: { temperature: 0.0, max_tokens: null },
+      },
+    })
+  }),
+  http.put('/api/v1/model/params', async ({ request }) => {
+    const body = (await request.json()) as { temperature?: number | null; max_tokens?: number | null }
+    return response(request, {
+      config: {
+        mode: 'mock',
+        mode_source: 'env',
+        mode_available: true,
+        mode_unavailable_reason: null,
+        diagnostic_model: {
+          provider: 'mock.example',
+          base_url_host: 'mock.example',
+          model: 'diagnostic-model',
+          status: 'configured',
+        },
+        judge_model: null,
+        params: { temperature: body.temperature ?? null, max_tokens: body.max_tokens ?? null },
+        params_defaults: { temperature: 0.0, max_tokens: null },
       },
     })
   }),

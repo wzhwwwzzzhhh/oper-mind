@@ -63,6 +63,18 @@ export function update_model_mode_mutation() {
   })
 }
 
+export interface UpdateModelParamsMutationVariables {
+  temperature: number | null
+  max_tokens: number | null
+}
+
+export function update_model_params_mutation() {
+  return mutationOptions({
+    mutationFn: ({ temperature, max_tokens }: UpdateModelParamsMutationVariables) =>
+      api_v1_client.update_model_params({ temperature, max_tokens }),
+  })
+}
+
 export function list_services_query() {
   return queryOptions({
     queryKey: api_v1_query_keys.services(),

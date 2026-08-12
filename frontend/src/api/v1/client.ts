@@ -114,6 +114,14 @@ export interface ModelConfigResponse {
     mode_unavailable_reason: string | null
     diagnostic_model: ModelEndpointResource
     judge_model: ModelEndpointResource | null
+    params: {
+      temperature: number | null
+      max_tokens: number | null
+    }
+    params_defaults: {
+      temperature: number
+      max_tokens: number | null
+    }
   }
   meta: components['schemas']['ResponseMeta']
 }
@@ -171,6 +179,11 @@ export interface ActivateModelProviderRequest {
 
 export interface UpdateModelModeRequest {
   mode: 'mock' | 'real'
+}
+
+export interface UpdateModelParamsRequest {
+  temperature: number | null
+  max_tokens: number | null
 }
 
 export type ListSessionsQuery = NonNullable<
@@ -283,6 +296,10 @@ export interface ApiV1Client {
   get_model_config(options?: ApiRequestOptions): Promise<ApiResponse<ModelConfigResponse>>
   update_model_mode(
     payload: UpdateModelModeRequest,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<ModelConfigResponse>>
+  update_model_params(
+    payload: UpdateModelParamsRequest,
     options?: ApiRequestOptions,
   ): Promise<ApiResponse<ModelConfigResponse>>
   list_model_providers(options?: ApiRequestOptions): Promise<ApiResponse<ModelProviderListResponse>>
@@ -613,6 +630,15 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
         request_id_factory,
         base_url,
         '/api/v1/model/mode',
+        request_options,
+        { body: payload, method: 'PUT' },
+      ),
+    update_model_params: (payload, request_options) =>
+      request_json<ModelConfigResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        '/api/v1/model/params',
         request_options,
         { body: payload, method: 'PUT' },
       ),
