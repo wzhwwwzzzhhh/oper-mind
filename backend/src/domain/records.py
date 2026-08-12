@@ -86,6 +86,19 @@ class DiagnosisRunData(TimestampedRecord):
     finished_at: datetime | None = None
 
 
+class GlobalRunData(TimestampedRecord):
+    """跨会话全局 Run 的安全摘要（列表只读投影，不携带证据与结果）。"""
+
+    id: UUID
+    session_id: UUID
+    session_title: str = Field(min_length=1, max_length=200)
+    service_id: str | None = Field(default=None, max_length=64)
+    status: RunStatus
+    created_at: datetime
+    error_code: str | None = None
+    error_message: str | None = None
+
+
 class RunEventData(TimestampedRecord):
     """可重放 Run 事件的 Repository 数据对象。"""
 

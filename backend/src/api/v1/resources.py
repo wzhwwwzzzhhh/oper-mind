@@ -15,6 +15,7 @@ from src.api.v1.schemas import (
     DiagnosisResultResource,
     DiagnosisRunResource,
     EvidenceResource,
+    GlobalRunSummaryResource,
     HostDiskPartitionResource,
     HostMetricsResource,
     HostProcessResource,
@@ -53,7 +54,14 @@ from src.domain.diagnosis import RunStatus
 from src.domain.host_metrics import HostMetricsData
 from src.domain.model_provider import ModelProviderData
 from src.domain.monitoring import MonitorHistoryData, MonitorOverviewData, MonitorServiceOverviewData
-from src.domain.records import DiagnosisResultData, DiagnosisRunData, MessageData, RunEventData, SessionData
+from src.domain.records import (
+    DiagnosisResultData,
+    DiagnosisRunData,
+    GlobalRunData,
+    MessageData,
+    RunEventData,
+    SessionData,
+)
 from src.domain.services import ServiceActivityData, ServiceRegistrationData, ServiceViewData
 from src.knowledge.reader import KnowledgeDocumentMeta, KnowledgeSearchHit
 
@@ -123,6 +131,22 @@ def run_resource(value: DiagnosisRunData, result: DiagnosisResultData | None) ->
         created_at=value.created_at,
         started_at=value.started_at,
         finished_at=value.finished_at,
+    )
+
+
+def global_run_summary_resource(value: GlobalRunData) -> GlobalRunSummaryResource:
+    """把全局 Run 摘要收敛为安全公开资源（错误经白名单映射，不透传原始文本）。"""
+    error = None
+    if value.status == RunStatus.FAILED:
+        error = _safe_run_error(value.error_code, value.error_message)
+    return GlobalRunSummaryResource(
+        id=value.id,
+        session_id=value.session_id,
+        session_title=value.session_title,
+        service_id=value.service_id,
+        status=value.status.value,
+        created_at=value.created_at,
+        error=error,
     )
 
 

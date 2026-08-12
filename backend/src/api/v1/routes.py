@@ -30,6 +30,7 @@ from src.api.v1.resources import (
     action_execution_resource,
     action_proposal_resource,
     action_proposal_summary_resource,
+    global_run_summary_resource,
     knowledge_document_resource,
     knowledge_search_hit_resource,
     message_resource,
@@ -59,6 +60,7 @@ from src.api.v1.schemas import (
     CursorPage,
     DiagnosisRunListResponse,
     DiagnosisRunResource,
+    GlobalRunListResponse,
     KnowledgeDocumentDetailResource,
     KnowledgeDocumentResponse,
     KnowledgeListResponse,
@@ -126,7 +128,7 @@ from src.application.service_registration import (
 )
 from src.config import load_monitor_settings
 from src.domain.actions import ActionProposalStatus
-from src.domain.diagnosis import SessionStatus
+from src.domain.diagnosis import RunStatus, SessionStatus
 from src.domain.model_provider import ProviderEndpoint
 from src.domain.records import DiagnosisRunData, RunEventData, SessionData
 from src.infrastructure.persistence.repositories import (
@@ -220,6 +222,16 @@ def parse_page_cursor(value: str | None, cursor_type: type[CursorT]) -> CursorT 
         return decode_cursor(value, cursor_type)
     except InvalidCursorError as error:
         raise ApiV1Error(400, "INVALID_CURSOR", "分页游标无效") from error
+
+
+def _validate_session_search_query(value: str) -> str:
+    """校验会话搜索关键词：strip 后非空且不含控制字符，返回规范化关键词。"""
+    if any(ord(char) < 0x20 or ord(char) == 0x7F for char in value):
+        raise ApiV1Error(422, "VALIDATION_ERROR", "搜索关键词不能包含控制字符")
+    normalized = value.strip()
+    if not normalized:
+        raise ApiV1Error(422, "VALIDATION_ERROR", "搜索关键词不能为空")
+    return normalized
 
 
 def _service_center(services: V1Services) -> ServiceCenterApplicationService:
@@ -782,13 +794,15 @@ def list_sessions(
     cursor: str | None = None,
     limit: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
     status: SessionStatus | None = None,
+    q: str | None = Query(default=None, min_length=1, max_length=100),
     services: V1Services = Depends(get_v1_services),
 ) -> SessionListResponse:
-    """按更新时间倒序读取 Session 页面。"""
+    """按更新时间倒序读取 Session 页面；q 按标题做字面关键词匹配（兼容扩展）。"""
     decoded_cursor = parse_page_cursor(cursor, SessionCursor)
+    normalized_q = _validate_session_search_query(q) if q is not None else None
     session = services.session_factory()
     try:
-        page = SqlAlchemySessionRepository(session).list_page(decoded_cursor, limit, status)
+        page = SqlAlchemySessionRepository(session).list_page(decoded_cursor, limit, status, normalized_q)
     finally:
         session.close()
     meta = response_meta(request)
@@ -980,6 +994,32 @@ def create_run(
     meta = response_meta(request, resource.trace_id)
     apply_headers(response, meta)
     return RunResponse(run=resource, meta=meta)
+
+
+@router.get("/runs", response_model=GlobalRunListResponse)
+def list_runs(
+    request: Request,
+    response: Response,
+    cursor: str | None = None,
+    limit: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
+    status: RunStatus | None = None,
+    service_id: str | None = Query(default=None, max_length=64),
+    services: V1Services = Depends(get_v1_services),
+) -> GlobalRunListResponse:
+    """跨会话跨服务读取最近调查 Run 的安全摘要页，供全局「最近调查」入口使用。"""
+    decoded_cursor = parse_page_cursor(cursor, DiagnosisRunCursor)
+    session = services.session_factory()
+    try:
+        page = SqlAlchemyDiagnosisRunRepository(session).list_page(decoded_cursor, limit, status, service_id)
+    finally:
+        session.close()
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return GlobalRunListResponse(
+        items=[global_run_summary_resource(item) for item in page.items],
+        page=CursorPage(next_cursor=encode_cursor(page.next_cursor) if page.next_cursor else None, has_more=page.has_more),
+        meta=meta,
+    )
 
 
 @router.get("/runs/{run_id}", response_model=RunResponse)

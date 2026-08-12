@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from typing import overload
 from uuid import UUID
 
-from sqlalchemy import Select, and_, or_, select, update
+from sqlalchemy import RowMapping, Select, and_, or_, select, update
 from sqlalchemy.orm import Session
 
 from src.domain.diagnosis import DiagnosisSeverity, MessageRole, RunEventType, RunStatus, SessionStatus
@@ -16,6 +16,7 @@ from src.domain.records import (
     DiagnosisResultData,
     DiagnosisRunCursor,
     DiagnosisRunData,
+    GlobalRunData,
     MessageCursor,
     MessageData,
     RecordT,
@@ -137,13 +138,16 @@ class SqlAlchemySessionRepository:
         cursor: SessionCursor | None,
         limit: int,
         status: SessionStatus | None = None,
+        q: str | None = None,
     ) -> RepositoryPage[SessionData, SessionCursor]:
-        """按更新时间倒序读取会话页。"""
+        """按更新时间倒序读取会话页；q 按标题做字面关键词匹配（兼容扩展）。"""
         _validate_limit(limit)
         statement: Select[tuple[SessionRecord]] = select(SessionRecord)
         filters = []
         if status is not None:
             filters.append(SessionRecord.status == status.value)
+        if q is not None:
+            filters.append(SessionRecord.title.contains(q, autoescape=True))
         if cursor is not None:
             filters.append(
                 or_(
@@ -343,6 +347,59 @@ class SqlAlchemyDiagnosisRunRepository:
         )
         return _page(
             [_diagnosis_run_data(record) for record in records],
+            limit,
+            lambda item: DiagnosisRunCursor(created_at=item.created_at, id=item.id),
+        )
+
+    def list_page(
+        self,
+        cursor: DiagnosisRunCursor | None,
+        limit: int,
+        status: RunStatus | None = None,
+        service_id: str | None = None,
+    ) -> RepositoryPage[GlobalRunData, DiagnosisRunCursor]:
+        """跨会话跨服务读取 Run 安全摘要页（含会话标题，按创建时间倒序）。
+
+        只读投影：不返回证据、事件或结果，满足全局列表的安全摘要契约。
+        """
+        _validate_limit(limit)
+        statement = (
+            select(
+                DiagnosisRunRecord.id,
+                DiagnosisRunRecord.session_id,
+                SessionRecord.title.label("session_title"),
+                DiagnosisRunRecord.service_id,
+                DiagnosisRunRecord.status,
+                DiagnosisRunRecord.created_at,
+                DiagnosisRunRecord.error_code,
+                DiagnosisRunRecord.error_message,
+            )
+            .join(SessionRecord, SessionRecord.id == DiagnosisRunRecord.session_id)
+        )
+        filters = []
+        if status is not None:
+            filters.append(DiagnosisRunRecord.status == status.value)
+        if service_id is not None:
+            filters.append(DiagnosisRunRecord.service_id == service_id)
+        if cursor is not None:
+            filters.append(
+                or_(
+                    DiagnosisRunRecord.created_at < cursor.created_at,
+                    and_(
+                        DiagnosisRunRecord.created_at == cursor.created_at,
+                        DiagnosisRunRecord.id < cursor.id,
+                    ),
+                )
+            )
+        if filters:
+            statement = statement.where(*filters)
+        rows = list(
+            self._session.execute(
+                statement.order_by(DiagnosisRunRecord.created_at.desc(), DiagnosisRunRecord.id.desc()).limit(limit + 1)
+            ).mappings()
+        )
+        return _page(
+            [_global_run_data(row) for row in rows],
             limit,
             lambda item: DiagnosisRunCursor(created_at=item.created_at, id=item.id),
         )
@@ -548,4 +605,37 @@ def _run_idempotency_key_data(record: RunIdempotencyKeyRecord) -> RunIdempotency
         run_id=record.run_id,
         expires_at=_as_utc(record.expires_at),
         created_at=_as_utc(record.created_at),
+    )
+
+
+def _global_run_data(row: RowMapping) -> GlobalRunData:
+    """将跨表映射行收敛为全局 Run 安全摘要，拒绝无效或缺失标量。"""
+    values = dict(row)
+    run_id = values["id"]
+    if not isinstance(run_id, UUID):
+        raise ValueError("全局 Run 主键无效。")
+    session_id = values["session_id"]
+    if not isinstance(session_id, UUID):
+        raise ValueError("全局 Run 会话主键无效。")
+    title = values["session_title"]
+    if not isinstance(title, str):
+        raise ValueError("全局 Run 会话标题无效。")
+    service_id = values["service_id"]
+    if service_id is not None and not isinstance(service_id, str):
+        raise ValueError("全局 Run 服务标识无效。")
+    raw_status = values["status"]
+    if not isinstance(raw_status, str):
+        raise ValueError("全局 Run 状态无效。")
+    created_at = values["created_at"]
+    if not isinstance(created_at, datetime):
+        raise ValueError("全局 Run 创建时间无效。")
+    return GlobalRunData(
+        id=run_id,
+        session_id=session_id,
+        session_title=title,
+        service_id=service_id,
+        status=RunStatus(raw_status),
+        created_at=_as_utc(created_at),
+        error_code=values["error_code"] if isinstance(values.get("error_code"), str) else None,
+        error_message=values["error_message"] if isinstance(values.get("error_message"), str) else None,
     )

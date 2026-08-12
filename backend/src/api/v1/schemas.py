@@ -775,6 +775,26 @@ class DiagnosisRunListResponse(ApiV1Model):
     meta: ResponseMeta
 
 
+class GlobalRunSummaryResource(ApiV1Model):
+    """跨会话全局 Run 的安全摘要（不含证据原文与未审查错误文本）。"""
+
+    id: UUID
+    session_id: UUID
+    session_title: str = Field(min_length=1, max_length=200)
+    service_id: str | None = Field(default=None, min_length=1, max_length=64)
+    status: Literal["queued", "running", "succeeded", "failed", "cancelled"]
+    created_at: datetime
+    error: RunErrorResource | None = None
+
+
+class GlobalRunListResponse(ApiV1Model):
+    """全局 Run 列表的固定排序分页响应。"""
+
+    items: list[GlobalRunSummaryResource]
+    page: CursorPage
+    meta: ResponseMeta
+
+
 class RunEventListResponse(ApiV1Model):
     """Run 事件列表响应。"""
 
