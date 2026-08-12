@@ -1,10 +1,10 @@
 ---
 title: 会话管理——全局 Run 列表与会话搜索
-status: 已确认
+status: 进行中
 domain: session
 phase: P8
 issue: 64
-updated: 2026-08-11
+updated: 2026-08-12
 ---
 
 # 会话管理——全局 Run 列表与会话搜索 · PRD
