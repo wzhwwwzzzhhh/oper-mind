@@ -1,10 +1,10 @@
 ---
 title: 模型可用列表探测——Provider 侧模型枚举
-status: 草稿
+status: 已确认
 domain: model
 phase: P8
-issue:
-updated: 2026-08-10
+issue: 63
+updated: 2026-08-11
 ---
 
 # 模型可用列表探测——Provider 侧模型枚举 · PRD
@@ -98,5 +98,5 @@ P6 已落地：Provider 配置（Base URL / 模型 / API Key）AES-256-GCM 加�
 2. **非 OpenAI-compatible Provider 的枚举**：Ollama `/api/tags` 等是否首版支持，还是只做 OpenAI-compatible？→ 推荐首版只做 OpenAI-compatible，其余按类型分支后续加。
 
 ## GitHub Issue（已确认后回填）
-- issue：（待 prd-reviewing 审查 + 用户确认后建）
+- issue：#63（https://github.com/wzhwwwzzzhhh/oper-mind/issues/63）
 - 状态同步：issue 状态与 PRD 状态一致（已确认=open，完成=closed）；中间过程留在 workpack。

@@ -1,10 +1,10 @@
 ---
 title: 会话管理——全局 Run 列表与会话搜索
-status: 草稿
+status: 已确认
 domain: session
 phase: P8
-issue:
-updated: 2026-08-10
+issue: 64
+updated: 2026-08-11
 ---
 
 # 会话管理——全局 Run 列表与会话搜索 · PRD
@@ -104,5 +104,5 @@ updated: 2026-08-10
 3. **全局 Run 列表排序**：按发起时间倒序（推荐），是否支持其他排序？→ Design 定。
 
 ## GitHub Issue（已确认后回填）
-- issue：（待 prd-reviewing 审查 + 用户确认后建）
+- issue：#64（https://github.com/wzhwwwzzzhhh/oper-mind/issues/64）
 - 状态同步：issue 状态与 PRD 状态一致（已确认=open，完成=closed）；中间过程留在 workpack。

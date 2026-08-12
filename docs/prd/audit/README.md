@@ -4,4 +4,4 @@
 
 | PRD | 主题 | 状态 |
 |---|---|---|
-| [P8-audit-activity-log.md](P8-audit-activity-log.md) | 审计操作记录——跨服务跨会话的活动检索 | 草稿 |
+| [P8-audit-activity-log.md](P8-audit-activity-log.md) | 审计操作记录——跨服务跨会话的活动检索 | 已确认 |

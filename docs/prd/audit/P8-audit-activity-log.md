@@ -1,10 +1,10 @@
 ---
 title: 审计操作记录——跨服务跨会话的活动检索
-status: 草稿
+status: 已确认
 domain: audit
 phase: P8
-issue:
-updated: 2026-08-10
+issue: 62
+updated: 2026-08-11
 ---
 
 # 审计操作记录——跨服务跨会话的活动检索 · PRD
@@ -105,5 +105,5 @@ updated: 2026-08-10
 3. **审批人字段处理**：无身份模型时，是显示"未记录"还是完全隐藏该列？→ 推荐前者（诚实标注）。
 
 ## GitHub Issue（已确认后回填）
-- issue：（待 prd-reviewing 审查 + 用户确认后建）
+- issue：#62（https://github.com/wzhwwwzzzhhh/oper-mind/issues/62）
 - 状态同步：issue 状态与 PRD 状态一致（已确认=open，完成=closed）；中间过程留在 workpack。
