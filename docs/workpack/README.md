@@ -29,6 +29,7 @@ docs/workpack/
 | P8 | service-registration | #60 | 2026-08-11 |
 | P8 | workbench-loop-closure | #57 | 2026-08-10 |
 | P8 | model-mode-switch | #56 | 2026-08-10 |
+| P8 | model-list-enumeration | #62 | 2026-08-12 |
 | P4.2 | db-agent-real | #1 | 2026-08-05 |
 | P4.3 | model-settings-real | #2 | 2026-08-05 |
 | P4.3 | service-context | #19 | 2026-08-06 |
