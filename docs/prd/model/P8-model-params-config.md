@@ -1,10 +1,10 @@
 ---
 title: 模型调用参数暴露——temperature 等运行参数的受控配置
-status: 草稿
+status: 已确认
 domain: model
 phase: P8
-issue:
-updated: 2026-08-11
+issue: 66
+updated: 2026-08-12
 ---
 
 # 模型调用参数暴露——temperature 等运行参数的受控配置 · PRD
@@ -55,7 +55,7 @@ updated: 2026-08-11
 
 ### 2. 生效链路
 - **输入**：会话/调查发起。
-- **行为**：`LLMClient.chat()` 读取配置参数替换写死默认值；未配置用后端默认（temperature 0.0）。
+- **行为**：`LLMClient` 读取配置的默认参数（当前 `chat()` 的 `temperature` 默认 0.0 写死，改为读取配置），未配置时仍用 0.0。现有调用点大多走默认值，无需逐个改调用点；显式传参处（graph.py 两处 `temperature=0.0`）保持显式值不变（Design 定是否改）。
 - **输出**：会话链路按配置参数运行。
 
 ### 3. 诚实标注
@@ -81,7 +81,7 @@ updated: 2026-08-11
 - [ ] AC5: 配置前后端一致（页面展示 = 后端读取值）。
 - [ ] AC6: 参数配置接口与响应不得包含 API Key 明文、完整 DSN 或 `sk-` 内容。
 - [ ] AC7: 未被允许暴露的参数（如未进 `chat()` 的 top_p）不得出现在配置界面。
-- [ ] AC8: mock 模式行为不变（不调真实 API，参数仅对 real 生效）。
+- [ ] AC8: mock 模式行为不变（mock 不调真实 API，参数不影响 mock 路径；配置仅对 real 调用生效）。
 - [ ] AC9: 回归 —— 既有 `test_model_config_api.py` / `test_model_provider_api.py` / `test_agent_gateway.py` 相关全绿；前端 `typecheck`/`test`/`build` 通过。
 
 ## 边界与约束
@@ -103,5 +103,5 @@ updated: 2026-08-11
 3. **是否影响 mock 评测**：mock 不调真实 API，参数不生效——是否需要在 mock 场景也暴露配置但标注"仅 real 生效"？→ Design 定。
 
 ## GitHub Issue（已确认后回填）
-- issue：（待 prd-reviewing 审查 + 用户确认后建）
+- issue：#66（https://github.com/wzhwwwzzzhhh/oper-mind/issues/66）
 - 状态同步：issue 状态与 PRD 状态一致（已确认=open，完成=closed）；中间过程留在 workpack。

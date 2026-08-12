@@ -1,10 +1,10 @@
 ---
 title: 调查重跑——重新生成并关联原 Run
-status: 草稿
+status: 已确认
 domain: session
 phase: P8
-issue:
-updated: 2026-08-11
+issue: 65
+updated: 2026-08-12
 ---
 
 # 调查重跑——重新生成并关联原 Run · PRD
@@ -104,5 +104,5 @@ updated: 2026-08-11
 3. **重跑是否带幂等键**：复用既有 Idempotency-Key 头，还是重跑端点内置幂等？→ 推荐复用既有机制，Design 定。
 
 ## GitHub Issue（已确认后回填）
-- issue：（待 prd-reviewing 审查 + 用户确认后建）
+- issue：#65（https://github.com/wzhwwwzzzhhh/oper-mind/issues/65）
 - 状态同步：issue 状态与 PRD 状态一致（已确认=open，完成=closed）；中间过程留在 workpack。
