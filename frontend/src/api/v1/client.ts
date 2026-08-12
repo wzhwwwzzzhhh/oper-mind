@@ -140,6 +140,14 @@ export interface ModelProviderResponse {
   meta: components['schemas']['ResponseMeta']
 }
 
+export interface ModelProviderModelsResponse {
+  provider_id: string
+  status: 'ok' | 'failed' | 'timeout' | 'unsupported'
+  models: string[] | null
+  error_code: string | null
+  meta: components['schemas']['ResponseMeta']
+}
+
 export interface CreateModelProviderRequest {
   name: string
   base_url: string
@@ -290,6 +298,10 @@ export interface ApiV1Client {
     provider_id: string,
     options?: ApiRequestOptions,
   ): Promise<ApiResponse<ModelProviderResponse>>
+  list_model_provider_models(
+    provider_id: string,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<ModelProviderModelsResponse>>
   delete_model_provider(
     provider_id: string,
     options?: ApiRequestOptions,
@@ -640,6 +652,15 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
         `/api/v1/model/providers/${encodeURIComponent(provider_id)}/verify`,
         request_options,
         { method: 'POST' },
+      ),
+    list_model_provider_models: (provider_id, request_options) =>
+      request_json<ModelProviderModelsResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        `/api/v1/model/providers/${encodeURIComponent(provider_id)}/models`,
+        request_options,
+        { method: 'GET' },
       ),
     delete_model_provider: (provider_id, request_options) =>
       request_json<void>(
