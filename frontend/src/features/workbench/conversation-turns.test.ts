@@ -192,4 +192,54 @@ describe('project_conversation_turns', () => {
       message: { content: '分页边界孤儿回复。' },
     })
   })
+
+  it('投影重跑来源并推导原 Run 的最新重跑', () => {
+    const rerun_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa11'
+    const rerun_message = {
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1',
+      session_id: SESSION_ID,
+      run_id: null,
+      role: 'user',
+      content: '请检查网关错误。',
+      created_at: '2026-07-29T01:10:00.000Z',
+    }
+    const later_rerun_message = {
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2',
+      session_id: SESSION_ID,
+      run_id: null,
+      role: 'user',
+      content: '请检查网关错误。',
+      created_at: '2026-07-29T01:11:00.000Z',
+    }
+    const original_run = { ...run(), rerun_of_run_id: null }
+    const first_rerun = { ...run(), id: rerun_id, input_message_id: rerun_message.id, rerun_of_run_id: RUN_ID }
+    const second_rerun = { ...run(), id: 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1', input_message_id: later_rerun_message.id, rerun_of_run_id: RUN_ID }
+
+    // runs 按创建时间倒序：最新重跑在前。
+    const projection = project_conversation_turns(
+      [later_rerun_message, rerun_message, user_message()],
+      [second_rerun, first_rerun, original_run],
+      SESSION_ID,
+    )
+
+    expect(projection.timeline[0]).toMatchObject({
+      kind: 'turn',
+      turn: { investigations: [{ investigation: { id: second_rerun.id, rerun_of_run_id: RUN_ID } }] },
+    })
+    // 倒序先到先得：最新重跑（second_rerun）胜出，原 Run 的映射指向它。
+    expect(projection.rerun_by_latest.get(RUN_ID)).toBe(second_rerun.id)
+    expect(projection.rerun_by_latest.has(rerun_id)).toBe(false)
+    expect(projection.issues).toEqual([])
+  })
+
+  it('重跑来源字段缺失时按普通调查投影且映射为空', () => {
+    const projection = project_conversation_turns([user_message()], [run()], SESSION_ID)
+
+    expect(projection.issues).toEqual([])
+    expect(projection.timeline[0]).toMatchObject({
+      kind: 'turn',
+      turn: { investigations: [{ investigation: { id: RUN_ID, rerun_of_run_id: undefined } }] },
+    })
+    expect(projection.rerun_by_latest.size).toBe(0)
+  })
 })

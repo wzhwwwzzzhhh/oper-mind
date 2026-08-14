@@ -21,6 +21,7 @@ import {
   get_session_query,
   list_run_events_query,
   list_services_query,
+  rerun_run_mutation,
   send_plain_message_mutation,
 } from '../../api/v1/queries'
 import {
@@ -170,6 +171,49 @@ function LoadMoreButton({
   )
 }
 
+async function invalidate_session_queries(query_client: ReturnType<typeof useQueryClient>, session_id: string): Promise<void> {
+  await Promise.all([
+    query_client.invalidateQueries({ queryKey: api_v1_query_keys.session_runs(session_id, { limit: API_V1_DEFAULT_PAGE_SIZE }) }),
+    query_client.invalidateQueries({ queryKey: api_v1_query_keys.session_messages(session_id, { limit: API_V1_DEFAULT_PAGE_SIZE }) }),
+  ])
+}
+
+function RerunControls({
+  investigation,
+  rerun_by,
+  session_id,
+}: {
+  investigation: ConversationInvestigation
+  rerun_by: ReadonlyMap<string, string> | undefined
+  session_id: string
+}): ReactElement {
+  const query_client = useQueryClient()
+  const rerun_mutation = useMutation({
+    ...rerun_run_mutation(),
+    onSuccess: () => void invalidate_session_queries(query_client, session_id),
+  })
+  const rerun = (): void => {
+    // 每次点击生成新幂等键（重跑语义是"新的一次重跑"）；按钮 loading 同步阻断双击。
+    rerun_mutation.mutate({ run_id: investigation.id, idempotency_key: globalThis.crypto.randomUUID() })
+  }
+  const rerun_by_latest = rerun_by?.get(investigation.id)
+  const terminal = investigation.status === 'succeeded' || investigation.status === 'failed' || investigation.status === 'cancelled'
+  return (
+    <UiSpace wrap className="investigation-process-actions">
+      {investigation.rerun_of_run_id && (
+        <UiText className="muted-note">重跑自 Run {investigation.rerun_of_run_id.slice(0, 8)}</UiText>
+      )}
+      {rerun_by_latest && <UiText className="muted-note">已被重跑为 Run {rerun_by_latest.slice(0, 8)}</UiText>}
+      {terminal && (
+        <UiButton loading={rerun_mutation.isPending} onClick={rerun} type="primary">重新生成</UiButton>
+      )}
+      {terminal && rerun_mutation.isError && (
+        <UiAlert description={safe_error(rerun_mutation.error).title} showIcon title="重新生成未完成" type="error" />
+      )}
+    </UiSpace>
+  )
+}
+
 function InvestigationProcess({ investigation, session_id }: { investigation: ConversationInvestigation; session_id: string }): ReactElement {
   const query_client = useQueryClient()
   const [events, set_events] = useState<PersistedRunEvent[]>([])
@@ -189,12 +233,10 @@ function InvestigationProcess({ investigation, session_id }: { investigation: Co
     const response = await api_v1_client.list_run_events(investigation.id, { limit: 100 })
     set_events((current_events) => merge_persisted_run_events(investigation.id, current_events, read_items(response.data)))
   }, [investigation.id])
-  const on_terminal = useCallback(async (): Promise<void> => {
-    await Promise.all([
-      query_client.invalidateQueries({ queryKey: api_v1_query_keys.session_runs(session_id, { limit: API_V1_DEFAULT_PAGE_SIZE }) }),
-      query_client.invalidateQueries({ queryKey: api_v1_query_keys.session_messages(session_id, { limit: API_V1_DEFAULT_PAGE_SIZE }) }),
-    ])
-  }, [query_client, session_id])
+  const on_terminal = useCallback(
+    (): Promise<void> => invalidate_session_queries(query_client, session_id),
+    [query_client, session_id],
+  )
   const cancel_mutation = useMutation({
     ...cancel_run_mutation(),
     onSuccess: () => void on_terminal(),
@@ -226,7 +268,17 @@ function InvestigationProcess({ investigation, session_id }: { investigation: Co
     </div>
   )
 }
-function AssistantReply({ investigation, output, session_id }: { investigation: ConversationInvestigation; output?: ConversationMessage; session_id: string }): ReactElement {
+function AssistantReply({
+  investigation,
+  output,
+  rerun_by,
+  session_id,
+}: {
+  investigation: ConversationInvestigation
+  output?: ConversationMessage
+  rerun_by?: ReadonlyMap<string, string>
+  session_id: string
+}): ReactElement {
   if (investigation.status === 'succeeded') {
     const result_read = investigation.result === null
       ? { issues: [{ field: 'result', message: '成功调查缺少结构化结果。' }] }
@@ -267,6 +319,7 @@ function AssistantReply({ investigation, output, session_id }: { investigation: 
             type="warning"
           />
         )}
+        <RerunControls investigation={investigation} rerun_by={rerun_by} session_id={session_id} />
       </div>
     )
   }
@@ -285,6 +338,7 @@ function AssistantReply({ investigation, output, session_id }: { investigation: 
           type="error"
         />
         <InvestigationProcess investigation={investigation} session_id={session_id} />
+        <RerunControls investigation={investigation} rerun_by={rerun_by} session_id={session_id} />
       </div>
     )
   }
@@ -294,6 +348,7 @@ function AssistantReply({ investigation, output, session_id }: { investigation: 
       <div className="message-body">
         <div className="message-label">OperMind · 调查已取消</div>
         <UiAlert description="可保留已保存的会话内容；当前不推断取消原因或继续执行。" showIcon title="调查已取消" type="warning" />
+        <RerunControls investigation={investigation} rerun_by={rerun_by} session_id={session_id} />
       </div>
     )
   }
@@ -306,6 +361,7 @@ function AssistantReply({ investigation, output, session_id }: { investigation: 
         <span className="meta-pill blue">工具调用中</span>
       </div>
       <InvestigationProcess investigation={investigation} session_id={session_id} />
+      <RerunControls investigation={investigation} rerun_by={rerun_by} session_id={session_id} />
     </div>
   )
 }
@@ -317,7 +373,17 @@ function service_result_title(service_id: string | undefined, services_by_id: Ma
   return service.kind ? `${service.title ?? service_id} · ${service.kind}` : service.title ?? service_id
 }
 
-function ConversationTurnCard({ turn, session_id, services_by_id }: { turn: ConversationTurn; session_id: string; services_by_id: Map<string, { kind?: string; title?: string }> }): ReactElement {
+function ConversationTurnCard({
+  rerun_by,
+  session_id,
+  services_by_id,
+  turn,
+}: {
+  rerun_by: ReadonlyMap<string, string> | undefined
+  session_id: string
+  services_by_id: Map<string, { kind?: string; title?: string }>
+  turn: ConversationTurn
+}): ReactElement {
   return (
     <>
       <article className="message user" aria-label="用户问题">
@@ -344,7 +410,7 @@ function ConversationTurnCard({ turn, session_id, services_by_id }: { turn: Conv
           <div className="message-avatar">O</div>
           <div className="service-investigation-result">
             <div className="service-result-label">{service_result_title(investigation.service_id, services_by_id)}</div>
-            <AssistantReply investigation={investigation} output={output} session_id={session_id} />
+            <AssistantReply investigation={investigation} output={output} rerun_by={rerun_by} session_id={session_id} />
           </div>
         </Container>
         )
@@ -354,7 +420,7 @@ function ConversationTurnCard({ turn, session_id, services_by_id }: { turn: Conv
 }
 
 function ConversationTimeline({ messages, runs, services_by_id, session_id }: { messages: unknown[]; runs: unknown[]; services_by_id: Map<string, { kind?: string; title?: string }>; session_id: string }): ReactElement {
-  const { issues, timeline } = useMemo(
+  const { issues, rerun_by_latest, timeline } = useMemo(
     () => project_conversation_turns(messages, runs, session_id),
     [messages, runs, session_id],
   )
@@ -391,7 +457,7 @@ function ConversationTimeline({ messages, runs, services_by_id, session_id }: { 
             </article>
           )
         }
-        return <ConversationTurnCard key={item.turn.input.id} services_by_id={services_by_id} session_id={session_id} turn={item.turn} />
+        return <ConversationTurnCard key={item.turn.input.id} rerun_by={rerun_by_latest} services_by_id={services_by_id} session_id={session_id} turn={item.turn} />
       })}
     </section>
   )

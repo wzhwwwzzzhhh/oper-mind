@@ -11,6 +11,7 @@ const empty_result_run_id = '77777777-7777-4777-8777-777777777771'
 const protocol_error_run_id = '88888888-8888-4888-8888-888888888885'
 const service_session_id = '44444444-4444-4444-8444-444444444444'
 const service_run_id = '44444444-4444-4444-8444-444444444445'
+const rerun_run_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa11'
 
 const order_service = {
   id: 'postgres-production',
@@ -308,9 +309,26 @@ const run = {
     created_at: '2026-07-27T01:00:33.000Z',
   },
   error: null,
+  rerun_of_run_id: null,
   created_at: '2026-07-27T01:00:30.000Z',
   started_at: '2026-07-27T01:00:31.000Z',
   finished_at: '2026-07-27T01:00:33.000Z',
+}
+
+/** 重跑受理后的新 Run（queued），来源指向 run_id。 */
+const rerun_run = {
+  id: rerun_run_id,
+  session_id,
+  trace_id,
+  input_message_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa12',
+  service_id: null,
+  status: 'queued',
+  result: null,
+  error: null,
+  rerun_of_run_id: run_id,
+  created_at: '2026-07-27T01:06:00.000Z',
+  started_at: null,
+  finished_at: null,
 }
 
 const run_events = [
@@ -434,6 +452,7 @@ const global_runs = [
     status: 'succeeded',
     created_at: '2026-07-27T01:00:30.000Z',
     error: null,
+    rerun_of_run_id: null,
   },
   {
     id: failed_run_id,
@@ -443,6 +462,7 @@ const global_runs = [
     status: 'failed',
     created_at: '2026-07-27T01:01:00.000Z',
     error: { code: 'DIAGNOSIS_FAILED', message: '诊断执行失败，请稍后重试' },
+    rerun_of_run_id: null,
   },
   {
     id: cancelled_run_id,
@@ -452,6 +472,7 @@ const global_runs = [
     status: 'cancelled',
     created_at: '2026-07-27T01:02:00.000Z',
     error: null,
+    rerun_of_run_id: null,
   },
 ]
 
@@ -742,6 +763,13 @@ export const api_v1_handlers = [
     return response(request, { run })
   }),
   http.post(/\/api\/v1\/runs\/([^/]+)\/cancel$/, () => HttpResponse.json(null, { status: 204 })),
+  http.post(/\/api\/v1\/runs\/([^/]+)\/rerun$/, async ({ request, params }) => {
+    const requested_run_id = String(params[0])
+    const idempotency_key = request.headers.get('Idempotency-Key')
+    if (!idempotency_key) return error_response(request, 'VALIDATION_ERROR', '缺少幂等键', 422)
+    if (requested_run_id !== run_id) return error_response(request, 'RUN_NOT_FOUND', '诊断运行不存在', 404)
+    return response(request, { run: rerun_run }, 202)
+  }),
   http.post(/\/api\/v1\/sessions\/([^/]+)\/messages$/, async ({ request }) => {
     const requested_session_id = new URL(request.url).pathname.split('/').at(-2)
     const payload = await request.json() as { content?: unknown }
