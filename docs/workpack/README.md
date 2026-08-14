@@ -21,12 +21,12 @@ docs/workpack/
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
 | （无活跃工作包） | | | | | |
-| P8 | rerun-investigation | 待用户确认计划 | [plan.md](P8-rerun-investigation/plan.md) | — | — |
 
 ## 已归档
 
 | 阶段 | 切片 | PR | 完成日期 |
 |---|---|---|---|
+| P8 | rerun-investigation | 待建 PR | 2026-08-14 |
 | P8 | audit-activity-log | #71 | 2026-08-12 |
 | P8 | session-management | #69 | 2026-08-12 |
 | P8 | service-registration | #60 | 2026-08-11 |

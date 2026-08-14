@@ -1,10 +1,10 @@
 ---
 title: 调查重跑——重新生成并关联原 Run
-status: 进行中
+status: 完成
 domain: session
 phase: P8
 issue: 65
-updated: 2026-08-12
+updated: 2026-08-14
 ---
 
 # 调查重跑——重新生成并关联原 Run · PRD
