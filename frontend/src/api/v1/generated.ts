@@ -156,6 +156,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/model/params": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Model Params
+         * @description 保存模型运行参数并返回更新后的完整安全配置视图（null=清除该项，幂等，无需 Idempotency-Key）。
+         */
+        put: operations["update_model_params_api_v1_model_params_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/model/providers": {
         parameters: {
             query?: never;
@@ -1448,6 +1468,8 @@ export interface components {
             mode_unavailable_reason?: unknown;
             diagnostic_model: unknown;
             judge_model?: unknown;
+            params: unknown;
+            params_defaults: unknown;
         };
         /**
          * ModelConfigResponse
@@ -1470,6 +1492,26 @@ export interface components {
             model: unknown;
             /** Status */
             status: unknown;
+        };
+        /**
+         * ModelParamsDefaultsResource
+         * @description 模型运行参数的后端默认值（诚实标注：未配置时用这些值）。
+         */
+        ModelParamsDefaultsResource: {
+            /** Temperature */
+            temperature?: unknown;
+            /** Max Tokens */
+            max_tokens?: unknown;
+        };
+        /**
+         * ModelParamsResource
+         * @description 模型运行参数的安全视图（已配置值，未配置为 None）。
+         */
+        ModelParamsResource: {
+            /** Temperature */
+            temperature?: unknown;
+            /** Max Tokens */
+            max_tokens?: unknown;
         };
         /**
          * ModelProviderListResponse
@@ -2028,6 +2070,16 @@ export interface components {
             mode: "mock" | "real";
         };
         /**
+         * UpdateModelParamsRequest
+         * @description 模型运行参数的写请求；字段为 null=清除该项（恢复默认），两项皆 null=清空。
+         */
+        UpdateModelParamsRequest: {
+            /** Temperature */
+            temperature?: number | null;
+            /** Max Tokens */
+            max_tokens?: number | null;
+        };
+        /**
          * UpdateModelProviderRequest
          * @description 编辑 Provider 请求；api_key 不传=不改，空串=清空。
          */
@@ -2332,6 +2384,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["UpdateModelModeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelConfigResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_model_params_api_v1_model_params_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateModelParamsRequest"];
             };
         };
         responses: {

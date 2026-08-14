@@ -391,6 +391,56 @@
   line-height: 1.6;
 }
 
+.params-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px;
+  margin: 0 16px 16px;
+}
+
+.params-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 180px;
+}
+
+.params-field span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.params-field span em {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--text-tertiary);
+}
+
+.params-field input {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.params-field input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.params-field small {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.params-save {
+  min-width: 96px;
+}
+
 .boundary-card ul {
   display: grid;
   gap: 10px;

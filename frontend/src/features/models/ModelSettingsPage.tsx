@@ -12,6 +12,7 @@ import {
   list_model_providers_query,
   list_provider_models_mutation,
   update_model_mode_mutation,
+  update_model_params_mutation,
   update_model_provider_mutation,
   verify_model_provider_mutation,
 } from '../../api/v1/queries'
@@ -25,9 +26,15 @@ interface ProviderFormState {
   api_key: string
 }
 
+interface ModelParamsFormState {
+  temperature: number | null
+  max_tokens: number | null
+}
+
 type ModelsStatus = 'idle' | 'loading' | 'ok' | 'failed'
 
 const empty_form: ProviderFormState = { name: '', base_url: '', model: '', api_key: '' }
+const empty_params: ModelParamsFormState = { temperature: null, max_tokens: null }
 
 function endpoint_label(endpoint: ModelProviderResource['active_endpoint']): string | null {
   if (endpoint === 'diagnostic') return '诊断生效'
@@ -78,6 +85,7 @@ export function ModelSettingsPage(): ReactElement {
   const [models_status, set_models_status] = useState<ModelsStatus>('idle')
   const [model_options, set_model_options] = useState<string[]>([])
   const [models_error, set_models_error] = useState<string | null>(null)
+  const [params_form, set_params_form] = useState<ModelParamsFormState>(empty_params)
 
   const show_toast = (message: string): void => {
     set_toast(message)
@@ -179,6 +187,27 @@ export function ModelSettingsPage(): ReactElement {
     onError: (error) => show_toast(error instanceof Error ? error.message : '切换运行模式失败。'),
   })
 
+  const params_mutation = useMutation({
+    ...update_model_params_mutation(),
+    onSuccess: (response) => {
+      const params = response.data.config.params
+      query_client.setQueryData(api_v1_query_keys.model_config(), response)
+      set_params_form({ temperature: params.temperature, max_tokens: params.max_tokens })
+      show_toast('运行参数已保存。')
+    },
+    onError: (error) => show_toast(error instanceof Error ? error.message : '保存运行参数失败。'),
+  })
+
+  const set_params_field = (field: keyof ModelParamsFormState, raw: string): void => {
+    set_params_form((current) => {
+      if (raw === '') {
+        return { ...current, [field]: null }
+      }
+      const value = Number(raw)
+      return { ...current, [field]: Number.isFinite(value) ? value : null }
+    })
+  }
+
   const reset_models_picker = (): void => {
     set_models_status('idle')
     set_model_options([])
@@ -230,6 +259,12 @@ export function ModelSettingsPage(): ReactElement {
     }
   }, [config])
 
+  useEffect(() => {
+    if (config != null) {
+      set_params_form({ temperature: config.params.temperature, max_tokens: config.params.max_tokens })
+    }
+  }, [config])
+
   return (
     <div className="model-page">
       <div className="model-breadcrumb"><button onClick={() => navigate('/workbench')} type="button">会话工作台</button><span>/</span><strong>模型服务</strong></div>
@@ -271,6 +306,32 @@ export function ModelSettingsPage(): ReactElement {
                 {config.mode === 'real' && !config.mode_available && (
                   <div className="mode-unavailable">real 模式已保存但当前不可用：{config.mode_unavailable_reason ?? '无可用 Provider/API Key'}。请先在下方配置并激活带 API Key 的 Provider，或切回 Mock。</div>
                 )}
+              </>
+            )}
+        </div>
+      </section>
+
+      <section className="model-section" id="params">
+        <div className="model-section-head"><div><h2>运行参数</h2><p>配置真实进入调用链的模型参数（temperature / max_tokens），保存后下一次会话立即生效。未配置时用后端默认值；留空输入可恢复默认。参数仅对 real 内容生成调用生效，路由与裁决保持确定性 0.0。</p></div></div>
+        <div className="model-card boundary-card">
+          {config == null
+            ? <div className="model-inline-state">正在读取当前生效配置…</div>
+            : (
+              <>
+                <div className="params-row">
+                  <label className="params-field">
+                    <span>temperature <em>（0–2）</em></span>
+                    <input aria-label="temperature" min={0} max={2} step={0.1} type="number" value={params_form.temperature ?? ''} onChange={(event) => set_params_field('temperature', event.target.value)} />
+                    <small>{params_form.temperature != null ? `已配置：${params_form.temperature}` : `未配置，默认 ${config.params_defaults.temperature}（确定性）`}</small>
+                  </label>
+                  <label className="params-field">
+                    <span>max_tokens <em>（正整数）</em></span>
+                    <input aria-label="max_tokens" min={1} max={102400} type="number" value={params_form.max_tokens ?? ''} onChange={(event) => set_params_field('max_tokens', event.target.value)} />
+                    <small>{params_form.max_tokens != null ? `已配置：${params_form.max_tokens}` : '未配置，不限制（用模型默认）'}</small>
+                  </label>
+                  <button className="model-button primary params-save" onClick={() => params_mutation.mutate({ temperature: params_form.temperature, max_tokens: params_form.max_tokens })} disabled={params_mutation.isPending} type="button">保存参数</button>
+                </div>
+                {config.mode === 'mock' && <div className="mode-unavailable">当前为 mock 模式，参数不生效；切换 real 后保存的参数立即进入调用链。</div>}
               </>
             )}
         </div>

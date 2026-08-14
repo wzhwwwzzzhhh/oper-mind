@@ -163,4 +163,33 @@ describe('ModelSettingsPage', () => {
     expect(screen.getByRole('button', { name: '刷新模型列表' })).toBeDisabled()
     expect(screen.getByText(/保存 Provider 后可刷新模型列表/)).toBeInTheDocument()
   })
+
+  it('未配置参数时展示默认值标注', async () => {
+    open_models()
+    render(<App />)
+
+    expect(await screen.findByText(/未配置，默认 0（确定性）/)).toBeInTheDocument()
+    expect(screen.getByText(/未配置，不限制（用模型默认）/)).toBeInTheDocument()
+  })
+
+  it('保存运行参数后展示已配置值', async () => {
+    open_models()
+    render(<App />)
+
+    const temperature = await screen.findByLabelText('temperature')
+    fireEvent.change(temperature, { target: { value: '0.5' } })
+    fireEvent.change(screen.getByLabelText('max_tokens'), { target: { value: '4096' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存参数' }))
+
+    expect(await screen.findByText('运行参数已保存。')).toBeInTheDocument()
+    expect(await screen.findByText('已配置：0.5')).toBeInTheDocument()
+    expect(screen.getByText('已配置：4096')).toBeInTheDocument()
+  })
+
+  it('mock 模式标注参数仅 real 生效', async () => {
+    open_models()
+    render(<App />)
+
+    expect(await screen.findByText(/当前为 mock 模式，参数不生效/)).toBeInTheDocument()
+  })
 })

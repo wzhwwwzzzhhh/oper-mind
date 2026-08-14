@@ -43,6 +43,20 @@ class ModelEndpointResource(ApiV1Model):
     status: Literal["configured", "not_configured"]
 
 
+class ModelParamsResource(ApiV1Model):
+    """模型运行参数的安全视图（已配置值，未配置为 None）。"""
+
+    temperature: float | None = None
+    max_tokens: int | None = None
+
+
+class ModelParamsDefaultsResource(ApiV1Model):
+    """模型运行参数的后端默认值（诚实标注：未配置时用这些值）。"""
+
+    temperature: float = 0.0
+    max_tokens: int | None = None
+
+
 class ModelConfigResource(ApiV1Model):
     """模型配置的安全视图，不包含 API Key 或完整连接 URL。"""
 
@@ -52,6 +66,8 @@ class ModelConfigResource(ApiV1Model):
     mode_unavailable_reason: str | None = None
     diagnostic_model: ModelEndpointResource
     judge_model: ModelEndpointResource | None = None
+    params: ModelParamsResource
+    params_defaults: ModelParamsDefaultsResource
 
 
 class ModelConfigResponse(ApiV1Model):
@@ -161,6 +177,13 @@ class UpdateModelModeRequest(ApiV1Model):
     """运行时切换 mock / real 模式的写请求。"""
 
     mode: Literal["mock", "real"]
+
+
+class UpdateModelParamsRequest(ApiV1Model):
+    """模型运行参数的写请求；字段为 null=清除该项（恢复默认），两项皆 null=清空。"""
+
+    temperature: float | None = Field(default=None, ge=0, le=2)
+    max_tokens: int | None = Field(default=None, ge=1, le=102400)
 
 
 class CursorPage(ApiV1Model):

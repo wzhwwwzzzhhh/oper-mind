@@ -72,6 +72,8 @@ from src.api.v1.schemas import (
     ModelConfigResource,
     ModelConfigResponse,
     ModelEndpointResource,
+    ModelParamsDefaultsResource,
+    ModelParamsResource,
     ModelProviderListResponse,
     ModelProviderModelsResponse,
     ModelProviderResponse,
@@ -91,6 +93,7 @@ from src.api.v1.schemas import (
     SessionListResponse,
     SessionResponse,
     UpdateModelModeRequest,
+    UpdateModelParamsRequest,
     UpdateModelProviderRequest,
     UpdateServiceRequest,
     UpdateSessionRequest,
@@ -112,6 +115,7 @@ from src.application.errors import (
 )
 from src.application.knowledge import KnowledgeReaderService, KnowledgeTimeoutError
 from src.application.model_mode import ModelModeApplicationService, resolve_runtime_mode
+from src.application.model_params import ModelParamsApplicationService, resolve_model_params
 from src.application.model_providers import (
     ActivateModelProviderCommand,
     CreateModelProviderCommand,
@@ -135,8 +139,10 @@ from src.config import load_monitor_settings
 from src.domain.actions import ActionProposalStatus
 from src.domain.audit import AuditActivityType, AuditOutcome
 from src.domain.diagnosis import RunStatus, SessionStatus
+from src.domain.model_params import ModelParams
 from src.domain.model_provider import ProviderEndpoint
 from src.domain.records import DiagnosisRunData, RunEventData, SessionData
+from src.infrastructure.persistence.app_settings_repository import SqlAlchemyAppSettingsStore
 from src.infrastructure.persistence.repositories import (
     SqlAlchemyDiagnosisResultRepository,
     SqlAlchemyDiagnosisRunRepository,
@@ -186,6 +192,7 @@ APPLICATION_ERROR_STATUS = {
     "SECRET_KEY_NOT_CONFIGURED": 409,
     "PROVIDER_IDEMPOTENCY_REUSED": 409,
     "MODEL_MODE_PERSISTENCE_FAILED": 500,
+    "MODEL_PARAMS_PERSISTENCE_FAILED": 500,
     "KNOWLEDGE_TIMEOUT": 503,
     "KNOWLEDGE_DOCUMENT_NOT_FOUND": 404,
 }
@@ -339,6 +346,7 @@ def _model_config_resource(services: V1Services) -> ModelConfigResource:
             status="not_configured",
         )
     judge = _model_endpoint_resource(config.get("judge_llm"))
+    params = resolve_model_params(SqlAlchemyAppSettingsStore(services.session_factory))
     return ModelConfigResource(
         mode=runtime["mode"],
         mode_source=runtime["mode_source"],
@@ -346,6 +354,14 @@ def _model_config_resource(services: V1Services) -> ModelConfigResource:
         mode_unavailable_reason=runtime["mode_unavailable_reason"],
         diagnostic_model=diagnostic,
         judge_model=judge,
+        params=ModelParamsResource(
+            temperature=params["temperature"],
+            max_tokens=params["max_tokens"],
+        ),
+        params_defaults=ModelParamsDefaultsResource(
+            temperature=params["temperature_default"],
+            max_tokens=params["max_tokens_default"],
+        ),
     )
 
 
@@ -526,6 +542,25 @@ def update_model_mode(
     """运行时切换 mock / real 模式并返回更新后的完整安全配置视图（幂等，无需 Idempotency-Key）。"""
     try:
         ModelModeApplicationService(services.session_factory).set_mode(payload.mode)
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return ModelConfigResponse(config=_model_config_resource(services), meta=meta)
+
+
+@router.put("/model/params", response_model=ModelConfigResponse)
+def update_model_params(
+    payload: UpdateModelParamsRequest,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> ModelConfigResponse:
+    """保存模型运行参数并返回更新后的完整安全配置视图（null=清除该项，幂等，无需 Idempotency-Key）。"""
+    try:
+        ModelParamsApplicationService(SqlAlchemyAppSettingsStore(services.session_factory)).set(
+            ModelParams(temperature=payload.temperature, max_tokens=payload.max_tokens)
+        )
     except ApplicationError as error:
         raise_application_error(error)
     meta = response_meta(request)
