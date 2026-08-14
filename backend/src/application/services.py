@@ -29,6 +29,7 @@ from src.application.errors import (
     RunAlreadyTerminalError,
     RunInputMessageInvalidError,
     RunNotFoundError,
+    RunNotTerminalError,
     ServiceContextRequiredError,
     ServiceNotFoundError,
     SessionArchivedError,
@@ -58,6 +59,7 @@ from src.infrastructure.persistence.repositories import (
 TransactionT = TypeVar("TransactionT")
 IDEMPOTENCY_RETENTION = timedelta(hours=24)
 RUN_CREATE_ENDPOINT = "/api/v1/sessions/{session_id}/runs"
+RUN_RERUN_ENDPOINT = "/api/v1/runs/{run_id}/rerun"
 
 
 class AcceptedRun(BaseModel):
@@ -173,13 +175,14 @@ class RunApplicationService:
         command: CreateRunCommand,
         fingerprint: str,
         original_error: IntegrityError,
+        endpoint: str = RUN_CREATE_ENDPOINT,
     ) -> AcceptedRun:
         """处理唯一键竞争后的幂等重读。"""
 
         def operation(session: Session) -> AcceptedRun:
             key = SqlAlchemyRunIdempotencyKeyRepository(session).get_by_scope(
                 command.session_id,
-                RUN_CREATE_ENDPOINT,
+                endpoint,
                 command.idempotency_key,
             )
             if key is None:
@@ -258,6 +261,80 @@ class RunApplicationService:
 
         return _in_transaction(self._session_factory, operation)
 
+    def rerun_run(self, run_id: UUID, idempotency_key: UUID) -> AcceptedRun:
+        """对已结束 Run 发起重跑：复用原 query 与 service 上下文受理新 Run 并记录来源。"""
+        try:
+            return _in_transaction(
+                self._session_factory,
+                lambda session: self._rerun_run_in_transaction(session, run_id, idempotency_key),
+            )
+        except IntegrityError as error:
+            return self._load_rerun_idempotency_after_conflict(run_id, idempotency_key, error)
+
+    def _rerun_run_in_transaction(
+        self,
+        session: Session,
+        run_id: UUID,
+        idempotency_key: UUID,
+    ) -> AcceptedRun:
+        """在调用方事务内构造重跑命令并复用受理核心。"""
+        command = self._build_rerun_command(session, run_id, idempotency_key)
+        fingerprint = _rerun_fingerprint(run_id, command.query, command.service_id)
+        return self._accept_run_in_transaction(
+            session,
+            command,
+            fingerprint,
+            rerun_of_run_id=run_id,
+            endpoint=RUN_RERUN_ENDPOINT,
+        )
+
+    def _build_rerun_command(
+        self,
+        session: Session,
+        run_id: UUID,
+        idempotency_key: UUID,
+    ) -> CreateRunCommand:
+        """读取原 Run 与其输入消息，构造复用原上下文的重跑命令。"""
+        run_repository = SqlAlchemyDiagnosisRunRepository(session)
+        original = run_repository.get_by_id(run_id)
+        if original is None:
+            raise RunNotFoundError()
+        if original.status not in {RunStatus.SUCCEEDED, RunStatus.FAILED, RunStatus.CANCELLED}:
+            raise RunNotTerminalError()
+        input_message = SqlAlchemyMessageRepository(session).get_by_id(original.input_message_id)
+        if (
+            input_message is None
+            or input_message.session_id != original.session_id
+            or input_message.role != MessageRole.USER
+        ):
+            raise RunInputMessageInvalidError()
+        return CreateRunCommand(
+            session_id=original.session_id,
+            query=input_message.content,
+            idempotency_key=idempotency_key,
+            service_id=original.service_id,
+        )
+
+    def _load_rerun_idempotency_after_conflict(
+        self,
+        run_id: UUID,
+        idempotency_key: UUID,
+        original_error: IntegrityError,
+    ) -> AcceptedRun:
+        """处理重跑唯一键竞争后的幂等重读（重新构造命令，复用既有重读路径）。"""
+        session = self._session_factory()
+        try:
+            command = self._build_rerun_command(session, run_id, idempotency_key)
+        finally:
+            session.close()
+        fingerprint = _rerun_fingerprint(run_id, command.query, command.service_id)
+        return self._load_idempotency_after_conflict(
+            command,
+            fingerprint,
+            original_error,
+            endpoint=RUN_RERUN_ENDPOINT,
+        )
+
     def _is_cancelled(self, run_id: UUID) -> bool:
         """读取 Run 取消状态，供执行循环在事件检查点判断是否停止。"""
         session = self._session_factory()
@@ -271,6 +348,8 @@ class RunApplicationService:
         session: Session,
         command: CreateRunCommand,
         fingerprint: str,
+        rerun_of_run_id: UUID | None = None,
+        endpoint: str = RUN_CREATE_ENDPOINT,
     ) -> AcceptedRun:
         session_repository = SqlAlchemySessionRepository(session)
         idempotency_repository = SqlAlchemyRunIdempotencyKeyRepository(session)
@@ -289,7 +368,7 @@ class RunApplicationService:
 
         existing = idempotency_repository.get_by_scope(
             command.session_id,
-            RUN_CREATE_ENDPOINT,
+            endpoint,
             command.idempotency_key,
         )
         if existing is not None:
@@ -313,11 +392,12 @@ class RunApplicationService:
             input_message_id=input_message.id,
             status=RunStatus.QUEUED,
             next_event_sequence=2,
+            rerun_of_run_id=rerun_of_run_id,
             created_at=now,
         )
         idempotency = RunIdempotencyKeyData(
             session_id=command.session_id,
-            endpoint=RUN_CREATE_ENDPOINT,
+            endpoint=endpoint,
             idempotency_key=command.idempotency_key,
             request_fingerprint=fingerprint,
             run_id=run.id,
@@ -543,6 +623,12 @@ def _resolve_run_service_id(session: SessionData, command: CreateRunCommand) -> 
 def _query_fingerprint(query: str, service_id: str | None = None) -> str:
     """计算稳定请求语义指纹；无显式服务时保持既有幂等值。"""
     value = query.strip() if service_id is None else f"{query.strip()}\n{service_id}"
+    return sha256(value.encode("utf-8")).hexdigest()
+
+
+def _rerun_fingerprint(run_id: UUID, query: str, service_id: str | None = None) -> str:
+    """计算重跑请求语义指纹：必须包含原 run_id，避免相同 query 的不同原 Run 互相误判。"""
+    value = f"{run_id}\n{query.strip()}\n{service_id or ''}"
     return sha256(value.encode("utf-8")).hexdigest()
 
 

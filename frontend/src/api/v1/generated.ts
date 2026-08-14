@@ -549,6 +549,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/runs/{run_id}/rerun": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rerun Run
+         * @description 对已结束 Run 发起重跑：复用原问题与服务上下文，新 Run 记录来源，成功后后台执行。
+         */
+        post: operations["rerun_run_api_v1_runs__run_id__rerun_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs/{run_id}/action-proposal": {
         parameters: {
             query?: never;
@@ -1220,6 +1240,8 @@ export interface components {
             status: unknown;
             result?: unknown;
             error?: unknown;
+            /** Rerun Of Run Id */
+            rerun_of_run_id?: unknown;
             /** Created At */
             created_at: unknown;
             /** Started At */
@@ -1277,6 +1299,8 @@ export interface components {
             /** Created At */
             created_at: unknown;
             error?: unknown;
+            /** Rerun Of Run Id */
+            rerun_of_run_id?: unknown;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -3197,6 +3221,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rerun_run_api_v1_runs__run_id__rerun_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunResponse"];
+                };
             };
             /** @description Validation Error */
             422: {

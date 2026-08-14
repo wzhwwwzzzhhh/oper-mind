@@ -241,8 +241,18 @@ def test_摘要字段白名单且失败错误经白名单映射(persistence_runt
 
     assert response.status_code == 200
     item = response.json()["items"][0]
-    assert set(item.keys()) == {"id", "session_id", "session_title", "service_id", "status", "created_at", "error"}
+    assert set(item.keys()) == {
+        "id",
+        "session_id",
+        "session_title",
+        "service_id",
+        "status",
+        "created_at",
+        "error",
+        "rerun_of_run_id",
+    }
     assert item["error"] == {"code": "DIAGNOSIS_FAILED", "message": "诊断执行失败，请稍后重试"}
+    assert item["rerun_of_run_id"] is None
     for forbidden in ("trace_id", "input_message_id", "result", "error_code", "error_message", "evidence", "summary"):
         assert forbidden not in item
 

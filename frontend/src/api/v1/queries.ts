@@ -211,6 +211,19 @@ export function cancel_run_mutation() {
 }
 
 
+export interface RerunRunMutationVariables {
+  idempotency_key: string
+  run_id: string
+}
+
+export function rerun_run_mutation() {
+  return mutationOptions({
+    mutationFn: ({ run_id, idempotency_key }: RerunRunMutationVariables) =>
+      api_v1_client.rerun_run(run_id, { idempotency_key } satisfies CreateRunOptions),
+  })
+}
+
+
 export interface CreateRunMutationVariables {
   idempotency_key: string
   query: CreateRunRequest['query']

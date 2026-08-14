@@ -130,6 +130,7 @@ def run_resource(value: DiagnosisRunData, result: DiagnosisResultData | None) ->
         status=value.status.value,
         result=result_resource(result) if result is not None else None,
         error=error,
+        rerun_of_run_id=value.rerun_of_run_id,
         created_at=value.created_at,
         started_at=value.started_at,
         finished_at=value.finished_at,
@@ -149,6 +150,7 @@ def global_run_summary_resource(value: GlobalRunData) -> GlobalRunSummaryResourc
         status=value.status.value,
         created_at=value.created_at,
         error=error,
+        rerun_of_run_id=value.rerun_of_run_id,
     )
 
 

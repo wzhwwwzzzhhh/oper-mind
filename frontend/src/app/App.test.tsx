@@ -748,4 +748,92 @@ describe('App', () => {
     expect(screen.getByText('本地人工审批限制')).toBeInTheDocument()
   })
 
+  it('已结束调查提供重新生成，点击后发起重跑并进入新调查跟踪', async () => {
+    const session_id = api_v1_contract_fixtures.session_id
+    const run_id = api_v1_contract_fixtures.run_id
+    const rerun_run_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa11'
+    let rerun_posted = 0
+    const resources = conversation_resources()
+    const rerun_message = {
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa12',
+      session_id,
+      run_id: null,
+      role: 'user',
+      content: '请检查 Nginx 5xx。',
+      created_at: '2026-07-28T08:01:00.000Z',
+    }
+    const rerun_run = {
+      ...resources.run,
+      id: rerun_run_id,
+      input_message_id: rerun_message.id,
+      status: 'queued',
+      result: null,
+      error: null,
+      rerun_of_run_id: run_id,
+      created_at: '2026-07-28T08:01:00.000Z',
+      started_at: null,
+      finished_at: null,
+    }
+    use_conversation_handlers(resources)
+    server.use(
+      http.post(new RegExp(`/api/v1/runs/${run_id}/rerun$`), ({ request }) => {
+        rerun_posted += 1
+        return response(request, { run: rerun_run }, 202)
+      }),
+      http.get(new RegExp(`/api/v1/sessions/${session_id}/runs$`), ({ request }) =>
+        response(request, { items: [rerun_run, resources.run], page: { next_cursor: null, has_more: false } }),
+      ),
+      http.get(new RegExp(`/api/v1/sessions/${session_id}/messages$`), ({ request }) =>
+        response(request, { items: [rerun_message, ...resources.messages], page: { next_cursor: null, has_more: false } }),
+      ),
+    )
+    open_path(`/workbench/sessions/${session_id}`)
+    render(<App />)
+
+    expect(await screen.findByRole('button', { name: '重新生成' }, { timeout: 3000 })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '重新生成' }))
+
+    await waitFor(() => expect(rerun_posted).toBe(1))
+    // invalidate 后会话 runs/messages 被重新拉取。
+    await waitFor(() => expect(request_paths.filter((path) => path === `/api/v1/sessions/${session_id}/runs`).length).toBeGreaterThanOrEqual(2))
+    await waitFor(() => expect(request_paths.filter((path) => path === `/api/v1/sessions/${session_id}/messages`).length).toBeGreaterThanOrEqual(2))
+    // 重跑请求发出后 invalidate 会话列表：新 Run 展示「重跑自原 Run」，原 Run 展示「已被重跑」。
+    expect(await screen.findByText(/重跑自 Run 33333333/, undefined, { timeout: 3000 })).toBeInTheDocument()
+    expect(await screen.findByText(/已被重跑为 Run aaaaaaaa/)).toBeInTheDocument()
+    // 新 Run 是 queued：不提供再次重跑按钮。
+    expect(screen.getAllByRole('button', { name: '重新生成' })).toHaveLength(1)
+  })
+
+  it('未结束调查不提供重新生成按钮', async () => {
+    const session_id = api_v1_contract_fixtures.session_id
+    use_conversation_handlers(conversation_resources({ include_output: false, run_status: 'running' }))
+    open_path(`/workbench/sessions/${session_id}`)
+    render(<App />)
+
+    expect(await screen.findByRole('button', { name: '停止调查' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '重新生成' })).not.toBeInTheDocument()
+  })
+
+  it('重新生成失败如实提示且不影响原调查', async () => {
+    const session_id = api_v1_contract_fixtures.session_id
+    const run_id = api_v1_contract_fixtures.run_id
+    let rerun_posted = 0
+    use_conversation_handlers(conversation_resources())
+    server.use(
+      http.post(new RegExp(`/api/v1/runs/${run_id}/rerun$`), ({ request }) => {
+        rerun_posted += 1
+        return response(request, { error: { code: 'RUN_NOT_FOUND', message: '诊断运行不存在', details: null } }, 404)
+      }),
+    )
+    open_path(`/workbench/sessions/${session_id}`)
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: '重新生成' }))
+
+    await waitFor(() => expect(rerun_posted).toBe(1))
+    expect(await screen.findByText('重新生成未完成')).toBeInTheDocument()
+    // 原调查仍展示（页面没有用本地数据伪造新 Run）。
+    expect(screen.getByText('初步判断是上游连接池已经耗尽。')).toBeInTheDocument()
+  })
+
 })

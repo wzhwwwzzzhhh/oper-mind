@@ -20,6 +20,7 @@ export interface ConversationInvestigation {
   id: string
   input_message_id: string
   result: unknown
+  rerun_of_run_id?: string
   service_id?: string
   status: InvestigationStatus
   trace_id?: string
@@ -40,6 +41,8 @@ export type ConversationTimelineItem =
 export interface ConversationProjection {
   issues: string[]
   timeline: ConversationTimelineItem[]
+  /** 原 Run id → 最新重跑 Run id（runs 按创建时间倒序，先到先得即最新）。 */
+  rerun_by_latest: ReadonlyMap<string, string>
 }
 
 const MESSAGE_ROLES: ReadonlySet<string> = new Set(['assistant', 'system', 'user'])
@@ -82,6 +85,7 @@ function read_investigation(value: unknown, session_id: string, issues: string[]
   const status = resource_optional_string(value, 'status')
   const trace_id = resource_optional_string(value, 'trace_id')
   const service_id = resource_optional_string(value, 'service_id')
+  const rerun_of_run_id = resource_optional_string(value, 'rerun_of_run_id')
   const record = read_record(value)
 
   if (!id || !resource_session_id || !input_message_id || !status || !record) {
@@ -106,6 +110,7 @@ function read_investigation(value: unknown, session_id: string, issues: string[]
     id,
     input_message_id,
     result: resource_value(value, 'result'),
+    rerun_of_run_id,
     service_id,
     status: status as InvestigationStatus,
     trace_id,
@@ -226,7 +231,14 @@ export function project_conversation_turns(
     }
   }
 
-  return { issues, timeline: grouped_timeline }
+  // runs 按创建时间倒序提供：先到先得即最新重跑。
+  const rerun_by_latest = new Map<string, string>()
+  for (const investigation of investigations) {
+    const from = investigation.rerun_of_run_id
+    if (from && !rerun_by_latest.has(from)) rerun_by_latest.set(from, investigation.id)
+  }
+
+  return { issues, timeline: grouped_timeline, rerun_by_latest }
 }
 
 export function investigation_status_text(status: InvestigationStatus): string {

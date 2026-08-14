@@ -178,6 +178,7 @@ APPLICATION_ERROR_STATUS = {
     "RUN_NOT_FOUND": 404,
     "SESSION_ARCHIVED": 409,
     "RUN_ALREADY_TERMINAL": 409,
+    "RUN_NOT_TERMINAL": 409,
     "INVESTIGATION_REQUIRED": 409,
     "IDEMPOTENCY_KEY_REUSED": 409,
     "RUN_INPUT_MESSAGE_INVALID": 409,
@@ -1166,6 +1167,32 @@ def cancel_run(
         raise_application_error(error)
     meta = response_meta(request)
     return Response(status_code=204, headers={"X-Request-Id": str(meta.request_id)})
+
+
+@router.post("/runs/{run_id}/rerun", response_model=RunResponse, status_code=202)
+def rerun_run(
+    run_id: UUID,
+    request: Request,
+    response: Response,
+    background_tasks: BackgroundTasks,
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key")],
+    services: V1Services = Depends(get_v1_services),
+) -> RunResponse:
+    """对已结束 Run 发起重跑：复用原问题与服务上下文，新 Run 记录来源，成功后后台执行。"""
+    try:
+        accepted = services.run_service.rerun_run(
+            run_id,
+            parse_idempotency_key(idempotency_key),
+        )
+    except ApplicationError as error:
+        raise_application_error(error)
+
+    if not accepted.replayed:
+        background_tasks.add_task(services.run_service.execute_run, accepted.run.id)
+    resource = _run_response(services, accepted.run.id)
+    meta = response_meta(request, resource.trace_id)
+    apply_headers(response, meta)
+    return RunResponse(run=resource, meta=meta)
 
 
 @router.get("/runs/{run_id}/action-proposal", response_model=RunActionProposalResponse)

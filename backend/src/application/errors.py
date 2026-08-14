@@ -41,6 +41,13 @@ class RunAlreadyTerminalError(ApplicationError):
     message = "诊断运行已结束。"
 
 
+class RunNotTerminalError(ApplicationError):
+    """Run 尚未结束，不能发起重跑。"""
+
+    code = "RUN_NOT_TERMINAL"
+    message = "诊断运行尚未结束，不能重跑。"
+
+
 class IdempotencyKeyReusedError(ApplicationError):
     """同一个幂等键被不同请求语义重用。"""
 

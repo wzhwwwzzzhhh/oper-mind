@@ -90,4 +90,30 @@ describe('RunsPage 最近调查', () => {
 
     expect(await within(main()).findByText('当前筛选下还没有调查')).toBeInTheDocument()
   })
+
+  it('重跑来源的 Run 行展示「重跑自」标记', async () => {
+    server.use(
+      http.get('/api/v1/runs', ({ request }) =>
+        response(request, {
+          items: [{
+            id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa11',
+            session_id: '11111111-1111-4111-8111-111111111111',
+            session_title: 'Nginx 5xx 排查',
+            service_id: null,
+            status: 'succeeded',
+            created_at: '2026-07-27T01:06:00.000Z',
+            error: null,
+            rerun_of_run_id: '33333333-3333-4333-8333-333333333333',
+          }],
+          page: { next_cursor: null, has_more: false },
+        }),
+      ),
+    )
+    open_runs()
+    render(<App />)
+
+    const rows = await run_rows()
+    expect(rows).toHaveLength(1)
+    expect(within(rows[0]).getByText('重跑自 33333333')).toBeInTheDocument()
+  })
 })

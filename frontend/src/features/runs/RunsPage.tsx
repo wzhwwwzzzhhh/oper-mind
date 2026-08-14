@@ -31,6 +31,7 @@ const STATUS_TEXT: Record<string, string> = {
 
 interface GlobalRunView {
   id: string
+  rerun_of_run_id: string | null
   session_id: string
   session_title: string
   service_id: string | null
@@ -55,6 +56,7 @@ function read_run_summary(value: unknown): GlobalRunView | null {
   if (!id || !session_id || !session_title || !status || !created_at) return null
   return {
     id,
+    rerun_of_run_id: resource_optional_string(value, 'rerun_of_run_id') ?? null,
     session_id,
     session_title,
     service_id: resource_optional_string(value, 'service_id') ?? null,
@@ -70,6 +72,7 @@ function RunRow({ run, on_open }: { run: GlobalRunView; on_open: () => void }): 
       <UiSpace direction="vertical" size={2} style={{ width: '100%', textAlign: 'left' }}>
         <UiSpace wrap>
           <UiTag color={STATUS_COLORS[run.status] ?? 'gold'}>{STATUS_TEXT[run.status] ?? run.status}</UiTag>
+          {run.rerun_of_run_id && <UiTag>重跑自 {run.rerun_of_run_id.slice(0, 8)}</UiTag>}
           <UiText className="muted-note">{run.created_at}</UiText>
           <UiText className="muted-note">{run.service_id ?? '未关联服务'}</UiText>
         </UiSpace>

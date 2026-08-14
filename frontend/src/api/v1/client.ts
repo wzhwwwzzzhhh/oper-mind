@@ -414,6 +414,7 @@ export interface ApiV1Client {
     payload: CreateRunRequest,
     options: CreateRunOptions,
   ): Promise<ApiResponse<RunResponse>>
+  rerun_run(run_id: string, options: CreateRunOptions): Promise<ApiResponse<RunResponse>>
   get_run_action_proposal(
     run_id: string,
     options?: ApiRequestOptions,
@@ -907,6 +908,18 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
         request_options,
         {
           body: payload,
+          idempotency_key: request_options.idempotency_key,
+          method: 'POST',
+        },
+      ),
+    rerun_run: (run_id, request_options) =>
+      request_json<RunResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        `/api/v1/runs/${encodeURIComponent(run_id)}/rerun`,
+        request_options,
+        {
           idempotency_key: request_options.idempotency_key,
           method: 'POST',
         },
