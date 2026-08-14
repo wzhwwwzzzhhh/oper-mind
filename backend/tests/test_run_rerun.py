@@ -22,10 +22,7 @@ from src.application.contracts import (
     DiagnosisExecutionResult,
 )
 from src.application.errors import (
-    IdempotencyKeyReusedError,
     RunNotTerminalError,
-    RunNotFoundError,
-    SessionArchivedError,
 )
 from src.application.services import (
     RUN_RERUN_ENDPOINT,
@@ -33,16 +30,14 @@ from src.application.services import (
     SessionApplicationService,
     _rerun_fingerprint,
 )
-from src.domain.diagnosis import MessageRole, RunEventType, RunStatus, SessionStatus
-from src.domain.records import DiagnosisRunData, MessageData, RunIdempotencyKeyData, SessionData
+from src.domain.diagnosis import RunEventType, RunStatus
+from src.domain.records import RunIdempotencyKeyData
 from src.domain.services import ServiceDefinitionData, ServiceRegistry
 from src.infrastructure.diagnosis.result_assembler import ConservativeResultAssembler
 from src.infrastructure.persistence.database import PersistenceRuntime, create_persistence_runtime
 from src.infrastructure.persistence.repositories import (
     SqlAlchemyDiagnosisRunRepository,
-    SqlAlchemyMessageRepository,
     SqlAlchemyRunIdempotencyKeyRepository,
-    SqlAlchemySessionRepository,
 )
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
@@ -244,7 +239,7 @@ def test_rerun_复用绑定服务的service上下文(v1_client: TestClient) -> N
     assert original["service_id"] == "postgres-production"
 
     rerun_response = v1_client.post(
-        f"/api/v1/runs/{str(original['id'])}/rerun", headers=_run_headers()
+        f"/api/v1/runs/{original['id']!s}/rerun", headers=_run_headers()
     )
     assert rerun_response.status_code == 202
     assert rerun_response.json()["run"]["service_id"] == "postgres-production"
@@ -258,7 +253,7 @@ def test_rerun_失败run可重跑(failing_v1_client: TestClient) -> None:
     original = _accept_and_finish(client, session_id, "订单服务变慢，帮我排查。")
     assert original["status"] == "failed"
 
-    rerun_response = client.post(f"/api/v1/runs/{str(original['id'])}/rerun", headers=_run_headers())
+    rerun_response = client.post(f"/api/v1/runs/{original['id']!s}/rerun", headers=_run_headers())
     assert rerun_response.status_code == 202
     assert rerun_response.json()["run"]["rerun_of_run_id"] == str(original["id"])
 
@@ -350,9 +345,9 @@ def test_rerun_同幂等键对不同原run重跑返回指纹冲突(v1_client: Te
     second = _accept_and_finish(v1_client, session_id, "订单服务变慢，帮我排查。")
     key = _run_headers()
 
-    ok = v1_client.post(f"/api/v1/runs/{str(first['id'])}/rerun", headers=key)
+    ok = v1_client.post(f"/api/v1/runs/{first['id']!s}/rerun", headers=key)
     assert ok.status_code == 202
-    conflict = v1_client.post(f"/api/v1/runs/{str(second['id'])}/rerun", headers=key)
+    conflict = v1_client.post(f"/api/v1/runs/{second['id']!s}/rerun", headers=key)
     assert conflict.status_code == 409
     assert conflict.json()["error"]["code"] == "IDEMPOTENCY_KEY_REUSED"
 
@@ -365,7 +360,7 @@ def test_rerun_归档会话拒绝(v1_client: TestClient) -> None:
     archived = v1_client.delete(f"/api/v1/sessions/{session_id}")
     assert archived.status_code == 204
 
-    response = v1_client.post(f"/api/v1/runs/{str(original['id'])}/rerun", headers=_run_headers())
+    response = v1_client.post(f"/api/v1/runs/{original['id']!s}/rerun", headers=_run_headers())
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "SESSION_ARCHIVED"
 
@@ -382,7 +377,7 @@ def test_rerun_响应无未脱敏内容(v1_client: TestClient, failing_v1_client
     session = _create_session(v1_client)
     session_id = str(session["id"])
     original = _accept_and_finish(v1_client, session_id, "订单服务变慢，帮我排查。")
-    response = v1_client.post(f"/api/v1/runs/{str(original['id'])}/rerun", headers=_run_headers())
+    response = v1_client.post(f"/api/v1/runs/{original['id']!s}/rerun", headers=_run_headers())
     assert response.status_code == 202
     payload = response.json()
     serialized = str(payload)
@@ -393,7 +388,7 @@ def test_rerun_响应无未脱敏内容(v1_client: TestClient, failing_v1_client
     failed_session = _create_session(failing)
     failed_run = _accept_and_finish(failing, str(failed_session["id"]), "订单服务变慢，帮我排查。")
     assert failed_run["status"] == "failed"
-    rerun_failed = failing.post(f"/api/v1/runs/{str(failed_run['id'])}/rerun", headers=_run_headers())
+    rerun_failed = failing.post(f"/api/v1/runs/{failed_run['id']!s}/rerun", headers=_run_headers())
     assert rerun_failed.status_code == 202
 
 
@@ -403,7 +398,7 @@ def test_rerun_全局run列表含来源字段(v1_client: TestClient) -> None:
     session_id = str(session["id"])
     original = _accept_and_finish(v1_client, session_id, "订单服务变慢，帮我排查。")
     rerun_response = v1_client.post(
-        f"/api/v1/runs/{str(original['id'])}/rerun", headers=_run_headers()
+        f"/api/v1/runs/{original['id']!s}/rerun", headers=_run_headers()
     )
     assert rerun_response.status_code == 202
     rerun_id = rerun_response.json()["run"]["id"]
@@ -441,7 +436,6 @@ def _run_alembic(
 
 def test_rerun_迁移存在来源行时拒绝回滚(tmp_path: Path) -> None:
     """迁移 downgrade 防御：存在 rerun_of_run_id 历史行时拒绝回滚。"""
-    from sqlalchemy import create_engine
 
     from src.infrastructure.persistence.database import create_app_engine
 
@@ -492,8 +486,6 @@ def test_rerun_唯一键竞争后幂等重读(persistence_runtime: PersistenceRu
     """并发竞争：重跑唯一键冲突后经 _load_rerun_idempotency_after_conflict 重读返回同键 Run。"""
     from sqlalchemy.exc import IntegrityError
 
-    from src.application.services import RUN_RERUN_ENDPOINT
-    from src.domain.records import RunIdempotencyKeyData
 
     run_service = RunApplicationService(
         persistence_runtime.session_factory,
