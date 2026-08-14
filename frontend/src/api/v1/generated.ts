@@ -156,6 +156,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/model/params": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Model Params
+         * @description 保存模型运行参数并返回更新后的完整安全配置视图（null=清除该项，幂等，无需 Idempotency-Key）。
+         */
+        put: operations["update_model_params_api_v1_model_params_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/model/providers": {
         parameters: {
             query?: never;
@@ -276,6 +296,26 @@ export interface paths {
          * @description 读取服务绑定会话的 Run 与修复闭环安全摘要。
          */
         get: operations["list_service_activities_api_v1_services__service_id__activities_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/audit/activities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Audit Activities
+         * @description 跨服务跨会话读取审计活动安全摘要（Run + action 事件双源归并，只读）。
+         */
+        get: operations["list_audit_activities_api_v1_audit_activities_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -998,6 +1038,70 @@ export interface components {
             duration_ms?: unknown;
         };
         /**
+         * AuditActivityListResponse
+         * @description 跨服务跨会话审计活动 cursor 分页响应。
+         */
+        AuditActivityListResponse: {
+            /** Items */
+            items: unknown;
+            page: unknown;
+            meta: unknown;
+        };
+        /**
+         * AuditActivityResource
+         * @description 统一审计流的一行安全摘要：Run 或 action 事件，run/action 专属字段可空。
+         */
+        AuditActivityResource: {
+            /** Id */
+            id: unknown;
+            /** Kind */
+            kind: unknown;
+            /** Type */
+            type: unknown;
+            /** Occurred At */
+            occurred_at: unknown;
+            /** Service Id */
+            service_id?: unknown;
+            /** Session Id */
+            session_id: unknown;
+            /** Session Title */
+            session_title: unknown;
+            /** Outcome */
+            outcome: unknown;
+            /** Summary */
+            summary?: unknown;
+            /** Run Id */
+            run_id?: unknown;
+            /** Severity */
+            severity?: unknown;
+            /** Confidence */
+            confidence?: unknown;
+            /** Proposal Status */
+            proposal_status?: unknown;
+            /** Verification Status */
+            verification_status?: unknown;
+            /** Proposal Id */
+            proposal_id?: unknown;
+            /** Action Id */
+            action_id?: unknown;
+            /** Mode */
+            mode?: unknown;
+            /** Approval Actor */
+            approval_actor?: unknown;
+        };
+        /**
+         * AuditActivityType
+         * @description 审计类型收敛枚举：5 类 Run 派生 + 6 类里程碑 action 事件。
+         * @enum {string}
+         */
+        AuditActivityType: "run_created" | "run_running" | "run_completed" | "run_failed" | "run_cancelled" | "proposal_created" | "approval_recorded" | "execution_completed" | "verification_completed" | "action_blocked" | "action_failed";
+        /**
+         * AuditOutcome
+         * @description 审计结果收敛枚举；approval_recorded / action_failed 按事件 data.status 派生。
+         * @enum {string}
+         */
+        AuditOutcome: "running" | "succeeded" | "failed" | "cancelled" | "pending_approval" | "approved" | "rejected" | "expired" | "blocked" | "verified";
+        /**
          * ConnectionTestResponse
          * @description 显式连接测试响应；只含脱敏分类码。
          */
@@ -1388,6 +1492,8 @@ export interface components {
             mode_unavailable_reason?: unknown;
             diagnostic_model: unknown;
             judge_model?: unknown;
+            params: unknown;
+            params_defaults: unknown;
         };
         /**
          * ModelConfigResponse
@@ -1410,6 +1516,26 @@ export interface components {
             model: unknown;
             /** Status */
             status: unknown;
+        };
+        /**
+         * ModelParamsDefaultsResource
+         * @description 模型运行参数的后端默认值（诚实标注：未配置时用这些值）。
+         */
+        ModelParamsDefaultsResource: {
+            /** Temperature */
+            temperature?: unknown;
+            /** Max Tokens */
+            max_tokens?: unknown;
+        };
+        /**
+         * ModelParamsResource
+         * @description 模型运行参数的安全视图（已配置值，未配置为 None）。
+         */
+        ModelParamsResource: {
+            /** Temperature */
+            temperature?: unknown;
+            /** Max Tokens */
+            max_tokens?: unknown;
         };
         /**
          * ModelProviderListResponse
@@ -1968,6 +2094,16 @@ export interface components {
             mode: "mock" | "real";
         };
         /**
+         * UpdateModelParamsRequest
+         * @description 模型运行参数的写请求；字段为 null=清除该项（恢复默认），两项皆 null=清空。
+         */
+        UpdateModelParamsRequest: {
+            /** Temperature */
+            temperature?: number | null;
+            /** Max Tokens */
+            max_tokens?: number | null;
+        };
+        /**
          * UpdateModelProviderRequest
          * @description 编辑 Provider 请求；api_key 不传=不改，空串=清空。
          */
@@ -2295,6 +2431,39 @@ export interface operations {
             };
         };
     };
+    update_model_params_api_v1_model_params_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateModelParamsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelConfigResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_model_providers_api_v1_model_providers_get: {
         parameters: {
             query?: never;
@@ -2532,6 +2701,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ServiceActivityListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_audit_activities_api_v1_audit_activities_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                service_id?: string | null;
+                action_type?: components["schemas"]["AuditActivityType"] | null;
+                result?: components["schemas"]["AuditOutcome"] | null;
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditActivityListResponse"];
                 };
             };
             /** @description Validation Error */

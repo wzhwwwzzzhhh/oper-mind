@@ -15,6 +15,7 @@ from pydantic import ValidationError
 from src.api.v1.cursors import (
     ActionEventCursor,
     ActionProposalCursor,
+    AuditActivityCursor,
     DiagnosisRunCursor,
     InvalidCursorError,
     MessageCursor,
@@ -30,6 +31,7 @@ from src.api.v1.resources import (
     action_execution_resource,
     action_proposal_resource,
     action_proposal_summary_resource,
+    audit_activity_resource,
     global_run_summary_resource,
     knowledge_document_resource,
     knowledge_search_hit_resource,
@@ -52,6 +54,7 @@ from src.api.v1.schemas import (
     ActionProposalListResponse,
     ActionProposalResponse,
     ActivateModelProviderRequest,
+    AuditActivityListResponse,
     ConnectionTestResponse,
     CreateModelProviderRequest,
     CreateRunRequest,
@@ -69,6 +72,8 @@ from src.api.v1.schemas import (
     ModelConfigResource,
     ModelConfigResponse,
     ModelEndpointResource,
+    ModelParamsDefaultsResource,
+    ModelParamsResource,
     ModelProviderListResponse,
     ModelProviderModelsResponse,
     ModelProviderResponse,
@@ -88,6 +93,7 @@ from src.api.v1.schemas import (
     SessionListResponse,
     SessionResponse,
     UpdateModelModeRequest,
+    UpdateModelParamsRequest,
     UpdateModelProviderRequest,
     UpdateServiceRequest,
     UpdateSessionRequest,
@@ -98,6 +104,7 @@ from src.application.action_services import (
     DecideActionProposalCommand,
     RequestActionExecutionCommand,
 )
+from src.application.audit_service import AuditApplicationService
 from src.application.contracts import CreateRunCommand, CreateSessionCommand, UpdateSessionCommand
 from src.application.errors import (
     ActionProposalInvalidStateError,
@@ -108,6 +115,7 @@ from src.application.errors import (
 )
 from src.application.knowledge import KnowledgeReaderService, KnowledgeTimeoutError
 from src.application.model_mode import ModelModeApplicationService, resolve_runtime_mode
+from src.application.model_params import ModelParamsApplicationService, resolve_model_params
 from src.application.model_providers import (
     ActivateModelProviderCommand,
     CreateModelProviderCommand,
@@ -129,9 +137,12 @@ from src.application.service_registration import (
 )
 from src.config import load_monitor_settings
 from src.domain.actions import ActionProposalStatus
+from src.domain.audit import AuditActivityType, AuditOutcome
 from src.domain.diagnosis import RunStatus, SessionStatus
+from src.domain.model_params import ModelParams
 from src.domain.model_provider import ProviderEndpoint
 from src.domain.records import DiagnosisRunData, RunEventData, SessionData
+from src.infrastructure.persistence.app_settings_repository import SqlAlchemyAppSettingsStore
 from src.infrastructure.persistence.repositories import (
     SqlAlchemyDiagnosisResultRepository,
     SqlAlchemyDiagnosisRunRepository,
@@ -156,6 +167,7 @@ CursorT = TypeVar(
     RunEventCursor,
     ActionEventCursor,
     ActionProposalCursor,
+    AuditActivityCursor,
 )
 
 router = APIRouter(prefix="/api/v1", tags=["v1"])
@@ -181,6 +193,7 @@ APPLICATION_ERROR_STATUS = {
     "SECRET_KEY_NOT_CONFIGURED": 409,
     "PROVIDER_IDEMPOTENCY_REUSED": 409,
     "MODEL_MODE_PERSISTENCE_FAILED": 500,
+    "MODEL_PARAMS_PERSISTENCE_FAILED": 500,
     "KNOWLEDGE_TIMEOUT": 503,
     "KNOWLEDGE_DOCUMENT_NOT_FOUND": 404,
 }
@@ -241,6 +254,13 @@ def _service_center(services: V1Services) -> ServiceCenterApplicationService:
     if services.service_center is None:
         raise ServiceCenterUnavailableError()
     return services.service_center
+
+
+def _audit_service(services: V1Services) -> AuditApplicationService:
+    """读取已装配的 P8 审计检索服务；未装配安全拒绝。"""
+    if services.audit_service is None:
+        raise ServiceCenterUnavailableError()
+    return services.audit_service
 
 
 def _service_registration(services: V1Services) -> ServiceRegistrationApplicationService:
@@ -327,6 +347,7 @@ def _model_config_resource(services: V1Services) -> ModelConfigResource:
             status="not_configured",
         )
     judge = _model_endpoint_resource(config.get("judge_llm"))
+    params = resolve_model_params(SqlAlchemyAppSettingsStore(services.session_factory))
     return ModelConfigResource(
         mode=runtime["mode"],
         mode_source=runtime["mode_source"],
@@ -334,6 +355,14 @@ def _model_config_resource(services: V1Services) -> ModelConfigResource:
         mode_unavailable_reason=runtime["mode_unavailable_reason"],
         diagnostic_model=diagnostic,
         judge_model=judge,
+        params=ModelParamsResource(
+            temperature=params["temperature"],
+            max_tokens=params["max_tokens"],
+        ),
+        params_defaults=ModelParamsDefaultsResource(
+            temperature=params["temperature_default"],
+            max_tokens=params["max_tokens_default"],
+        ),
     )
 
 
@@ -521,6 +550,25 @@ def update_model_mode(
     return ModelConfigResponse(config=_model_config_resource(services), meta=meta)
 
 
+@router.put("/model/params", response_model=ModelConfigResponse)
+def update_model_params(
+    payload: UpdateModelParamsRequest,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> ModelConfigResponse:
+    """保存模型运行参数并返回更新后的完整安全配置视图（null=清除该项，幂等，无需 Idempotency-Key）。"""
+    try:
+        ModelParamsApplicationService(SqlAlchemyAppSettingsStore(services.session_factory)).set(
+            ModelParams(temperature=payload.temperature, max_tokens=payload.max_tokens)
+        )
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return ModelConfigResponse(config=_model_config_resource(services), meta=meta)
+
+
 @router.get("/model/providers", response_model=ModelProviderListResponse)
 def list_model_providers(
     request: Request,
@@ -690,6 +738,47 @@ def list_service_activities(
     apply_headers(response, meta)
     return ServiceActivityListResponse(
         items=[service_activity_resource(item) for item in page.items],
+        page=CursorPage(
+            next_cursor=encode_cursor(page.next_cursor) if page.next_cursor else None,
+            has_more=page.has_more,
+        ),
+        meta=meta,
+    )
+
+
+@router.get("/audit/activities", response_model=AuditActivityListResponse)
+def list_audit_activities(
+    request: Request,
+    response: Response,
+    from_: datetime | None = Query(default=None, alias="from"),
+    to: datetime | None = None,
+    service_id: str | None = Query(default=None, min_length=1, max_length=64),
+    action_type: AuditActivityType | None = None,
+    result: AuditOutcome | None = None,
+    cursor: str | None = None,
+    limit: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
+    services: V1Services = Depends(get_v1_services),
+) -> AuditActivityListResponse:
+    """跨服务跨会话读取审计活动安全摘要（Run + action 事件双源归并，只读）。"""
+    if from_ is not None and to is not None and from_ > to:
+        raise ApiV1Error(422, "VALIDATION_ERROR", "请求时间窗口不合法")
+    decoded_cursor = parse_page_cursor(cursor, AuditActivityCursor)
+    try:
+        page = _audit_service(services).list_activities(
+            decoded_cursor,
+            limit,
+            from_at=from_,
+            to_at=to,
+            service_id=service_id,
+            action_type=action_type,
+            outcome=result,
+        )
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return AuditActivityListResponse(
+        items=[audit_activity_resource(item) for item in page.items],
         page=CursorPage(
             next_cursor=encode_cursor(page.next_cursor) if page.next_cursor else None,
             has_more=page.has_more,

@@ -27,11 +27,13 @@ docs/workpack/
 
 | 阶段 | 切片 | PR | 完成日期 |
 |---|---|---|---|
+| P8 | audit-activity-log | #71 | 2026-08-12 |
 | P8 | session-management | #69 | 2026-08-12 |
 | P8 | service-registration | #60 | 2026-08-11 |
 | P8 | workbench-loop-closure | #57 | 2026-08-10 |
 | P8 | model-mode-switch | #56 | 2026-08-10 |
 | P8 | model-list-enumeration | #68 | 2026-08-12 |
+| P8 | model-params-config | #72 | 2026-08-12 |
 | P4.2 | db-agent-real | #1 | 2026-08-05 |
 | P4.3 | model-settings-real | #2 | 2026-08-05 |
 | P4.3 | service-context | #19 | 2026-08-06 |

@@ -13,8 +13,10 @@ from fastapi import Request
 
 from src.application.action_execution import ControlledActionExecutor
 from src.application.action_services import ActionApplicationService
+from src.application.audit_service import AuditApplicationService
 from src.application.knowledge import KnowledgeReaderService
 from src.application.model_mode import resolve_runtime_mode
+from src.application.model_params import resolve_model_params
 from src.application.plain_messages import PlainMessageApplicationService
 from src.application.service_center import ServiceCenterApplicationService
 from src.application.service_registration import ServiceRegistrationApplicationService
@@ -29,6 +31,7 @@ from src.config import (
 )
 from src.core.bootstrap import build_coordinator, build_llm_from_config
 from src.core.coordinator import CoordinatorAgent
+from src.domain.model_params import ModelParams
 from src.domain.services import ServiceRegistrationData, ServiceRegistry
 from src.infrastructure.actions.postgres_target_executor import PostgresTargetActionExecutor
 from src.infrastructure.diagnosis.coordinator_executor import CoordinatorDiagnosisExecutor
@@ -36,6 +39,8 @@ from src.infrastructure.diagnosis.postgres_missing_index import PostgresMissingI
 from src.infrastructure.diagnosis.result_assembler import KernelReportResultAssembler
 from src.infrastructure.monitoring.host_metrics import PsutilHostMetricsCollector
 from src.infrastructure.monitoring.sampler import MonitorSampler
+from src.infrastructure.persistence.app_settings_repository import SqlAlchemyAppSettingsStore
+from src.infrastructure.persistence.audit_repositories import SqlAlchemyAuditActivityRepository
 from src.infrastructure.persistence.database import PersistenceRuntime, SessionFactory, create_persistence_runtime
 from src.infrastructure.persistence.plain_message_writer import SqlAlchemyPlainMessageWriter
 from src.infrastructure.secrets import (
@@ -66,6 +71,7 @@ class V1Services:
     service_registry: ServiceRegistry | None = None
     knowledge_service: KnowledgeReaderService | None = None
     service_registration: ServiceRegistrationApplicationService | None = None
+    audit_service: AuditApplicationService | None = None
 
 
 def build_v1_services() -> V1Services:
@@ -86,12 +92,16 @@ def build_v1_services() -> V1Services:
 
 
 def _resolved_coordinator_factory(runtime: PersistenceRuntime) -> Callable[[str | None], CoordinatorAgent]:
-    """构造每 Run 解析生效模型配置与运行时模式的 Coordinator 工厂。"""
+    """构造每 Run 解析生效模型配置、运行时模式与运行参数的 Coordinator 工厂。"""
     secret_key = _load_secret_key_or_none()
 
     def build(service_id: str | None) -> CoordinatorAgent:
         resolution = resolve_runtime_mode(runtime.session_factory, secret_key)
-        llm = build_llm_from_config(resolution["config"])
+        params = resolve_model_params(SqlAlchemyAppSettingsStore(runtime.session_factory))
+        llm = build_llm_from_config(
+            resolution["config"],
+            params=ModelParams(temperature=params["temperature"], max_tokens=params["max_tokens"]),
+        )
         return build_coordinator(llm, service_id=service_id)
 
     return build
@@ -204,6 +214,9 @@ def build_v1_services_for_runtime(
         service_registry=registry,
         knowledge_service=KnowledgeReaderService(load_knowledge_settings().directory),
         service_registration=service_registration,
+        audit_service=AuditApplicationService(
+            lambda: SqlAlchemyAuditActivityRepository(session_factory())
+        ),
     )
 
 

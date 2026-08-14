@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
+from src.infrastructure.persistence.database import SessionFactory
 from src.infrastructure.persistence.models import AppSettingRecord
 
 
@@ -42,3 +43,34 @@ class SqlAlchemyAppSettingsRepository:
             row.value = value
             row.updated_at = _utc_now()
         self._session.flush()
+
+
+class SqlAlchemyAppSettingsStore:
+    """会话自管的键值存储实现（实现 domain 的 AppSettingsStore 端口）。
+
+    构造只收 session_factory，get/set 各自管理短生命周期会话与事务边界，
+    供 api 层装配注入 application 服务；失败抛 SQLAlchemyError 由调用方转义。
+    """
+
+    def __init__(self, session_factory: SessionFactory) -> None:
+        self._session_factory = session_factory
+
+    def get(self, key: str) -> str | None:
+        """按键读取设置值；不存在返回 None。"""
+        session = self._session_factory()
+        try:
+            return SqlAlchemyAppSettingsRepository(session).get(key)
+        finally:
+            session.close()
+
+    def set(self, key: str, value: str) -> None:
+        """按键写入设置值（upsert），提交失败回滚后重抛。"""
+        session = self._session_factory()
+        try:
+            SqlAlchemyAppSettingsRepository(session).set(key, value)
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()

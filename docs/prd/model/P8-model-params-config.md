@@ -1,6 +1,6 @@
 ---
 title: 模型调用参数暴露——temperature 等运行参数的受控配置
-status: 已确认
+status: 完成
 domain: model
 phase: P8
 issue: 66

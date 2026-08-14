@@ -16,6 +16,7 @@ import {
   type ListSessionsQuery,
   type ListRunsQuery,
   type ListServiceActivitiesQuery,
+  type ListAuditActivitiesQuery,
   type CreateServiceRequest,
   type UpdateServiceRequest,
   type SendPlainMessageRequest,
@@ -30,6 +31,8 @@ export const api_v1_query_keys = {
   service_monitor_history: (service_id: string) => ['api-v1', 'service-monitor-history', service_id] as const,
   service_activities: (service_id: string, query: ListServiceActivitiesQuery) =>
     ['api-v1', 'service-activities', service_id, query] as const,
+  audit_activities: (query: ListAuditActivitiesQuery) =>
+    ['api-v1', 'audit-activities', query] as const,
   sessions: (query: ListSessionsQuery) => ['api-v1', 'sessions', query] as const,
   session: (session_id: string) => ['api-v1', 'session', session_id] as const,
   session_messages: (session_id: string, query: ListSessionMessagesQuery) =>
@@ -60,6 +63,18 @@ export interface UpdateModelModeMutationVariables {
 export function update_model_mode_mutation() {
   return mutationOptions({
     mutationFn: ({ mode }: UpdateModelModeMutationVariables) => api_v1_client.update_model_mode({ mode }),
+  })
+}
+
+export interface UpdateModelParamsMutationVariables {
+  temperature: number | null
+  max_tokens: number | null
+}
+
+export function update_model_params_mutation() {
+  return mutationOptions({
+    mutationFn: ({ temperature, max_tokens }: UpdateModelParamsMutationVariables) =>
+      api_v1_client.update_model_params({ temperature, max_tokens }),
   })
 }
 
@@ -98,6 +113,14 @@ export function list_service_activities_query(
   return queryOptions({
     queryKey: api_v1_query_keys.service_activities(service_id, query),
     queryFn: ({ signal }) => api_v1_client.list_service_activities(service_id, query, { signal }),
+  })
+}
+
+
+export function list_audit_activities_query(query: ListAuditActivitiesQuery = {}) {
+  return queryOptions({
+    queryKey: api_v1_query_keys.audit_activities(query),
+    queryFn: ({ signal }) => api_v1_client.list_audit_activities(query, { signal }),
   })
 }
 

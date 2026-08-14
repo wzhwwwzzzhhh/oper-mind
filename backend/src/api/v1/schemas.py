@@ -43,6 +43,20 @@ class ModelEndpointResource(ApiV1Model):
     status: Literal["configured", "not_configured"]
 
 
+class ModelParamsResource(ApiV1Model):
+    """模型运行参数的安全视图（已配置值，未配置为 None）。"""
+
+    temperature: float | None = None
+    max_tokens: int | None = None
+
+
+class ModelParamsDefaultsResource(ApiV1Model):
+    """模型运行参数的后端默认值（诚实标注：未配置时用这些值）。"""
+
+    temperature: float = 0.0
+    max_tokens: int | None = None
+
+
 class ModelConfigResource(ApiV1Model):
     """模型配置的安全视图，不包含 API Key 或完整连接 URL。"""
 
@@ -52,6 +66,8 @@ class ModelConfigResource(ApiV1Model):
     mode_unavailable_reason: str | None = None
     diagnostic_model: ModelEndpointResource
     judge_model: ModelEndpointResource | None = None
+    params: ModelParamsResource
+    params_defaults: ModelParamsDefaultsResource
 
 
 class ModelConfigResponse(ApiV1Model):
@@ -161,6 +177,13 @@ class UpdateModelModeRequest(ApiV1Model):
     """运行时切换 mock / real 模式的写请求。"""
 
     mode: Literal["mock", "real"]
+
+
+class UpdateModelParamsRequest(ApiV1Model):
+    """模型运行参数的写请求；字段为 null=清除该项（恢复默认），两项皆 null=清空。"""
+
+    temperature: float | None = Field(default=None, ge=0, le=2)
+    max_tokens: int | None = Field(default=None, ge=1, le=102400)
 
 
 class CursorPage(ApiV1Model):
@@ -429,6 +452,62 @@ class ServiceActivityResource(ApiV1Model):
     verification_status: Literal["verified", "failed"] | None = None
 
 
+class AuditActivityResource(ApiV1Model):
+    """统一审计流的一行安全摘要：Run 或 action 事件，run/action 专属字段可空。"""
+
+    id: UUID
+    kind: Literal["run", "action"]
+    type: Literal[
+        "run_created",
+        "run_running",
+        "run_completed",
+        "run_failed",
+        "run_cancelled",
+        "proposal_created",
+        "approval_recorded",
+        "execution_completed",
+        "verification_completed",
+        "action_blocked",
+        "action_failed",
+    ]
+    occurred_at: datetime
+    service_id: str | None = Field(default=None, max_length=64)
+    session_id: UUID
+    session_title: str = Field(min_length=1, max_length=200)
+    outcome: Literal[
+        "running",
+        "succeeded",
+        "failed",
+        "cancelled",
+        "pending_approval",
+        "approved",
+        "rejected",
+        "expired",
+        "blocked",
+        "verified",
+    ]
+    summary: str | None = Field(default=None, max_length=800)
+    run_id: UUID | None = None
+    severity: Literal["info", "low", "medium", "high", "critical"] | None = None
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    proposal_status: Literal[
+        "pending_approval",
+        "approved",
+        "rejected",
+        "expired",
+        "executing",
+        "verifying",
+        "verified",
+        "blocked",
+        "failed",
+    ] | None = None
+    verification_status: Literal["verified", "failed"] | None = None
+    proposal_id: UUID | None = None
+    action_id: str | None = Field(default=None, max_length=120)
+    mode: Literal["mock", "target"] | None = None
+    approval_actor: Literal["未记录"] | None = None
+
+
 class CreateSessionRequest(ApiV1Model):
     """创建会话请求。"""
 
@@ -656,6 +735,14 @@ class ServiceActivityListResponse(ApiV1Model):
     """服务活动 cursor 分页响应。"""
 
     items: list[ServiceActivityResource]
+    page: CursorPage
+    meta: ResponseMeta
+
+
+class AuditActivityListResponse(ApiV1Model):
+    """跨服务跨会话审计活动 cursor 分页响应。"""
+
+    items: list[AuditActivityResource]
     page: CursorPage
     meta: ResponseMeta
 
