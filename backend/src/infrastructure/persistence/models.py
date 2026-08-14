@@ -116,6 +116,7 @@ class DiagnosisRunRecord(Base):
         Index("ix_diagnosis_runs_session_created_at_id", "session_id", "created_at", "id"),
         Index("ix_diagnosis_runs_service_created_at_id", "service_id", "created_at", "id"),
         Index("ix_diagnosis_runs_trace_id", "trace_id"),
+        Index("ix_diagnosis_runs_rerun_of_id", "rerun_of_run_id"),
     )
 
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
@@ -135,6 +136,11 @@ class DiagnosisRunRecord(Base):
     next_event_sequence: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     error_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
     error_message: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    rerun_of_run_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("diagnosis_runs.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

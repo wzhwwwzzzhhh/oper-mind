@@ -606,6 +606,7 @@ class DiagnosisRunResource(ApiV1Model):
     status: Literal["queued", "running", "succeeded", "failed", "cancelled"]
     result: DiagnosisResultResource | None = None
     error: RunErrorResource | None = None
+    rerun_of_run_id: UUID | None = None
     created_at: datetime
     started_at: datetime | None = None
     finished_at: datetime | None = None
@@ -798,6 +799,7 @@ class GlobalRunSummaryResource(ApiV1Model):
     status: Literal["queued", "running", "succeeded", "failed", "cancelled"]
     created_at: datetime
     error: RunErrorResource | None = None
+    rerun_of_run_id: UUID | None = None
 
 
 class GlobalRunListResponse(ApiV1Model):

@@ -143,10 +143,11 @@ def test_p2_schema_metadata_声明P2与P4业务表且不含循环外键() -> Non
     message_table = Base.metadata.tables["messages"]
     assert not message_table.c.run_id.foreign_keys
     assert {foreign_key.target_fullname for foreign_key in message_table.foreign_keys} == {"sessions.id"}
+    # P8 重跑来源是自引用外键（rerun_of_run_id -> diagnosis_runs.id），允许自引用但不含跨表循环。
     assert {
         foreign_key.target_fullname
         for foreign_key in Base.metadata.tables["diagnosis_runs"].foreign_keys
-    } == {"sessions.id", "messages.id"}
+    } == {"sessions.id", "messages.id", "diagnosis_runs.id"}
 
 
 def test_p2_schema_alembic_fresh_db_约束降级与再次升级(tmp_path: Path) -> None:

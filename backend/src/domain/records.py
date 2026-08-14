@@ -81,6 +81,7 @@ class DiagnosisRunData(TimestampedRecord):
     next_event_sequence: int = Field(default=1, ge=1)
     error_code: str | None = None
     error_message: str | None = None
+    rerun_of_run_id: UUID | None = None
     created_at: datetime = Field(default_factory=utc_now)
     started_at: datetime | None = None
     finished_at: datetime | None = None
@@ -97,6 +98,7 @@ class GlobalRunData(TimestampedRecord):
     created_at: datetime
     error_code: str | None = None
     error_message: str | None = None
+    rerun_of_run_id: UUID | None = None
 
 
 class RunEventData(TimestampedRecord):

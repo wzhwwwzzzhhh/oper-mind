@@ -257,6 +257,7 @@ class SqlAlchemyDiagnosisRunRepository:
                 next_event_sequence=run.next_event_sequence,
                 error_code=run.error_code,
                 error_message=run.error_message,
+                rerun_of_run_id=run.rerun_of_run_id,
                 created_at=run.created_at,
                 started_at=run.started_at,
                 finished_at=run.finished_at,
@@ -373,6 +374,7 @@ class SqlAlchemyDiagnosisRunRepository:
                 DiagnosisRunRecord.created_at,
                 DiagnosisRunRecord.error_code,
                 DiagnosisRunRecord.error_message,
+                DiagnosisRunRecord.rerun_of_run_id,
             )
             .join(SessionRecord, SessionRecord.id == DiagnosisRunRecord.session_id)
         )
@@ -555,6 +557,7 @@ def _diagnosis_run_data(record: DiagnosisRunRecord) -> DiagnosisRunData:
         next_event_sequence=record.next_event_sequence,
         error_code=record.error_code,
         error_message=record.error_message,
+        rerun_of_run_id=record.rerun_of_run_id,
         created_at=_as_utc(record.created_at),
         started_at=_as_utc(record.started_at),
         finished_at=_as_utc(record.finished_at),
@@ -638,4 +641,7 @@ def _global_run_data(row: RowMapping) -> GlobalRunData:
         created_at=_as_utc(created_at),
         error_code=values["error_code"] if isinstance(values.get("error_code"), str) else None,
         error_message=values["error_message"] if isinstance(values.get("error_message"), str) else None,
+        rerun_of_run_id=values["rerun_of_run_id"]
+        if isinstance(values.get("rerun_of_run_id"), UUID)
+        else None,
     )

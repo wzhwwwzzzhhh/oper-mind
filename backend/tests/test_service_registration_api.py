@@ -299,7 +299,7 @@ def test_迁移在存在动态服务关联时拒绝回滚(tmp_path: Path) -> Non
     finally:
         engine.dispose()
     downgrade = subprocess.run(
-        [sys.executable, "-m", "alembic", "-c", str(ALEMBIC_INI), "downgrade", "-1"],
+        [sys.executable, "-m", "alembic", "-c", str(ALEMBIC_INI), "downgrade", "20260810_10_p8_model_mode"],
         cwd=tmp_path,
         env=environment,
         check=False,
