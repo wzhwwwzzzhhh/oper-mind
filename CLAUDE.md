@@ -56,3 +56,20 @@
 - **push / 建 PR 前先 `git fetch origin main && git merge origin/main`（或 rebase）**，在本地解掉冲突再推，避免"PR 后又矛盾"。
 - **PR 合并后必须清理**：`git worktree remove "D:/market-handsome/oper-mind-worktrees/<切片>"` + `git branch -d <类型>/<切片>` + `git worktree prune`。
 - worktree 是全新 checkout：`.venv`、`node_modules` 不会带过去，需在 worktree 内重建（后端 venv、前端 `npm install`）。
+
+### 并行开发与合并冲突处理（多 issue 并行时）
+
+> 适用于多个 issue 同时开工（如 P8 接口批次）。**开发阶段可全并行**（worktree 隔离互不干扰），
+> 冲突只在**合并回 main 时**出现，按本节约定处理即可。
+
+1. **共享文件冲突（预期内，低成本）**：以下文件几乎每个 issue 都会改，冲突是追加式文本冲突，合并时逐段保留两边即可：
+   - 后端 `backend/src/api/v1/routes.py`、`schemas.py`（各自追加路由/schema）；
+   - 前端 `frontend/src/api/v1/client.ts`、`queries.ts`、`frontend/src/test/handlers.ts`（各自追加函数/mock）。
+2. **`generated.ts` 不手解**：`frontend/src/api/v1/generated.ts` 是 `npm run generate:api` 的产物，禁止手工编辑。
+   合并冲突时**任选一边后重新生成覆盖**，绝不在冲突标记里手拼。
+3. **迁移链必须串行**：alembic 是单链（`down_revision` 顺序），多个带迁移的 issue 并行时，
+   **迁移文件按合并顺序排队**——第一个直接合；后续每个在合并 main 后把新迁移的 `down_revision` 指向最新 head（rebase 或手动改）再合，
+   或最后统一用 `alembic merge` 合并多个 head；禁止多个分支基于同一旧 head 各自建迁移直接合入。
+4. **合前必做**：push 前 `git fetch origin main && git merge origin/main`（或 rebase）本地解冲突；`generated.ts` 冲突重新生成；
+   解完重跑相关测试与前端 `typecheck`/`test`/`build`；确认 PR diff 只含本工作包文件。
+5. **无迁移的 issue 与有迁移的 issue 可同时开工**：合并顺序上，无迁移的（纯接口）可随时合；有迁移的按第 3 条排队。
