@@ -794,7 +794,7 @@ export const api_v1_handlers = [
   http.get('/api/v1/audit/export', ({ request }) => {
     const url = new URL(request.url)
     const format = url.searchParams.get('format') ?? 'csv'
-    const rows = audit_activities.map((item, index) => [
+    const rows = audit_activities.map((item) => [
       item.id, item.kind, item.type, item.occurred_at, item.service_id ?? '',
       item.session_id, item.session_title, item.outcome, item.summary ?? '',
       item.run_id ?? '', item.severity ?? '', '', '', '', item.proposal_id ?? '',

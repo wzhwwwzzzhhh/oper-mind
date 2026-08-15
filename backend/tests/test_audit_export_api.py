@@ -404,6 +404,36 @@ def test_敏感字面量不进导出文件(api_client: TestClient) -> None:
     assert "[已脱敏" in text
 
 
+def test_摘要含逗号换行引号不破坏CSV结构(api_client: TestClient) -> None:
+    """P3 边界：summary 含逗号/换行/引号时 csv.writer 标准转义，字段数不漂移。"""
+    import csv
+    import io
+
+    services = api_client.app.state.v1_services
+    tricky_summary = '摘要含逗号,换行\n与"引号"的文本'
+    _seed_run(
+        services.session_factory,
+        title="特殊字符",
+        session_service_id="postgres-production",
+        run_service_id="postgres-production",
+        status=RunStatus.SUCCEEDED,
+        created_at=T0,
+        summary=tricky_summary,
+        severity=DiagnosisSeverity.HIGH,
+    )
+
+    status, text, headers = _export_csv(api_client)
+    assert status == 200
+    assert headers["x-export-count"] == "1"
+    # 引号内换行仍产生物理换行，用 csv.reader 按标准语法解析验证结构。
+    reader = csv.reader(io.StringIO("\n".join(line for line in text.splitlines() if line and not line.startswith("#"))))
+    rows = list(reader)
+    assert len(rows) == 2  # 表头 + 1 行数据
+    assert rows[0] == CSV_HEADER.split(",")
+    assert rows[1][8] == tricky_summary  # summary 字段完整还原
+    assert rows[1][0] != ""  # id 存在
+
+
 def test_审批人字段如实未记录(api_client: TestClient) -> None:
     """AC6：approval_recorded 项 approval_actor="未记录"；其他项为空。"""
     services = api_client.app.state.v1_services

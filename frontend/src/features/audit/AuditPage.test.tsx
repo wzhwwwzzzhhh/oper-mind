@@ -109,10 +109,10 @@ describe('AuditPage 审计操作记录（P8）', () => {
   })
 
   it('导出按钮携带当前过滤条件并触发下载（AC9）', async () => {
-    let requested: URLSearchParams | null = null
+    const requested: { params: URLSearchParams | null } = { params: null }
     server.use(
       http.get('/api/v1/audit/export', ({ request }) => {
-        requested = new URL(request.url).searchParams
+        requested.params = new URL(request.url).searchParams
         return HttpResponse.text(
           '# 导出时间: 2026-08-15T00:00:00.000Z\n# 条数: 0\n\nid,kind,type\n',
           {
@@ -135,12 +135,11 @@ describe('AuditPage 审计操作记录（P8）', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '导出' }))
 
-    await waitFor(() => expect(requested?.get('format')).toBe('csv'))
-    expect(requested?.get('action_type')).toBe('run_completed')
+    await waitFor(() => expect(requested.params?.get('format')).toBe('csv'))
+    expect(requested.params?.get('action_type')).toBe('run_completed')
     // 空结果诚实提示
     expect(await screen.findByText('没有可导出的记录')).toBeInTheDocument()
   })
-
   it('导出超限显示收窄建议（AC9）', async () => {
     server.use(
       http.get('/api/v1/audit/export', () =>
