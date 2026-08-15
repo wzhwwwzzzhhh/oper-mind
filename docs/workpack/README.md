@@ -20,7 +20,7 @@ docs/workpack/
 
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
-| P8 | knowledge-document-pagination | 待用户确认计划 | [plan.md](P8-knowledge-document-pagination/plan.md) | — | — |
+| P8 | knowledge-document-pagination | 实现中（计划已确认 2026-08-15） | [plan.md](P8-knowledge-document-pagination/plan.md) | 待回写 | [evidence.md](P8-knowledge-document-pagination/evidence.md) |
 
 ## 已归档
 
