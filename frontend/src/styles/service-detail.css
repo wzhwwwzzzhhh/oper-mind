@@ -776,3 +776,93 @@
   .svc-detail-metric { padding: 11px; }
   .svc-detail-metric strong { font-size: 19px; }
 }
+
+/* ---------- P8 监控阈值配置区 ---------- */
+
+.svc-detail-thresholds {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.svc-detail-thresholds-note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.svc-detail-threshold-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.svc-detail-threshold-metric {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.svc-detail-threshold-metric input[type="checkbox"] {
+  margin-top: 3px;
+}
+
+.svc-detail-threshold-metric span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.svc-detail-threshold-metric strong {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.svc-detail-threshold-metric small {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.svc-detail-threshold-value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.svc-detail-threshold-value > span {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.svc-detail-threshold-value input,
+.svc-detail-threshold-value select {
+  width: 148px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.svc-detail-threshold-value input:disabled {
+  opacity: 0.5;
+}
+
+.svc-detail-threshold-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.svc-detail-threshold-saved {
+  color: var(--success);
+  font-size: 12px;
+}

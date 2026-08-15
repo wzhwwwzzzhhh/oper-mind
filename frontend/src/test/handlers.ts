@@ -272,6 +272,22 @@ const redis_monitor_history = {
   ],
 }
 
+const default_monitor_thresholds = {
+  slow_query_count_threshold: 1,
+  timeout_count_threshold: 1,
+  slowlog_count_threshold: 1,
+  window_minutes: 0,
+  count_availability_change: true,
+}
+
+/** 测试内共享的阈值配置存储：PUT 写入后 GET 读回一致（按服务隔离）。 */
+const stored_monitor_thresholds = new Map<string, Record<string, unknown>>()
+
+/** 重置阈值存储，供测试在用例间隔离（handlers 本身经 server.resetHandlers 复原）。 */
+export function reset_stored_monitor_thresholds(): void {
+  stored_monitor_thresholds.clear()
+}
+
 const session = {
   id: session_id,
   title: 'Nginx 5xx 排查',
@@ -776,6 +792,21 @@ export const api_v1_handlers = [
   ),
   http.get('/api/v1/services', ({ request }) => response(request, { items: [order_service] })),
   http.get('/api/v1/monitor/overview', ({ request }) => response(request, service_monitor_overview)),
+  http.get('/api/v1/services/:service_id/monitor/thresholds', ({ request, params }) => {
+    const service_id = String(params.service_id)
+    const stored = stored_monitor_thresholds.get(service_id)
+    return response(request, {
+      service_id,
+      source: stored ? 'configured' : 'default',
+      config: stored ?? default_monitor_thresholds,
+    })
+  }),
+  http.put('/api/v1/services/:service_id/monitor/thresholds', async ({ request, params }) => {
+    const service_id = String(params.service_id)
+    const body = (await request.json()) as Record<string, unknown>
+    stored_monitor_thresholds.set(service_id, body)
+    return response(request, { service_id, source: 'configured', config: body })
+  }),
   http.get('/api/v1/services/postgres-production', ({ request }) => response(request, { service: order_service })),
   http.get('/api/v1/services/postgres-production/monitor/history', ({ request }) => response(request, service_monitor_history)),
   http.get('/api/v1/services/postgres-production/activities', ({ request }) =>
@@ -977,4 +1008,4 @@ export const api_v1_contract_scenarios = {
   network_interruption: http.get(/\/api\/v1\/sessions$/, () => HttpResponse.error()),
 }
 
-export const api_v1_contract_fixtures = { accepted_run_id, archived_session_id, audit_activities, cancelled_run_id, empty_result_run_id, failed_run_id, order_service, protocol_error_run_id, provider_fixture, redis_monitor_history, redis_service, run_events, run_id, service_activity, service_monitor_history, service_monitor_overview, service_run_id, service_session, service_session_id, session_id, trace_id }
+export const api_v1_contract_fixtures = { accepted_run_id, archived_session_id, audit_activities, cancelled_run_id, default_monitor_thresholds, empty_result_run_id, failed_run_id, order_service, protocol_error_run_id, provider_fixture, redis_monitor_history, redis_service, run_events, run_id, service_activity, service_monitor_history, service_monitor_overview, service_run_id, service_session, service_session_id, session_id, trace_id }

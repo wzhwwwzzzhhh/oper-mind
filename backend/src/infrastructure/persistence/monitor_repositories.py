@@ -7,8 +7,8 @@ from datetime import UTC, datetime
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from src.domain.monitoring import ServiceMonitorSampleData
-from src.infrastructure.persistence.models import ServiceMonitorSampleRecord
+from src.domain.monitoring import MonitorThresholdConfig, ServiceMonitorSampleData
+from src.infrastructure.persistence.models import ServiceMonitorSampleRecord, ServiceMonitorThresholdRecord
 from src.infrastructure.persistence.repositories import _rowcount
 
 
@@ -60,6 +60,38 @@ class SqlAlchemyMonitorSampleRepository:
             delete(ServiceMonitorSampleRecord).where(ServiceMonitorSampleRecord.observed_at < cutoff)
         )
         return _rowcount(result)
+
+
+class SqlAlchemyMonitorThresholdRepository:
+    """读写按服务的异常判定阈值配置（单行，未配置无记录）。"""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def get(self, service_id: str) -> MonitorThresholdConfig | None:
+        """按服务读取配置；未配置返回 None；损坏行在收敛为领域模型时抛出校验错误。"""
+        row = self._session.get(ServiceMonitorThresholdRecord, service_id)
+        if row is None:
+            return None
+        return MonitorThresholdConfig(
+            slow_query_count_threshold=row.slow_query_count_threshold,
+            timeout_count_threshold=row.timeout_count_threshold,
+            slowlog_count_threshold=row.slowlog_count_threshold,
+            window_minutes=row.window_minutes,
+            count_availability_change=row.count_availability_change,
+        )
+
+    def upsert(self, service_id: str, config: MonitorThresholdConfig) -> None:
+        """全量替换该服务的配置行；不存在则新建（未提交，由调用方提交事务）。"""
+        row = self._session.get(ServiceMonitorThresholdRecord, service_id)
+        if row is None:
+            row = ServiceMonitorThresholdRecord(service_id=service_id)
+            self._session.add(row)
+        row.slow_query_count_threshold = config.slow_query_count_threshold
+        row.timeout_count_threshold = config.timeout_count_threshold
+        row.slowlog_count_threshold = config.slowlog_count_threshold
+        row.window_minutes = config.window_minutes
+        row.count_availability_change = config.count_availability_change
 
 
 def _to_data(row: ServiceMonitorSampleRecord) -> ServiceMonitorSampleData:

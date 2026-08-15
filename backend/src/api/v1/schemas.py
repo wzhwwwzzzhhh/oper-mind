@@ -815,6 +815,35 @@ class MonitorOverviewResponse(ApiV1Model):
     meta: ResponseMeta
 
 
+class MonitorThresholdConfigResource(ApiV1Model):
+    """监控阈值配置视图（阈值 null = 不关注该指标）。"""
+
+    slow_query_count_threshold: int | None = Field(default=None, ge=0, le=1_000_000)
+    timeout_count_threshold: int | None = Field(default=None, ge=0, le=1_000_000)
+    slowlog_count_threshold: int | None = Field(default=None, ge=0, le=1_000_000)
+    window_minutes: int = Field(default=0, ge=0, le=1440)
+    count_availability_change: bool = True
+
+
+class MonitorThresholdRequest(ApiV1Model):
+    """PUT 阈值配置请求：完整配置、全量替换语义；缺字段即 422，未知字段被拒绝。"""
+
+    slow_query_count_threshold: int | None = Field(ge=0, le=1_000_000)
+    timeout_count_threshold: int | None = Field(ge=0, le=1_000_000)
+    slowlog_count_threshold: int | None = Field(ge=0, le=1_000_000)
+    window_minutes: int = Field(ge=0, le=1440)
+    count_availability_change: bool
+
+
+class MonitorThresholdResponse(ApiV1Model):
+    """阈值配置读写响应（GET/PUT 同构，source 诚实标注来源）。"""
+
+    service_id: str = Field(min_length=1, max_length=64)
+    source: Literal["default", "configured"]
+    config: MonitorThresholdConfigResource
+    meta: ResponseMeta
+
+
 class SessionResponse(ApiV1Model):
     """单个会话响应。"""
 
