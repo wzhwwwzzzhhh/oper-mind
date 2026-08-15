@@ -1,7 +1,7 @@
-"""P7 知识库只读 REST API 测试。
+"""P7/P8 知识库只读 REST API 测试。
 
-覆盖：诚实状态（not_configured/empty/no_match/ok）、文档列表、确定性检索、文档详情、
-路径逃逸拒绝、凭据文件与 `sk-` 内容排除、正文脱敏兜底。全部使用 tmp 确定性目录，不连接外部资源。
+覆盖：诚实状态（not_configured/empty/no_match/ok）、文档列表（P8 cursor 分页）、确定性检索、
+文档详情、路径逃逸拒绝、凭据文件与 `sk-` 内容排除、正文脱敏兜底。全部使用 tmp 确定性目录，不连接外部资源。
 """
 
 import shutil
@@ -73,6 +73,8 @@ def test_列表与详情接口目录未配置返回not_configured(knowledge_env)
     body = list_response.json()
     assert body["status"] == "not_configured"
     assert body["items"] == []
+    assert body["page"]["has_more"] is False
+    assert body["page"]["next_cursor"] is None
     assert "meta" in body
 
     detail_response = client.get("/api/v1/knowledge/documents/sop/kill-slow-query.md")
@@ -82,16 +84,20 @@ def test_列表与详情接口目录未配置返回not_configured(knowledge_env)
 
 
 def test_列表接口目录为空返回empty(knowledge_env) -> None:
-    """目录存在但无 Markdown 文档 → empty。"""
+    """目录存在但无 Markdown 文档 → empty，分页元信息为「无更多」。"""
     client, root = knowledge_env
     root.mkdir(parents=True, exist_ok=True)
     response = client.get("/api/v1/knowledge/documents")
     assert response.status_code == 200
-    assert response.json()["status"] == "empty"
+    body = response.json()
+    assert body["status"] == "empty"
+    assert body["items"] == []
+    assert body["page"]["has_more"] is False
+    assert body["page"]["next_cursor"] is None
 
 
 def test_列表接口返回受管文档清单(knowledge_env) -> None:
-    """目录有文档 → 返回标题 + 相对路径，确定性排序。"""
+    """目录有文档 → 返回标题 + 相对路径，确定性排序；不足一页时无下一页。"""
     client, root = knowledge_env
     _seed_docs(root)
     response = client.get("/api/v1/knowledge/documents")
@@ -102,6 +108,8 @@ def test_列表接口返回受管文档清单(knowledge_env) -> None:
         {"title": "索引优化手册", "relative_path": "sop/index-tuning.md"},
         {"title": "kill 慢查询 SOP", "relative_path": "sop/kill-slow-query.md"},
     ]
+    assert body["page"]["has_more"] is False
+    assert body["page"]["next_cursor"] is None
 
 
 def test_列表接口尾斜杠行为契约(knowledge_env) -> None:
@@ -272,3 +280,153 @@ def test_检索与列表结果不含凭据明文(knowledge_env) -> None:
     list_text = list_response.text
     assert "排障手册" in list_text
     assert "password=secret123" not in list_text
+
+
+# ---- P8 分页（AC1–AC7）----
+
+
+def _reset_knowledge_dir(root: Path) -> None:
+    """清空受管目录，为分页用例重建确定性文档集。"""
+    if root.exists():
+        for child in root.iterdir():
+            if child.is_dir():
+                shutil.rmtree(child)
+            else:
+                child.unlink()
+    root.mkdir(parents=True, exist_ok=True)
+
+
+def _seed_paged_docs(root: Path, count: int) -> None:
+    """写入 count 篇确定性文档（相对路径 doc-01.md ... doc-NN.md）。"""
+    for index in range(1, count + 1):
+        (root / f"doc-{index:02d}.md").write_text(
+            f"# 文档 {index:02d}\n\n分页测试内容。\n", encoding="utf-8"
+        )
+
+
+def test_分页按页返回不重不漏且确定性排序(knowledge_env) -> None:
+    """AC2/AC6：目录超过页大小 → 每页不超 limit，页间不重不漏；重复请求同一页内容一致。"""
+    client, root = knowledge_env
+    _reset_knowledge_dir(root)
+    _seed_paged_docs(root, 5)
+
+    first = client.get("/api/v1/knowledge/documents", params={"limit": 2})
+    assert first.status_code == 200
+    first_body = first.json()
+    assert first_body["status"] == "ok"
+    assert [item["relative_path"] for item in first_body["items"]] == ["doc-01.md", "doc-02.md"]
+    assert first_body["page"]["has_more"] is True
+    first_cursor = first_body["page"]["next_cursor"]
+    assert first_cursor is not None
+
+    # 确定性：同一页重复请求内容一致
+    again = client.get("/api/v1/knowledge/documents", params={"limit": 2})
+    assert again.json()["items"] == first_body["items"]
+
+    second = client.get(
+        "/api/v1/knowledge/documents", params={"cursor": first_cursor, "limit": 2}
+    )
+    second_body = second.json()
+    assert second.status_code == 200
+    assert second_body["status"] == "ok"
+    assert [item["relative_path"] for item in second_body["items"]] == ["doc-03.md", "doc-04.md"]
+    second_cursor = second_body["page"]["next_cursor"]
+    assert second_cursor is not None
+
+    third = client.get(
+        "/api/v1/knowledge/documents", params={"cursor": second_cursor, "limit": 2}
+    )
+    third_body = third.json()
+    assert third.status_code == 200
+    assert [item["relative_path"] for item in third_body["items"]] == ["doc-05.md"]
+    assert third_body["page"]["has_more"] is False
+    assert third_body["page"]["next_cursor"] is None
+
+    # 不重不漏：合并三页与全量一致
+    all_pages = (
+        [item["relative_path"] for item in first_body["items"]]
+        + [item["relative_path"] for item in second_body["items"]]
+        + [item["relative_path"] for item in third_body["items"]]
+    )
+    full = client.get("/api/v1/knowledge/documents", params={"limit": 100}).json()
+    assert all_pages == [item["relative_path"] for item in full["items"]]
+
+
+def test_分页超出末尾返回空items与无更多语义(knowledge_env) -> None:
+    """AC3：末页后请求下一页 → 空 items + has_more=false，不抛错。"""
+    client, root = knowledge_env
+    _reset_knowledge_dir(root)
+    _seed_paged_docs(root, 2)
+
+    first = client.get("/api/v1/knowledge/documents", params={"limit": 2}).json()
+    assert first["page"]["has_more"] is True
+    cursor = first["page"]["next_cursor"]
+    assert cursor is not None
+
+    beyond = client.get("/api/v1/knowledge/documents", params={"cursor": cursor, "limit": 2})
+    assert beyond.status_code == 200
+    body = beyond.json()
+    assert body["status"] == "ok"
+    assert body["items"] == []
+    assert body["page"]["has_more"] is False
+    assert body["page"]["next_cursor"] is None
+
+
+def test_无分页参数返回首页兼容既有调用(knowledge_env) -> None:
+    """AC1：不带 cursor/limit → 返回首页（与既有行为兼容，默认页大小 50）。"""
+    client, root = knowledge_env
+    _reset_knowledge_dir(root)
+    _seed_paged_docs(root, 60)
+
+    body = client.get("/api/v1/knowledge/documents").json()
+    assert body["status"] == "ok"
+    assert len(body["items"]) == 50
+    assert body["page"]["has_more"] is True
+    assert body["page"]["next_cursor"] is not None
+    assert next(item["relative_path"] for item in body["items"]) == "doc-01.md"
+
+
+def test_分页参数非法返回明确错误(knowledge_env) -> None:
+    """AC5：limit 超上限/非法 → 422；cursor 非法 → 400 INVALID_CURSOR。"""
+    client, root = knowledge_env
+    _reset_knowledge_dir(root)
+    _seed_paged_docs(root, 3)
+
+    for bad_limit in (0, -1, 101, "abc"):
+        response = client.get("/api/v1/knowledge/documents", params={"limit": bad_limit})
+        assert response.status_code == 422, f"limit={bad_limit!r}"
+
+    for bad_cursor in ("not-base64!!", "e30=", "eyJmb28iOiJiYXIifQ=="):
+        # e30= 是 `{}`，缺少必填字段；eyJmb28iOiJiYXIifQ== 是 `{"foo":"bar"}`，字段不符
+        response = client.get("/api/v1/knowledge/documents", params={"cursor": bad_cursor})
+        assert response.status_code == 400, f"cursor={bad_cursor!r}"
+        assert response.json()["error"]["code"] == "INVALID_CURSOR"
+
+
+def test_分页沿用排除逻辑不含隐藏凭据与sk内容(knowledge_env) -> None:
+    """AC7：分页列表不得包含隐藏路径、凭据路径或含 sk- 明文的文档。"""
+    client, root = knowledge_env
+    _reset_knowledge_dir(root)
+    _seed_paged_docs(root, 4)
+    (root / ".hidden.md").write_text("# 隐藏文档\n\n内容。\n", encoding="utf-8")
+    (root / ".env").write_text("TOKEN=secret\n", encoding="utf-8")
+    (root / "key.pem").write_text("PRIVATE KEY\n", encoding="utf-8")
+    (root / "leak.md").write_text("# 泄漏文档\n\nkey 是 sk-abc123def456。\n", encoding="utf-8")
+
+    seen: list[str] = []
+    cursor: str | None = None
+    while True:
+        params: dict[str, object] = {"limit": 2}
+        if cursor is not None:
+            params["cursor"] = cursor
+        body = client.get("/api/v1/knowledge/documents", params=params).json()
+        seen.extend(item["relative_path"] for item in body["items"])
+        if not body["page"]["has_more"]:
+            break
+        cursor = body["page"]["next_cursor"]
+
+    assert seen == ["doc-01.md", "doc-02.md", "doc-03.md", "doc-04.md"]
+    assert ".hidden.md" not in seen
+    assert ".env" not in seen
+    assert "key.pem" not in seen
+    assert "leak.md" not in seen

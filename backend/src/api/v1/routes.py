@@ -157,7 +157,13 @@ from src.infrastructure.secrets import (
     SecretKeyTooShortError,
     load_secret_key,
 )
-from src.knowledge.reader import _ILLEGAL_PATH_RE, _ILLEGAL_QUERY_RE, KnowledgeDocumentMeta, KnowledgeSearchHit
+from src.knowledge.reader import (
+    _ILLEGAL_PATH_RE,
+    _ILLEGAL_QUERY_RE,
+    KnowledgeDocumentCursor,
+    KnowledgeDocumentMeta,
+    KnowledgeSearchHit,
+)
 
 CursorT = TypeVar(
     "CursorT",
@@ -168,11 +174,14 @@ CursorT = TypeVar(
     ActionEventCursor,
     ActionProposalCursor,
     AuditActivityCursor,
+    KnowledgeDocumentCursor,
 )
 
 router = APIRouter(prefix="/api/v1", tags=["v1"])
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 100
+# 知识文档列表默认页大小（PRD P8 建议值；上限复用全局 MAX_PAGE_SIZE）
+KNOWLEDGE_DEFAULT_PAGE_SIZE = 50
 APPLICATION_ERROR_STATUS = {
     "SESSION_NOT_FOUND": 404,
     "RUN_NOT_FOUND": 404,
@@ -1423,16 +1432,23 @@ def list_knowledge_documents(
     request: Request,
     response: Response,
     services: V1Services = Depends(get_v1_services),
+    cursor: str | None = None,
+    limit: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = KNOWLEDGE_DEFAULT_PAGE_SIZE,
 ) -> KnowledgeListResponse:
-    """列出受管知识目录内的 Markdown 文档清单（标题 + 相对路径）。"""
+    """列出受管知识目录内的 Markdown 文档清单（cursor 分页，标题 + 相对路径）。
+
+    无分页参数时返回首页（与既有调用兼容）；`page.has_more=false` 表示无更多条目。
+    """
     knowledge = _knowledge_service(services)
+    decoded_cursor = parse_page_cursor(cursor, KnowledgeDocumentCursor)
     status: Literal["not_configured", "empty", "ok"]
     items: list[KnowledgeDocumentMeta]
+    next_cursor: KnowledgeDocumentCursor | None
     if knowledge is None:
-        status, items = "not_configured", []
+        status, items, next_cursor = "not_configured", [], None
     else:
         try:
-            status, items = knowledge.list_documents()
+            status, items, next_cursor = knowledge.list_documents(decoded_cursor, limit)
         except KnowledgeTimeoutError as err:
             # from err 只进服务端日志；响应体由 handler 从 code/message 构造，不含异常链。
             raise ApiV1Error(503, "KNOWLEDGE_TIMEOUT", "知识库读取超时，请稍后重试") from err
@@ -1441,6 +1457,10 @@ def list_knowledge_documents(
     return KnowledgeListResponse(
         status=status,
         items=[knowledge_document_resource(item) for item in items],
+        page=CursorPage(
+            next_cursor=encode_cursor(next_cursor) if next_cursor is not None else None,
+            has_more=next_cursor is not None,
+        ),
         meta=meta,
     )
 
