@@ -21,6 +21,7 @@ docs/workpack/
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
 | P8 | audit-export | 待交付（审查 PASS） | [plan.md](P8-audit-export/plan.md) | [review.md](P8-audit-export/review.md) | [evidence.md](P8-audit-export/evidence.md) |
+| P8 | model-usage-stats | 待用户确认计划 | [plan.md](P8-model-usage-stats/plan.md) | — | — |
 
 ## 已归档
 

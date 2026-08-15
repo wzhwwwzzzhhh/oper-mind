@@ -186,6 +186,29 @@ export interface ModelProviderModelsResponse {
   meta: components['schemas']['ResponseMeta']
 }
 
+export interface ModelUsageItemResource {
+  model: string
+  input_tokens: number
+  output_tokens: number
+  total_tokens: number
+  estimated_cost: number
+  price_source: 'builtin' | 'configured' | 'unset'
+  price_per_million_input: number
+  price_per_million_output: number
+}
+
+export interface ModelUsageResponse {
+  estimate: boolean
+  items: ModelUsageItemResource[]
+  meta: components['schemas']['ResponseMeta']
+}
+
+export interface GetModelUsageQuery {
+  from?: string
+  to?: string
+  model?: string
+}
+
 export interface CreateModelProviderRequest {
   name: string
   base_url: string
@@ -365,6 +388,10 @@ export interface ApiV1Client {
     provider_id: string,
     options?: ApiRequestOptions,
   ): Promise<ApiResponse<ModelProviderModelsResponse>>
+  get_model_usage(
+    query?: GetModelUsageQuery,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<ModelUsageResponse>>
   delete_model_provider(
     provider_id: string,
     options?: ApiRequestOptions,
@@ -887,6 +914,14 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
         `/api/v1/model/providers/${encodeURIComponent(provider_id)}/models`,
         request_options,
         { method: 'GET' },
+      ),
+    get_model_usage: (query = {}, request_options) =>
+      request_json<ModelUsageResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        append_query('/api/v1/model/usage', query),
+        request_options,
       ),
     delete_model_provider: (provider_id, request_options) =>
       request_json<void>(

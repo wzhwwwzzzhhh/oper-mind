@@ -192,4 +192,41 @@ describe('ModelSettingsPage', () => {
 
     expect(await screen.findByText(/当前为 mock 模式，参数不生效/)).toBeInTheDocument()
   })
+
+  it('展示用量统计聚合与估算标注', async () => {
+    open_models()
+    render(<App />)
+
+    expect(await screen.findByText('用量统计')).toBeInTheDocument()
+    expect(await screen.findByText('deepseek-chat')).toBeInTheDocument()
+    expect(screen.getByText('gpt-4o-mini')).toBeInTheDocument()
+    // 聚合 token 数（tabular 展示）
+    expect(screen.getByText('16,000')).toBeInTheDocument()
+    // 估算标注与单价来源
+    expect(screen.getAllByText('估算').length).toBeGreaterThan(0)
+    expect(screen.getByText('内置默认单价')).toBeInTheDocument()
+    expect(screen.getByText('已配置单价')).toBeInTheDocument()
+    // 响应不含凭据
+    expect(screen.queryByText(/sk-test/)).not.toBeInTheDocument()
+  })
+
+  it('切换时间窗筛选后仍展示统计', async () => {
+    open_models()
+    render(<App />)
+
+    expect(await screen.findByText('用量统计')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '近 7 天' }))
+
+    expect(await screen.findByText('deepseek-chat')).toBeInTheDocument()
+  })
+
+  it('用量统计读取失败时诚实提示', async () => {
+    server.use(
+      http.get('/api/v1/model/usage', ({ request }) => error_response(request)),
+    )
+    open_models()
+    render(<App />)
+
+    expect(await screen.findByText('暂时无法读取用量统计，请稍后重试。')).toBeInTheDocument()
+  })
 })

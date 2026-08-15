@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Literal, TypeVar, cast
 from urllib.parse import urlparse
 from uuid import UUID
@@ -36,6 +36,7 @@ from src.api.v1.resources import (
     knowledge_document_resource,
     knowledge_search_hit_resource,
     message_resource,
+    model_usage_item_resource,
     monitor_history_resource,
     monitor_overview_resource,
     monitor_threshold_resource,
@@ -80,6 +81,7 @@ from src.api.v1.schemas import (
     ModelProviderListResponse,
     ModelProviderModelsResponse,
     ModelProviderResponse,
+    ModelUsageResponse,
     MonitorHistoryResponse,
     MonitorOverviewResponse,
     MonitorThresholdRequest,
@@ -759,6 +761,44 @@ def delete_model_provider(
         raise_application_error(error)
     meta = response_meta(request)
     return Response(status_code=204, headers={"X-Request-Id": str(meta.request_id)})
+
+
+@router.get("/model/usage", response_model=ModelUsageResponse)
+def get_model_usage(
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+    from_: datetime | None = Query(default=None, alias="from"),
+    to: datetime | None = Query(default=None),
+    model: str | None = Query(default=None, min_length=1, max_length=120),
+) -> ModelUsageResponse:
+    """查询模型调用用量聚合与估算花费（按时间窗/模型过滤；花费为估算口径）。
+
+    缺省时间窗为最近 30 天；from/to 均给出时要求 from ≤ to（否则 422）；
+    窗口跨度上限 366 天。无记录返回空 items；响应只含聚合计数与单价，不含调用内容/凭据。
+    """
+    usage_service = getattr(services, "model_usage_service", None)
+    if usage_service is None:
+        raise ApiV1Error(status_code=503, code="MODEL_USAGE_UNAVAILABLE", message="用量统计当前不可用，请稍后重试。")
+    now = datetime.now(UTC)
+    window_from = from_ or (now - timedelta(days=30))
+    window_to = to or now
+    if window_from > window_to:
+        raise ApiV1Error(status_code=422, code="INVALID_TIME_RANGE", message="时间窗起点不能晚于终点。")
+    if (window_to - window_from) > timedelta(days=366):
+        raise ApiV1Error(status_code=422, code="TIME_RANGE_TOO_WIDE", message="时间窗跨度不能超过 366 天。")
+    summary = usage_service.stats(
+        from_at=window_from,
+        to_at=window_to,
+        model=model,
+    )
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return ModelUsageResponse(
+        estimate=summary["estimate"],
+        items=[model_usage_item_resource(item) for item in summary["items"]],
+        meta=meta,
+    )
 
 
 @router.get("/services/{service_id}/activities", response_model=ServiceActivityListResponse)

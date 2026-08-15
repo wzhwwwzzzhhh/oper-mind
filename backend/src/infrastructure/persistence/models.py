@@ -595,3 +595,28 @@ class AppSettingRecord(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now
     )
+
+
+class ModelUsageRecord(Base):
+    """P8 真实 LLM 调用的用量事实；只增不改，不含调用内容与凭据。
+
+    run_id 预留供后续按会话/Run 下钻（首版不写入，保持 NULL）。
+    """
+
+    __tablename__ = "model_usage_records"
+    __table_args__ = (
+        CheckConstraint("input_tokens >= 0", name="model_usage_input_tokens_nonnegative"),
+        CheckConstraint("output_tokens >= 0", name="model_usage_output_tokens_nonnegative"),
+        CheckConstraint("total_tokens >= 0", name="model_usage_total_tokens_nonnegative"),
+        Index("ix_model_usage_model_created_at", "model", "created_at"),
+        Index("ix_model_usage_created_at", "created_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    model: Mapped[str] = mapped_column(String(120), nullable=False)
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
+    total_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
+    # 预留下钻字段：首版不写入（NULL），后续按会话/Run 明细时再接线，避免迁移。
+    run_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)

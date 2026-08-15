@@ -284,6 +284,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/model/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Model Usage
+         * @description 查询模型调用用量聚合与估算花费（按时间窗/模型过滤；花费为估算口径）。
+         *
+         *     缺省时间窗为最近 30 天；from/to 均给出时要求 from ≤ to（否则 422）；
+         *     窗口跨度上限 366 天。无记录返回空 items；响应只含聚合计数与单价，不含调用内容/凭据。
+         */
+        get: operations["get_model_usage_api_v1_model_usage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/services/{service_id}/activities": {
         parameters: {
             query?: never;
@@ -1723,6 +1746,39 @@ export interface components {
             meta: unknown;
         };
         /**
+         * ModelUsageItemResource
+         * @description 单模型用量聚合结果（token 计数 + 估算花费，标注单价来源）。
+         */
+        ModelUsageItemResource: {
+            /** Model */
+            model: unknown;
+            /** Input Tokens */
+            input_tokens: unknown;
+            /** Output Tokens */
+            output_tokens: unknown;
+            /** Total Tokens */
+            total_tokens: unknown;
+            /** Estimated Cost */
+            estimated_cost: unknown;
+            /** Price Source */
+            price_source: unknown;
+            /** Price Per Million Input */
+            price_per_million_input: unknown;
+            /** Price Per Million Output */
+            price_per_million_output: unknown;
+        };
+        /**
+         * ModelUsageResponse
+         * @description 用量统计响应：按模型分组聚合；estimate=True 表示花费为估算口径。
+         */
+        ModelUsageResponse: {
+            /** Estimate */
+            estimate: unknown;
+            /** Items */
+            items: unknown;
+            meta: unknown;
+        };
+        /**
          * MonitorHistoryResponse
          * @description 历史趋势查询响应。
          */
@@ -2832,6 +2888,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ModelProviderModelsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_model_usage_api_v1_model_usage_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                model?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelUsageResponse"];
                 };
             };
             /** @description Validation Error */

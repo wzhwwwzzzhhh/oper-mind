@@ -17,12 +17,18 @@ from src.core.debate import DebateArena
 from src.core.llm import LLMClient
 from src.core.reflection import ReflectionEngine
 from src.domain.model_params import ModelParams
+from src.domain.model_usage import UsageRecorder
 
 
-def build_llm_from_config(config: dict, params: ModelParams | None = None) -> LLMClient:
+def build_llm_from_config(
+    config: dict,
+    params: ModelParams | None = None,
+    usage_recorder: UsageRecorder | None = None,
+) -> LLMClient:
     """从生效模型配置构建 LLM 客户端；配置缺失时回退确定性 mock，永不 raise。
 
-    params 为应用库解析的运行参数（未配置字段为 None），注入为 LLM 实例默认。
+    params 为应用库解析的运行参数（未配置字段为 None），注入为 LLM 实例默认；
+    usage_recorder 为用量采集端口（None=不采集，旧入口/测试保持现状）。
     """
     llm_config = config.get("llm") or {}
     api_key = llm_config.get("api_key") or "mock"
@@ -35,6 +41,7 @@ def build_llm_from_config(config: dict, params: ModelParams | None = None) -> LL
         model=model,
         default_temperature=params.temperature if params is not None and params.temperature is not None else 0.0,
         default_max_tokens=params.max_tokens if params is not None else None,
+        usage_recorder=usage_recorder,
     )
 
     # mock 模式激活确定性场景（默认 S1）；真实模式清除，工具走真实数据源（如 psutil）
