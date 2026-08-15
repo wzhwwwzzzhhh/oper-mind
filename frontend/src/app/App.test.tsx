@@ -836,4 +836,105 @@ describe('App', () => {
     expect(screen.getByText('初步判断是上游连接池已经耗尽。')).toBeInTheDocument()
   })
 
+  it('编辑用户消息后刷新列表并展示已编辑标注', async () => {
+    const session_id = api_v1_contract_fixtures.session_id
+    const resources = conversation_resources()
+    use_conversation_handlers(resources)
+    let edited_content = resources.messages[0].content
+    server.use(
+      http.patch(new RegExp(`/api/v1/sessions/${session_id}/messages/[^/]+$`), async ({ request }) => {
+        const payload = await request.json() as { content?: unknown }
+        edited_content = typeof payload.content === 'string' ? payload.content : edited_content
+        return response(request, {
+          message: {
+            ...resources.messages[0],
+            content: edited_content,
+            edited_at: '2026-07-28T09:00:00.000Z',
+          },
+        })
+      }),
+      http.get(new RegExp(`/api/v1/sessions/${session_id}/messages$`), ({ request }) =>
+        response(request, {
+          items: [{ ...resources.messages[0], content: edited_content, edited_at: '2026-07-28T09:00:00.000Z' }, ...resources.messages.slice(1)],
+          page: { next_cursor: null, has_more: false },
+        }),
+      ),
+    )
+    open_path(`/workbench/sessions/${session_id}`)
+    render(<App />)
+
+    expect(await screen.findByLabelText('用户问题')).toHaveTextContent('请检查 Nginx 5xx。')
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }))
+
+    const textarea = screen.getByLabelText('编辑消息内容')
+    fireEvent.change(textarea, { target: { value: '请检查 Nginx 5xx（更正措辞）。' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    // 保存成功后刷新列表：新内容 + 「已编辑」标注。
+    await waitFor(() => expect(request_paths.some((path) => path.includes(`/messages/${resources.messages[0].id}`))).toBe(true))
+    await waitFor(() => expect(request_paths.filter((path) => path === `/api/v1/sessions/${session_id}/messages`).length).toBeGreaterThanOrEqual(2))
+    expect(await screen.findByText('已编辑')).toBeInTheDocument()
+    expect(screen.getByLabelText('用户问题')).toHaveTextContent('请检查 Nginx 5xx（更正措辞）。')
+  })
+
+  it('删除用户消息后消息消失且调查卡片保留可追溯', async () => {
+    const session_id = api_v1_contract_fixtures.session_id
+    const resources = conversation_resources()
+    use_conversation_handlers(resources)
+    let deleted = false
+    server.use(
+      http.delete(new RegExp(`/api/v1/sessions/${session_id}/messages/[^/]+$`), () => {
+        deleted = true
+        return HttpResponse.json(null, { status: 204 })
+      }),
+      http.get(new RegExp(`/api/v1/sessions/${session_id}/messages$`), ({ request }) =>
+        response(request, {
+          items: deleted ? resources.messages.filter((item) => item.id !== resources.messages[0].id) : resources.messages,
+          page: { next_cursor: null, has_more: false },
+        }),
+      ),
+    )
+    open_path(`/workbench/sessions/${session_id}`)
+    render(<App />)
+
+    expect(await screen.findByLabelText('用户问题')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+
+    // 删除确认如实提示：有调查回答时说明回答记录保留。
+    const dialogs = await screen.findAllByRole('dialog')
+    const dialog = dialogs.find((node) => within(node).queryByText('删除这条消息？'))
+    expect(dialog).toBeDefined()
+    expect(within(dialog!).getByText(/该问题已有调查回答，删除问题不删除回答记录/)).toBeInTheDocument()
+    fireEvent.click(within(dialog!).getByRole('button', { name: '确认删除' }))
+
+    // 消息内容消失（占位展示），Run 调查卡片保留可追溯。
+    await waitFor(() => expect(screen.queryByText('请检查 Nginx 5xx。')).not.toBeInTheDocument())
+    expect(screen.getByText('（问题已删除）')).toBeInTheDocument()
+    expect(screen.getByText('初步判断是上游连接池已经耗尽。')).toBeInTheDocument()
+  })
+
+  it('删除失败如实提示且消息保留', async () => {
+    const session_id = api_v1_contract_fixtures.session_id
+    const resources = conversation_resources()
+    use_conversation_handlers(resources)
+    server.use(
+      http.delete(new RegExp(`/api/v1/sessions/${session_id}/messages/[^/]+$`), ({ request }) =>
+        response(request, { error: { code: 'MESSAGE_NOT_DELETABLE', message: '只有用户消息可以删除。', details: null } }, 422),
+      ),
+    )
+    open_path(`/workbench/sessions/${session_id}`)
+    render(<App />)
+
+    expect(await screen.findByLabelText('用户问题')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+    const dialogs = await screen.findAllByRole('dialog')
+    const dialog = dialogs.find((node) => within(node).queryByText('删除这条消息？'))
+    expect(dialog).toBeDefined()
+    fireEvent.click(within(dialog!).getByRole('button', { name: '确认删除' }))
+
+    // 失败态诚实展示：错误提示出现，消息仍保留（未用本地数据伪造删除成功）。
+    expect(await screen.findByText('MESSAGE_NOT_DELETABLE：只有用户消息可以删除。')).toBeInTheDocument()
+    expect(screen.getByLabelText('用户问题')).toBeInTheDocument()
+  })
+
 })

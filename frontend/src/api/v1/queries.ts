@@ -21,6 +21,8 @@ import {
   type CreateServiceRequest,
   type UpdateServiceRequest,
   type SendPlainMessageRequest,
+  type EditMessageRequest,
+  type MonitorThresholdConfigResource,
 } from './client'
 
 export const api_v1_query_keys = {
@@ -31,6 +33,7 @@ export const api_v1_query_keys = {
   service: (service_id: string) => ['api-v1', 'service', service_id] as const,
   monitor_overview: () => ['api-v1', 'monitor-overview'] as const,
   service_monitor_history: (service_id: string) => ['api-v1', 'service-monitor-history', service_id] as const,
+  service_monitor_thresholds: (service_id: string) => ['api-v1', 'service-monitor-thresholds', service_id] as const,
   service_activities: (service_id: string, query: ListServiceActivitiesQuery) =>
     ['api-v1', 'service-activities', service_id, query] as const,
   audit_activities: (query: ListAuditActivitiesQuery) =>
@@ -98,6 +101,25 @@ export function get_service_monitor_history_query(service_id: string) {
   return queryOptions({
     queryKey: api_v1_query_keys.service_monitor_history(service_id),
     queryFn: ({ signal }) => api_v1_client.get_service_monitor_history(service_id, {}, { signal }),
+  })
+}
+
+export function get_service_monitor_thresholds_query(service_id: string) {
+  return queryOptions({
+    queryKey: api_v1_query_keys.service_monitor_thresholds(service_id),
+    queryFn: ({ signal }) => api_v1_client.get_service_monitor_thresholds(service_id, { signal }),
+  })
+}
+
+export interface UpdateServiceMonitorThresholdsMutationVariables {
+  service_id: string
+  config: MonitorThresholdConfigResource
+}
+
+export function update_service_monitor_thresholds_mutation() {
+  return mutationOptions({
+    mutationFn: ({ service_id, config }: UpdateServiceMonitorThresholdsMutationVariables) =>
+      api_v1_client.update_service_monitor_thresholds(service_id, config),
   })
 }
 
@@ -203,6 +225,31 @@ export function send_plain_message_mutation() {
   return mutationOptions({
     mutationFn: ({ session_id, content }: SendPlainMessageMutationVariables) =>
       api_v1_client.send_plain_message(session_id, { content }),
+  })
+}
+
+export interface UpdateMessageMutationVariables {
+  content: EditMessageRequest['content']
+  message_id: string
+  session_id: string
+}
+
+export function update_message_mutation() {
+  return mutationOptions({
+    mutationFn: ({ session_id, message_id, content }: UpdateMessageMutationVariables) =>
+      api_v1_client.patch_session_message(session_id, message_id, { content }),
+  })
+}
+
+export interface DeleteMessageMutationVariables {
+  message_id: string
+  session_id: string
+}
+
+export function delete_message_mutation() {
+  return mutationOptions({
+    mutationFn: ({ session_id, message_id }: DeleteMessageMutationVariables) =>
+      api_v1_client.delete_session_message(session_id, message_id),
   })
 }
 

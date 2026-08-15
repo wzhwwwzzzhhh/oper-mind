@@ -26,6 +26,7 @@ function run() {
     status: 'succeeded',
     result: { id: '55555555-5555-4555-8555-555555555555' },
     error: null,
+    created_at: '2026-07-29T01:00:01.000Z',
   }
 }
 
@@ -241,5 +242,56 @@ describe('project_conversation_turns', () => {
       turn: { investigations: [{ investigation: { id: RUN_ID, rerun_of_run_id: undefined } }] },
     })
     expect(projection.rerun_by_latest.size).toBe(0)
+  })
+
+  it('读取 edited_at 字段供「已编辑」标注展示', () => {
+    const projection = project_conversation_turns([
+      { ...user_message(), edited_at: '2026-07-29T01:05:00.000Z' },
+    ], [], SESSION_ID)
+
+    expect(projection.issues).toEqual([])
+    expect(projection.timeline[0]).toMatchObject({
+      kind: 'turn',
+      turn: { input: { edited_at: '2026-07-29T01:05:00.000Z' } },
+    })
+  })
+
+  it('输入消息已删除的调查卡片保留展示，输入为 null 占位', () => {
+    const orphan_run = {
+      ...run(),
+      id: 'dddddddd-dddd-4ddd-8ddd-dddddddddd01',
+      input_message_id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1',
+    }
+    const projection = project_conversation_turns([], [orphan_run], SESSION_ID)
+
+    expect(projection.issues).toContain(
+      `RUN_INPUT_MESSAGE_MISSING：调查 ${orphan_run.id} 未找到对应的用户消息（可能已删除）。`,
+    )
+    expect(projection.timeline).toHaveLength(1)
+    expect(projection.timeline[0]).toMatchObject({
+      kind: 'turn',
+      turn: {
+        input: null,
+        investigations: [{ investigation: { id: orphan_run.id } }],
+      },
+    })
+  })
+
+  it('输入已删除的调查按创建时间插入时间线对应位置', () => {
+    const orphan_run = {
+      ...run(),
+      id: 'dddddddd-dddd-4ddd-8ddd-dddddddddd02',
+      input_message_id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2',
+      created_at: '2026-07-29T01:00:05.000Z',
+    }
+    const projection = project_conversation_turns([
+      user_message(),
+      { ...user_message(), id: 'ffffffff-ffff-4fff-8fff-fffffffffff1', content: '后续问题', created_at: '2026-07-29T01:10:00.000Z' },
+    ], [orphan_run], SESSION_ID)
+
+    expect(projection.timeline).toHaveLength(3)
+    expect(projection.timeline[0]).toMatchObject({ kind: 'turn', turn: { input: { id: INPUT_ID } } })
+    expect(projection.timeline[1]).toMatchObject({ kind: 'turn', turn: { input: null } })
+    expect(projection.timeline[2]).toMatchObject({ kind: 'turn', turn: { input: { content: '后续问题' } } })
   })
 })

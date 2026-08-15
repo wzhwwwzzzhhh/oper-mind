@@ -37,6 +37,7 @@ BUSINESS_TABLES = {
     "action_events",
     "action_idempotency_keys",
     "service_monitor_samples",
+    "service_monitor_thresholds",
     "model_providers",
     "model_provider_idempotency_keys",
     "service_registry",
@@ -383,7 +384,8 @@ def test_p2_schema_postgresql_orm与迁移ddl可离线编译(tmp_path: Path) -> 
         for table in Base.metadata.sorted_tables
     }
     assert set(ddl_by_table) == BUSINESS_TABLES
-    uuid_tables = {name for name in ddl_by_table if name != "app_settings"}
+    # P8 阈值配置表是按服务单行的配置存储（service_id 主键），不是记录表，不要求 UUID 主键。
+    uuid_tables = {name for name in ddl_by_table if name not in {"app_settings", "service_monitor_thresholds"}}
     assert all("UUID" in ddl for name, ddl in ddl_by_table.items() if name in uuid_tables)
     assert "VARCHAR(100)" in ddl_by_table["app_settings"]
     assert "FOREIGN KEY(session_id) REFERENCES sessions (id) ON DELETE RESTRICT" in ddl_by_table["messages"]
