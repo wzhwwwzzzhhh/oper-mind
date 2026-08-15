@@ -569,6 +569,7 @@ class MessageResource(ApiV1Model):
     role: Literal["user", "assistant", "system"]
     content: str
     created_at: datetime
+    edited_at: datetime | None = None
 
 
 class EvidenceResource(ApiV1Model):
@@ -856,6 +857,28 @@ class MessageListResponse(ApiV1Model):
 
     items: list[MessageResource]
     page: CursorPage
+    meta: ResponseMeta
+
+
+class EditMessageRequest(ApiV1Model):
+    """编辑一条用户消息的请求。"""
+
+    content: str = Field(min_length=1, max_length=4000)
+
+    @field_validator("content")
+    @classmethod
+    def normalize_content(cls, value: str) -> str:
+        """去除内容首尾空白并拒绝纯空白消息。"""
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("不能为空")
+        return normalized
+
+
+class MessageResponse(ApiV1Model):
+    """单个消息响应。"""
+
+    message: MessageResource
     meta: ResponseMeta
 
 

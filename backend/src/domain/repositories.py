@@ -50,7 +50,13 @@ class MessageRepository(Protocol):
         """将消息加入调用方事务，不提交。"""
 
     def get_by_id(self, message_id: UUID) -> MessageData | None:
-        """按主键读取消息。"""
+        """按主键读取消息（含已删除消息，供 Run/重跑等历史链路追溯）。"""
+
+    def update_content(self, message_id: UUID, content: str, edited_at: datetime) -> MessageData | None:
+        """仅更新消息内容与编辑时间，时间线位置不变；返回更新后的消息，未找到或已删除返回 None。"""
+
+    def archive(self, message_id: UUID, archived_at: datetime) -> bool:
+        """软删除消息；返回是否真的执行了标记（已删除或不存在返回 False）。"""
 
     def list_by_session(
         self,
@@ -58,7 +64,7 @@ class MessageRepository(Protocol):
         cursor: MessageCursor | None,
         limit: int,
     ) -> RepositoryPage[MessageData, MessageCursor]:
-        """按创建时间正序读取会话消息页。"""
+        """按创建时间正序读取会话消息页（不含已删除消息）。"""
 
 
 class DiagnosisRunRepository(Protocol):

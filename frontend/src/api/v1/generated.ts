@@ -489,6 +489,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{session_id}/messages/{message_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Message
+         * @description 软删除一条 user 消息；重复删除幂等 204；Run 与历史留痕不受影响。
+         */
+        delete: operations["delete_message_api_v1_sessions__session_id__messages__message_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Edit Message
+         * @description 编辑一条 user 消息：更新内容并记录 edited_at，时间线位置不变。
+         */
+        patch: operations["edit_message_api_v1_sessions__session_id__messages__message_id__patch"];
+        trace?: never;
+    };
     "/api/v1/sessions/{session_id}/export": {
         parameters: {
             query?: never;
@@ -1300,6 +1324,14 @@ export interface components {
             finished_at?: unknown;
         };
         /**
+         * EditMessageRequest
+         * @description 编辑一条用户消息的请求。
+         */
+        EditMessageRequest: {
+            /** Content */
+            content: string;
+        };
+        /**
          * EvidenceResource
          * @description 经安全审查的结构化证据。
          */
@@ -1529,6 +1561,16 @@ export interface components {
             content: unknown;
             /** Created At */
             created_at: unknown;
+            /** Edited At */
+            edited_at?: unknown;
+        };
+        /**
+         * MessageResponse
+         * @description 单个消息响应。
+         */
+        MessageResponse: {
+            message: unknown;
+            meta: unknown;
         };
         /**
          * ModelConfigResource
@@ -3218,6 +3260,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlainMessageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_message_api_v1_sessions__session_id__messages__message_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_message_api_v1_sessions__session_id__messages__message_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditMessageRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
                 };
             };
             /** @description Validation Error */

@@ -296,6 +296,72 @@ def test_session_message_run_event分页遵循固定排序(repository_session: S
     assert [item.sequence for item in event_repository.list_by_run(run_one.id, first_events.next_cursor, 2).items] == [3]
 
 
+def test_message_repository_编辑软删与列表过滤(repository_session: Session) -> None:
+    """P8：update_content / archive 条件更新，list_by_session 过滤已删除消息。"""
+    session_repository = SqlAlchemySessionRepository(repository_session)
+    message_repository = SqlAlchemyMessageRepository(repository_session)
+    session_data = _add_session(session_repository, 50, _time(1))
+    repository_session.flush()
+
+    user_message = MessageData(
+        id=_uuid(51),
+        session_id=session_data.id,
+        role=MessageRole.USER,
+        content="原始内容",
+        created_at=_time(2),
+    )
+    assistant_message = MessageData(
+        id=_uuid(52),
+        session_id=session_data.id,
+        role=MessageRole.ASSISTANT,
+        content="回复",
+        created_at=_time(3),
+    )
+    message_repository.add(user_message)
+    message_repository.add(assistant_message)
+    repository_session.flush()
+
+    # update_content：更新内容与 edited_at，created_at（时间线位置）不变。
+    edited = message_repository.update_content(user_message.id, "新内容", _time(4))
+    assert edited is not None
+    assert edited.content == "新内容"
+    assert edited.edited_at == _time(4)
+    assert edited.created_at == _time(2)
+    assert edited.archived_at is None
+    assert message_repository.get_by_id(user_message.id) == edited
+
+    # archive：首次软删除返回 True，重复删除返回 False（幂等由调用方处理）。
+    assert message_repository.archive(user_message.id, _time(5)) is True
+    assert message_repository.archive(user_message.id, _time(6)) is False
+
+    # list_by_session 不再返回已删除消息；分页游标语义不变。
+    listed = message_repository.list_by_session(session_data.id, cursor=None, limit=10)
+    assert [item.id for item in listed.items] == [assistant_message.id]
+    assert listed.has_more is False
+
+    # 已删除消息不可再编辑（返回 None），但 get_by_id 仍可读取（Run 追溯依赖）。
+    assert message_repository.update_content(user_message.id, "再改", _time(7)) is None
+    archived_read = message_repository.get_by_id(user_message.id)
+    assert archived_read is not None
+    assert archived_read.content == "新内容"
+    assert archived_read.archived_at == _time(5)
+
+    # 混合分页：删除中间消息后，游标翻页跳过已删除消息。
+    extra = MessageData(
+        id=_uuid(53),
+        session_id=session_data.id,
+        role=MessageRole.USER,
+        content="更早消息",
+        created_at=_time(6),
+    )
+    message_repository.add(extra)
+    repository_session.flush()
+    message_repository.archive(extra.id, _time(8))
+    repository_session.flush()
+    page = message_repository.list_by_session(session_data.id, cursor=None, limit=5)
+    assert [item.id for item in page.items] == [assistant_message.id]
+
+
 def test_repositories_不自行提交或回滚(repository_session: Session, monkeypatch: pytest.MonkeyPatch) -> None:
     """Repository 只能 staged add/read，事务提交和回滚始终由调用方负责。"""
     session_repository = SqlAlchemySessionRepository(repository_session)

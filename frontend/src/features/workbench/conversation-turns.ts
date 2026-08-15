@@ -13,6 +13,8 @@ export interface ConversationMessage {
   id: string
   role: ConversationMessageRole
   run_id?: string
+  /** 编辑时间；存在即展示「已编辑」标注。 */
+  edited_at?: string
 }
 
 export interface ConversationInvestigation {
@@ -24,10 +26,12 @@ export interface ConversationInvestigation {
   service_id?: string
   status: InvestigationStatus
   trace_id?: string
+  created_at: string
 }
 
 export interface ConversationTurn {
-  input: ConversationMessage
+  /** 用户输入消息；输入已被删除（软删）时为 null，调查卡片仍保留展示。 */
+  input: ConversationMessage | null
   investigations: Array<{ investigation: ConversationInvestigation; output?: ConversationMessage }>
   /** 普通对话回复（无 Run 关联的 assistant 消息），仅普通消息通道产生。 */
   plain_reply?: ConversationMessage
@@ -55,6 +59,7 @@ function read_message(value: unknown, session_id: string, issues: string[]): Con
   const content = resource_optional_string(value, 'content')
   const created_at = resource_optional_string(value, 'created_at')
   const run_id = resource_optional_string(value, 'run_id')
+  const edited_at = resource_optional_string(value, 'edited_at')
 
   if (!id || !resource_session_id || !role || !content || !created_at) {
     issues.push('MESSAGE_PROTOCOL_ERROR：服务端返回的消息缺少展示所需字段。')
@@ -75,6 +80,7 @@ function read_message(value: unknown, session_id: string, issues: string[]): Con
     id,
     role: role as ConversationMessageRole,
     run_id,
+    edited_at,
   }
 }
 
@@ -86,9 +92,10 @@ function read_investigation(value: unknown, session_id: string, issues: string[]
   const trace_id = resource_optional_string(value, 'trace_id')
   const service_id = resource_optional_string(value, 'service_id')
   const rerun_of_run_id = resource_optional_string(value, 'rerun_of_run_id')
+  const created_at = resource_optional_string(value, 'created_at')
   const record = read_record(value)
 
-  if (!id || !resource_session_id || !input_message_id || !status || !record) {
+  if (!id || !resource_session_id || !input_message_id || !status || !created_at || !record) {
     issues.push('RUN_PROTOCOL_ERROR：服务端返回的调查缺少展示所需字段。')
     return undefined
   }
@@ -114,6 +121,7 @@ function read_investigation(value: unknown, session_id: string, issues: string[]
     service_id,
     status: status as InvestigationStatus,
     trace_id,
+    created_at,
   }
 }
 
@@ -137,10 +145,13 @@ export function project_conversation_turns(
   const investigation_by_input_id = new Map<string, ConversationInvestigation>()
   const output_by_run_id = new Map<string, ConversationMessage>()
   const plain_replies: ConversationMessage[] = []
+  const orphan_investigations: ConversationInvestigation[] = []
 
   for (const investigation of investigations) {
     if (!message_by_id.has(investigation.input_message_id)) {
-      issues.push(`RUN_INPUT_MESSAGE_MISSING：调查 ${investigation.id} 未找到对应的用户消息。`)
+      // P8 消息删除：输入消息被软删后不在列表返回，调查卡片仍保留展示（输入位置用占位）。
+      issues.push(`RUN_INPUT_MESSAGE_MISSING：调查 ${investigation.id} 未找到对应的用户消息（可能已删除）。`)
+      orphan_investigations.push(investigation)
       continue
     }
     if (investigation_by_input_id.has(investigation.input_message_id)) {
@@ -206,6 +217,25 @@ export function project_conversation_turns(
     timeline.push({ kind: 'plain_reply', message: plain_replies[index]! })
   }
 
+  // 输入消息已删除（软删）的调查卡片保留展示，输入位置为 null 占位；
+  // 按调查创建时间插入时间线对应位置，保持「删除问题不删除回答记录」的时间顺序诚实。
+  const orphan_turns: ConversationTimelineItem[] = orphan_investigations.map((investigation) => ({
+    kind: 'turn',
+    turn: {
+      input: null,
+      investigations: [{ investigation, output: output_by_run_id.get(investigation.id) }],
+    },
+  }))
+  for (const orphan_turn of orphan_turns) {
+    const orphan_at = timeline_item_created_at(orphan_turn)
+    const insert_at = timeline.findIndex((item) => (timeline_item_created_at(item) ?? '') > (orphan_at ?? ''))
+    if (insert_at === -1) {
+      timeline.push(orphan_turn)
+    } else {
+      timeline.splice(insert_at, 0, orphan_turn)
+    }
+  }
+
   // Each Run persists its own user message. Only adjacent equal questions form one multi-service turn.
   const grouped_timeline: ConversationTimelineItem[] = []
   for (const item of timeline) {
@@ -220,6 +250,8 @@ export function project_conversation_turns(
     ))
     const service_id = item.turn.investigations[0]?.investigation.service_id
     const adjacent = previous_turn
+      && previous_turn.input !== null
+      && item.turn.input !== null
       && previous_turn.input.content === item.turn.input.content
       && Math.abs(Date.parse(item.turn.input.created_at) - Date.parse(previous_turn.input.created_at)) <= 10_000
       && service_id !== undefined
@@ -239,6 +271,13 @@ export function project_conversation_turns(
   }
 
   return { issues, timeline: grouped_timeline, rerun_by_latest }
+}
+
+function timeline_item_created_at(item: ConversationTimelineItem): string | undefined {
+  if (item.kind === 'turn') {
+    return item.turn.input?.created_at ?? item.turn.investigations[0]?.investigation.created_at
+  }
+  return item.message.created_at
 }
 
 export function investigation_status_text(status: InvestigationStatus): string {
