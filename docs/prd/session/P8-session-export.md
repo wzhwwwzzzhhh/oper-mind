@@ -1,10 +1,10 @@
 ---
 title: 会话导出——会话记录留存与分享
-status: 进行中
+status: 完成
 domain: session
 phase: P8
 issue: 76
-updated: 2026-08-14
+updated: 2026-08-15
 ---
 
 # 会话导出——会话记录留存与分享 · PRD
