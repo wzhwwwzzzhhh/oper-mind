@@ -75,24 +75,23 @@
 
 - 新增 `backend/src/application/message_editing.py`（镜像 `plain_messages.py` 的模块风格）：
   - `EditMessageCommand(content: str)`（1..4000，strip 归一化，与创建消息同约束）。
-  - `MessageEditingApplicationService`，构造注入 `SessionFactory`（与既有服务一致，短事务内操作）：
-    - `edit_message(session_id, message_id, command) -> MessageData`：
-      1. 短事务内读消息：不存在 / 不属于该会话 / 已删除 → `MessageNotFoundError`（404）。
-      2. 角色非 `user` → `MessageNotEditableError`（422，AC2）。
-      3. `update_content(content, now)` 并提交，返回更新后消息（AC1）。
-    - `archive_message(session_id, message_id) -> None`：
-      1. 短事务内读消息：不存在 / 不属于该会话 → `MessageNotFoundError`（404）。
-      2. 角色非 `user` → `MessageNotDeletableError`（422，AC6）。
-      3. 已删除（`archived_at` 非空）→ 幂等直接返回（204，AC8，对齐既有
-         `DELETE /sessions/{id}` 幂等语义）。
-      4. `archive(now)`；**同事务**按 §2.5 配对规则软删除紧随的普通回复（若有）。
+  - `MessageEditingWriter` Protocol 端口（`edit_message` / `archive_message` 两个单事务用例方法）：
+    归属校验（不存在 / 不属于该会话 / 已删除 → `MessageNotFoundError` 404；非 user → 422）、
+    更新 / 软删 / 成对普通回复随删、提交回滚全部在 writer 单事务内完成——
+    application 层不直连 infrastructure，装配在 `dependencies.py`（对齐 `plain_messages.py` 先例，
+    满足 ruff 分层硬边界 TID251）。
+  - `MessageEditingApplicationService`，构造注入 `MessageEditingWriter`：
+    - `edit_message(session_id, message_id, command) -> MessageData`：归一化内容后委托 writer（AC1/AC2/AC3/AC4）。
+    - `archive_message(session_id, message_id) -> None`：委托 writer（AC5/AC6/AC7/AC8）。
   - 错误类新增到 `backend/src/application/errors.py`：
     `MessageNotFoundError`（404 `MESSAGE_NOT_FOUND`）、`MessageNotEditableError`
     （422 `MESSAGE_NOT_EDITABLE`）、`MessageNotDeletableError`（422 `MESSAGE_NOT_DELETABLE`）。
-    归属校验（会话归属、角色、已删除）全部在应用层完成——PRD 降级策略「无身份模型下为资源归属校验」。
+    归属校验（会话归属、角色、已删除）全部在 writer 内完成——PRD 降级策略「无身份模型下为资源归属校验」。
 - 装配：`V1Services`（`backend/src/api/v1/dependencies.py`）新增
   `message_editing_service: MessageEditingApplicationService | None = None` 字段，
-  `build_v1_services_for_runtime` 显式装配（与 `plain_message_service` 同层），不新增全局单例。
+  `build_v1_services_for_runtime` 用 `SqlAlchemyMessageEditingWriter`
+  （`backend/src/infrastructure/persistence/message_editing_writer.py`）显式装配
+  （与 `plain_message_service` 同层），不新增全局单例。
 
 ### 2.3 API 层：PATCH / DELETE 路由与错误语义
 
