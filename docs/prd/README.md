@@ -48,7 +48,7 @@
 | P8 | 消息编辑与删除——会话消息更正 | `session/P8-message-edit-delete.md` | 已确认 |
 | P8 | 会话导出——会话记录留存与分享 | `session/P8-session-export.md` | 已确认 |
 | P8 | 监控阈值与关注项配置——采样点异常判定规则可调 | `service-center/P8-monitor-threshold-config.md` | 已确认 |
-| P8 | 知识文档列表分页——目录浏览容量化 | `knowledge/P8-knowledge-document-pagination.md` | 已确认 |
+| P8 | 知识文档列表分页——目录浏览容量化 | `knowledge/P8-knowledge-document-pagination.md` | 进行中 |
 | P8 | 审计导出——审计活动留档与外部核验 | `audit/P8-audit-export.md` | 已确认 |
 
 ## 执行 AI 如何使用
