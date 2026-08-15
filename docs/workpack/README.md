@@ -20,12 +20,13 @@ docs/workpack/
 
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
-| P8 | knowledge-document-pagination | 实现中（计划已确认 2026-08-15） | [plan.md](P8-knowledge-document-pagination/plan.md) | 待回写 | [evidence.md](P8-knowledge-document-pagination/evidence.md) |
+| （无活跃工作包） | | | | | |
 
 ## 已归档
 
 | 阶段 | 切片 | PR | 完成日期 |
 |---|---|---|---|
+| P8 | knowledge-document-pagination | #84 | 2026-08-15 |
 | P8 | rerun-investigation | #74 | 2026-08-14 |
 | P8 | audit-activity-log | #71 | 2026-08-12 |
 | P8 | session-management | #69 | 2026-08-12 |
