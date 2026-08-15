@@ -215,7 +215,7 @@ class SqlAlchemyMessageRepository:
             .values(content=content, edited_at=edited_at)
             .execution_options(synchronize_session="fetch")
         )
-        if result.rowcount != 1:
+        if _rowcount(result) != 1:
             return None
         return self.get_by_id(message_id)
 
@@ -227,7 +227,7 @@ class SqlAlchemyMessageRepository:
             .values(archived_at=archived_at)
             .execution_options(synchronize_session="fetch")
         )
-        return result.rowcount == 1
+        return _rowcount(result) == 1
 
     def list_latest_by_session(self, session_id: UUID, limit: int) -> list[MessageData]:
         """读取会话最近 limit 条消息，按创建时间正序返回（供导出等尾部场景）。
