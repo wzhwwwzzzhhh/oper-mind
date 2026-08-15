@@ -688,3 +688,61 @@
     justify-content: flex-start;
   }
 }
+
+/* ---- P8 用量统计 ---- */
+.usage-window-options {
+  display: flex;
+  gap: 6px;
+}
+
+.usage-window-option {
+  border: 1px solid var(--border-color, #d0d7de);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary, #57606a);
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.usage-window-option.selected {
+  background: var(--accent, #2563eb);
+  border-color: var(--accent, #2563eb);
+  color: #fff;
+}
+
+.usage-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.usage-table th,
+.usage-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-color, #eaeef2);
+  text-align: left;
+}
+
+.usage-table th {
+  color: var(--text-secondary, #57606a);
+  font-weight: 500;
+  font-size: 12px;
+}
+
+.usage-table .usage-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-table td em {
+  font-style: normal;
+  color: var(--text-tertiary, #8b949e);
+  font-size: 11px;
+}
+
+.usage-price-detail {
+  display: block;
+  color: var(--text-tertiary, #8b949e);
+  font-size: 11px;
+}

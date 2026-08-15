@@ -568,6 +568,29 @@ const provider_fixture = {
   updated_at: '2026-08-06T03:00:00.000Z',
 }
 
+const usage_items = [
+  {
+    model: 'deepseek-chat',
+    input_tokens: 12000,
+    output_tokens: 4000,
+    total_tokens: 16000,
+    estimated_cost: 0.02,
+    price_source: 'builtin',
+    price_per_million_input: 1.0,
+    price_per_million_output: 2.0,
+  },
+  {
+    model: 'gpt-4o-mini',
+    input_tokens: 3000,
+    output_tokens: 1000,
+    total_tokens: 4000,
+    estimated_cost: 0.0105,
+    price_source: 'configured',
+    price_per_million_input: 1.5,
+    price_per_million_output: 6.0,
+  },
+]
+
 export const api_v1_handlers = [
   http.get('/api/v1/knowledge/documents', ({ request }) => response(request, {
     status: 'ok',
@@ -663,6 +686,17 @@ export const api_v1_handlers = [
         params: { temperature: body.temperature ?? null, max_tokens: body.max_tokens ?? null },
         params_defaults: { temperature: 0.0, max_tokens: null },
       },
+    })
+  }),
+  http.get('/api/v1/model/usage', ({ request }) => {
+    const url = new URL(request.url)
+    const model = url.searchParams.get('model')
+    const items = model != null
+      ? usage_items.filter((item) => item.model === model)
+      : usage_items
+    return response(request, {
+      estimate: true,
+      items,
     })
   }),
   http.get('/api/v1/model/providers', ({ request }) => response(request, { items: [provider_fixture] })),

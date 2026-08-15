@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent, ReactElement } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -9,6 +9,7 @@ import {
   create_model_provider_mutation,
   delete_model_provider_mutation,
   get_model_config_query,
+  get_model_usage_query,
   list_model_providers_query,
   list_provider_models_mutation,
   update_model_mode_mutation,
@@ -33,8 +34,32 @@ interface ModelParamsFormState {
 
 type ModelsStatus = 'idle' | 'loading' | 'ok' | 'failed'
 
+type UsageWindowDays = 7 | 30 | 90
+
 const empty_form: ProviderFormState = { name: '', base_url: '', model: '', api_key: '' }
 const empty_params: ModelParamsFormState = { temperature: null, max_tokens: null }
+
+const USAGE_WINDOW_OPTIONS: { days: UsageWindowDays; label: string }[] = [
+  { days: 7, label: '近 7 天' },
+  { days: 30, label: '近 30 天' },
+  { days: 90, label: '近 90 天' },
+]
+
+function usage_price_source_label(source: 'builtin' | 'configured' | 'unset'): string {
+  if (source === 'configured') return '已配置单价'
+  if (source === 'builtin') return '内置默认单价'
+  return '未配置单价（通用默认）'
+}
+
+function format_tokens(value: number): string {
+  return value.toLocaleString('zh-CN')
+}
+
+function format_cost(value: number): string {
+  if (value === 0) return '¥0.00'
+  if (value < 0.01) return `¥${value.toFixed(6)}`
+  return `¥${value.toFixed(2)}`
+}
 
 function endpoint_label(endpoint: ModelProviderResource['active_endpoint']): string | null {
   if (endpoint === 'diagnostic') return '诊断生效'
@@ -86,6 +111,19 @@ export function ModelSettingsPage(): ReactElement {
   const [model_options, set_model_options] = useState<string[]>([])
   const [models_error, set_models_error] = useState<string | null>(null)
   const [params_form, set_params_form] = useState<ModelParamsFormState>(empty_params)
+  const [usage_days, set_usage_days] = useState<UsageWindowDays>(30)
+
+  const usage_window = useMemo(
+    () => ({
+      from: new Date(Date.now() - usage_days * 24 * 60 * 60 * 1000).toISOString(),
+      to: new Date().toISOString(),
+    }),
+    [usage_days],
+  )
+
+  const usage_query = useQuery({
+    ...get_model_usage_query(usage_window),
+  })
 
   const show_toast = (message: string): void => {
     set_toast(message)
@@ -334,6 +372,49 @@ export function ModelSettingsPage(): ReactElement {
                 {config.mode === 'mock' && <div className="mode-unavailable">当前为 mock 模式，参数不生效；切换 real 后保存的参数立即进入调用链。</div>}
               </>
             )}
+        </div>
+      </section>
+
+      <section className="model-section" id="usage">
+        <div className="model-section-head"><div><h2>用量统计</h2><p>真实调用产生的 token 用量与估算花费（按模型聚合）。花费为估算口径：按模型单价 × token 计算，单价来源见各行列示；Mock 模式不采集用量。</p></div>
+          <div className="usage-window-options" role="group" aria-label="时间窗筛选">
+            {USAGE_WINDOW_OPTIONS.map((option) => (
+              <button key={option.days} className={`usage-window-option ${usage_days === option.days ? 'selected' : ''}`} onClick={() => set_usage_days(option.days)} type="button">{option.label}</button>
+            ))}
+          </div>
+        </div>
+        <div className="model-card boundary-card">
+          {usage_query.isPending && <div className="model-inline-state">正在读取用量统计…</div>}
+          {usage_query.isError && <div className="model-inline-state error">暂时无法读取用量统计，请稍后重试。</div>}
+          {usage_query.isSuccess && usage_query.data.data.items.length === 0 && (
+            <div className="model-inline-state">暂无用量记录。Mock 模式不采集用量；切换真实调用并产生会话后，这里会展示聚合统计。</div>
+          )}
+          {usage_query.isSuccess && usage_query.data.data.items.length > 0 && (
+            <table className="usage-table">
+              <thead>
+                <tr>
+                  <th>模型</th>
+                  <th className="usage-num">Input tokens</th>
+                  <th className="usage-num">Output tokens</th>
+                  <th className="usage-num">Total tokens</th>
+                  <th className="usage-num">估算花费</th>
+                  <th>单价来源</th>
+                </tr>
+              </thead>
+              <tbody>
+                {usage_query.data.data.items.map((item) => (
+                  <tr key={item.model}>
+                    <td><strong>{item.model}</strong></td>
+                    <td className="usage-num">{format_tokens(item.input_tokens)}</td>
+                    <td className="usage-num">{format_tokens(item.output_tokens)}</td>
+                    <td className="usage-num">{format_tokens(item.total_tokens)}</td>
+                    <td className="usage-num"><strong>{format_cost(item.estimated_cost)}</strong> <em>估算</em></td>
+                    <td>{usage_price_source_label(item.price_source)}<small className="usage-price-detail">（input ¥{item.price_per_million_input}/百万 · output ¥{item.price_per_million_output}/百万）</small></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </section>
 
