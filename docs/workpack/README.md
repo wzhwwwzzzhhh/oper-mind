@@ -20,7 +20,7 @@ docs/workpack/
 
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
-| （无活跃工作包） | | | | | |
+| P8 | audit-export | 待用户确认计划 | [plan.md](P8-audit-export/plan.md) | — | — |
 
 ## 已归档
 

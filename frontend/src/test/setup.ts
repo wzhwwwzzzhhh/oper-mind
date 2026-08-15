@@ -35,6 +35,16 @@ Object.defineProperty(window, 'matchMedia', {
   }),
 })
 
+// jsdom 未实现 Blob URL 下载（审计导出依赖），提供确定性 stub。
+Object.defineProperty(URL, 'createObjectURL', {
+  writable: true,
+  value: () => 'blob:audit-export-test',
+})
+Object.defineProperty(URL, 'revokeObjectURL', {
+  writable: true,
+  value: () => undefined,
+})
+
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => {
   TestEventSource.reset()

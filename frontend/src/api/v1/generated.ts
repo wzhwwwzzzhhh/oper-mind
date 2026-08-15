@@ -324,6 +324,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/audit/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Audit Activities
+         * @description 按与列表相同的过滤条件导出审计活动全量快照（CSV/Markdown，只读，受上限约束）。
+         */
+        get: operations["export_audit_activities_api_v1_audit_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/services/{service_id}/sessions": {
         parameters: {
             query?: never;
@@ -1095,6 +1115,12 @@ export interface components {
          * @enum {string}
          */
         AuditActivityType: "run_created" | "run_running" | "run_completed" | "run_failed" | "run_cancelled" | "proposal_created" | "approval_recorded" | "execution_completed" | "verification_completed" | "action_blocked" | "action_failed";
+        /**
+         * AuditExportFormat
+         * @description 导出文件格式。
+         * @enum {string}
+         */
+        AuditExportFormat: "csv" | "md";
         /**
          * AuditOutcome
          * @description 审计结果收敛枚举；approval_recorded / action_failed 按事件 data.status 派生。
@@ -2738,6 +2764,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuditActivityListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_audit_activities_api_v1_audit_export_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                service_id?: string | null;
+                action_type?: components["schemas"]["AuditActivityType"] | null;
+                result?: components["schemas"]["AuditOutcome"] | null;
+                format?: components["schemas"]["AuditExportFormat"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
