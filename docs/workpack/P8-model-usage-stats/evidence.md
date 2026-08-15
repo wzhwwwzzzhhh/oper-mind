@@ -33,3 +33,4 @@
 - 前端：`npm run typecheck` 通过；`vitest run ModelSettingsPage.test.tsx` → 17 passed；`npm run build` 通过（5.89s）
 - 门禁：`git diff --check` 干净（exit 0）
 - 合 main：`git merge origin/main` 解冲突（dependencies.py / handlers.ts 各保留双方新增），合并后聚焦测试 52 passed；全量回归结果见上
+- 迁移多头处理：main 并行 head（消息编辑 14 / 监控阈值 15）→ 本切片迁移接 15 后 + merge migration（`20260815_14_merge_p8_heads`）收敛唯一 head；`upgrade head` / `downgrade base` 验证通过；schema/迁移相关测试 30 passed

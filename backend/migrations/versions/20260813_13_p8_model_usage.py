@@ -7,7 +7,9 @@ import sqlalchemy as sa
 
 
 revision = "20260813_13_p8_model_usage"
-down_revision = "20260812_12_p8_run_rerun"
+# 接在当前 main 最新 head（监控阈值 15）之后，避免与消息编辑 14 形成并行分叉；
+# 由 merge migration（20260815_14_merge_p8_heads）收敛为唯一 head。
+down_revision = "20260815_13_p8_monitor_thresholds"
 branch_labels = None
 depends_on = None
 
