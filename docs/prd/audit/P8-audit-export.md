@@ -1,10 +1,10 @@
 ---
 title: 审计导出——审计活动留档与外部核验
-status: 已确认
+status: 进行中
 domain: audit
 phase: P8
 issue: 79
-updated: 2026-08-14
+updated: 2026-08-15
 ---
 
 # 审计导出——审计活动留档与外部核验 · PRD

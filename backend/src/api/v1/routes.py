@@ -111,11 +111,13 @@ from src.application.action_services import (
     DecideActionProposalCommand,
     RequestActionExecutionCommand,
 )
+from src.application.audit_export_renderer import render_audit_export
 from src.application.audit_service import AuditApplicationService
 from src.application.contracts import CreateRunCommand, CreateSessionCommand, UpdateSessionCommand
 from src.application.errors import (
     ActionProposalInvalidStateError,
     ApplicationError,
+    AuditExportLimitExceededError,
     RunNotFoundError,
     ServiceCenterUnavailableError,
     SessionNotFoundError,
@@ -148,6 +150,7 @@ from src.application.session_export import SessionExportApplicationService
 from src.config import load_monitor_settings
 from src.domain.actions import ActionProposalStatus
 from src.domain.audit import AuditActivityType, AuditOutcome
+from src.domain.audit_export import EXPORT_MAX_ITEMS, AuditExportFormat
 from src.domain.diagnosis import RunStatus, SessionStatus
 from src.domain.model_params import ModelParams
 from src.domain.model_provider import ProviderEndpoint
@@ -863,6 +866,66 @@ def list_audit_activities(
             has_more=page.has_more,
         ),
         meta=meta,
+    )
+
+
+@router.get("/audit/export")
+def export_audit_activities(
+    request: Request,
+    from_: datetime | None = Query(default=None, alias="from"),
+    to: datetime | None = None,
+    service_id: str | None = Query(default=None, min_length=1, max_length=64),
+    action_type: AuditActivityType | None = None,
+    result: AuditOutcome | None = None,
+    format: AuditExportFormat = Query(default=AuditExportFormat.CSV),
+    services: V1Services = Depends(get_v1_services),
+) -> StreamingResponse:
+    """按与列表相同的过滤条件导出审计活动全量快照（CSV/Markdown，只读，受上限约束）。"""
+    if from_ is not None and to is not None and from_ > to:
+        raise ApiV1Error(422, "VALIDATION_ERROR", "请求时间窗口不合法")
+    try:
+        export_result = _audit_service(services).export_activities(
+            EXPORT_MAX_ITEMS,
+            from_at=from_,
+            to_at=to,
+            service_id=service_id,
+            action_type=action_type,
+            outcome=result,
+        )
+    except AuditExportLimitExceededError:
+        raise ApiV1Error(
+            422,
+            "EXPORT_LIMIT_EXCEEDED",
+            f"导出结果超过单次上限（{EXPORT_MAX_ITEMS} 条），请收窄时间窗或过滤条件后重试。",
+        ) from None
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    media_type = (
+        "text/csv; charset=utf-8"
+        if format is AuditExportFormat.CSV
+        else "text/markdown; charset=utf-8"
+    )
+    filename = f"audit-export-{export_result.exported_at.strftime('%Y%m%dT%H%M%SZ')}.{format.value}"
+    headers = {
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        "X-Export-Count": str(len(export_result.items)),
+        "X-Request-Id": str(meta.request_id),
+    }
+    if meta.trace_id is not None:
+        headers["X-Trace-Id"] = str(meta.trace_id)
+    return StreamingResponse(
+        render_audit_export(
+            export_result,
+            format,
+            from_at=from_,
+            to_at=to,
+            service_id=service_id,
+            action_type=action_type.value if action_type else None,
+            outcome=result.value if result else None,
+        ),
+        media_type=media_type,
+        headers=headers,
     )
 
 

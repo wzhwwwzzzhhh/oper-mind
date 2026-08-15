@@ -263,6 +263,9 @@ export type ListServiceActivitiesQuery = NonNullable<
 export type ListAuditActivitiesQuery = NonNullable<
   operations['list_audit_activities_api_v1_audit_activities_get']['parameters']['query']
 >
+export type ExportAuditQuery = NonNullable<
+  operations['export_audit_activities_api_v1_audit_export_get']['parameters']['query']
+>
 export type ListKnowledgeDocumentsQuery = NonNullable<
   operations['list_knowledge_documents_api_v1_knowledge_documents_get']['parameters']['query']
 >
@@ -288,6 +291,13 @@ export type ApiProtocolIssue =
 
 export interface ApiResponse<TData> {
   data: TData
+  diagnostics: ApiRequestDiagnostics
+}
+
+export interface AuditExportFile {
+  content: string
+  filename: string
+  count: number
   diagnostics: ApiRequestDiagnostics
 }
 
@@ -426,6 +436,10 @@ export interface ApiV1Client {
     query?: ListAuditActivitiesQuery,
     options?: ApiRequestOptions,
   ): Promise<ApiResponse<AuditActivityListResponse>>
+  export_audit_activities(
+    query?: ExportAuditQuery,
+    options?: ApiRequestOptions,
+  ): Promise<AuditExportFile>
   create_service_session(
     service_id: string,
     options?: ApiRequestOptions,
@@ -757,6 +771,65 @@ async function request_text(
   }
 }
 
+/** 审计导出下载：CSV/Markdown 文本 + 文件名 + 导出行数（X-Export-Count）。 */
+async function request_download(
+  fetch_impl: typeof fetch,
+  request_id_factory: () => string,
+  base_url: string,
+  path: string,
+  options?: ApiRequestOptions,
+): Promise<AuditExportFile> {
+  const request_id = request_id_factory()
+  let response: Response
+  const headers: Record<string, string> = {
+    Accept: 'text/csv, text/markdown, application/json',
+    'X-Request-Id': request_id,
+  }
+
+  try {
+    response = await fetch_impl(resolve_url(base_url, path), {
+      method: 'GET',
+      headers,
+      signal: options?.signal,
+    })
+  } catch (error) {
+    const aborted = options?.signal?.aborted || (error instanceof DOMException && error.name === 'AbortError')
+    throw new ApiClientError(
+      aborted ? 'REQUEST_ABORTED' : 'NETWORK_ERROR',
+      aborted ? '请求已取消。' : '无法连接到服务。',
+      undefined,
+      { request_id, status: 0, protocol_issues: [] },
+    )
+  }
+
+  if (!response.ok) {
+    // 导出错误走既有 JSON 错误协议（如 422 EXPORT_LIMIT_EXCEEDED）。
+    let payload: unknown
+    try {
+      payload = await response.json()
+    } catch {
+      payload = undefined
+    }
+    const diagnostics = build_diagnostics(request_id, response, payload)
+    const safe_error = read_safe_error(payload)
+    throw new ApiClientError(
+      typeof safe_error?.code === 'string' ? safe_error.code : 'HTTP_ERROR',
+      typeof safe_error?.message === 'string' ? safe_error.message : '导出失败。',
+      safe_error?.details,
+      diagnostics,
+    )
+  }
+
+  const content = await response.text()
+  const count_header = response.headers.get('X-Export-Count')
+  const count = count_header === null ? 0 : Number.parseInt(count_header, 10)
+  const disposition = response.headers.get('Content-Disposition') ?? ''
+  const filename_match = /filename="([^"]+)"/.exec(disposition)
+  const filename = filename_match?.[1] ?? 'audit-export.csv'
+  const diagnostics = build_diagnostics(request_id, response, undefined)
+  return { content, filename, count: Number.isFinite(count) ? count : 0, diagnostics }
+}
+
 export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Client {
   const fetch_impl = options.fetch_impl
   const request_id_factory = options.request_id_factory ?? create_request_id
@@ -958,6 +1031,14 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
         request_id_factory,
         base_url,
         append_query('/api/v1/audit/activities', query),
+        request_options,
+      ),
+    export_audit_activities: (query = {}, request_options) =>
+      request_download(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        append_query('/api/v1/audit/export', query),
         request_options,
       ),
     create_service_session: (service_id, request_options) =>

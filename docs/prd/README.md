@@ -49,7 +49,7 @@
 | P8 | 会话导出——会话记录留存与分享 | `session/P8-session-export.md` | 完成 |
 | P8 | 监控阈值与关注项配置——采样点异常判定规则可调 | `service-center/P8-monitor-threshold-config.md` | 完成 |
 | P8 | 知识文档列表分页——目录浏览容量化 | `knowledge/P8-knowledge-document-pagination.md` | 完成 |
-| P8 | 审计导出——审计活动留档与外部核验 | `audit/P8-audit-export.md` | 已确认 |
+| P8 | 审计导出——审计活动留档与外部核验 | `audit/P8-audit-export.md` | 进行中 |
 
 ## 执行 AI 如何使用
 - 拿到 PRD 后：只实现「范围」内能力，逐条过「验收标准」，达到「完成定义」。

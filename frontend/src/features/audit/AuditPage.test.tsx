@@ -107,4 +107,88 @@ describe('AuditPage 审计操作记录（P8）', () => {
       expect(window.location.pathname).toBe('/workbench/approvals/cccccccc-cccc-4ccc-8ccc-ccccccccccc1')
     })
   })
+
+  it('导出按钮携带当前过滤条件并触发下载（AC9）', async () => {
+    const requested: { params: URLSearchParams | null } = { params: null }
+    server.use(
+      http.get('/api/v1/audit/export', ({ request }) => {
+        requested.params = new URL(request.url).searchParams
+        return HttpResponse.text(
+          '# 导出时间: 2026-08-15T00:00:00.000Z\n# 条数: 0\n\nid,kind,type\n',
+          {
+            headers: {
+              'Content-Type': 'text/csv; charset=utf-8',
+              'Content-Disposition': 'attachment; filename="audit-export-20260815T000000Z.csv"',
+              'X-Export-Count': '0',
+            },
+          },
+        )
+      }),
+    )
+    open_audit()
+    render(<App />)
+
+    const type_select = await screen.findByLabelText('类型过滤')
+    fireEvent.change(type_select, { target: { value: 'run_completed' } })
+    // 等待列表加载完成（导出按钮在列表查询进行中时 disabled）
+    await screen.findByText('已确认固定慢查询根因。')
+
+    fireEvent.click(screen.getByRole('button', { name: '导出' }))
+
+    await waitFor(() => expect(requested.params?.get('format')).toBe('csv'))
+    expect(requested.params?.get('action_type')).toBe('run_completed')
+    // 空结果诚实提示
+    expect(await screen.findByText('没有可导出的记录')).toBeInTheDocument()
+  })
+  it('导出超限显示收窄建议（AC9）', async () => {
+    server.use(
+      http.get('/api/v1/audit/export', () =>
+        HttpResponse.json(
+          { error: { code: 'EXPORT_LIMIT_EXCEEDED', message: '导出结果超过单次上限（5000 条），请收窄时间窗或过滤条件后重试。' } },
+          { status: 422 },
+        ),
+      ),
+    )
+    open_audit()
+    render(<App />)
+
+    // 等待列表加载完成（导出按钮在列表查询进行中时 disabled）
+    await screen.findByText('已确认固定慢查询根因。')
+    fireEvent.click(screen.getByRole('button', { name: '导出' }))
+
+    expect(await screen.findByText('导出结果超限')).toBeInTheDocument()
+    expect(screen.getByText(/请收窄时间窗或过滤条件后重试/)).toBeInTheDocument()
+  })
+
+  it('导出失败显示错误并可重试（AC9）', async () => {
+    let fail_first = true
+    server.use(
+      http.get('/api/v1/audit/export', () => {
+        if (fail_first) {
+          fail_first = false
+          return HttpResponse.json(
+            { error: { code: 'INTERNAL_ERROR', message: '服务内部错误，请稍后重试' } },
+            { status: 500 },
+          )
+        }
+        return HttpResponse.text('# 导出时间: 2026-08-15T00:00:00.000Z\n# 条数: 1\n\nid,kind,type\n1,run,run_completed\n', {
+          headers: {
+            'Content-Type': 'text/csv; charset=utf-8',
+            'Content-Disposition': 'attachment; filename="audit-export-20260815T000000Z.csv"',
+            'X-Export-Count': '1',
+          },
+        })
+      }),
+    )
+    open_audit()
+    render(<App />)
+
+    // 等待列表加载完成（导出按钮在列表查询进行中时 disabled）
+    await screen.findByText('已确认固定慢查询根因。')
+    fireEvent.click(screen.getByRole('button', { name: '导出' }))
+    expect(await screen.findByText('导出失败')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '重试' }))
+    expect(await screen.findByText('导出完成')).toBeInTheDocument()
+  })
 })

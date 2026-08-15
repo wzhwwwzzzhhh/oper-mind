@@ -857,6 +857,34 @@ export const api_v1_handlers = [
   http.get('/api/v1/audit/activities', ({ request }) =>
     response(request, { items: audit_activities, page: { next_cursor: null, has_more: false } }),
   ),
+  http.get('/api/v1/audit/export', ({ request }) => {
+    const url = new URL(request.url)
+    const format = url.searchParams.get('format') ?? 'csv'
+    const rows = audit_activities.map((item) => [
+      item.id, item.kind, item.type, item.occurred_at, item.service_id ?? '',
+      item.session_id, item.session_title, item.outcome, item.summary ?? '',
+      item.run_id ?? '', item.severity ?? '', '', '', '', item.proposal_id ?? '',
+      item.action_id ?? '', item.mode ?? '', item.approval_actor ?? '',
+    ].join(','))
+    const meta = [
+      '# 导出时间: 2026-08-15T00:00:00.000Z',
+      '# 过滤条件: from=无; to=无; service_id=无; action_type=无; result=无',
+      `# 条数: ${rows.length}`,
+      '# 说明: 只读快照，不含原始证据、工具输出与凭据',
+    ].join('\n')
+    const body = format === 'md'
+      ? '## 导出元信息\n\n- 导出时间: 2026-08-15T00:00:00.000Z\n- 条数: ' + rows.length + '\n\n## 活动记录\n\n无匹配记录\n'
+      : `${meta}\n\nid,kind,type,occurred_at,service_id,session_id,session_title,outcome,summary,run_id,severity,confidence,proposal_status,verification_status,proposal_id,action_id,mode,approval_actor\n${rows.join('\n')}`
+    return HttpResponse.text(body, {
+      status: 200,
+      headers: {
+        'Content-Type': format === 'md' ? 'text/markdown; charset=utf-8' : 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="audit-export-20260815T000000Z.${format}"`,
+        'X-Export-Count': String(rows.length),
+        'X-Request-Id': 'test-request-id',
+      },
+    })
+  }),
   http.post('/api/v1/services/postgres-production/sessions', ({ request }) =>
     response(request, { session: service_session }, 201),
   ),

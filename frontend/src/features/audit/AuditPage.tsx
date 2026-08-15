@@ -5,13 +5,16 @@ import { useNavigate } from 'react-router-dom'
 
 import {
   API_V1_DEFAULT_PAGE_SIZE,
+  ApiClientError,
   api_v1_client,
   type AuditActivityType,
   type AuditOutcome,
 } from '../../api/v1/client'
 import { api_v1_query_keys, list_services_query } from '../../api/v1/queries'
 import { read_items, read_page, resource_optional_string } from '../workbench/resource-readers'
-import { UiButton, UiTag } from '../workbench/ui'
+import { UiAlert, UiButton, UiTag } from '../workbench/ui'
+
+type ExportState = 'idle' | 'exporting' | 'done' | 'empty' | 'limit' | 'error'
 
 const TYPE_OPTIONS: ReadonlyArray<{ key: AuditActivityType | 'all'; label: string }> = [
   { key: 'all', label: '全部类型' },
@@ -146,7 +149,7 @@ function ActivityRow({
   )
 }
 
-/** P8 审计操作记录页：跨服务跨会话的活动留痕，支持时间窗/服务/类型/结果过滤。 */
+/** P8 审计操作记录页：跨服务跨会话的活动留痕，支持时间窗/服务/类型/结果过滤与导出。 */
 export function AuditPage(): ReactElement {
   const navigate = useNavigate()
   const [service_id, set_service_id] = useState<string>('all')
@@ -156,6 +159,7 @@ export function AuditPage(): ReactElement {
   const [to_value, set_to_value] = useState('')
   const [applied_from, set_applied_from] = useState<string | undefined>()
   const [applied_to, set_applied_to] = useState<string | undefined>()
+  const [export_state, set_export_state] = useState<ExportState>('idle')
 
   const services_query = useQuery({ ...list_services_query() })
   const service_titles: Record<string, string> = {}
@@ -212,6 +216,7 @@ export function AuditPage(): ReactElement {
     set_to_value('')
     set_applied_from(undefined)
     set_applied_to(undefined)
+    set_export_state('idle')
   }
 
   const open_activity = (item: AuditActivityView): void => {
@@ -219,6 +224,38 @@ export function AuditPage(): ReactElement {
       navigate(`/workbench/sessions/${encodeURIComponent(item.session_id)}/runs/${encodeURIComponent(item.run_id)}`)
     } else if (item.kind === 'action' && item.proposal_id) {
       navigate(`/workbench/approvals/${encodeURIComponent(item.proposal_id)}`)
+    }
+  }
+
+  const trigger_export = async (): Promise<void> => {
+    set_export_state('exporting')
+    try {
+      const file = await api_v1_client.export_audit_activities({
+        format: 'csv',
+        service_id: filter_service,
+        action_type: filter_type,
+        result: filter_result,
+        from: applied_from,
+        to: applied_to,
+      })
+      const blob = new Blob([file.content], {
+        type: file.filename.endsWith('.md') ? 'text/markdown;charset=utf-8' : 'text/csv;charset=utf-8',
+      })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = file.filename
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      URL.revokeObjectURL(url)
+      set_export_state(file.count === 0 ? 'empty' : 'done')
+    } catch (error) {
+      if (error instanceof ApiClientError && error.code === 'EXPORT_LIMIT_EXCEEDED') {
+        set_export_state('limit')
+      } else {
+        set_export_state('error')
+      }
     }
   }
 
@@ -237,11 +274,43 @@ export function AuditPage(): ReactElement {
           <p>跨服务跨会话的活动留痕：调查 Run 与受控动作（提案 / 审批 / 执行 / 验证）的安全摘要。</p>
         </div>
         <div className="head-actions">
+          <UiButton
+            disabled={query.isFetching || export_state === 'exporting'}
+            loading={export_state === 'exporting'}
+            onClick={() => void trigger_export()}
+            type="primary"
+          >
+            {export_state === 'exporting' ? '导出中…' : '导出'}
+          </UiButton>
           <button className="btn" disabled={query.isFetching} onClick={() => void query.refetch()} type="button">
             {query.isFetching ? '读取中…' : '刷新'}
           </button>
         </div>
       </section>
+
+      {export_state === 'done' && (
+        <UiAlert description="导出文件已下载；内容为当前过滤条件下的安全摘要快照。" showIcon title="导出完成" type="success" />
+      )}
+      {export_state === 'empty' && (
+        <UiAlert description="当前过滤条件下没有可导出的审计记录，未生成数据行。" showIcon title="没有可导出的记录" type="info" />
+      )}
+      {export_state === 'limit' && (
+        <UiAlert
+          description="结果超过单次导出上限（5000 条），请收窄时间窗或过滤条件后重试。"
+          showIcon
+          title="导出结果超限"
+          type="warning"
+        />
+      )}
+      {export_state === 'error' && (
+        <UiAlert
+          action={<UiButton onClick={() => void trigger_export()} type="link">重试</UiButton>}
+          description="导出失败，未生成文件；请稍后重试。"
+          showIcon
+          title="导出失败"
+          type="error"
+        />
+      )}
 
       <div className="monitor-honesty-strip">
         数据来源：系统活动留痕 · 只读 · 不含原始证据、工具输出与凭据

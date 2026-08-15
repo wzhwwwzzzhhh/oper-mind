@@ -183,6 +183,13 @@ class ModelParamsPersistenceError(ApplicationError):
     message = "模型运行参数保存失败，请稍后重试。"
 
 
+class AuditExportLimitExceededError(ApplicationError):
+    """审计导出结果超过单次上限；由路由捕获后直抛 422 EXPORT_LIMIT_EXCEEDED。"""
+
+    code = "EXPORT_LIMIT_EXCEEDED"
+    message = "导出结果超过单次上限，请收窄时间窗或过滤条件后重试。"
+
+
 class SessionExportUnavailableError(ApplicationError):
     """会话导出聚合读取失败，不允许返回半截文档。"""
 
