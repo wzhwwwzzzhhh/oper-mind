@@ -46,3 +46,5 @@
 - 不直推 `main`；提交信息使用 `<类型>: <中文描述>`。
 - 一个工作包只包含 1–3 个紧密切片，完成后集中 Test → Review → Commit；不要擅自提交，除非用户明确要求。
 - 不回退或覆盖用户/其他 Agent 已有改动；发现冲突时先停下说明，不使用破坏性 `git reset --hard` 或 `git checkout --`。
+- GitHub 远程操作（fetch/push/PR）统一用 `gh` CLI 认证（`gh auth status` 确认登录，账号 `bigsea-Wzh`）；需要 git 走 HTTPS 时，token 取自 `gh auth token`，并优先经 `GIT_CONFIG_*` 环境变量注入配置，禁止把 token 写进命令行、日志、脚本或文档。
+- 本机 git 直连 GitHub 的 TLS/凭据坑位（已实测）：schannel 报 `SEC_E_NO_CREDENTIALS`，须用 `http.sslBackend=openssl` + `http.sslCAInfo=<系统根证书导出的 PEM bundle>`；git 端点只认 Basic 认证（`Authorization: Basic base64(x-access-token:<token>)`），不认 Bearer。

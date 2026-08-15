@@ -71,7 +71,8 @@ docs/workpack/
   - 建 worktree 命令（在主仓库根执行）：`git worktree add "D:/market-handsome/oper-mind-worktrees/<切片>" -b <类型>/<切片> main`
   - 基线默认 `main`；用户明确指定其他基线时记录基线和理由。
   - 进入 worktree 开发：`cd "D:/market-handsome/oper-mind-worktrees/<切片>"`（后续命令都在 worktree 内执行）。
-- **worktree 是全新 checkout**：仓库根的 `.venv`、`node_modules` 不会带过去，需在 worktree 内重建（后端 venv、前端 `npm install`）。
+- **worktree 环境共享、不重建**：后端直接调主工作区 venv 绝对路径（`D:/market-handsome/oper-mind/.venv/Scripts/python.exe`，venv 与所在目录无关，仅 activate 脚本写死路径）；前端先建 node_modules 目录联接（`cmd //c mklink /J "D:/market-handsome/oper-mind-worktrees/<切片>\frontend\node_modules" "D:\market-handsome\oper-mind\frontend\node_modules"`），再 `npm install` 只补差异。
+- **共享环境禁令**：worktree 内禁止 `npm ci`（清空共享 node_modules）；并行切片不互相删改共享依赖（package.json 变更先合 main 再同步）。
 - 主仓库工作区可能被其他 Agent / PM 占用：**绝不在主仓库工作区直接开发**；只在那里管理分支、建 worktree、跑 PR 相关操作。
 - 建 worktree 前先 `git worktree list`，确认该切片没有已存在的 worktree/分支，避免重复建。
 - 若历史遗留的改动已在主仓库工作区且属于本工作包：在当前状态创建专用分支保留改动，再逐文件核对后**迁移进 worktree 或提交**；若混合了其他任务，必须建立「隔离提交清单」，逐文件或逐代码块核对，不得使用 `git add .`。

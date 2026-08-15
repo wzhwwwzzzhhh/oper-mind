@@ -46,6 +46,8 @@
 - 不直推 `main`；提交信息使用 `<类型>: <中文描述>`。
 - 一个工作包只包含 1–3 个紧密切片，完成后集中 Test → Review → Commit；不要擅自提交，除非用户明确要求。
 - 不回退或覆盖用户/其他 Agent 已有改动；发现冲突时先停下说明，不使用破坏性 `git reset --hard` 或 `git checkout --`。
+- GitHub 远程操作（fetch/push/PR）统一用 `gh` CLI 认证（`gh auth status` 确认登录，账号 `bigsea-Wzh`）；需要 git 走 HTTPS 时，token 取自 `gh auth token`，并优先经 `GIT_CONFIG_*` 环境变量注入配置，禁止把 token 写进命令行、日志、脚本或文档。
+- 本机 git 直连 GitHub 的 TLS/凭据坑位（已实测）：schannel 报 `SEC_E_NO_CREDENTIALS`，须用 `http.sslBackend=openssl` + `http.sslCAInfo=<系统根证书导出的 PEM bundle>`；git 端点只认 Basic 认证（`Authorization: Basic base64(x-access-token:<token>)`），不认 Bearer。
 
 ### 工作区约定（多 Agent 并发隔离）
 
@@ -55,4 +57,5 @@
   然后 `cd` 进 worktree 开发（`<切片>` 与 `docs/workpack/<阶段>-<切片>/` 同名）。
 - **push / 建 PR 前先 `git fetch origin main && git merge origin/main`（或 rebase）**，在本地解掉冲突再推，避免"PR 后又矛盾"。
 - **PR 合并后必须清理**：`git worktree remove "D:/market-handsome/oper-mind-worktrees/<切片>"` + `git branch -d <类型>/<切片>` + `git worktree prune`。
-- worktree 是全新 checkout：`.venv`、`node_modules` 不会带过去，需在 worktree 内重建（后端 venv、前端 `npm install`）。
+- worktree 是全新 checkout，但**环境共享、不重建**：后端直接调主工作区 venv（`D:/market-handsome/oper-mind/.venv/Scripts/python.exe`，venv 与所在目录无关，只有 activate 脚本写死路径）；前端用目录联接共享 node_modules（`cmd //c mklink /J "D:/market-handsome/oper-mind-worktrees/<切片>\frontend\node_modules" "D:\market-handsome\oper-mind\frontend\node_modules"`）后 `npm install` 只补差异。
+- 环境共享两条禁令：worktree 内禁止 `npm ci`（会清空共享 node_modules）；并行切片不互相删改共享依赖（package.json 变更先合 main 再同步）。
