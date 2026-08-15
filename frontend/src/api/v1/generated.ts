@@ -738,7 +738,9 @@ export interface paths {
         };
         /**
          * List Knowledge Documents
-         * @description 列出受管知识目录内的 Markdown 文档清单（标题 + 相对路径）。
+         * @description 列出受管知识目录内的 Markdown 文档清单（cursor 分页，标题 + 相对路径）。
+         *
+         *     无分页参数时返回首页（与既有调用兼容）；`page.has_more=false` 表示无更多条目。
          */
         get: operations["list_knowledge_documents_api_v1_knowledge_documents_get"];
         put?: never;
@@ -1411,13 +1413,16 @@ export interface components {
         };
         /**
          * KnowledgeListResponse
-         * @description 知识库文档列表响应（诚实状态：not_configured/empty/ok）。
+         * @description 知识库文档列表响应（诚实状态：not_configured/empty/ok + cursor 分页信息）。
+         *
+         *     `page.has_more=false` 表达「无更多」（含翻页超出末尾时空 items 的情形）。
          */
         KnowledgeListResponse: {
             /** Status */
             status: unknown;
             /** Items */
             items: unknown;
+            page: unknown;
             meta: unknown;
         };
         /**
@@ -3540,7 +3545,10 @@ export interface operations {
     };
     list_knowledge_documents_api_v1_knowledge_documents_get: {
         parameters: {
-            query?: never;
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3554,6 +3562,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["KnowledgeListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
