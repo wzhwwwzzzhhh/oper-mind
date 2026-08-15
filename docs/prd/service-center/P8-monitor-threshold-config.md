@@ -1,10 +1,10 @@
 ---
 title: 监控阈值与关注项配置——采样点异常判定规则可调
-status: 进行中
+status: 完成
 domain: service-center
 phase: P8
 issue: 77
-updated: 2026-08-14
+updated: 2026-08-15
 ---
 
 # 监控阈值与关注项配置——采样点异常判定规则可调 · PRD

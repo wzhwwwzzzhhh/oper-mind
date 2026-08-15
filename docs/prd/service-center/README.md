@@ -8,4 +8,4 @@
 | [P4.4-service-instances.md](P4.4-service-instances.md) | 服务中心多服务实例接入 | 完成 |
 | [P6-redis-service-monitor.md](P6-redis-service-monitor.md) | Redis 服务接入与只读监控 | 完成 |
 | [P8-service-registration.md](P8-service-registration.md) | 服务中心服务注册——动态接入、管理与连接测试 | 已确认 |
-| [P8-monitor-threshold-config.md](P8-monitor-threshold-config.md) | 监控阈值与关注项配置——采样点异常判定规则可调 | 进行中 |
+| [P8-monitor-threshold-config.md](P8-monitor-threshold-config.md) | 监控阈值与关注项配置——采样点异常判定规则可调 | 完成 |
