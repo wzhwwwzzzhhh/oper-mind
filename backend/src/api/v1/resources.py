@@ -93,6 +93,7 @@ def message_resource(value: MessageData) -> MessageResource:
         role=value.role.value,
         content=value.content,
         created_at=value.created_at,
+        edited_at=value.edited_at,
     )
 
 

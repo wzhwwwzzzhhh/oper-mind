@@ -203,9 +203,31 @@ class SqlAlchemyMessageRepository:
         )
 
     def get_by_id(self, message_id: UUID) -> MessageData | None:
-        """按主键读取消息。"""
+        """按主键读取消息（含已删除消息，供 Run/重跑等历史链路追溯）。"""
         record = self._session.get(MessageRecord, message_id)
         return _message_data(record) if record is not None else None
+
+    def update_content(self, message_id: UUID, content: str, edited_at: datetime) -> MessageData | None:
+        """仅更新消息内容与编辑时间；未找到或已删除返回 None。"""
+        result = self._session.execute(
+            update(MessageRecord)
+            .where(MessageRecord.id == message_id, MessageRecord.archived_at.is_(None))
+            .values(content=content, edited_at=edited_at)
+            .execution_options(synchronize_session="fetch")
+        )
+        if result.rowcount != 1:
+            return None
+        return self.get_by_id(message_id)
+
+    def archive(self, message_id: UUID, archived_at: datetime) -> bool:
+        """软删除消息；返回是否真的执行了标记（已删除或不存在返回 False）。"""
+        result = self._session.execute(
+            update(MessageRecord)
+            .where(MessageRecord.id == message_id, MessageRecord.archived_at.is_(None))
+            .values(archived_at=archived_at)
+            .execution_options(synchronize_session="fetch")
+        )
+        return result.rowcount == 1
 
     def list_by_session(
         self,
@@ -213,9 +235,12 @@ class SqlAlchemyMessageRepository:
         cursor: MessageCursor | None,
         limit: int,
     ) -> RepositoryPage[MessageData, MessageCursor]:
-        """按创建时间正序读取会话消息页。"""
+        """按创建时间正序读取会话消息页（不含已删除消息）。"""
         _validate_limit(limit)
-        statement: Select[tuple[MessageRecord]] = select(MessageRecord).where(MessageRecord.session_id == session_id)
+        statement: Select[tuple[MessageRecord]] = (
+            select(MessageRecord)
+            .where(MessageRecord.session_id == session_id, MessageRecord.archived_at.is_(None))
+        )
         if cursor is not None:
             statement = statement.where(
                 or_(
@@ -542,6 +567,8 @@ def _message_data(record: MessageRecord) -> MessageData:
         role=MessageRole(record.role),
         content=record.content,
         created_at=_as_utc(record.created_at),
+        edited_at=_as_utc(record.edited_at),
+        archived_at=_as_utc(record.archived_at),
     )
 
 

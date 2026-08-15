@@ -71,6 +71,27 @@ class InvestigationRequiredError(ApplicationError):
     message = "这属于调查类问题，请使用调查发起。"
 
 
+class MessageNotFoundError(ApplicationError):
+    """指定消息不存在、不属于该会话或已删除。"""
+
+    code = "MESSAGE_NOT_FOUND"
+    message = "消息不存在。"
+
+
+class MessageNotEditableError(ApplicationError):
+    """仅 user 角色消息可编辑。"""
+
+    code = "MESSAGE_NOT_EDITABLE"
+    message = "只有用户消息可以编辑。"
+
+
+class MessageNotDeletableError(ApplicationError):
+    """仅 user 角色消息可删除。"""
+
+    code = "MESSAGE_NOT_DELETABLE"
+    message = "只有用户消息可以删除。"
+
+
 class ActionProposalNotFoundError(ApplicationError):
     """指定固定修复提案不存在。"""
 

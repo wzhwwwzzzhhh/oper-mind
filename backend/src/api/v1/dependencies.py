@@ -15,6 +15,7 @@ from src.application.action_execution import ControlledActionExecutor
 from src.application.action_services import ActionApplicationService
 from src.application.audit_service import AuditApplicationService
 from src.application.knowledge import KnowledgeReaderService
+from src.application.message_editing import MessageEditingApplicationService
 from src.application.model_mode import resolve_runtime_mode
 from src.application.model_params import resolve_model_params
 from src.application.plain_messages import PlainMessageApplicationService
@@ -42,6 +43,7 @@ from src.infrastructure.monitoring.sampler import MonitorSampler
 from src.infrastructure.persistence.app_settings_repository import SqlAlchemyAppSettingsStore
 from src.infrastructure.persistence.audit_repositories import SqlAlchemyAuditActivityRepository
 from src.infrastructure.persistence.database import PersistenceRuntime, SessionFactory, create_persistence_runtime
+from src.infrastructure.persistence.message_editing_writer import SqlAlchemyMessageEditingWriter
 from src.infrastructure.persistence.plain_message_writer import SqlAlchemyPlainMessageWriter
 from src.infrastructure.secrets import (
     SecretKeyNotConfiguredError,
@@ -65,6 +67,7 @@ class V1Services:
     session_service: SessionApplicationService
     run_service: RunApplicationService
     plain_message_service: PlainMessageApplicationService | None = None
+    message_editing_service: MessageEditingApplicationService | None = None
     action_service: ActionApplicationService | None = None
     service_center: ServiceCenterApplicationService | None = None
     monitor_sampler: MonitorSampler | None = None
@@ -198,6 +201,7 @@ def build_v1_services_for_runtime(
             registry=registry,
         ),
         plain_message_service=PlainMessageApplicationService(SqlAlchemyPlainMessageWriter(session_factory)),
+        message_editing_service=MessageEditingApplicationService(SqlAlchemyMessageEditingWriter(session_factory)),
         action_service=action_service,
         service_center=ServiceCenterApplicationService(
             session_factory,

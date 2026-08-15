@@ -63,12 +63,14 @@ from src.api.v1.schemas import (
     CursorPage,
     DiagnosisRunListResponse,
     DiagnosisRunResource,
+    EditMessageRequest,
     GlobalRunListResponse,
     KnowledgeDocumentDetailResource,
     KnowledgeDocumentResponse,
     KnowledgeListResponse,
     KnowledgeSearchResponse,
     MessageListResponse,
+    MessageResponse,
     ModelConfigResource,
     ModelConfigResponse,
     ModelEndpointResource,
@@ -114,6 +116,7 @@ from src.application.errors import (
     SessionNotFoundError,
 )
 from src.application.knowledge import KnowledgeReaderService, KnowledgeTimeoutError
+from src.application.message_editing import EditMessageCommand
 from src.application.model_mode import ModelModeApplicationService, resolve_runtime_mode
 from src.application.model_params import ModelParamsApplicationService, resolve_model_params
 from src.application.model_providers import (
@@ -196,6 +199,9 @@ APPLICATION_ERROR_STATUS = {
     "MODEL_PARAMS_PERSISTENCE_FAILED": 500,
     "KNOWLEDGE_TIMEOUT": 503,
     "KNOWLEDGE_DOCUMENT_NOT_FOUND": 404,
+    "MESSAGE_NOT_FOUND": 404,
+    "MESSAGE_NOT_EDITABLE": 422,
+    "MESSAGE_NOT_DELETABLE": 422,
 }
 
 
@@ -1011,6 +1017,50 @@ def list_messages(
         page=CursorPage(next_cursor=encode_cursor(page.next_cursor) if page.next_cursor else None, has_more=page.has_more),
         meta=meta,
     )
+
+
+@router.patch("/sessions/{session_id}/messages/{message_id}", response_model=MessageResponse)
+def edit_message(
+    session_id: UUID,
+    message_id: UUID,
+    payload: EditMessageRequest,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> MessageResponse:
+    """编辑一条 user 消息：更新内容并记录 edited_at，时间线位置不变。"""
+    editing = services.message_editing_service
+    if editing is None:
+        raise ApiV1Error(503, "MESSAGE_EDITING_UNAVAILABLE", "消息编辑服务当前不可用。")
+    try:
+        _load_session(services, session_id)
+        updated = editing.edit_message(session_id, message_id, EditMessageCommand(content=payload.content))
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return MessageResponse(message=message_resource(updated), meta=meta)
+
+
+@router.delete("/sessions/{session_id}/messages/{message_id}", status_code=204)
+def delete_message(
+    session_id: UUID,
+    message_id: UUID,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> Response:
+    """软删除一条 user 消息；重复删除幂等 204；Run 与历史留痕不受影响。"""
+    editing = services.message_editing_service
+    if editing is None:
+        raise ApiV1Error(503, "MESSAGE_EDITING_UNAVAILABLE", "消息删除服务当前不可用。")
+    try:
+        _load_session(services, session_id)
+        editing.archive_message(session_id, message_id)
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    return Response(status_code=204, headers={"X-Request-Id": str(meta.request_id)})
 
 
 @router.post("/sessions/{session_id}/messages", response_model=PlainMessageResponse, status_code=201)
