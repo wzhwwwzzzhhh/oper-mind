@@ -44,7 +44,7 @@ export const api_v1_query_keys = {
   run_events: (run_id: string, query: ListRunEventsQuery) => ['api-v1', 'run-events', run_id, query] as const,
   action_proposals: (query: ListActionProposalsQuery) => ['api-v1', 'action-proposals', query] as const,
   action_proposal: (proposal_id: string) => ['api-v1', 'action-proposal', proposal_id] as const,
-  knowledge_documents: () => ['api-v1', 'knowledge-documents'] as const,
+  knowledge_documents: (limit: number) => ['api-v1', 'knowledge-documents', limit] as const,
   knowledge_search: (query: string) => ['api-v1', 'knowledge-search', query] as const,
   knowledge_document: (document_path: string) => ['api-v1', 'knowledge-document', document_path] as const,
 }
@@ -372,13 +372,6 @@ export function delete_service_mutation() {
 export function test_service_connection_mutation() {
   return mutationOptions({
     mutationFn: (service_id: string) => api_v1_client.test_service_connection(service_id),
-  })
-}
-
-export function list_knowledge_documents_query() {
-  return queryOptions({
-    queryKey: api_v1_query_keys.knowledge_documents(),
-    queryFn: ({ signal }) => api_v1_client.list_knowledge_documents({ signal }),
   })
 }
 

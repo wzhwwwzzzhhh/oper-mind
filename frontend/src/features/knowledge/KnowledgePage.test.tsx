@@ -17,6 +17,24 @@ function error_response(request: Request) {
   )
 }
 
+function paged_response(request: Request, items: Array<Record<string, string>>, page_size: number) {
+  const request_id = request.headers.get('X-Request-Id') ?? 'missing-client-request-id'
+  const url = new URL(request.url)
+  const cursor = url.searchParams.get('cursor')
+  const filtered = cursor ? items.filter((item) => item.relative_path > cursor) : [...items]
+  const page_items = filtered.slice(0, page_size)
+  const next_cursor = page_items.length === page_size ? page_items[page_items.length - 1].relative_path : null
+  return HttpResponse.json(
+    {
+      status: 'ok',
+      items: page_items,
+      page: { next_cursor, has_more: next_cursor !== null },
+      meta: { request_id },
+    },
+    { status: 200, headers: { 'X-Request-Id': request_id } },
+  )
+}
+
 describe('KnowledgePage', () => {
   it('导航入口可用并渲染文档列表与来源标注', async () => {
     open_knowledge()
@@ -73,5 +91,61 @@ describe('KnowledgePage', () => {
 
     expect(await screen.findByText(/读取知识库失败/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '重试' })).toBeInTheDocument()
+  })
+
+  it('目录超过页大小时按「加载更多」分页浏览且不误显空态', async () => {
+    const docs = [
+      { title: '数据库备份手册', relative_path: 'ops/db-backup.md' },
+      { title: '故障应急手册', relative_path: 'ops/incident-runbook.md' },
+      { title: '上线检查清单', relative_path: 'ops/release-checklist.md' },
+    ]
+    server.use(
+      http.get('/api/v1/knowledge/documents', ({ request }) => paged_response(request, docs, 2)),
+    )
+    open_knowledge()
+    render(<App />)
+
+    // 首页只渲染第一页
+    expect(await screen.findByText('数据库备份手册')).toBeInTheDocument()
+    expect(screen.getByText('故障应急手册')).toBeInTheDocument()
+    expect(screen.queryByText('上线检查清单')).not.toBeInTheDocument()
+
+    // 点击「加载更多」追加第二页，末尾按钮消失
+    fireEvent.click(screen.getByRole('button', { name: '加载更多' }))
+    expect(await screen.findByText('上线检查清单')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '加载更多' })).not.toBeInTheDocument()
+
+    // 翻页到底后不误显「知识库为空」/「暂无文档」空态
+    expect(screen.queryByText('知识库为空。')).not.toBeInTheDocument()
+    expect(screen.queryByText(/暂无文档/)).not.toBeInTheDocument()
+  })
+
+  it('加载更多失败时诚实展示并可重试', async () => {
+    const docs = [
+      { title: '数据库备份手册', relative_path: 'ops/db-backup.md' },
+      { title: '故障应急手册', relative_path: 'ops/incident-runbook.md' },
+    ]
+    server.use(
+      http.get('/api/v1/knowledge/documents', ({ request }) => {
+        const url = new URL(request.url)
+        if (url.searchParams.get('cursor')) {
+          return error_response(request)
+        }
+        return paged_response(request, docs, 1)
+      }),
+    )
+    open_knowledge()
+    render(<App />)
+
+    expect(await screen.findByText('数据库备份手册')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '加载更多' }))
+    expect(await screen.findByText(/加载更多失败/)).toBeInTheDocument()
+
+    // 修复后点「重试」恢复加载
+    server.use(
+      http.get('/api/v1/knowledge/documents', ({ request }) => paged_response(request, docs, 1)),
+    )
+    fireEvent.click(screen.getByRole('button', { name: '重试' }))
+    expect(await screen.findByText('故障应急手册')).toBeInTheDocument()
   })
 })

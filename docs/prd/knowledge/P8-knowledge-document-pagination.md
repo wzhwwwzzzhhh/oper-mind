@@ -1,6 +1,6 @@
 ---
 title: 知识文档列表分页——目录浏览容量化
-status: 已确认
+status: 进行中
 domain: knowledge
 phase: P8
 issue: 78

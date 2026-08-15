@@ -151,6 +151,15 @@
   opacity: 0.55;
 }
 
+.knowledge-load-more {
+  margin-top: 14px;
+  text-align: center;
+}
+
+.knowledge-load-more .knowledge-button {
+  min-width: 120px;
+}
+
 .knowledge-inline-state {
   margin-top: 16px;
   padding: 13px 14px;

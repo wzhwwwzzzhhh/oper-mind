@@ -1,6 +1,8 @@
 import type { components, operations } from './generated'
 
 export const API_V1_DEFAULT_PAGE_SIZE = 20
+// 知识文档列表默认页大小（与后端 KNOWLEDGE_DEFAULT_PAGE_SIZE=50 一致）
+export const API_V1_KNOWLEDGE_PAGE_SIZE = 50
 
 export type SessionResource = components['schemas']['SessionResource']
 export type MessageResource = components['schemas']['MessageResource']
@@ -438,7 +440,10 @@ export interface ApiV1Client {
     payload: ActionExecutionRequest,
     options: ActionMutationOptions,
   ): Promise<ApiResponse<ActionExecutionResponse>>
-  list_knowledge_documents(options?: ApiRequestOptions): Promise<ApiResponse<KnowledgeListResponse>>
+  list_knowledge_documents(
+    query?: ListKnowledgeDocumentsQuery,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<KnowledgeListResponse>>
   search_knowledge(
     query: string,
     limit?: number,
@@ -974,12 +979,12 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
           method: 'POST',
         },
       ),
-    list_knowledge_documents: (request_options) =>
+    list_knowledge_documents: (query, request_options) =>
       request_json<KnowledgeListResponse>(
         fetch_impl ?? globalThis.fetch,
         request_id_factory,
         base_url,
-        '/api/v1/knowledge/documents',
+        append_query('/api/v1/knowledge/documents', query),
         request_options,
       ),
     search_knowledge: (query, limit = 5, request_options) =>
