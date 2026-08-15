@@ -32,3 +32,4 @@
 - 迁移：`alembic upgrade head` → `20260813_13_p8_model_usage (head)`；`downgrade -1` → 12；`upgrade head` → 13
 - 前端：`npm run typecheck` 通过；`vitest run ModelSettingsPage.test.tsx` → 17 passed；`npm run build` 通过（5.89s）
 - 门禁：`git diff --check` 干净（exit 0）
+- 合 main：`git merge origin/main` 解冲突（dependencies.py / handlers.ts 各保留双方新增），合并后聚焦测试 52 passed；全量回归结果见上
