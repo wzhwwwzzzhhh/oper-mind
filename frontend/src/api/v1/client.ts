@@ -104,6 +104,11 @@ export interface MonitorOverviewResponse {
   retention_hours: number
   meta: components['schemas']['ResponseMeta']
 }
+
+export interface SessionExportResult {
+  text: string
+  filename: string
+}
 export interface ModelEndpointResource {
   provider: string
   base_url_host: string
@@ -384,6 +389,10 @@ export interface ApiV1Client {
     session_id: string,
     options?: ApiRequestOptions,
   ): Promise<ApiResponse<SessionResponse>>
+  export_session_markdown(
+    session_id: string,
+    options?: ApiRequestOptions,
+  ): Promise<SessionExportResult>
   list_session_messages(
     session_id: string,
     query?: ListSessionMessagesQuery,
@@ -626,6 +635,64 @@ async function request_json<TData>(
   return { data: payload as TData, diagnostics }
 }
 
+/** 导出下载响应：Markdown 文本 + 建议文件名（取自 Content-Disposition）。 */
+async function request_text(
+  fetch_impl: typeof fetch,
+  request_id_factory: () => string,
+  base_url: string,
+  path: string,
+  options?: ApiRequestOptions,
+): Promise<SessionExportResult> {
+  const request_id = request_id_factory()
+  let response: Response
+  const headers: Record<string, string> = {
+    Accept: 'text/markdown',
+    'X-Request-Id': request_id,
+  }
+
+  try {
+    response = await fetch_impl(resolve_url(base_url, path), {
+      method: 'GET',
+      headers,
+      signal: options?.signal,
+    })
+  } catch (error) {
+    const aborted = options?.signal?.aborted || (error instanceof DOMException && error.name === 'AbortError')
+    throw new ApiClientError(
+      aborted ? 'REQUEST_ABORTED' : 'NETWORK_ERROR',
+      aborted ? '请求已取消。' : '无法连接到服务。',
+      undefined,
+      { request_id, status: 0, protocol_issues: [] },
+    )
+  }
+
+  if (!response.ok) {
+    let payload: unknown
+    try {
+      payload = await response.json()
+    } catch {
+      payload = undefined
+    }
+    const diagnostics = build_diagnostics(request_id, response, payload)
+    const safe_error = read_safe_error(payload)
+    throw new ApiClientError(
+      typeof safe_error?.code === 'string' ? safe_error.code : 'HTTP_ERROR',
+      typeof safe_error?.message === 'string' ? safe_error.message : '导出服务请求失败。',
+      safe_error?.details,
+      diagnostics,
+    )
+  }
+
+  const text = await response.text()
+  const disposition = response.headers.get('Content-Disposition') ?? ''
+  const filename_match = /filename="([^"]+)"/.exec(disposition)
+  const session_id = path.split('/').at(-2) ?? 'export'
+  return {
+    text,
+    filename: filename_match?.[1] ?? `opermind-session-${session_id}.md`,
+  }
+}
+
 export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Client {
   const fetch_impl = options.fetch_impl
   const request_id_factory = options.request_id_factory ?? create_request_id
@@ -836,6 +903,14 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
         request_id_factory,
         base_url,
         `/api/v1/sessions/${encodeURIComponent(session_id)}`,
+        request_options,
+      ),
+    export_session_markdown: (session_id, request_options) =>
+      request_text(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        `/api/v1/sessions/${encodeURIComponent(session_id)}/export`,
         request_options,
       ),
     list_session_messages: (session_id, query = {}, request_options) =>

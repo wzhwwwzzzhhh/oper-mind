@@ -135,6 +135,7 @@ from src.application.service_registration import (
     ServiceRegistrationApplicationService,
     UpdateServiceCommand,
 )
+from src.application.session_export import SessionExportApplicationService
 from src.config import load_monitor_settings
 from src.domain.actions import ActionProposalStatus
 from src.domain.audit import AuditActivityType, AuditOutcome
@@ -205,6 +206,7 @@ APPLICATION_ERROR_STATUS = {
     "MODEL_PARAMS_PERSISTENCE_FAILED": 500,
     "KNOWLEDGE_TIMEOUT": 503,
     "KNOWLEDGE_DOCUMENT_NOT_FOUND": 404,
+    "EXPORT_UNAVAILABLE": 503,
 }
 
 
@@ -270,6 +272,13 @@ def _audit_service(services: V1Services) -> AuditApplicationService:
     if services.audit_service is None:
         raise ServiceCenterUnavailableError()
     return services.audit_service
+
+
+def _session_export(services: V1Services) -> SessionExportApplicationService:
+    """读取已装配的 P8 会话导出服务；未装配安全拒绝。"""
+    if services.session_export_service is None:
+        raise ServiceCenterUnavailableError()
+    return services.session_export_service
 
 
 def _service_registration(services: V1Services) -> ServiceRegistrationApplicationService:
@@ -1019,6 +1028,33 @@ def list_messages(
         items=[message_resource(item) for item in page.items],
         page=CursorPage(next_cursor=encode_cursor(page.next_cursor) if page.next_cursor else None, has_more=page.has_more),
         meta=meta,
+    )
+
+
+@router.get("/sessions/{session_id}/export")
+def export_session(
+    session_id: UUID,
+    request: Request,
+    services: V1Services = Depends(get_v1_services),
+) -> Response:
+    """导出会话安全摘要 Markdown 文档（只读聚合投影，可留存分享）。
+
+    内容只含既有公开投影字段的安全子集（消息时间线 + Run 结论摘要），
+    不含原始证据/凭据/完整连接细节；会话不存在 → 404，读取失败 → 503，
+    无可导出内容 → 明确空态文档。
+    """
+    try:
+        document = _session_export(services).render_markdown(session_id)
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    return Response(
+        content=document.markdown,
+        media_type="text/markdown; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="opermind-session-{session_id}.md"',
+            "X-Request-Id": str(meta.request_id),
+        },
     )
 
 

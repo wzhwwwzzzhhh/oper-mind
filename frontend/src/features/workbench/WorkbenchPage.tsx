@@ -107,6 +107,18 @@ function ApiErrorNotice({ error }: { error: unknown }): ReactElement {
   return <UiAlert description={safe.detail} showIcon title={safe.title} type="error" />
 }
 
+function download_markdown(text: string, filename: string): void {
+  const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  URL.revokeObjectURL(url)
+}
+
 function is_idempotency_key_conflict(error: unknown): boolean {
   return error instanceof ApiClientError && error.code === 'IDEMPOTENCY_KEY_REUSED'
 }
@@ -652,6 +664,28 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
 
   const send_plain = useMutation({ ...send_plain_message_mutation() })
 
+  // 会话导出：一次性下载动作，不走 react-query 缓存（useMutation 即可）。
+  const [export_notice, set_export_notice] = useState<'empty' | 'done' | undefined>(undefined)
+  const export_session = useMutation({
+    mutationFn: () => api_v1_client.export_session_markdown(session_id),
+    onSuccess: (result) => {
+      download_markdown(result.text, result.filename)
+      set_export_notice('done')
+    },
+  })
+
+  const handle_export = (): void => {
+    if (export_session.isPending) return
+    // 空会话诚实提示：消息与 Run 两列表均已加载且确实为空时，不发请求、不伪造文档。
+    const lists_loaded = messages_query.isSuccess && runs_query.isSuccess
+    if (lists_loaded && recovered_messages.length === 0 && recovered_runs.length === 0) {
+      set_export_notice('empty')
+      return
+    }
+    set_export_notice(undefined)
+    export_session.mutate()
+  }
+
   /** 统一发送路由：调查意图走既有 Run 幂等链路；普通消息走独立消息通道（服务端权威 409 兜底）。 */
   const submit_text = (composer_value: string): void => {
     if (send_plain.isPending || create_run.isPending) return
@@ -726,6 +760,30 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
   const has_idempotency_key_conflict = is_idempotency_key_conflict(recovery_error)
   return (
     <div className="chat-inner">
+      <div aria-label="会话工具栏" className="session-toolbar">
+        <UiButton
+          aria-label="导出会话"
+          className="export-session"
+          disabled={export_session.isPending}
+          loading={export_session.isPending}
+          onClick={handle_export}
+          type="default"
+        >
+          导出
+        </UiButton>
+        {export_notice === 'done' && <UiText className="export-notice ok">会话文档已导出</UiText>}
+        {export_notice === 'empty' && <UiText className="export-notice empty">该会话无可导出内容</UiText>}
+        {export_session.isError && (
+          <UiAlert
+            action={<UiButton onClick={() => export_session.mutate()} type="link">重试</UiButton>}
+            className="export-error"
+            description="导出失败，可稍后重试。"
+            showIcon
+            title={export_session.error instanceof ApiClientError ? `${export_session.error.code}：${export_session.error.message}` : '导出失败'}
+            type="error"
+          />
+        )}
+      </div>
       {session_service_titles.length > 0 && (
         <div aria-label="本次调查目标服务" className="session-service-context">
           <span>调查目标服务</span>

@@ -291,6 +291,33 @@ const archived_session = {
   archived_at: '2026-07-27T01:03:00.000Z',
 }
 
+const export_markdown = [
+  '# Nginx 5xx 排查',
+  '',
+  '> 会话导出 · OperMind 安全摘要（仅含脱敏投影，不含原始证据）',
+  '> 创建时间：2026-07-27T01:00:00.000Z',
+  '> 状态：active',
+  '> 消息 1 条 · 调查 1 次',
+  '',
+  '## 对话时间线',
+  '',
+  '### 用户',
+  '> 2026-07-27T01:00:00.000Z',
+  '请检查 Nginx 5xx。',
+  '',
+  '## 调查摘要（共 1 次）',
+  '',
+  '### 第 1 次调查（2026-07-27T01:00:01.000Z）',
+  '**问题**：请检查 Nginx 5xx。',
+  '**状态**：succeeded',
+  '**目标服务**：未关联服务',
+  '**严重度**：high',
+  '**置信度**：0.92',
+  '**结论**：Nginx 上游连接池已耗尽。',
+  '**证据摘要**：',
+  '- [tool] 上游连接池采样：连接池长期耗尽。',
+].join('\n')
+
 const paged_active_session = {
   ...session,
   id: '99999999-9999-4999-8999-999999999999',
@@ -800,6 +827,18 @@ export const api_v1_handlers = [
         ? [{ id: '88888888-8888-4888-8888-888888888888', session_id, run_id, role: 'assistant', content: '诊断已完成。', created_at: '2026-07-27T01:00:34.000Z' }]
         : [{ id: '66666666-6666-4666-8666-666666666666', session_id, run_id: null, role: 'user', content: '请检查 Nginx 5xx。', created_at: '2026-07-27T01:00:00.000Z' }],
       page: cursor ? { next_cursor: null, has_more: false } : { next_cursor: 'message-page-2', has_more: true },
+    })
+  }),
+  http.get(/\/api\/v1\/sessions\/([^/]+)\/export$/, ({ request }) => {
+    const requested_session_id = new URL(request.url).pathname.split('/').at(-2)
+    if (requested_session_id !== session_id) return error_response(request, 'SESSION_NOT_FOUND', '会话不存在', 404)
+    return HttpResponse.text(export_markdown, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/markdown; charset=utf-8',
+        'Content-Disposition': `attachment; filename="opermind-session-${session_id}.md"`,
+        'X-Request-Id': 'test-request-id',
+      },
     })
   }),
   http.post(/\/api\/v1\/sessions\/([^/]+)\/runs$/, async ({ request }) => {
