@@ -193,6 +193,7 @@ def test_alembic_upgrade_head_仅创建迁移版本元数据(tmp_path: Path) -> 
             "model_provider_idempotency_keys",
             "service_registry",
             "app_settings",
+            "model_usage_records",
         }
     finally:
         engine.dispose()

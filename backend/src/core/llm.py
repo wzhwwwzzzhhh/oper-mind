@@ -1,9 +1,12 @@
 """LLM 调用封装"""
 
 import logging
+from datetime import UTC, datetime
 from typing import Any, cast
 
 from openai import OpenAI
+
+from src.domain.model_usage import UsageRecorder
 
 LOGGER = logging.getLogger(__name__)
 
@@ -18,6 +21,7 @@ class LLMClient:
         model: str = "qwen2.5:7b",
         default_temperature: float = 0.0,
         default_max_tokens: int | None = None,
+        usage_recorder: UsageRecorder | None = None,
     ):
         self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.model = model
@@ -25,6 +29,8 @@ class LLMClient:
         self.default_temperature = default_temperature
         self.default_max_tokens = default_max_tokens
         self.total_tokens = 0  # 累计 token 用量（真实调用累加，mock 恒为 0，供评测成本核算）
+        # 用量采集端口：真实调用返回处落库；None=不采集（测试/旧入口保持现状）。
+        self.usage_recorder = usage_recorder
 
     def chat(
         self,
@@ -70,6 +76,11 @@ class LLMClient:
             if usage is not None:
                 self.total_tokens += getattr(usage, "total_tokens", 0) or 0
 
+            # 用量落库采集（P8 副作用）：usage 缺失或 recorder 未注入时跳过；
+            # 采集失败只记日志，绝不阻断或改变调用返回（AC8）。
+            if self.usage_recorder is not None and usage is not None:
+                self._record_usage(usage)
+
             # 把OpenAI的响应对象转成普通字典，方便后续处理
             result = {"role": "assistant", "content": message.content}
 
@@ -90,6 +101,31 @@ class LLMClient:
             # 只记异常类型：异常文本可能带 base_url 或密钥片段。
             LOGGER.warning("LLM API 调用失败：%s", type(e).__name__)
             return {"role": "assistant", "content": "LLM API 调用失败", "error": str(e)}
+
+    def _record_usage(self, usage: Any) -> None:
+        """把单次真实调用的用量写入应用库；失败降级为日志，不阻断调用。
+
+        usage 为 OpenAI SDK 的 usage 对象（prompt_tokens / completion_tokens / total_tokens）。
+        """
+        recorder = self.usage_recorder
+        if recorder is None:
+            return
+        try:
+            input_tokens = getattr(usage, "prompt_tokens", 0) or 0
+            output_tokens = getattr(usage, "completion_tokens", 0) or 0
+            total_tokens = getattr(usage, "total_tokens", 0) or 0
+            recorder.record(
+                {
+                    "model": self.model,
+                    "input_tokens": int(input_tokens),
+                    "output_tokens": int(output_tokens),
+                    "total_tokens": int(total_tokens),
+                    "occurred_at": datetime.now(UTC),
+                }
+            )
+        except Exception as error:
+            # 只记异常类型：不记录可能带凭据的异常文本。
+            LOGGER.warning("用量采集失败（不影响本次调用）：%s", type(error).__name__)
 
     def _mock_chat(self, messages, tools):
         """Mock LLM 返回，不需要 API Key"""

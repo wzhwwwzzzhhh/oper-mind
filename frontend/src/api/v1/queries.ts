@@ -3,6 +3,7 @@ import { mutationOptions, queryOptions } from '@tanstack/react-query'
 import {
   API_V1_DEFAULT_PAGE_SIZE,
   api_v1_client,
+  type GetModelUsageQuery,
   type ListActionProposalsQuery,
   type ListSessionMessagesQuery,
   type ListSessionRunsQuery,
@@ -27,6 +28,7 @@ import {
 export const api_v1_query_keys = {
   model_config: () => ['api-v1', 'model-config'] as const,
   model_providers: () => ['api-v1', 'model-providers'] as const,
+  model_usage: (query: GetModelUsageQuery = {}) => ['api-v1', 'model-usage', query] as const,
   services: () => ['api-v1', 'services'] as const,
   service: (service_id: string) => ['api-v1', 'service', service_id] as const,
   monitor_overview: () => ['api-v1', 'monitor-overview'] as const,
@@ -311,6 +313,13 @@ export function list_model_providers_query() {
   return queryOptions({
     queryKey: api_v1_query_keys.model_providers(),
     queryFn: ({ signal }) => api_v1_client.list_model_providers({ signal }),
+  })
+}
+
+export function get_model_usage_query(query: GetModelUsageQuery = {}) {
+  return queryOptions({
+    queryKey: api_v1_query_keys.model_usage(query),
+    queryFn: ({ signal }) => api_v1_client.get_model_usage(query, { signal }),
   })
 }
 

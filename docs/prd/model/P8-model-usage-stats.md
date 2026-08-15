@@ -1,10 +1,10 @@
 ---
 title: 用量与成本统计——token 计数与花费查询
-status: 已确认
+status: 进行中
 domain: model
 phase: P8
 issue: 67
-updated: 2026-08-12
+updated: 2026-08-13
 ---
 
 # 用量与成本统计——token 计数与花费查询 · PRD
