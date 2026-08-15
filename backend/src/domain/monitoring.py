@@ -112,6 +112,45 @@ class MonitorTrendSummaryData(MonitorDomainModel):
     anomaly_sample_count: int = Field(ge=0)
 
 
+class MonitorThresholdSource(str, Enum):
+    """阈值配置的诚实来源标注：内置默认或已配置。"""
+
+    DEFAULT = "default"
+    CONFIGURED = "configured"
+
+
+class MonitorThresholdConfig(MonitorDomainModel):
+    """单个服务的异常判定配置；阈值 null = 不关注该指标。
+
+    判定语义见 `docs/design/service-center/P8监控阈值与关注项配置Design.md` §2.3：
+    当前采样点往前 window_minutes 分钟内（含两端）目标指标计数之和 ≥ 阈值 → 该点异常；
+    window_minutes=0 表示仅当前采样点自身（内置默认，与现状"出现即异常"等价）。
+    """
+
+    slow_query_count_threshold: int | None = Field(default=None, ge=0, le=1_000_000)
+    timeout_count_threshold: int | None = Field(default=None, ge=0, le=1_000_000)
+    slowlog_count_threshold: int | None = Field(default=None, ge=0, le=1_000_000)
+    window_minutes: int = Field(default=0, ge=0, le=1440)
+    count_availability_change: bool = True
+
+
+DEFAULT_MONITOR_THRESHOLDS = MonitorThresholdConfig(
+    slow_query_count_threshold=1,
+    timeout_count_threshold=1,
+    slowlog_count_threshold=1,
+    window_minutes=0,
+    count_availability_change=True,
+)
+
+
+class MonitorThresholdView(MonitorDomainModel):
+    """阈值配置的安全视图：配置值 + 来源标注（默认/已配置）。"""
+
+    service_id: str = Field(min_length=1, max_length=64)
+    source: MonitorThresholdSource
+    config: MonitorThresholdConfig
+
+
 class MonitorServiceOverviewData(MonitorDomainModel):
     """单个已注册服务的监控概览视图。
 

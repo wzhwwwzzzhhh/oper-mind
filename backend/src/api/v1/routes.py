@@ -38,6 +38,7 @@ from src.api.v1.resources import (
     message_resource,
     monitor_history_resource,
     monitor_overview_resource,
+    monitor_threshold_resource,
     provider_resource,
     run_event_resource,
     run_resource,
@@ -81,6 +82,8 @@ from src.api.v1.schemas import (
     ModelProviderResponse,
     MonitorHistoryResponse,
     MonitorOverviewResponse,
+    MonitorThresholdRequest,
+    MonitorThresholdResponse,
     PlainMessageResponse,
     ResponseMeta,
     RunActionProposalResponse,
@@ -130,6 +133,7 @@ from src.application.monitoring import (
     OVERVIEW_READ_TIMEOUT_SECONDS,
     MonitorHistoryApplicationService,
     MonitorOverviewApplicationService,
+    MonitorThresholdApplicationService,
 )
 from src.application.plain_messages import SendPlainMessageCommand
 from src.application.service_center import CreateServiceSessionCommand, ServiceCenterApplicationService
@@ -145,6 +149,7 @@ from src.domain.audit import AuditActivityType, AuditOutcome
 from src.domain.diagnosis import RunStatus, SessionStatus
 from src.domain.model_params import ModelParams
 from src.domain.model_provider import ProviderEndpoint
+from src.domain.monitoring import MonitorThresholdConfig
 from src.domain.records import DiagnosisRunData, RunEventData, SessionData
 from src.infrastructure.persistence.app_settings_repository import SqlAlchemyAppSettingsStore
 from src.infrastructure.persistence.repositories import (
@@ -318,6 +323,16 @@ def _monitor_overview(services: V1Services) -> MonitorOverviewApplicationService
         registry=services.service_registry,
         sample_interval_seconds=settings.sample_interval_seconds,
         retention_hours=settings.retention_hours,
+    )
+
+
+def _monitor_thresholds(services: V1Services) -> MonitorThresholdApplicationService:
+    """读取已装配的静态服务注册表，构造阈值配置用例。"""
+    if services.service_registry is None:
+        raise ServiceCenterUnavailableError()
+    return MonitorThresholdApplicationService(
+        session_factory=services.session_factory,
+        registry=services.service_registry,
     )
 
 
@@ -898,6 +913,54 @@ async def get_monitor_overview(
     payload = monitor_overview_resource(value)
     payload["meta"] = meta
     return MonitorOverviewResponse.model_validate(payload)
+
+
+@router.get("/services/{service_id}/monitor/thresholds", response_model=MonitorThresholdResponse)
+def get_service_monitor_thresholds(
+    service_id: str,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> MonitorThresholdResponse:
+    """读取服务的监控阈值配置；未配置返回内置默认并如实标注来源。"""
+    try:
+        value = _monitor_thresholds(services).get(service_id)
+    except ValueError as error:
+        code = str(error)
+        if code == "SERVICE_NOT_FOUND":
+            raise ApiV1Error(404, code, "已注册服务不存在") from error
+        raise ApiV1Error(500, "INTERNAL_ERROR", "服务内部错误，请稍后重试") from error
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    payload = monitor_threshold_resource(value)
+    payload["meta"] = meta
+    return MonitorThresholdResponse.model_validate(payload)
+
+
+@router.put("/services/{service_id}/monitor/thresholds", response_model=MonitorThresholdResponse)
+def put_service_monitor_thresholds(
+    service_id: str,
+    payload: MonitorThresholdRequest,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> MonitorThresholdResponse:
+    """保存服务的监控阈值配置（全量替换，保存即生效）；非法配置 422 不落库。"""
+    try:
+        value = _monitor_thresholds(services).save(
+            service_id,
+            MonitorThresholdConfig(**payload.model_dump()),
+        )
+    except ValueError as error:
+        code = str(error)
+        if code == "SERVICE_NOT_FOUND":
+            raise ApiV1Error(404, code, "已注册服务不存在") from error
+        raise ApiV1Error(500, "INTERNAL_ERROR", "服务内部错误，请稍后重试") from error
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    payload_resource = monitor_threshold_resource(value)
+    payload_resource["meta"] = meta
+    return MonitorThresholdResponse.model_validate(payload_resource)
 
 
 @router.post("/sessions", response_model=SessionResponse, status_code=201)

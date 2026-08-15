@@ -107,6 +107,21 @@ export interface MonitorOverviewResponse {
   meta: components['schemas']['ResponseMeta']
 }
 
+export interface MonitorThresholdConfigResource {
+  slow_query_count_threshold: number | null
+  timeout_count_threshold: number | null
+  slowlog_count_threshold: number | null
+  window_minutes: number
+  count_availability_change: boolean
+}
+
+export interface MonitorThresholdResponse {
+  service_id: string
+  source: 'default' | 'configured'
+  config: MonitorThresholdConfigResource
+  meta: components['schemas']['ResponseMeta']
+}
+
 export interface SessionExportResult {
   text: string
   filename: string
@@ -366,6 +381,15 @@ export interface ApiV1Client {
     options?: ApiRequestOptions,
   ): Promise<ApiResponse<MonitorHistoryResponse>>
   get_monitor_overview(options?: ApiRequestOptions): Promise<ApiResponse<MonitorOverviewResponse>>
+  get_service_monitor_thresholds(
+    service_id: string,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<MonitorThresholdResponse>>
+  update_service_monitor_thresholds(
+    service_id: string,
+    payload: MonitorThresholdConfigResource,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<MonitorThresholdResponse>>
   list_service_activities(
     service_id: string,
     query?: ListServiceActivitiesQuery,
@@ -867,6 +891,23 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
         base_url,
         '/api/v1/monitor/overview',
         request_options,
+      ),
+    get_service_monitor_thresholds: (service_id, request_options) =>
+      request_json<MonitorThresholdResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        `/api/v1/services/${encodeURIComponent(service_id)}/monitor/thresholds`,
+        request_options,
+      ),
+    update_service_monitor_thresholds: (service_id, payload, request_options) =>
+      request_json<MonitorThresholdResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        `/api/v1/services/${encodeURIComponent(service_id)}/monitor/thresholds`,
+        request_options,
+        { body: payload, method: 'PUT' },
       ),
     list_service_activities: (service_id, query = {}, request_options) =>
       request_json<ServiceActivityListResponse>(

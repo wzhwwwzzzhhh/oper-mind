@@ -1,10 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactElement } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
-import { api_v1_client } from '../../api/v1/client'
-import { get_service_monitor_history_query, get_service_query, list_service_activities_query } from '../../api/v1/queries'
+import { api_v1_client, type MonitorSampleResource, type MonitorThresholdConfigResource } from '../../api/v1/client'
+import {
+  api_v1_query_keys,
+  get_service_monitor_history_query,
+  get_service_monitor_thresholds_query,
+  get_service_query,
+  list_service_activities_query,
+} from '../../api/v1/queries'
 import { Icon } from '../shell/Icon'
 import type { IconName } from '../shell/Icon'
 import {
@@ -115,6 +121,208 @@ function host_trend_track(label: string, samples: unknown[], field: string, key_
   )
 }
 
+type ThresholdMetricField = 'slow_query_count_threshold' | 'timeout_count_threshold' | 'slowlog_count_threshold'
+
+const THRESHOLD_METRIC_FIELDS: ReadonlyArray<{ field: ThresholdMetricField; label: string; hint: string }> = [
+  { field: 'slow_query_count_threshold', label: '慢查询计数', hint: 'PostgreSQL 慢查询采样计数' },
+  { field: 'timeout_count_threshold', label: '超时计数', hint: 'PostgreSQL 查询超时采样计数' },
+  { field: 'slowlog_count_threshold', label: '慢日志计数', hint: 'Redis 慢日志采样计数' },
+]
+
+function threshold_window_label(minutes: number): string {
+  if (minutes === 0) return '仅当前采样点（出现即异常）'
+  return `${minutes} 分钟`
+}
+
+function windowed_metric_sums(
+  samples: MonitorSampleResource[],
+  index: number,
+  window_minutes: number,
+): { slow_sum: number; timeout_sum: number; slowlog_sum: number } {
+  /** §2.3 窗口聚合的前端实现：与后端 `_windowed_metric_sums` 同一规则（含两端、window=0 只含自身、null 计 0）。 */
+  const observed_at = Date.parse(samples[index].observed_at)
+  const start = observed_at - window_minutes * 60 * 1000
+  let slow_sum = 0
+  let timeout_sum = 0
+  let slowlog_sum = 0
+  for (const candidate of samples) {
+    const candidate_at = Date.parse(candidate.observed_at)
+    if (candidate_at < start) continue
+    if (candidate_at > observed_at) break
+    slow_sum += candidate.slow_query_count ?? 0
+    timeout_sum += candidate.timeout_count ?? 0
+    slowlog_sum += candidate.slowlog_count ?? 0
+  }
+  return { slow_sum, timeout_sum, slowlog_sum }
+}
+
+function is_anomalous_sample(
+  samples: MonitorSampleResource[],
+  index: number,
+  config: MonitorThresholdConfigResource,
+): boolean {
+  /** §2.3 判定契约的前端实现：与后端 `_trend_summary` 同一规则（首样本不判可用性异常、相邻既有样本比较）。 */
+  const { slow_sum, timeout_sum, slowlog_sum } = windowed_metric_sums(samples, index, config.window_minutes)
+  const has_metric = (
+    (config.slow_query_count_threshold !== null && slow_sum >= config.slow_query_count_threshold)
+    || (config.timeout_count_threshold !== null && timeout_sum >= config.timeout_count_threshold)
+    || (config.slowlog_count_threshold !== null && slowlog_sum >= config.slowlog_count_threshold)
+  )
+  const availability_changed = (
+    config.count_availability_change
+    && index > 0
+    && samples[index].availability !== samples[index - 1].availability
+  )
+  return has_metric || availability_changed
+}
+
+function anomaly_reasons(
+  samples: MonitorSampleResource[],
+  index: number,
+  config: MonitorThresholdConfigResource,
+): string[] {
+  /** 触发当前采样点异常的指标原因列表（窗口内计数和 ≥ 阈值 / 可用性变化）。 */
+  const { slow_sum, timeout_sum, slowlog_sum } = windowed_metric_sums(samples, index, config.window_minutes)
+  const reasons: string[] = []
+  if (config.slow_query_count_threshold !== null && slow_sum >= config.slow_query_count_threshold) {
+    reasons.push(`慢查询 ${slow_sum}`)
+  }
+  if (config.timeout_count_threshold !== null && timeout_sum >= config.timeout_count_threshold) {
+    reasons.push(`超时 ${timeout_sum}`)
+  }
+  if (config.slowlog_count_threshold !== null && slowlog_sum >= config.slowlog_count_threshold) {
+    reasons.push(`慢日志 ${slowlog_sum}`)
+  }
+  if (
+    config.count_availability_change
+    && index > 0
+    && samples[index].availability !== samples[index - 1].availability
+  ) {
+    reasons.push('可用性变化')
+  }
+  return reasons
+}
+
+/** P8 监控阈值配置区：只读回显当前生效规则 + 可编辑保存，来源诚实标注（内置默认/已配置）。 */
+function ThresholdConfigCard({ service_id }: { service_id: string }): ReactElement {
+  const query_client = useQueryClient()
+  const thresholds_query = useQuery({
+    ...get_service_monitor_thresholds_query(service_id),
+    enabled: Boolean(service_id),
+  })
+  const [draft, set_draft] = useState<MonitorThresholdConfigResource | null>(null)
+  const [error_message, set_error_message] = useState<string | null>(null)
+  const [saved_notice, set_saved_notice] = useState<boolean>(false)
+
+  useEffect(() => {
+    if (draft === null && thresholds_query.data) {
+      set_draft(thresholds_query.data.data.config)
+    }
+  }, [draft, thresholds_query.data])
+
+  const save_thresholds = useMutation({
+    mutationFn: (config: MonitorThresholdConfigResource) =>
+      api_v1_client.update_service_monitor_thresholds(service_id, config),
+    onSuccess: async () => {
+      await query_client.invalidateQueries({ queryKey: api_v1_query_keys.service_monitor_thresholds(service_id) })
+      set_error_message(null)
+      set_saved_notice(true)
+    },
+    onError: (error) => {
+      set_error_message(error instanceof Error ? error.message : '保存失败，请稍后重试。')
+      set_saved_notice(false)
+    },
+  })
+
+  const configured = thresholds_query.data?.data.source === 'configured'
+  const source_note = configured
+    ? '以下为保存后的生效规则，保存即生效。'
+    : '未配置阈值，当前使用内置默认规则（出现即异常）。'
+
+  const set_metric_enabled = (field: ThresholdMetricField, enabled: boolean) => {
+    set_draft((current) => (current ? { ...current, [field]: enabled ? 1 : null } : current))
+  }
+  const set_metric_threshold = (field: ThresholdMetricField, raw: string) => {
+    // 空输入 = 不关注该指标（与勾选开关语义一致）；非法数字回退 0 由后端 422 兜底如实提示。
+    if (raw === '') {
+      set_draft((current) => (current ? { ...current, [field]: null } : current))
+      return
+    }
+    const parsed = Number(raw)
+    set_draft((current) => (current ? { ...current, [field]: Number.isFinite(parsed) ? parsed : 0 } : current))
+  }
+
+  return (
+    <section className="svc-detail-section">
+      <div className="svc-detail-section-head">
+        <div><h2>监控阈值</h2><p>采样点异常判定规则 · 只影响异常标记，采样与保留策略不变</p></div>
+        {thresholds_query.isSuccess && (
+          <span className={`svc-detail-badge ${configured ? 'ok' : 'muted'}`}>{configured ? '已配置' : '内置默认'}</span>
+        )}
+      </div>
+      {thresholds_query.isPending && <div className="svc-detail-inline-empty">正在读取监控阈值配置…</div>}
+      {thresholds_query.isError && (
+        <div className="svc-detail-inline-empty"><strong>暂时无法读取监控阈值配置</strong><p>接口不可用时不展示示例规则。</p></div>
+      )}
+      {thresholds_query.isSuccess && draft && (
+        <div className="svc-detail-thresholds">
+          <p className="svc-detail-thresholds-note">{source_note}</p>
+          {THRESHOLD_METRIC_FIELDS.map(({ field, label, hint }) => {
+            const enabled = draft[field] !== null
+            return (
+              <div className="svc-detail-threshold-row" key={field}>
+                <label className="svc-detail-threshold-metric">
+                  <input type="checkbox" checked={enabled} onChange={(event) => set_metric_enabled(field, event.target.checked)} />
+                  <span><strong>{label}</strong><small>{hint}</small></span>
+                </label>
+                <label className="svc-detail-threshold-value">
+                  <span>阈值</span>
+                  <input type="number" min={0} step={1} value={draft[field] ?? 0} disabled={!enabled} onChange={(event) => set_metric_threshold(field, event.target.value)} />
+                </label>
+              </div>
+            )
+          })}
+          <div className="svc-detail-threshold-row">
+            <label className="svc-detail-threshold-metric">
+              <span><strong>判定窗口</strong><small>窗口内关注指标计数之和 ≥ 阈值时，该采样点计为异常</small></span>
+            </label>
+            <label className="svc-detail-threshold-value">
+              <span>窗口</span>
+              <select
+                value={draft.window_minutes}
+                onChange={(event) => set_draft((current) => (current ? { ...current, window_minutes: Number(event.target.value) } : current))}
+              >
+                {(() => {
+                  const presets = [0, 5, 10, 15, 30]
+                  const options = presets.includes(draft.window_minutes) ? presets : [draft.window_minutes, ...presets]
+                  return options.map((minutes) => <option value={minutes} key={minutes}>{threshold_window_label(minutes)}</option>)
+                })()}
+              </select>
+            </label>
+          </div>
+          <div className="svc-detail-threshold-row">
+            <label className="svc-detail-threshold-metric">
+              <input type="checkbox" checked={draft.count_availability_change} onChange={(event) => set_draft((current) => (current ? { ...current, count_availability_change: event.target.checked } : current))} />
+              <span><strong>可用性变化计为异常</strong><small>服务状态在相邻采样点间变化时，该采样点计为异常</small></span>
+            </label>
+            <div className="svc-detail-threshold-value"><span /></div>
+          </div>
+          <div className="svc-detail-threshold-actions">
+            <button className="svc-detail-button primary" disabled={save_thresholds.isPending} onClick={() => { if (draft) save_thresholds.mutate(draft) }} type="button">{save_thresholds.isPending ? '保存中…' : '保存并生效'}</button>
+            {saved_notice && <span className="svc-detail-threshold-saved">已保存，概览与趋势按新规则计算。</span>}
+          </div>
+          {error_message && (
+            <div className="svc-detail-toast" role="alert">
+              {error_message}
+              <button aria-label="关闭提示" onClick={() => set_error_message(null)} type="button"><Icon name="x" size={13} /></button>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
 /** 单服务详情页：只展示后端真实服务快照，缺失数据保持诚实空态。 */
 export function ServiceDetailPage(): ReactElement {
   const navigate = useNavigate()
@@ -124,6 +332,7 @@ export function ServiceDetailPage(): ReactElement {
   const service_query = useQuery({ ...get_service_query(id), enabled: Boolean(id) })
   const activities_query = useQuery({ ...list_service_activities_query(id), enabled: Boolean(id) })
   const monitor_query = useQuery({ ...get_service_monitor_history_query(id), enabled: Boolean(id) })
+  const thresholds_query = useQuery({ ...get_service_monitor_thresholds_query(id), enabled: Boolean(id) })
   const [notice, set_notice] = useState<string | null>(null)
 
   const service_response = service_query.data ? read_record(service_query.data.data) : undefined
@@ -279,13 +488,13 @@ export function ServiceDetailPage(): ReactElement {
           {monitor_query.isSuccess && (() => {
             const history = monitor_query.data.data
             const samples = Array.isArray(history.samples) ? history.samples : []
-            const anomalies = samples.filter((item, index) =>
-              is_redis
-                ? (item.slowlog_count ?? 0) > 0 || (index > 0 && item.availability !== samples[index - 1].availability)
-                : (item.slow_query_count ?? 0) > 0 || (item.timeout_count ?? 0) > 0 || (index > 0 && item.availability !== samples[index - 1].availability),
-            )
+            // P8：异常标记按阈值配置复算（§2.3 唯一文字契约），未配置时使用内置默认（与后端一致）。
+            const threshold_config = thresholds_query.data?.data.config
+            const anomaly_indices = threshold_config
+              ? samples.map((_item, index) => index).filter((index) => is_anomalous_sample(samples, index, threshold_config))
+              : []
             if (samples.length === 0) return <div className="svc-detail-chart-empty"><span><Icon name="pulse" size={18} /></span><strong>暂无历史采样</strong><p>{monitor_status_label(history.status)}，不会绘制假趋势线。</p></div>
-             return <><div className="svc-detail-chart"><div className="svc-detail-chart-legend"><span>{is_redis ? '内存占用' : 'p95 延迟'}</span><span>{is_redis ? '慢日志' : '慢查询 / 超时'}</span></div><div className="svc-detail-chart-track">{samples.map((item) => { const bar = is_redis ? Math.min(100, Math.max(8, (item.memory_bytes ?? 0) / 131072)) : Math.min(100, Math.max(8, (item.p95_ms ?? 0) / 4)); return <div className={`svc-detail-chart-point ${anomalies.includes(item) ? 'anomaly' : ''}`} key={item.id ?? item.observed_at} title={`${display_time(item.observed_at)} · ${is_redis ? display_bytes(item.memory_bytes) : monitor_value(item.p95_ms, ' ms')}`}><i style={{ height: `${bar}%` }} /></div> })}</div><div className="svc-detail-chart-axis"><span>{display_time(samples[0].observed_at)}</span><span>{display_time(samples[samples.length - 1].observed_at)}</span></div>{anomalies.length > 0 && <div className="svc-detail-anomalies"><strong>采样点异常</strong>{anomalies.slice(-5).map((item) => <span key={item.id ?? item.observed_at}>{display_time(item.observed_at)} · {is_redis ? `慢日志 ${item.slowlog_count}` : `${(item.slow_query_count ?? 0) > 0 ? `慢查询 ${item.slow_query_count}` : ''}${(item.timeout_count ?? 0) > 0 ? ` 超时 ${item.timeout_count}` : ''}`}</span>)}</div>}</div>{host_trend_track('主机 CPU', samples, 'host_cpu_percent', 'cpu', ' %')}{host_trend_track('主机内存', samples, 'host_memory_percent', 'mem', ' %')}{host_trend_track('主机磁盘', samples, 'host_disk_used_percent', 'disk', ' %')}</>
+             return <><div className="svc-detail-chart"><div className="svc-detail-chart-legend"><span>{is_redis ? '内存占用' : 'p95 延迟'}</span><span>{is_redis ? '慢日志' : '慢查询 / 超时'}</span></div><div className="svc-detail-chart-track">{samples.map((item, index) => { const bar = is_redis ? Math.min(100, Math.max(8, (item.memory_bytes ?? 0) / 131072)) : Math.min(100, Math.max(8, (item.p95_ms ?? 0) / 4)); return <div className={`svc-detail-chart-point ${anomaly_indices.includes(index) ? 'anomaly' : ''}`} key={item.id ?? item.observed_at} title={`${display_time(item.observed_at)} · ${is_redis ? display_bytes(item.memory_bytes) : monitor_value(item.p95_ms, ' ms')}`}><i style={{ height: `${bar}%` }} /></div> })}</div><div className="svc-detail-chart-axis"><span>{display_time(samples[0].observed_at)}</span><span>{display_time(samples[samples.length - 1].observed_at)}</span></div>{anomaly_indices.length > 0 && <div className="svc-detail-anomalies"><strong>采样点异常</strong>{anomaly_indices.slice(-5).map((index) => { const item = samples[index]; const reasons = threshold_config ? anomaly_reasons(samples, index, threshold_config) : []; return <span key={item.id ?? item.observed_at}>{display_time(item.observed_at)} · {reasons.join(' / ')}</span> })}</div>}</div>{host_trend_track('主机 CPU', samples, 'host_cpu_percent', 'cpu', ' %')}{host_trend_track('主机内存', samples, 'host_memory_percent', 'mem', ' %')}{host_trend_track('主机磁盘', samples, 'host_disk_used_percent', 'disk', ' %')}</>
           })()}
         </section>
         <section className="svc-detail-card">
@@ -294,6 +503,8 @@ export function ServiceDetailPage(): ReactElement {
           <div className="svc-detail-attention"><span className={`attention-dot ${snapshot_source === 'available' ? 'ok' : 'muted'}`} /><div><strong>数据源：{source_label(snapshot_source)}</strong><p>{snapshot ? '指标来源状态由服务端快照提供。' : '请先完成服务连接或监控配置。'}</p></div></div>
         </section>
       </div>
+
+      <ThresholdConfigCard service_id={id} />
 
       <section className="svc-detail-section">
         <div className="svc-detail-section-head"><div><h2>服务能力</h2><p>只读能力声明，不代表前端可以直接访问外部服务。</p></div></div>
