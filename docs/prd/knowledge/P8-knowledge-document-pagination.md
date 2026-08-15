@@ -1,10 +1,10 @@
 ---
 title: 知识文档列表分页——目录浏览容量化
-status: 进行中
+status: 完成
 domain: knowledge
 phase: P8
 issue: 78
-updated: 2026-08-14
+updated: 2026-08-15
 ---
 
 # 知识文档列表分页——目录浏览容量化 · PRD
