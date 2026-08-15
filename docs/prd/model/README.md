@@ -9,4 +9,4 @@
 | [P8-model-mode-switch.md](P8-model-mode-switch.md) | 模型设置——运行时切换 mock / real 模式 | 完成 |
 | [P8-model-list-enumeration.md](P8-model-list-enumeration.md) | 模型可用列表探测——Provider 侧模型枚举 | 完成 |
 | [P8-model-params-config.md](P8-model-params-config.md) | 模型调用参数暴露——temperature 等运行参数的受控配置 | 完成 |
-| [P8-model-usage-stats.md](P8-model-usage-stats.md) | 用量与成本统计——token 计数与花费查询 | 进行中 |
+| [P8-model-usage-stats.md](P8-model-usage-stats.md) | 用量与成本统计——token 计数与花费查询 | 完成 |
