@@ -20,12 +20,13 @@ docs/workpack/
 
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
-| P8 | message-edit-delete | 待用户确认计划 | [plan.md](P8-message-edit-delete/plan.md) | — | — |
+| （无活跃工作包） | | | | | |
 
 ## 已归档
 
 | 阶段 | 切片 | PR | 完成日期 |
 |---|---|---|---|
+| P8 | message-edit-delete | #88 | 2026-08-15 |
 | P8 | monitor-threshold-config | #87 | 2026-08-15 |
 | P8 | session-export | #83 | 2026-08-15 |
 | P8 | knowledge-document-pagination | #84 | 2026-08-15 |
