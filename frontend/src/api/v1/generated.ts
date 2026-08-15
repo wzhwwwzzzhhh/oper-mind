@@ -406,6 +406,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/services/{service_id}/monitor/thresholds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Service Monitor Thresholds
+         * @description 读取服务的监控阈值配置；未配置返回内置默认并如实标注来源。
+         */
+        get: operations["get_service_monitor_thresholds_api_v1_services__service_id__monitor_thresholds_get"];
+        /**
+         * Put Service Monitor Thresholds
+         * @description 保存服务的监控阈值配置（全量替换，保存即生效）；非法配置 422 不落库。
+         */
+        put: operations["put_service_monitor_thresholds_api_v1_services__service_id__monitor_thresholds_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions": {
         parameters: {
             query?: never;
@@ -483,6 +507,30 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{session_id}/messages/{message_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Message
+         * @description 软删除一条 user 消息；重复删除幂等 204；Run 与历史留痕不受影响。
+         */
+        delete: operations["delete_message_api_v1_sessions__session_id__messages__message_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Edit Message
+         * @description 编辑一条 user 消息：更新内容并记录 edited_at，时间线位置不变。
+         */
+        patch: operations["edit_message_api_v1_sessions__session_id__messages__message_id__patch"];
         trace?: never;
     };
     "/api/v1/sessions/{session_id}/export": {
@@ -1302,6 +1350,14 @@ export interface components {
             finished_at?: unknown;
         };
         /**
+         * EditMessageRequest
+         * @description 编辑一条用户消息的请求。
+         */
+        EditMessageRequest: {
+            /** Content */
+            content: string;
+        };
+        /**
          * EvidenceResource
          * @description 经安全审查的结构化证据。
          */
@@ -1531,6 +1587,16 @@ export interface components {
             content: unknown;
             /** Created At */
             created_at: unknown;
+            /** Edited At */
+            edited_at?: unknown;
+        };
+        /**
+         * MessageResponse
+         * @description 单个消息响应。
+         */
+        MessageResponse: {
+            message: unknown;
+            meta: unknown;
         };
         /**
          * ModelConfigResource
@@ -1751,6 +1817,50 @@ export interface components {
             availability: unknown;
             latest_sample?: unknown;
             trend_summary: unknown;
+        };
+        /**
+         * MonitorThresholdConfigResource
+         * @description 监控阈值配置视图（阈值 null = 不关注该指标）。
+         */
+        MonitorThresholdConfigResource: {
+            /** Slow Query Count Threshold */
+            slow_query_count_threshold?: unknown;
+            /** Timeout Count Threshold */
+            timeout_count_threshold?: unknown;
+            /** Slowlog Count Threshold */
+            slowlog_count_threshold?: unknown;
+            /** Window Minutes */
+            window_minutes?: unknown;
+            /** Count Availability Change */
+            count_availability_change?: unknown;
+        };
+        /**
+         * MonitorThresholdRequest
+         * @description PUT 阈值配置请求：完整配置、全量替换语义；缺字段即 422，未知字段被拒绝。
+         */
+        MonitorThresholdRequest: {
+            /** Slow Query Count Threshold */
+            slow_query_count_threshold: number | null;
+            /** Timeout Count Threshold */
+            timeout_count_threshold: number | null;
+            /** Slowlog Count Threshold */
+            slowlog_count_threshold: number | null;
+            /** Window Minutes */
+            window_minutes: number;
+            /** Count Availability Change */
+            count_availability_change: boolean;
+        };
+        /**
+         * MonitorThresholdResponse
+         * @description 阈值配置读写响应（GET/PUT 同构，source 诚实标注来源）。
+         */
+        MonitorThresholdResponse: {
+            /** Service Id */
+            service_id: unknown;
+            /** Source */
+            source: unknown;
+            config: unknown;
+            meta: unknown;
         };
         /**
          * MonitorTrendSummaryResource
@@ -2928,6 +3038,72 @@ export interface operations {
             };
         };
     };
+    get_service_monitor_thresholds_api_v1_services__service_id__monitor_thresholds_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                service_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonitorThresholdResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_service_monitor_thresholds_api_v1_services__service_id__monitor_thresholds_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                service_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MonitorThresholdRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonitorThresholdResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_sessions_api_v1_sessions_get: {
         parameters: {
             query?: {
@@ -3146,6 +3322,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlainMessageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_message_api_v1_sessions__session_id__messages__message_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_message_api_v1_sessions__session_id__messages__message_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditMessageRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
                 };
             };
             /** @description Validation Error */

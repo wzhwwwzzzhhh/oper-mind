@@ -55,7 +55,12 @@ from src.domain.audit import AuditActivityData
 from src.domain.diagnosis import RunStatus
 from src.domain.host_metrics import HostMetricsData
 from src.domain.model_provider import ModelProviderData
-from src.domain.monitoring import MonitorHistoryData, MonitorOverviewData, MonitorServiceOverviewData
+from src.domain.monitoring import (
+    MonitorHistoryData,
+    MonitorOverviewData,
+    MonitorServiceOverviewData,
+    MonitorThresholdView,
+)
 from src.domain.records import (
     DiagnosisResultData,
     DiagnosisRunData,
@@ -93,6 +98,7 @@ def message_resource(value: MessageData) -> MessageResource:
         role=value.role.value,
         content=value.content,
         created_at=value.created_at,
+        edited_at=value.edited_at,
     )
 
 
@@ -436,6 +442,15 @@ def monitor_overview_resource(value: MonitorOverviewData) -> dict[str, object]:
         "source": value.source,
         "sample_interval_seconds": value.sample_interval_seconds,
         "retention_hours": value.retention_hours,
+    }
+
+
+def monitor_threshold_resource(value: MonitorThresholdView) -> dict[str, object]:
+    """将阈值配置领域视图映射为已脱敏 API 字段。"""
+    return {
+        "service_id": value.service_id,
+        "source": value.source.value,
+        "config": value.config.model_dump(),
     }
 
 

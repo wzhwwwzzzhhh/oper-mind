@@ -67,6 +67,8 @@ class MessageData(TimestampedRecord):
     role: MessageRole
     content: str
     created_at: datetime = Field(default_factory=utc_now)
+    edited_at: datetime | None = None
+    archived_at: datetime | None = None
 
 
 class DiagnosisRunData(TimestampedRecord):

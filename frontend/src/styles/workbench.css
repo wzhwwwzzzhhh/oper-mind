@@ -266,6 +266,53 @@
   background: var(--surface-soft);
 }
 
+/* P8 消息编辑与删除：操作区 / 编辑态 / 已编辑标注 / 删除占位 */
+.message-actions {
+  margin-top: 6px;
+}
+
+.message-action-button.ui-btn.link {
+  padding: 0 4px;
+  height: auto;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.user .bubble .ui-tag {
+  margin-left: 8px;
+  vertical-align: 2px;
+}
+
+.message-edit-area {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.message-edit-textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  background: var(--surface);
+  resize: vertical;
+}
+
+.message-edit-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.message-deleted-placeholder {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 .assistant-meta {
   display: flex;
   align-items: center;

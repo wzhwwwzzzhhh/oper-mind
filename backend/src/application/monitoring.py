@@ -1,15 +1,22 @@
-"""P5 历史监控查询与 P7 监控概览应用服务。"""
+"""P5 历史监控查询、P7 监控概览与 P8 监控阈值配置应用服务。"""
 
 from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime, timedelta
 
+from pydantic import ValidationError
+from sqlalchemy.orm import Session
+
 from src.domain.monitoring import (
+    DEFAULT_MONITOR_THRESHOLDS,
     MonitorHistoryData,
     MonitorHistoryStatus,
     MonitorOverviewData,
     MonitorServiceOverviewData,
+    MonitorThresholdConfig,
+    MonitorThresholdSource,
+    MonitorThresholdView,
     MonitorTrendSummaryData,
     ServiceMonitorSampleData,
 )
@@ -21,11 +28,80 @@ from src.domain.services import (
     ServiceSourceStatus,
 )
 from src.infrastructure.persistence.database import SessionFactory
-from src.infrastructure.persistence.monitor_repositories import SqlAlchemyMonitorSampleRepository
+from src.infrastructure.persistence.monitor_repositories import (
+    SqlAlchemyMonitorSampleRepository,
+    SqlAlchemyMonitorThresholdRepository,
+)
 
 LOGGER = logging.getLogger(__name__)
 
 OVERVIEW_READ_TIMEOUT_SECONDS = 3.0
+
+
+def _load_threshold_config(session: Session, service_id: str) -> MonitorThresholdConfig:
+    """防御性读取阈值配置：未配置或配置行校验损坏时回退内置默认并记录安全摘要。
+
+    降级仅覆盖"校验类损坏"（领域模型校验失败）；数据库层故障属基础设施错误，
+    按既有错误语义上抛（概览单服务降级 / 接口 500），不在此静默降级。
+    """
+    try:
+        stored = SqlAlchemyMonitorThresholdRepository(session).get(service_id)
+    except ValidationError:
+        LOGGER.warning("监控阈值配置行损坏，回退内置默认：service_id=%s", service_id)
+        stored = None
+    return stored if stored is not None else DEFAULT_MONITOR_THRESHOLDS
+
+
+class MonitorThresholdApplicationService:
+    """P8 按服务读取与保存监控阈值配置；未配置返回内置默认并如实标注来源。"""
+
+    def __init__(self, session_factory: SessionFactory, registry: ServiceRegistry) -> None:
+        self._session_factory = session_factory
+        self._registry = registry
+
+    def get(self, service_id: str) -> MonitorThresholdView:
+        """读取服务的阈值配置视图；未配置/损坏 → 内置默认 + source=default。"""
+        if self._registry.get_connector(service_id) is None:
+            raise ValueError("SERVICE_NOT_FOUND")
+        session = self._session_factory()
+        try:
+            try:
+                stored = SqlAlchemyMonitorThresholdRepository(session).get(service_id)
+            except ValidationError:
+                LOGGER.warning("监控阈值配置行损坏，回退内置默认：service_id=%s", service_id)
+                stored = None
+        finally:
+            session.close()
+        if stored is None:
+            return MonitorThresholdView(
+                service_id=service_id,
+                source=MonitorThresholdSource.DEFAULT,
+                config=DEFAULT_MONITOR_THRESHOLDS,
+            )
+        return MonitorThresholdView(
+            service_id=service_id,
+            source=MonitorThresholdSource.CONFIGURED,
+            config=stored,
+        )
+
+    def save(self, service_id: str, config: MonitorThresholdConfig) -> MonitorThresholdView:
+        """全量保存服务的阈值配置（单行 upsert，保存即生效）。"""
+        if self._registry.get_connector(service_id) is None:
+            raise ValueError("SERVICE_NOT_FOUND")
+        session = self._session_factory()
+        try:
+            SqlAlchemyMonitorThresholdRepository(session).upsert(service_id, config)
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+        return MonitorThresholdView(
+            service_id=service_id,
+            source=MonitorThresholdSource.CONFIGURED,
+            config=config,
+        )
 
 
 class MonitorHistoryApplicationService:
@@ -182,6 +258,7 @@ class MonitorOverviewApplicationService:
             raw_samples = tuple(
                 SqlAlchemyMonitorSampleRepository(session).list_between(definition.id, start, now)
             )
+            threshold_config = _load_threshold_config(session, definition.id)
         finally:
             session.close()
 
@@ -210,31 +287,75 @@ class MonitorOverviewApplicationService:
             connection_status=status,
             availability=availability,
             latest_sample=latest,
-            trend_summary=self._trend_summary(meaningful, definition.kind),
+            trend_summary=self._trend_summary(meaningful, threshold_config),
         )
 
     @staticmethod
     def _trend_summary(
         samples: tuple[ServiceMonitorSampleData, ...],
-        kind: str,
+        config: MonitorThresholdConfig,
     ) -> MonitorTrendSummaryData:
-        """统计窗口内样本数与异常采样点计数，判定规则与 P5 前端一致。"""
-        is_redis = "redis" in kind.lower()
+        """统计窗口内样本数与异常采样点计数，判定规则按服务配置计算。
+
+        规则见 `docs/design/service-center/P8监控阈值与关注项配置Design.md` §2.3：
+        当前采样点往前 window_minutes 分钟内（含两端）目标指标计数之和 ≥ 阈值 → 该点异常；
+        可用性状态变化是否计异常按 count_availability_change 配置；首样本不判可用性异常，
+        与前一个样本比较指序列中相邻的既有样本（缺口采样时亦然）。
+        """
         anomaly_count = 0
         previous_availability: ServiceAvailability | None = None
+        window_seconds = config.window_minutes * 60
         for sample in samples:
-            has_slow_or_timeout = (
-                (sample.slowlog_count or 0) > 0
-                if is_redis
-                else (sample.slow_query_count or 0) > 0 or (sample.timeout_count or 0) > 0
+            slow_sum, timeout_sum, slowlog_sum = _windowed_metric_sums(samples, sample, window_seconds)
+            has_metric_anomaly = (
+                (
+                    config.slow_query_count_threshold is not None
+                    and slow_sum >= config.slow_query_count_threshold
+                )
+                or (
+                    config.timeout_count_threshold is not None
+                    and timeout_sum >= config.timeout_count_threshold
+                )
+                or (
+                    config.slowlog_count_threshold is not None
+                    and slowlog_sum >= config.slowlog_count_threshold
+                )
             )
             availability_changed = (
-                previous_availability is not None and sample.availability is not previous_availability
+                config.count_availability_change
+                and previous_availability is not None
+                and sample.availability is not previous_availability
             )
-            if has_slow_or_timeout or availability_changed:
+            if has_metric_anomaly or availability_changed:
                 anomaly_count += 1
             previous_availability = sample.availability
         return MonitorTrendSummaryData(
             sample_count=len(samples),
             anomaly_sample_count=anomaly_count,
         )
+
+
+def _windowed_metric_sums(
+    samples: tuple[ServiceMonitorSampleData, ...],
+    sample: ServiceMonitorSampleData,
+    window_seconds: int,
+) -> tuple[int, int, int]:
+    """当前采样点往前 window_seconds 秒内（含两端）目标指标计数之和。
+
+    样本按 observed_at 升序；window_seconds=0 时窗口只含当前采样点自身。
+    null 计为 0（缺失指标不贡献计数），与现状"出现即异常"语义一致。
+    """
+    observed_at = sample.observed_at
+    start = observed_at - timedelta(seconds=window_seconds)
+    slow_sum = 0
+    timeout_sum = 0
+    slowlog_sum = 0
+    for candidate in samples:
+        if candidate.observed_at < start:
+            continue
+        if candidate.observed_at > observed_at:
+            break
+        slow_sum += candidate.slow_query_count or 0
+        timeout_sum += candidate.timeout_count or 0
+        slowlog_sum += candidate.slowlog_count or 0
+    return slow_sum, timeout_sum, slowlog_sum

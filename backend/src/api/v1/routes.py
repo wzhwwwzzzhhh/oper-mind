@@ -38,6 +38,7 @@ from src.api.v1.resources import (
     message_resource,
     monitor_history_resource,
     monitor_overview_resource,
+    monitor_threshold_resource,
     provider_resource,
     run_event_resource,
     run_resource,
@@ -63,12 +64,14 @@ from src.api.v1.schemas import (
     CursorPage,
     DiagnosisRunListResponse,
     DiagnosisRunResource,
+    EditMessageRequest,
     GlobalRunListResponse,
     KnowledgeDocumentDetailResource,
     KnowledgeDocumentResponse,
     KnowledgeListResponse,
     KnowledgeSearchResponse,
     MessageListResponse,
+    MessageResponse,
     ModelConfigResource,
     ModelConfigResponse,
     ModelEndpointResource,
@@ -79,6 +82,8 @@ from src.api.v1.schemas import (
     ModelProviderResponse,
     MonitorHistoryResponse,
     MonitorOverviewResponse,
+    MonitorThresholdRequest,
+    MonitorThresholdResponse,
     PlainMessageResponse,
     ResponseMeta,
     RunActionProposalResponse,
@@ -116,6 +121,7 @@ from src.application.errors import (
     SessionNotFoundError,
 )
 from src.application.knowledge import KnowledgeReaderService, KnowledgeTimeoutError
+from src.application.message_editing import EditMessageCommand
 from src.application.model_mode import ModelModeApplicationService, resolve_runtime_mode
 from src.application.model_params import ModelParamsApplicationService, resolve_model_params
 from src.application.model_providers import (
@@ -129,6 +135,7 @@ from src.application.monitoring import (
     OVERVIEW_READ_TIMEOUT_SECONDS,
     MonitorHistoryApplicationService,
     MonitorOverviewApplicationService,
+    MonitorThresholdApplicationService,
 )
 from src.application.plain_messages import SendPlainMessageCommand
 from src.application.service_center import CreateServiceSessionCommand, ServiceCenterApplicationService
@@ -145,6 +152,7 @@ from src.domain.audit_export import EXPORT_MAX_ITEMS, AuditExportFormat
 from src.domain.diagnosis import RunStatus, SessionStatus
 from src.domain.model_params import ModelParams
 from src.domain.model_provider import ProviderEndpoint
+from src.domain.monitoring import MonitorThresholdConfig
 from src.domain.records import DiagnosisRunData, RunEventData, SessionData
 from src.infrastructure.persistence.app_settings_repository import SqlAlchemyAppSettingsStore
 from src.infrastructure.persistence.repositories import (
@@ -209,6 +217,9 @@ APPLICATION_ERROR_STATUS = {
     "MODEL_PARAMS_PERSISTENCE_FAILED": 500,
     "KNOWLEDGE_TIMEOUT": 503,
     "KNOWLEDGE_DOCUMENT_NOT_FOUND": 404,
+    "MESSAGE_NOT_FOUND": 404,
+    "MESSAGE_NOT_EDITABLE": 422,
+    "MESSAGE_NOT_DELETABLE": 422,
     "EXPORT_UNAVAILABLE": 503,
 }
 
@@ -315,6 +326,16 @@ def _monitor_overview(services: V1Services) -> MonitorOverviewApplicationService
         registry=services.service_registry,
         sample_interval_seconds=settings.sample_interval_seconds,
         retention_hours=settings.retention_hours,
+    )
+
+
+def _monitor_thresholds(services: V1Services) -> MonitorThresholdApplicationService:
+    """读取已装配的静态服务注册表，构造阈值配置用例。"""
+    if services.service_registry is None:
+        raise ServiceCenterUnavailableError()
+    return MonitorThresholdApplicationService(
+        session_factory=services.session_factory,
+        registry=services.service_registry,
     )
 
 
@@ -957,6 +978,54 @@ async def get_monitor_overview(
     return MonitorOverviewResponse.model_validate(payload)
 
 
+@router.get("/services/{service_id}/monitor/thresholds", response_model=MonitorThresholdResponse)
+def get_service_monitor_thresholds(
+    service_id: str,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> MonitorThresholdResponse:
+    """读取服务的监控阈值配置；未配置返回内置默认并如实标注来源。"""
+    try:
+        value = _monitor_thresholds(services).get(service_id)
+    except ValueError as error:
+        code = str(error)
+        if code == "SERVICE_NOT_FOUND":
+            raise ApiV1Error(404, code, "已注册服务不存在") from error
+        raise ApiV1Error(500, "INTERNAL_ERROR", "服务内部错误，请稍后重试") from error
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    payload = monitor_threshold_resource(value)
+    payload["meta"] = meta
+    return MonitorThresholdResponse.model_validate(payload)
+
+
+@router.put("/services/{service_id}/monitor/thresholds", response_model=MonitorThresholdResponse)
+def put_service_monitor_thresholds(
+    service_id: str,
+    payload: MonitorThresholdRequest,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> MonitorThresholdResponse:
+    """保存服务的监控阈值配置（全量替换，保存即生效）；非法配置 422 不落库。"""
+    try:
+        value = _monitor_thresholds(services).save(
+            service_id,
+            MonitorThresholdConfig(**payload.model_dump()),
+        )
+    except ValueError as error:
+        code = str(error)
+        if code == "SERVICE_NOT_FOUND":
+            raise ApiV1Error(404, code, "已注册服务不存在") from error
+        raise ApiV1Error(500, "INTERNAL_ERROR", "服务内部错误，请稍后重试") from error
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    payload_resource = monitor_threshold_resource(value)
+    payload_resource["meta"] = meta
+    return MonitorThresholdResponse.model_validate(payload_resource)
+
+
 @router.post("/sessions", response_model=SessionResponse, status_code=201)
 def create_session(
     payload: CreateSessionRequest,
@@ -1092,6 +1161,50 @@ def list_messages(
         page=CursorPage(next_cursor=encode_cursor(page.next_cursor) if page.next_cursor else None, has_more=page.has_more),
         meta=meta,
     )
+
+
+@router.patch("/sessions/{session_id}/messages/{message_id}", response_model=MessageResponse)
+def edit_message(
+    session_id: UUID,
+    message_id: UUID,
+    payload: EditMessageRequest,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> MessageResponse:
+    """编辑一条 user 消息：更新内容并记录 edited_at，时间线位置不变。"""
+    editing = services.message_editing_service
+    if editing is None:
+        raise ApiV1Error(503, "MESSAGE_EDITING_UNAVAILABLE", "消息编辑服务当前不可用。")
+    try:
+        _load_session(services, session_id)
+        updated = editing.edit_message(session_id, message_id, EditMessageCommand(content=payload.content))
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return MessageResponse(message=message_resource(updated), meta=meta)
+
+
+@router.delete("/sessions/{session_id}/messages/{message_id}", status_code=204)
+def delete_message(
+    session_id: UUID,
+    message_id: UUID,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> Response:
+    """软删除一条 user 消息；重复删除幂等 204；Run 与历史留痕不受影响。"""
+    editing = services.message_editing_service
+    if editing is None:
+        raise ApiV1Error(503, "MESSAGE_EDITING_UNAVAILABLE", "消息删除服务当前不可用。")
+    try:
+        _load_session(services, session_id)
+        editing.archive_message(session_id, message_id)
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    return Response(status_code=204, headers={"X-Request-Id": str(meta.request_id)})
 
 
 @router.get("/sessions/{session_id}/export")

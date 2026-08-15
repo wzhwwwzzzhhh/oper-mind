@@ -45,9 +45,9 @@
 | P8 | 调查重跑——重新生成并关联原 Run | `session/P8-rerun-investigation.md` | 完成 |
 | P8 | 模型调用参数暴露——temperature 等运行参数的受控配置 | `model/P8-model-params-config.md` | 完成 |
 | P8 | 用量与成本统计——token 计数与花费查询 | `model/P8-model-usage-stats.md` | 已确认 |
-| P8 | 消息编辑与删除——会话消息更正 | `session/P8-message-edit-delete.md` | 已确认 |
+| P8 | 消息编辑与删除——会话消息更正 | `session/P8-message-edit-delete.md` | 进行中 |
 | P8 | 会话导出——会话记录留存与分享 | `session/P8-session-export.md` | 完成 |
-| P8 | 监控阈值与关注项配置——采样点异常判定规则可调 | `service-center/P8-monitor-threshold-config.md` | 已确认 |
+| P8 | 监控阈值与关注项配置——采样点异常判定规则可调 | `service-center/P8-monitor-threshold-config.md` | 完成 |
 | P8 | 知识文档列表分页——目录浏览容量化 | `knowledge/P8-knowledge-document-pagination.md` | 完成 |
 | P8 | 审计导出——审计活动留档与外部核验 | `audit/P8-audit-export.md` | 进行中 |
 

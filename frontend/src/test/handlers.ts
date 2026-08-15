@@ -2,6 +2,7 @@ import { HttpResponse, http } from 'msw'
 
 const session_id = '11111111-1111-4111-8111-111111111111'
 const archived_session_id = '22222222-2222-4222-8222-222222222222'
+const user_message_id = '66666666-6666-4666-8666-666666666666'
 const run_id = '33333333-3333-4333-8333-333333333333'
 const trace_id = '55555555-5555-4555-8555-555555555555'
 const accepted_run_id = '99999999-9999-4999-8999-999999999999'
@@ -270,6 +271,22 @@ const redis_monitor_history = {
     { id: 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1', service_id: 'redis-production', observed_at: '2026-08-06T02:00:00.000Z', availability: 'healthy', p50_ms: null, p95_ms: null, slow_query_count: null, timeout_count: null, memory_bytes: 8388608, client_connections: 12, slowlog_count: 0, performance_signal: 'no_slow_query_detected', source_status: 'available' },
     { id: 'dddddddd-dddd-4ddd-8ddd-ddddddddddd2', service_id: 'redis-production', observed_at: '2026-08-06T02:05:00.000Z', availability: 'healthy', p50_ms: null, p95_ms: null, slow_query_count: null, timeout_count: null, memory_bytes: 12582912, client_connections: 15, slowlog_count: 3, performance_signal: 'slow_query_detected', source_status: 'available' },
   ],
+}
+
+const default_monitor_thresholds = {
+  slow_query_count_threshold: 1,
+  timeout_count_threshold: 1,
+  slowlog_count_threshold: 1,
+  window_minutes: 0,
+  count_availability_change: true,
+}
+
+/** 测试内共享的阈值配置存储：PUT 写入后 GET 读回一致（按服务隔离）。 */
+const stored_monitor_thresholds = new Map<string, Record<string, unknown>>()
+
+/** 重置阈值存储，供测试在用例间隔离（handlers 本身经 server.resetHandlers 复原）。 */
+export function reset_stored_monitor_thresholds(): void {
+  stored_monitor_thresholds.clear()
 }
 
 const session = {
@@ -776,6 +793,21 @@ export const api_v1_handlers = [
   ),
   http.get('/api/v1/services', ({ request }) => response(request, { items: [order_service] })),
   http.get('/api/v1/monitor/overview', ({ request }) => response(request, service_monitor_overview)),
+  http.get('/api/v1/services/:service_id/monitor/thresholds', ({ request, params }) => {
+    const service_id = String(params.service_id)
+    const stored = stored_monitor_thresholds.get(service_id)
+    return response(request, {
+      service_id,
+      source: stored ? 'configured' : 'default',
+      config: stored ?? default_monitor_thresholds,
+    })
+  }),
+  http.put('/api/v1/services/:service_id/monitor/thresholds', async ({ request, params }) => {
+    const service_id = String(params.service_id)
+    const body = (await request.json()) as Record<string, unknown>
+    stored_monitor_thresholds.set(service_id, body)
+    return response(request, { service_id, source: 'configured', config: body })
+  }),
   http.get('/api/v1/services/postgres-production', ({ request }) => response(request, { service: order_service })),
   http.get('/api/v1/services/postgres-production/monitor/history', ({ request }) => response(request, service_monitor_history)),
   http.get('/api/v1/services/postgres-production/activities', ({ request }) =>
@@ -853,7 +885,7 @@ export const api_v1_handlers = [
     return response(request, {
       items: cursor
         ? [{ id: '88888888-8888-4888-8888-888888888888', session_id, run_id, role: 'assistant', content: '诊断已完成。', created_at: '2026-07-27T01:00:34.000Z' }]
-        : [{ id: '66666666-6666-4666-8666-666666666666', session_id, run_id: null, role: 'user', content: '请检查 Nginx 5xx。', created_at: '2026-07-27T01:00:00.000Z' }],
+        : [{ id: user_message_id, session_id, run_id: null, role: 'user', content: '请检查 Nginx 5xx。', created_at: '2026-07-27T01:00:00.000Z' }],
       page: cursor ? { next_cursor: null, has_more: false } : { next_cursor: 'message-page-2', has_more: true },
     })
   }),
@@ -959,6 +991,33 @@ export const api_v1_handlers = [
       },
     }, 201)
   }),
+  http.patch(/\/api\/v1\/sessions\/([^/]+)\/messages\/([^/]+)$/, async ({ request, params }) => {
+    const requested_session_id = String(params[0])
+    const requested_message_id = String(params[1])
+    const payload = await request.json() as { content?: unknown }
+    if (requested_session_id !== session_id) return error_response(request, 'SESSION_NOT_FOUND', '会话不存在', 404)
+    if (requested_message_id !== user_message_id) return error_response(request, 'MESSAGE_NOT_FOUND', '消息不存在', 404)
+    const content = typeof payload.content === 'string' ? payload.content.trim() : ''
+    if (!content) return error_response(request, 'VALIDATION_ERROR', '请求参数不合法', 422)
+    return response(request, {
+      message: {
+        id: user_message_id,
+        session_id,
+        run_id: null,
+        role: 'user',
+        content,
+        created_at: '2026-07-27T01:00:00.000Z',
+        edited_at: '2026-08-10T02:00:00.000Z',
+      },
+    })
+  }),
+  http.delete(/\/api\/v1\/sessions\/([^/]+)\/messages\/([^/]+)$/, ({ request, params }) => {
+    const requested_session_id = String(params[0])
+    const requested_message_id = String(params[1])
+    if (requested_session_id !== session_id) return error_response(request, 'SESSION_NOT_FOUND', '会话不存在', 404)
+    if (requested_message_id !== user_message_id) return error_response(request, 'MESSAGE_NOT_FOUND', '消息不存在', 404)
+    return HttpResponse.json(null, { status: 204 })
+  }),
   http.get('/api/v1/action-proposals', ({ request }) => {
     const url = new URL(request.url)
     const status = url.searchParams.get('status')
@@ -1005,4 +1064,4 @@ export const api_v1_contract_scenarios = {
   network_interruption: http.get(/\/api\/v1\/sessions$/, () => HttpResponse.error()),
 }
 
-export const api_v1_contract_fixtures = { accepted_run_id, archived_session_id, audit_activities, cancelled_run_id, empty_result_run_id, failed_run_id, order_service, protocol_error_run_id, provider_fixture, redis_monitor_history, redis_service, run_events, run_id, service_activity, service_monitor_history, service_monitor_overview, service_run_id, service_session, service_session_id, session_id, trace_id }
+export const api_v1_contract_fixtures = { accepted_run_id, archived_session_id, audit_activities, cancelled_run_id, default_monitor_thresholds, empty_result_run_id, failed_run_id, order_service, protocol_error_run_id, provider_fixture, redis_monitor_history, redis_service, run_events, run_id, service_activity, service_monitor_history, service_monitor_overview, service_run_id, service_session, service_session_id, session_id, trace_id }

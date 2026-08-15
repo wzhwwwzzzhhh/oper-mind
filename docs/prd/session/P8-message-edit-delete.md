@@ -1,6 +1,6 @@
 ---
 title: 消息编辑与删除——会话消息更正
-status: 已确认
+status: 进行中
 domain: session
 phase: P8
 issue: 75

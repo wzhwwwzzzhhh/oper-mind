@@ -18,11 +18,13 @@ import {
   create_run_mutation,
   create_session_mutation,
   default_session_list_query,
+  delete_message_mutation,
   get_session_query,
   list_run_events_query,
   list_services_query,
   rerun_run_mutation,
   send_plain_message_mutation,
+  update_message_mutation,
 } from '../../api/v1/queries'
 import {
   investigation_status_text,
@@ -65,6 +67,7 @@ import {
   UiAlert,
   UiButton,
   UiCollapse,
+  UiModal,
   UiSkeleton,
   UiSpace,
   UiTag,
@@ -396,15 +399,123 @@ function ConversationTurnCard({
   services_by_id: Map<string, { kind?: string; title?: string }>
   turn: ConversationTurn
 }): ReactElement {
+  const query_client = useQueryClient()
+  const [editing, set_editing] = useState(false)
+  const [draft, set_draft] = useState('')
+  const [confirm_delete, set_confirm_delete] = useState(false)
+  const [action_error, set_action_error] = useState<unknown>(undefined)
+  const update_mutation = useMutation({
+    ...update_message_mutation(),
+    onSuccess: () => {
+      set_editing(false)
+      void invalidate_session_queries(query_client, session_id)
+    },
+  })
+  const delete_mutation = useMutation({
+    ...delete_message_mutation(),
+    onSuccess: () => void invalidate_session_queries(query_client, session_id),
+  })
+  const input = turn.input
+  const has_investigations = turn.investigations.length > 0
+
+  const start_edit = (): void => {
+    if (!input) return
+    set_draft(input.content)
+    set_action_error(undefined)
+    set_editing(true)
+  }
+  const save_edit = (): void => {
+    if (!input) return
+    const content = draft.trim()
+    if (!content) return
+    set_action_error(undefined)
+    update_mutation.mutate(
+      { session_id, message_id: input.id, content },
+      { onError: (error: unknown) => set_action_error(error) },
+    )
+  }
+  const confirm_remove = (): void => {
+    if (!input) return
+    set_action_error(undefined)
+    delete_mutation.mutate(
+      { session_id, message_id: input.id },
+      {
+        onError: (error: unknown) => set_action_error(error),
+        onSuccess: () => set_confirm_delete(false),
+      },
+    )
+  }
+
   return (
     <>
       <article className="message user" aria-label="用户问题">
         <div className="message-avatar">W</div>
         <div className="message-body">
           <div className="message-label">你</div>
-          <div className="bubble">{turn.input.content}</div>
+          {input === null ? (
+            <div className="bubble message-deleted-placeholder">（问题已删除）</div>
+          ) : editing ? (
+            <div className="message-edit-area">
+              <textarea
+                aria-label="编辑消息内容"
+                className="message-edit-textarea"
+                onChange={(event) => set_draft(event.target.value)}
+                rows={3}
+                value={draft}
+              />
+              <UiSpace>
+                <UiButton
+                  disabled={!draft.trim() || update_mutation.isPending}
+                  loading={update_mutation.isPending}
+                  onClick={save_edit}
+                  type="primary"
+                >
+                  保存
+                </UiButton>
+                <UiButton disabled={update_mutation.isPending} onClick={() => set_editing(false)}>
+                  取消
+                </UiButton>
+              </UiSpace>
+              {update_mutation.isError && action_error !== undefined && (
+                <UiAlert description={safe_error(action_error).detail} showIcon title={safe_error(action_error).title} type="error" />
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="bubble">
+                {input.content}
+                {input.edited_at !== undefined && <UiTag>已编辑</UiTag>}
+              </div>
+              <UiSpace className="message-actions" size="small">
+                <UiButton className="message-action-button" onClick={start_edit} type="link">
+                  编辑
+                </UiButton>
+                <UiButton className="message-action-button" danger onClick={() => set_confirm_delete(true)} type="link">
+                  删除
+                </UiButton>
+              </UiSpace>
+            </>
+          )}
         </div>
       </article>
+      <UiModal
+        cancelText="取消"
+        confirmLoading={delete_mutation.isPending}
+        okText="确认删除"
+        onCancel={() => set_confirm_delete(false)}
+        onOk={confirm_remove}
+        open={confirm_delete}
+        title="删除这条消息？"
+      >
+        <UiText>
+          {has_investigations
+            ? '该问题已有调查回答，删除问题不删除回答记录；调查结果仍可在会话中追溯。'
+            : '删除后该消息不再出现在会话中，无法恢复。'}
+        </UiText>
+        {delete_mutation.isError && action_error !== undefined && (
+          <UiAlert className="conversation-protocol-notice" description={safe_error(action_error).detail} showIcon title={safe_error(action_error).title} type="error" />
+        )}
+      </UiModal>
       {turn.plain_reply && (
         <article aria-label="助手回复" className="message assistant plain-reply">
           <div className="message-avatar">O</div>
@@ -469,7 +580,15 @@ function ConversationTimeline({ messages, runs, services_by_id, session_id }: { 
             </article>
           )
         }
-        return <ConversationTurnCard key={item.turn.input.id} rerun_by={rerun_by_latest} services_by_id={services_by_id} session_id={session_id} turn={item.turn} />
+        return (
+          <ConversationTurnCard
+            key={item.turn.input?.id ?? item.turn.investigations[0]?.investigation.id}
+            rerun_by={rerun_by_latest}
+            services_by_id={services_by_id}
+            session_id={session_id}
+            turn={item.turn}
+          />
+        )
       })}
     </section>
   )

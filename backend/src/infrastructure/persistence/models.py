@@ -100,6 +100,8 @@ class MessageRecord(Base):
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+    edited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class DiagnosisRunRecord(Base):
@@ -449,6 +451,47 @@ class ServiceMonitorSampleRecord(Base):
     host_disk_used_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
     performance_signal: Mapped[str] = mapped_column(String(40), nullable=False)
     source_status: Mapped[str] = mapped_column(String(24), nullable=False)
+
+
+class ServiceMonitorThresholdRecord(Base):
+    """P8 按服务的异常判定阈值配置；未配置不产生记录。
+
+    判定语义见 `docs/design/service-center/P8监控阈值与关注项配置Design.md`。
+    阈值上界（0–1000000）只由 API/领域层校验，本表约束只保证非负下限与窗口范围。
+    """
+
+    __tablename__ = "service_monitor_thresholds"
+    __table_args__ = (
+        CheckConstraint(
+            "slow_query_count_threshold IS NULL OR slow_query_count_threshold >= 0",
+            name="monitor_threshold_slow_query_nonnegative",
+        ),
+        CheckConstraint(
+            "timeout_count_threshold IS NULL OR timeout_count_threshold >= 0",
+            name="monitor_threshold_timeout_nonnegative",
+        ),
+        CheckConstraint(
+            "slowlog_count_threshold IS NULL OR slowlog_count_threshold >= 0",
+            name="monitor_threshold_slowlog_nonnegative",
+        ),
+        CheckConstraint(
+            "window_minutes >= 0 AND window_minutes <= 1440",
+            name="monitor_threshold_window_range",
+        ),
+    )
+
+    service_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    slow_query_count_threshold: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    timeout_count_threshold: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    slowlog_count_threshold: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    window_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    count_availability_change: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+        onupdate=utc_now,
+    )
 
 
 class ModelProviderRecord(Base):
