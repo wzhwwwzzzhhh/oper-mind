@@ -20,7 +20,7 @@ docs/workpack/
 
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
-| P8 | audit-export | 待用户确认计划 | [plan.md](P8-audit-export/plan.md) | — | — |
+| P8 | audit-export | 执行中（待独立审查 PASS） | [plan.md](P8-audit-export/plan.md) | 进行中 | [evidence.md](P8-audit-export/evidence.md) |
 
 ## 已归档
 

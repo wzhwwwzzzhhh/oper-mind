@@ -34,3 +34,12 @@
 - 前端：`npm run typecheck` 通过；`vitest run AuditPage.test.tsx + session-export.test.tsx` = 13 passed
 - 冲突解决：errors.py（AuditExportLimitExceededError + SessionExportUnavailableError 并存）、docs/prd/README.md（知识分页=完成、审计导出=进行中）、client.ts（request_download + request_text 并存）；generated.ts 由合并后 OpenAPI 重新生成（含 audit/export 与 sessions/{id}/export 两端点）
 - 门禁：`git diff --check` 干净；无凭据/`sk-` 内容；只暂存本工作包文件
+
+## 独立审查整改（commit `0d1593d` + `9e5dda7`）
+
+审查首轮 FAIL（P1：`npm run build` 类型错误），整改后复看 PASS：
+
+- P1 修复：`AuditPage.test.tsx` `requested` 改对象捕获（TS2339 never 收窄）；`handlers.ts` 移除未用 `index`；实测 `npm run build` 通过。
+- P2 修复：`docs/接口清单.md` 审计行"导出/报表（另行排期）"→ 已交付标注 + 新增 `GET /audit/export` 行 + 前端导出入口描述 + 路由合计 45→46。
+- P3 补充：`test_摘要含逗号换行引号不破坏CSV结构`（csv.reader 标准解析验证字段完整）。
+- 复验：`pytest tests/test_audit_export_api.py` = **14 passed**；`ruff check src tests` = **All checks passed**；`npm run build` 通过；全量前端 test 148 passed / 3 failed（与干净 main 基线一致，rerun 相关基线问题）。
