@@ -92,6 +92,39 @@ class SqlAlchemyAuditActivityRepository:
             next_cursor = AuditActivityCursor(created_at=last.occurred_at, id=last.id)
         return RepositoryPage(items=visible, next_cursor=next_cursor, has_more=has_more)
 
+    def list_all_activities(
+        self,
+        max_items: int,
+        *,
+        from_at: datetime | None = None,
+        to_at: datetime | None = None,
+        service_id: str | None = None,
+        action_type: AuditActivityType | None = None,
+        outcome: AuditOutcome | None = None,
+    ) -> tuple[list[AuditActivityData], bool]:
+        """读取受上限约束的审计活动全量快照，返回 (items, truncated)。
+
+        两侧各取 max_items+1 行后按 (time desc, id desc) 归并；
+        truncated ⟺ 归并后行数 > max_items（与分页 has_more 同一可证判定）。
+        """
+        if max_items < 1:
+            raise ValueError("导出条数上限必须为正数。")
+        run_items = self._list_run_items(
+            max_items, None, from_at=from_at, to_at=to_at, service_id=service_id,
+            action_type=action_type, outcome=outcome,
+        )
+        action_items = self._list_action_items(
+            max_items, None, from_at=from_at, to_at=to_at, service_id=service_id,
+            action_type=action_type, outcome=outcome,
+        )
+        merged = sorted(
+            run_items + action_items,
+            key=lambda item: (item.occurred_at, item.id),
+            reverse=True,
+        )
+        truncated = len(merged) > max_items
+        return merged[:max_items], truncated
+
     def _list_run_items(
         self,
         limit: int,
