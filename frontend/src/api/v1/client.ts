@@ -10,6 +10,8 @@ export type SessionResponse = components['schemas']['SessionResponse']
 export type CreateSessionRequest = components['schemas']['CreateSessionRequest']
 export type SessionListResponse = components['schemas']['SessionListResponse']
 export type MessageListResponse = components['schemas']['MessageListResponse']
+export type MessageResponse = components['schemas']['MessageResponse']
+export type EditMessageRequest = components['schemas']['EditMessageRequest']
 export type DiagnosisRunListResponse = components['schemas']['DiagnosisRunListResponse']
 export type GlobalRunSummaryResource = components['schemas']['GlobalRunSummaryResource']
 export type GlobalRunListResponse = components['schemas']['GlobalRunListResponse']
@@ -387,6 +389,17 @@ export interface ApiV1Client {
     query?: ListSessionMessagesQuery,
     options?: ApiRequestOptions,
   ): Promise<ApiResponse<MessageListResponse>>
+  patch_session_message(
+    session_id: string,
+    message_id: string,
+    payload: EditMessageRequest,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<MessageResponse>>
+  delete_session_message(
+    session_id: string,
+    message_id: string,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<void>>
   send_plain_message(
     session_id: string,
     payload: SendPlainMessageRequest,
@@ -554,7 +567,7 @@ async function parse_json_response(response: Response): Promise<unknown> {
 interface JsonRequestOptions {
   body?: unknown
   idempotency_key?: string
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 }
 
 async function request_json<TData>(
@@ -840,6 +853,24 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
         base_url,
         append_query(`/api/v1/sessions/${encodeURIComponent(session_id)}/messages`, query),
         request_options,
+      ),
+    patch_session_message: (session_id, message_id, payload, request_options) =>
+      request_json<MessageResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        `/api/v1/sessions/${encodeURIComponent(session_id)}/messages/${encodeURIComponent(message_id)}`,
+        request_options,
+        { body: payload, method: 'PATCH' },
+      ),
+    delete_session_message: (session_id, message_id, request_options) =>
+      request_json<void>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        `/api/v1/sessions/${encodeURIComponent(session_id)}/messages/${encodeURIComponent(message_id)}`,
+        request_options,
+        { method: 'DELETE' },
       ),
     send_plain_message: (session_id, payload, request_options) =>
       request_json<PlainMessageResponse>(

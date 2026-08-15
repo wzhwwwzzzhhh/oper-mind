@@ -20,6 +20,7 @@ import {
   type CreateServiceRequest,
   type UpdateServiceRequest,
   type SendPlainMessageRequest,
+  type EditMessageRequest,
 } from './client'
 
 export const api_v1_query_keys = {
@@ -201,6 +202,31 @@ export function send_plain_message_mutation() {
   return mutationOptions({
     mutationFn: ({ session_id, content }: SendPlainMessageMutationVariables) =>
       api_v1_client.send_plain_message(session_id, { content }),
+  })
+}
+
+export interface UpdateMessageMutationVariables {
+  content: EditMessageRequest['content']
+  message_id: string
+  session_id: string
+}
+
+export function update_message_mutation() {
+  return mutationOptions({
+    mutationFn: ({ session_id, message_id, content }: UpdateMessageMutationVariables) =>
+      api_v1_client.patch_session_message(session_id, message_id, { content }),
+  })
+}
+
+export interface DeleteMessageMutationVariables {
+  message_id: string
+  session_id: string
+}
+
+export function delete_message_mutation() {
+  return mutationOptions({
+    mutationFn: ({ session_id, message_id }: DeleteMessageMutationVariables) =>
+      api_v1_client.delete_session_message(session_id, message_id),
   })
 }
 
