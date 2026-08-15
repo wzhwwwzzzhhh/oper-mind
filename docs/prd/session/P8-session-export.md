@@ -1,6 +1,6 @@
 ---
 title: 会话导出——会话记录留存与分享
-status: 已确认
+status: 进行中
 domain: session
 phase: P8
 issue: 76

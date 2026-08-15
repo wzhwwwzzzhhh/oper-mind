@@ -20,7 +20,7 @@ docs/workpack/
 
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
-| （无活跃工作包） | | | | | |
+| P8 | session-export | 进行中 | [plan.md](P8-session-export/plan.md) | — | — |
 
 ## 已归档
 
