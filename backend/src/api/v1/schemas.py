@@ -1134,10 +1134,14 @@ class KnowledgeDocumentDetailResource(ApiV1Model):
 
 
 class KnowledgeListResponse(ApiV1Model):
-    """知识库文档列表响应（诚实状态：not_configured/empty/ok）。"""
+    """知识库文档列表响应（诚实状态：not_configured/empty/ok + cursor 分页信息）。
+
+    `page.has_more=false` 表达「无更多」（含翻页超出末尾时空 items 的情形）。
+    """
 
     status: Literal["not_configured", "empty", "ok"]
     items: list[KnowledgeDocumentResource]
+    page: CursorPage
     meta: ResponseMeta
 
 
