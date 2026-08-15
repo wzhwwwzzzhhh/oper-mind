@@ -595,14 +595,32 @@ const provider_fixture = {
   updated_at: '2026-08-06T03:00:00.000Z',
 }
 
+// 知识文档清单 fixture：按相对路径升序（与后端确定性排序一致）
+const knowledge_documents_fixture = [
+  { title: '数据库备份手册', relative_path: 'ops/db-backup.md' },
+  { title: '故障应急手册', relative_path: 'ops/incident-runbook.md' },
+  { title: '上线检查清单', relative_path: 'ops/release-checklist.md' },
+  { title: '索引优化手册', relative_path: 'sop/index-tuning.md' },
+  { title: 'kill 慢查询 SOP', relative_path: 'sop/kill-slow-query.md' },
+]
+
 export const api_v1_handlers = [
-  http.get('/api/v1/knowledge/documents', ({ request }) => response(request, {
-    status: 'ok',
-    items: [
-      { title: 'kill 慢查询 SOP', relative_path: 'sop/kill-slow-query.md' },
-      { title: '索引优化手册', relative_path: 'sop/index-tuning.md' },
-    ],
-  })),
+  http.get('/api/v1/knowledge/documents', ({ request }) => {
+    const url = new URL(request.url)
+    const requested_limit = Number(url.searchParams.get('limit'))
+    const limit = Number.isInteger(requested_limit) && requested_limit > 0 ? Math.min(requested_limit, 100) : 50
+    const cursor = url.searchParams.get('cursor')
+    const filtered = cursor
+      ? knowledge_documents_fixture.filter((item) => item.relative_path > cursor)
+      : [...knowledge_documents_fixture]
+    const items = filtered.slice(0, limit)
+    const next_cursor = items.length === limit ? items[items.length - 1].relative_path : null
+    return response(request, {
+      status: 'ok',
+      items,
+      page: { next_cursor, has_more: next_cursor !== null },
+    })
+  }),
   http.get('/api/v1/knowledge/search', ({ request }) => {
     const url = new URL(request.url)
     const query = url.searchParams.get('query') ?? ''
