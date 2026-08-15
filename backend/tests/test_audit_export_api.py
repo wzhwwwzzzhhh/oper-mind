@@ -364,7 +364,7 @@ def test_结果超过上限返回422明确提示(api_client: TestClient) -> None
 
     # 收窄时间窗后可导出（确定性：只含窗口内记录）
     narrowed = T0 + timedelta(minutes=1)
-    status, text, headers = _export_csv(api_client, from_=narrowed.isoformat(), to=T2.isoformat())
+    status, _text, headers = _export_csv(api_client, from_=narrowed.isoformat(), to=T2.isoformat())
     assert status == 200
     assert headers["x-export-count"] == "0"
 

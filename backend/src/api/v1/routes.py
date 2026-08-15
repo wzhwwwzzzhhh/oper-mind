@@ -836,7 +836,7 @@ def export_audit_activities(
             422,
             "EXPORT_LIMIT_EXCEEDED",
             f"导出结果超过单次上限（{EXPORT_MAX_ITEMS} 条），请收窄时间窗或过滤条件后重试。",
-        )
+        ) from None
     except ApplicationError as error:
         raise_application_error(error)
     meta = response_meta(request)
