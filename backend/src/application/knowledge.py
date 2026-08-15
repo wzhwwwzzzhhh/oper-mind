@@ -1,6 +1,6 @@
-"""P7 知识库只读访问应用服务。
+"""P7/P8 知识库只读访问应用服务。
 
-在受管知识目录上提供文档列表、确定性检索与文档正文读取三类只读能力，
+在受管知识目录上提供文档列表（cursor 分页）、确定性检索与文档正文读取三类只读能力，
 复用 `src/knowledge/reader.py`（与 P6 `SearchKnowledgeTool` 共用同一套检索逻辑），
 并做限时执行与诚实降级：目录未配置/不存在 → not_configured；目录空 → empty；
 无匹配 → no_match；超时 → 抛 `KnowledgeTimeoutError`。只读，不写任何文件。
@@ -15,11 +15,15 @@ from pathlib import Path
 from typing import Literal, TypeVar
 
 from src.knowledge.reader import (
+    KnowledgeDocumentCursor,
     KnowledgeDocumentMeta,
     KnowledgeSearchHit,
 )
 from src.knowledge.reader import (
     list_documents as reader_list_documents,
+)
+from src.knowledge.reader import (
+    list_documents_page as reader_list_documents_page,
 )
 from src.knowledge.reader import (
     read_document as reader_read_document,
@@ -64,13 +68,28 @@ class KnowledgeReaderService:
         root = Path(self._directory).resolve()
         return root if root.is_dir() else None
 
-    def list_documents(self) -> tuple[Literal["not_configured", "empty", "ok"], list[KnowledgeDocumentMeta]]:
-        """返回受管目录文档清单与诚实状态；目录为空返回空清单 + empty。"""
+    def list_documents(
+        self,
+        cursor: KnowledgeDocumentCursor | None = None,
+        limit: int = 50,
+    ) -> tuple[
+        Literal["not_configured", "empty", "ok"],
+        list[KnowledgeDocumentMeta],
+        KnowledgeDocumentCursor | None,
+    ]:
+        """按相对路径确定性排序后分页返回文档清单与诚实状态。
+
+        - 目录未配置/不存在 → `not_configured` + 空清单 + 无下一页（行为不变）；
+        - 首页（cursor 为 None）且目录无文档 → `empty` + 空清单 + 无下一页；
+        - 正常页 → `ok`；翻页超出末尾 → `ok` + 空清单 + 无下一页（「无更多」由上层 has_more 表达）。
+        """
         root = self.root
         if root is None:
-            return "not_configured", []
-        items = self._run(lambda: reader_list_documents(root))
-        return ("ok" if items else "empty"), items
+            return "not_configured", [], None
+        items, next_cursor = self._run(lambda: reader_list_documents_page(root, cursor, limit))
+        if not items and cursor is None:
+            return "empty", [], None
+        return "ok", items, next_cursor
 
     def search(
         self, query: str, limit: int = 5

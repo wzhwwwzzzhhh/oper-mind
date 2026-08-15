@@ -22,6 +22,7 @@ from src.application.plain_messages import PlainMessageApplicationService
 from src.application.service_center import ServiceCenterApplicationService
 from src.application.service_registration import ServiceRegistrationApplicationService
 from src.application.services import RunApplicationService, SessionApplicationService
+from src.application.session_export import SessionExportApplicationService
 from src.config import (
     load_action_mode,
     load_host_metrics_settings,
@@ -49,6 +50,7 @@ from src.infrastructure.persistence.model_usage_repository import (
     SqlAlchemyUsageRecorder,
 )
 from src.infrastructure.persistence.plain_message_writer import SqlAlchemyPlainMessageWriter
+from src.infrastructure.persistence.repositories import SqlAlchemySessionExportStore
 from src.infrastructure.secrets import (
     SecretKeyNotConfiguredError,
     SecretKeyTooShortError,
@@ -79,6 +81,7 @@ class V1Services:
     service_registration: ServiceRegistrationApplicationService | None = None
     audit_service: AuditApplicationService | None = None
     model_usage_service: ModelUsageApplicationService | None = None
+    session_export_service: SessionExportApplicationService | None = None
 
 
 def build_v1_services() -> V1Services:
@@ -229,6 +232,9 @@ def build_v1_services_for_runtime(
         model_usage_service=ModelUsageApplicationService(
             usage_reader=SqlAlchemyModelUsageReader(session_factory),
             price_reader=SqlAlchemyPriceOverridesReader(session_factory),
+        ),
+        session_export_service=SessionExportApplicationService(
+            lambda: SqlAlchemySessionExportStore(session_factory())
         ),
     )
 

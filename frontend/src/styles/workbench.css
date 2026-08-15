@@ -113,6 +113,31 @@
   font-weight: 650;
 }
 
+/* 会话工具栏：导出入口 + 导出状态/错误提示 */
+.session-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.export-notice {
+  font-size: 12px;
+}
+
+.export-notice.ok {
+  color: var(--success);
+}
+
+.export-notice.empty {
+  color: var(--text-secondary);
+}
+
+.export-error {
+  flex: 1;
+  min-width: 0;
+}
+
 .quick-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
