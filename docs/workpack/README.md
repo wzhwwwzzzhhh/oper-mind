@@ -26,7 +26,7 @@ docs/workpack/
 
 | 阶段 | 切片 | PR | 完成日期 |
 |---|---|---|---|
-| P8 | monitor-threshold-config | 待建 PR | 2026-08-15 |
+| P8 | monitor-threshold-config | #87 | 2026-08-15 |
 | P8 | session-export | #83 | 2026-08-15 |
 | P8 | knowledge-document-pagination | #84 | 2026-08-15 |
 | P8 | rerun-investigation | #74 | 2026-08-14 |
