@@ -181,3 +181,10 @@ class ModelParamsPersistenceError(ApplicationError):
 
     code = "MODEL_PARAMS_PERSISTENCE_FAILED"
     message = "模型运行参数保存失败，请稍后重试。"
+
+
+class SessionExportUnavailableError(ApplicationError):
+    """会话导出聚合读取失败，不允许返回半截文档。"""
+
+    code = "EXPORT_UNAVAILABLE"
+    message = "会话导出暂时不可用，请稍后重试。"

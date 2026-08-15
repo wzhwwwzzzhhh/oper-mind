@@ -22,6 +22,7 @@ from src.application.plain_messages import PlainMessageApplicationService
 from src.application.service_center import ServiceCenterApplicationService
 from src.application.service_registration import ServiceRegistrationApplicationService
 from src.application.services import RunApplicationService, SessionApplicationService
+from src.application.session_export import SessionExportApplicationService
 from src.config import (
     load_action_mode,
     load_host_metrics_settings,
@@ -45,6 +46,7 @@ from src.infrastructure.persistence.audit_repositories import SqlAlchemyAuditAct
 from src.infrastructure.persistence.database import PersistenceRuntime, SessionFactory, create_persistence_runtime
 from src.infrastructure.persistence.message_editing_writer import SqlAlchemyMessageEditingWriter
 from src.infrastructure.persistence.plain_message_writer import SqlAlchemyPlainMessageWriter
+from src.infrastructure.persistence.repositories import SqlAlchemySessionExportStore
 from src.infrastructure.secrets import (
     SecretKeyNotConfiguredError,
     SecretKeyTooShortError,
@@ -75,6 +77,7 @@ class V1Services:
     knowledge_service: KnowledgeReaderService | None = None
     service_registration: ServiceRegistrationApplicationService | None = None
     audit_service: AuditApplicationService | None = None
+    session_export_service: SessionExportApplicationService | None = None
 
 
 def build_v1_services() -> V1Services:
@@ -220,6 +223,9 @@ def build_v1_services_for_runtime(
         service_registration=service_registration,
         audit_service=AuditApplicationService(
             lambda: SqlAlchemyAuditActivityRepository(session_factory())
+        ),
+        session_export_service=SessionExportApplicationService(
+            lambda: SqlAlchemySessionExportStore(session_factory())
         ),
     )
 

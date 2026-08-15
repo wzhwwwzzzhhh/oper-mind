@@ -1,15 +1,16 @@
 import { useState } from 'react'
 import type { FormEvent, ReactElement } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 
+import { API_V1_KNOWLEDGE_PAGE_SIZE, api_v1_client } from '../../api/v1/client'
 import {
+  api_v1_query_keys,
   get_knowledge_document_query,
-  list_knowledge_documents_query,
   search_knowledge_query,
 } from '../../api/v1/queries'
 import { Icon } from '../shell/Icon'
-import { read_array, read_items, resource_optional_string, resource_string, resource_value } from '../workbench/resource-readers'
+import { read_array, read_items, read_page, resource_optional_string, resource_string, resource_value } from '../workbench/resource-readers'
 
 interface KnowledgeDocumentItem {
   title: string
@@ -74,7 +75,19 @@ export function KnowledgePage(): ReactElement {
   const opened_path = search_params.get('doc')
   const [query, set_query] = useState('')
 
-  const list_query = useQuery({ ...list_knowledge_documents_query() })
+  const list_query = useInfiniteQuery({
+    queryKey: api_v1_query_keys.knowledge_documents(API_V1_KNOWLEDGE_PAGE_SIZE),
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam, signal }) =>
+      api_v1_client.list_knowledge_documents(
+        { cursor: pageParam, limit: API_V1_KNOWLEDGE_PAGE_SIZE },
+        { signal },
+      ),
+    getNextPageParam: (last_page) => {
+      const page = read_page(last_page.data)
+      return page.has_more ? page.next_cursor : undefined
+    },
+  })
   const document_query = useQuery({
     ...get_knowledge_document_query(opened_path ?? ''),
     enabled: opened_path != null && opened_path !== '',
@@ -97,7 +110,8 @@ export function KnowledgePage(): ReactElement {
     void search_query.refetch()
   }
 
-  const items = list_query.data ? to_document_items(list_query.data.data) : []
+  const items = list_query.data ? list_query.data.pages.flatMap((page) => to_document_items(page.data)) : []
+  const list_status = list_query.data?.pages[0]?.data?.status
   const hits = search_query.data ? to_search_hits(search_query.data.data) : []
 
   if (opened_path != null && opened_path !== '') {
@@ -164,7 +178,7 @@ export function KnowledgePage(): ReactElement {
       </form>
 
       {list_query.isPending && <div className="knowledge-inline-state">正在读取知识目录…</div>}
-      {list_query.isError && (
+      {list_query.isError && list_query.data == null && (
         <div className="knowledge-inline-state error">读取知识库失败，请稍后重试。
           <button className="knowledge-link" onClick={() => void list_query.refetch()} type="button">重试</button>
         </div>
@@ -192,13 +206,30 @@ export function KnowledgePage(): ReactElement {
 
       <section className="knowledge-section">
         <div className="knowledge-section-head"><div><h2>全部文档</h2><p>来源：受管知识目录 · 只读</p></div></div>
-        {list_query.isSuccess && items.length === 0 && <div className="knowledge-empty">{list_empty_text(list_query.data?.data?.status) ?? '知识库为空。'}</div>}
+        {list_query.isSuccess && items.length === 0 && <div className="knowledge-empty">{list_empty_text(list_status) ?? '知识库为空。'}</div>}
         <div className="knowledge-doc-list">{items.map((item) => (
           <button className="knowledge-doc" key={item.relative_path} onClick={() => open_document(item.relative_path)} type="button">
             <strong>{item.title}</strong>
             <span>{item.relative_path}</span>
           </button>
         ))}</div>
+        {list_query.hasNextPage && !list_query.isError && (
+          <div className="knowledge-load-more">
+            <button
+              className="knowledge-button"
+              disabled={list_query.isFetchingNextPage}
+              onClick={() => void list_query.fetchNextPage()}
+              type="button"
+            >
+              {list_query.isFetchingNextPage ? '正在加载更多…' : '加载更多'}
+            </button>
+          </div>
+        )}
+        {list_query.isError && list_query.data != null && (
+          <div className="knowledge-inline-state error">加载更多失败，请稍后重试。
+            <button className="knowledge-link" onClick={() => void list_query.fetchNextPage()} type="button">重试</button>
+          </div>
+        )}
       </section>
     </div>
   )

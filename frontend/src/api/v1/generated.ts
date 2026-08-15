@@ -489,6 +489,30 @@ export interface paths {
         patch: operations["edit_message_api_v1_sessions__session_id__messages__message_id__patch"];
         trace?: never;
     };
+    "/api/v1/sessions/{session_id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Session
+         * @description 导出会话安全摘要 Markdown 文档（只读聚合投影，可留存分享）。
+         *
+         *     内容只含既有公开投影字段的安全子集（消息时间线 + Run 结论摘要），
+         *     不含原始证据/凭据/完整连接细节；会话不存在 → 404，读取失败 → 503，
+         *     无可导出内容 → 明确空态文档。
+         */
+        get: operations["export_session_api_v1_sessions__session_id__export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{session_id}/runs": {
         parameters: {
             query?: never;
@@ -762,7 +786,9 @@ export interface paths {
         };
         /**
          * List Knowledge Documents
-         * @description 列出受管知识目录内的 Markdown 文档清单（标题 + 相对路径）。
+         * @description 列出受管知识目录内的 Markdown 文档清单（cursor 分页，标题 + 相对路径）。
+         *
+         *     无分页参数时返回首页（与既有调用兼容）；`page.has_more=false` 表示无更多条目。
          */
         get: operations["list_knowledge_documents_api_v1_knowledge_documents_get"];
         put?: never;
@@ -1443,13 +1469,16 @@ export interface components {
         };
         /**
          * KnowledgeListResponse
-         * @description 知识库文档列表响应（诚实状态：not_configured/empty/ok）。
+         * @description 知识库文档列表响应（诚实状态：not_configured/empty/ok + cursor 分页信息）。
+         *
+         *     `page.has_more=false` 表达「无更多」（含翻页超出末尾时空 items 的情形）。
          */
         KnowledgeListResponse: {
             /** Status */
             status: unknown;
             /** Items */
             items: unknown;
+            page: unknown;
             meta: unknown;
         };
         /**
@@ -3176,6 +3205,37 @@ export interface operations {
             };
         };
     };
+    export_session_api_v1_sessions__session_id__export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_session_runs_api_v1_sessions__session_id__runs_get: {
         parameters: {
             query?: {
@@ -3648,7 +3708,10 @@ export interface operations {
     };
     list_knowledge_documents_api_v1_knowledge_documents_get: {
         parameters: {
-            query?: never;
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3662,6 +3725,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["KnowledgeListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

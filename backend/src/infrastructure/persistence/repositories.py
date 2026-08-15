@@ -229,6 +229,24 @@ class SqlAlchemyMessageRepository:
         )
         return result.rowcount == 1
 
+    def list_latest_by_session(self, session_id: UUID, limit: int) -> list[MessageData]:
+        """读取会话最近 limit 条消息，按创建时间正序返回（供导出等尾部场景）。
+
+        与 ``list_by_session`` 同为固定排序口径，但只取尾部 limit 条；
+        不改动既有分页方法的契约与行为。
+        """
+        _validate_limit(limit)
+        records = list(
+            self._session.scalars(
+                select(MessageRecord)
+                .where(MessageRecord.session_id == session_id)
+                .order_by(MessageRecord.created_at.desc(), MessageRecord.id.desc())
+                .limit(limit)
+            )
+        )
+        records.reverse()
+        return [_message_data(record) for record in records]
+
     def list_by_session(
         self,
         session_id: UUID,
@@ -293,6 +311,24 @@ class SqlAlchemyDiagnosisRunRepository:
         """按主键读取 Run。"""
         record = self._session.get(DiagnosisRunRecord, run_id)
         return _diagnosis_run_data(record) if record is not None else None
+
+    def list_latest_by_session(self, session_id: UUID, limit: int) -> list[DiagnosisRunData]:
+        """读取会话最近 limit 个 Run，按创建时间正序返回（供导出等尾部场景）。
+
+        与 ``list_by_session`` 同为固定排序口径，但只取尾部 limit 条；
+        不改动既有分页方法的契约与行为。
+        """
+        _validate_limit(limit)
+        records = list(
+            self._session.scalars(
+                select(DiagnosisRunRecord)
+                .where(DiagnosisRunRecord.session_id == session_id)
+                .order_by(DiagnosisRunRecord.created_at.desc(), DiagnosisRunRecord.id.desc())
+                .limit(limit)
+            )
+        )
+        records.reverse()
+        return [_diagnosis_run_data(record) for record in records]
 
     def transition_status(
         self,
@@ -672,3 +708,34 @@ def _global_run_data(row: RowMapping) -> GlobalRunData:
         if isinstance(values.get("rerun_of_run_id"), UUID)
         else None,
     )
+
+
+class SqlAlchemySessionExportStore:
+    """会话导出的 SQLAlchemy 只读聚合实现（实现 ``domain.repositories.SessionExportStore`` 端口）。
+
+    按会话聚合消息 / Run / 结果的安全投影数据，供导出用例只读消费；
+    与既有 Repository 共用同一 SQLAlchemy Session，不新增连接。
+    """
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def get_session(self, session_id: UUID) -> SessionData | None:
+        """按主键读取会话。"""
+        return SqlAlchemySessionRepository(self._session).get_by_id(session_id)
+
+    def list_latest_messages(self, session_id: UUID, limit: int) -> list[MessageData]:
+        """读取会话最近 limit 条消息（按创建时间正序）。"""
+        return SqlAlchemyMessageRepository(self._session).list_latest_by_session(session_id, limit)
+
+    def list_latest_runs(self, session_id: UUID, limit: int) -> list[DiagnosisRunData]:
+        """读取会话最近 limit 个 Run（按创建时间正序）。"""
+        return SqlAlchemyDiagnosisRunRepository(self._session).list_latest_by_session(session_id, limit)
+
+    def get_result(self, run_id: UUID) -> DiagnosisResultData | None:
+        """按 Run 唯一关联读取结果。"""
+        return SqlAlchemyDiagnosisResultRepository(self._session).get_by_run_id(run_id)
+
+    def close(self) -> None:
+        """释放数据源连接。"""
+        self._session.close()

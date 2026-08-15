@@ -138,3 +138,22 @@ class RunIdempotencyKeyRepository(Protocol):
         idempotency_key: UUID,
     ) -> RunIdempotencyKeyData | None:
         """按 Session、端点和幂等键读取记录。"""
+
+
+class SessionExportStore(Protocol):
+    """会话导出只读聚合端口（消息/Run/结果的安全投影数据源，实现装配在 dependencies.py）。"""
+
+    def get_session(self, session_id: UUID) -> SessionData | None:
+        """按主键读取会话。"""
+
+    def list_latest_messages(self, session_id: UUID, limit: int) -> list[MessageData]:
+        """读取会话最近 limit 条消息（按创建时间正序）。"""
+
+    def list_latest_runs(self, session_id: UUID, limit: int) -> list[DiagnosisRunData]:
+        """读取会话最近 limit 个 Run（按创建时间正序）。"""
+
+    def get_result(self, run_id: UUID) -> DiagnosisResultData | None:
+        """按 Run 唯一关联读取结果。"""
+
+    def close(self) -> None:
+        """释放数据源连接。"""

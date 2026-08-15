@@ -292,6 +292,33 @@ const archived_session = {
   archived_at: '2026-07-27T01:03:00.000Z',
 }
 
+const export_markdown = [
+  '# Nginx 5xx 排查',
+  '',
+  '> 会话导出 · OperMind 安全摘要（仅含脱敏投影，不含原始证据）',
+  '> 创建时间：2026-07-27T01:00:00.000Z',
+  '> 状态：active',
+  '> 消息 1 条 · 调查 1 次',
+  '',
+  '## 对话时间线',
+  '',
+  '### 用户',
+  '> 2026-07-27T01:00:00.000Z',
+  '请检查 Nginx 5xx。',
+  '',
+  '## 调查摘要（共 1 次）',
+  '',
+  '### 第 1 次调查（2026-07-27T01:00:01.000Z）',
+  '**问题**：请检查 Nginx 5xx。',
+  '**状态**：succeeded',
+  '**目标服务**：未关联服务',
+  '**严重度**：high',
+  '**置信度**：0.92',
+  '**结论**：Nginx 上游连接池已耗尽。',
+  '**证据摘要**：',
+  '- [tool] 上游连接池采样：连接池长期耗尽。',
+].join('\n')
+
 const paged_active_session = {
   ...session,
   id: '99999999-9999-4999-8999-999999999999',
@@ -569,14 +596,32 @@ const provider_fixture = {
   updated_at: '2026-08-06T03:00:00.000Z',
 }
 
+// 知识文档清单 fixture：按相对路径升序（与后端确定性排序一致）
+const knowledge_documents_fixture = [
+  { title: '数据库备份手册', relative_path: 'ops/db-backup.md' },
+  { title: '故障应急手册', relative_path: 'ops/incident-runbook.md' },
+  { title: '上线检查清单', relative_path: 'ops/release-checklist.md' },
+  { title: '索引优化手册', relative_path: 'sop/index-tuning.md' },
+  { title: 'kill 慢查询 SOP', relative_path: 'sop/kill-slow-query.md' },
+]
+
 export const api_v1_handlers = [
-  http.get('/api/v1/knowledge/documents', ({ request }) => response(request, {
-    status: 'ok',
-    items: [
-      { title: 'kill 慢查询 SOP', relative_path: 'sop/kill-slow-query.md' },
-      { title: '索引优化手册', relative_path: 'sop/index-tuning.md' },
-    ],
-  })),
+  http.get('/api/v1/knowledge/documents', ({ request }) => {
+    const url = new URL(request.url)
+    const requested_limit = Number(url.searchParams.get('limit'))
+    const limit = Number.isInteger(requested_limit) && requested_limit > 0 ? Math.min(requested_limit, 100) : 50
+    const cursor = url.searchParams.get('cursor')
+    const filtered = cursor
+      ? knowledge_documents_fixture.filter((item) => item.relative_path > cursor)
+      : [...knowledge_documents_fixture]
+    const items = filtered.slice(0, limit)
+    const next_cursor = items.length === limit ? items[items.length - 1].relative_path : null
+    return response(request, {
+      status: 'ok',
+      items,
+      page: { next_cursor, has_more: next_cursor !== null },
+    })
+  }),
   http.get('/api/v1/knowledge/search', ({ request }) => {
     const url = new URL(request.url)
     const query = url.searchParams.get('query') ?? ''
@@ -783,6 +828,18 @@ export const api_v1_handlers = [
         ? [{ id: '88888888-8888-4888-8888-888888888888', session_id, run_id, role: 'assistant', content: '诊断已完成。', created_at: '2026-07-27T01:00:34.000Z' }]
         : [{ id: user_message_id, session_id, run_id: null, role: 'user', content: '请检查 Nginx 5xx。', created_at: '2026-07-27T01:00:00.000Z' }],
       page: cursor ? { next_cursor: null, has_more: false } : { next_cursor: 'message-page-2', has_more: true },
+    })
+  }),
+  http.get(/\/api\/v1\/sessions\/([^/]+)\/export$/, ({ request }) => {
+    const requested_session_id = new URL(request.url).pathname.split('/').at(-2)
+    if (requested_session_id !== session_id) return error_response(request, 'SESSION_NOT_FOUND', '会话不存在', 404)
+    return HttpResponse.text(export_markdown, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/markdown; charset=utf-8',
+        'Content-Disposition': `attachment; filename="opermind-session-${session_id}.md"`,
+        'X-Request-Id': 'test-request-id',
+      },
     })
   }),
   http.post(/\/api\/v1\/sessions\/([^/]+)\/runs$/, async ({ request }) => {
