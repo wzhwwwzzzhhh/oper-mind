@@ -13,10 +13,10 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, JsonValue
 from sqlalchemy.exc import SQLAlchemyError
 
 from src.application.errors import SessionExportUnavailableError, SessionNotFoundError
@@ -60,7 +60,7 @@ def _role_label(role: MessageRole, run_id: UUID | None) -> str:
     return "OperMind · 调查" if run_id is not None else "OperMind · 普通对话"
 
 
-def _evidence_line(item: dict[str, object]) -> str:
+def _evidence_line(item: Mapping[str, JsonValue]) -> str:
     """把一条结构化证据收敛为一行安全摘要（仅 source_type/title/summary）。"""
     source_type = item.get("source_type")
     title = item.get("title")
