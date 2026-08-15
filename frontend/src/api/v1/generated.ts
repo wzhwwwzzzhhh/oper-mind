@@ -386,6 +386,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/services/{service_id}/monitor/thresholds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Service Monitor Thresholds
+         * @description 读取服务的监控阈值配置；未配置返回内置默认并如实标注来源。
+         */
+        get: operations["get_service_monitor_thresholds_api_v1_services__service_id__monitor_thresholds_get"];
+        /**
+         * Put Service Monitor Thresholds
+         * @description 保存服务的监控阈值配置（全量替换，保存即生效）；非法配置 422 不落库。
+         */
+        put: operations["put_service_monitor_thresholds_api_v1_services__service_id__monitor_thresholds_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions": {
         parameters: {
             query?: never;
@@ -1698,6 +1722,50 @@ export interface components {
             trend_summary: unknown;
         };
         /**
+         * MonitorThresholdConfigResource
+         * @description 监控阈值配置视图（阈值 null = 不关注该指标）。
+         */
+        MonitorThresholdConfigResource: {
+            /** Slow Query Count Threshold */
+            slow_query_count_threshold?: unknown;
+            /** Timeout Count Threshold */
+            timeout_count_threshold?: unknown;
+            /** Slowlog Count Threshold */
+            slowlog_count_threshold?: unknown;
+            /** Window Minutes */
+            window_minutes?: unknown;
+            /** Count Availability Change */
+            count_availability_change?: unknown;
+        };
+        /**
+         * MonitorThresholdRequest
+         * @description PUT 阈值配置请求：完整配置、全量替换语义；缺字段即 422，未知字段被拒绝。
+         */
+        MonitorThresholdRequest: {
+            /** Slow Query Count Threshold */
+            slow_query_count_threshold: number | null;
+            /** Timeout Count Threshold */
+            timeout_count_threshold: number | null;
+            /** Slowlog Count Threshold */
+            slowlog_count_threshold: number | null;
+            /** Window Minutes */
+            window_minutes: number;
+            /** Count Availability Change */
+            count_availability_change: boolean;
+        };
+        /**
+         * MonitorThresholdResponse
+         * @description 阈值配置读写响应（GET/PUT 同构，source 诚实标注来源）。
+         */
+        MonitorThresholdResponse: {
+            /** Service Id */
+            service_id: unknown;
+            /** Source */
+            source: unknown;
+            config: unknown;
+            meta: unknown;
+        };
+        /**
          * MonitorTrendSummaryResource
          * @description 概览窗口内的趋势摘要：样本数与异常采样点计数。
          */
@@ -2833,6 +2901,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MonitorOverviewResponse"];
+                };
+            };
+        };
+    };
+    get_service_monitor_thresholds_api_v1_services__service_id__monitor_thresholds_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                service_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonitorThresholdResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_service_monitor_thresholds_api_v1_services__service_id__monitor_thresholds_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                service_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MonitorThresholdRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonitorThresholdResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
