@@ -465,6 +465,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{session_id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Session
+         * @description 导出会话安全摘要 Markdown 文档（只读聚合投影，可留存分享）。
+         *
+         *     内容只含既有公开投影字段的安全子集（消息时间线 + Run 结论摘要），
+         *     不含原始证据/凭据/完整连接细节；会话不存在 → 404，读取失败 → 503，
+         *     无可导出内容 → 明确空态文档。
+         */
+        get: operations["export_session_api_v1_sessions__session_id__export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{session_id}/runs": {
         parameters: {
             query?: never;
@@ -3055,6 +3079,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlainMessageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_session_api_v1_sessions__session_id__export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
