@@ -77,6 +77,27 @@ class ModelConfigResponse(ApiV1Model):
     meta: ResponseMeta
 
 
+class ModelUsageItemResource(ApiV1Model):
+    """单模型用量聚合结果（token 计数 + 估算花费，标注单价来源）。"""
+
+    model: str
+    input_tokens: int
+    output_tokens: int
+    total_tokens: int
+    estimated_cost: float
+    price_source: Literal["builtin", "configured", "unset"]
+    price_per_million_input: float
+    price_per_million_output: float
+
+
+class ModelUsageResponse(ApiV1Model):
+    """用量统计响应：按模型分组聚合；estimate=True 表示花费为估算口径。"""
+
+    estimate: bool
+    items: list[ModelUsageItemResource]
+    meta: ResponseMeta
+
+
 class ModelProviderResource(ApiV1Model):
     """单个 Provider 配置的安全视图；不含 API Key 明文。"""
 

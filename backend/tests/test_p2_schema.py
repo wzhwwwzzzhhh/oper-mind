@@ -41,6 +41,7 @@ BUSINESS_TABLES = {
     "model_provider_idempotency_keys",
     "service_registry",
     "app_settings",
+    "model_usage_records",
 }
 EXPECTED_TABLES = BUSINESS_TABLES | {"alembic_version"}
 

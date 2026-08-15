@@ -25,6 +25,7 @@ from src.api.v1.schemas import (
     KnowledgeSearchHitResource,
     MessageResource,
     ModelProviderResource,
+    ModelUsageItemResource,
     MonitorSampleResource,
     MonitorServiceOverviewResource,
     MonitorTrendSummaryResource,
@@ -42,6 +43,7 @@ from src.api.v1.schemas import (
     ServiceSnapshotResource,
     SessionResource,
 )
+from src.application.model_usage import ModelUsageItem
 from src.core.tool_gateway import desensitize
 from src.domain.actions import (
     ActionApprovalData,
@@ -456,6 +458,23 @@ def provider_resource(value: ModelProviderData) -> ModelProviderResource:
         verify_error_code=value.verify_error_code,
         created_at=value.created_at,
         updated_at=value.updated_at,
+    )
+
+
+def model_usage_item_resource(value: ModelUsageItem) -> ModelUsageItemResource:
+    """把单模型用量聚合事实转为公开资源（仅聚合计数与单价，无内容/凭据）。"""
+    price_source = value["price_source"]
+    if price_source not in {"builtin", "configured", "unset"}:
+        raise ValueError(f"未知单价来源：{price_source}")
+    return ModelUsageItemResource(
+        model=value["model"],
+        input_tokens=value["input_tokens"],
+        output_tokens=value["output_tokens"],
+        total_tokens=value["total_tokens"],
+        estimated_cost=value["estimated_cost"],
+        price_source=cast(Literal["builtin", "configured", "unset"], price_source),
+        price_per_million_input=value["price_per_million_input"],
+        price_per_million_output=value["price_per_million_output"],
     )
 
 

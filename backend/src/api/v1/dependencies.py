@@ -17,6 +17,7 @@ from src.application.audit_service import AuditApplicationService
 from src.application.knowledge import KnowledgeReaderService
 from src.application.model_mode import resolve_runtime_mode
 from src.application.model_params import resolve_model_params
+from src.application.model_usage import ModelUsageApplicationService
 from src.application.plain_messages import PlainMessageApplicationService
 from src.application.service_center import ServiceCenterApplicationService
 from src.application.service_registration import ServiceRegistrationApplicationService
@@ -42,6 +43,11 @@ from src.infrastructure.monitoring.sampler import MonitorSampler
 from src.infrastructure.persistence.app_settings_repository import SqlAlchemyAppSettingsStore
 from src.infrastructure.persistence.audit_repositories import SqlAlchemyAuditActivityRepository
 from src.infrastructure.persistence.database import PersistenceRuntime, SessionFactory, create_persistence_runtime
+from src.infrastructure.persistence.model_usage_repository import (
+    SqlAlchemyModelUsageReader,
+    SqlAlchemyPriceOverridesReader,
+    SqlAlchemyUsageRecorder,
+)
 from src.infrastructure.persistence.plain_message_writer import SqlAlchemyPlainMessageWriter
 from src.infrastructure.secrets import (
     SecretKeyNotConfiguredError,
@@ -72,6 +78,7 @@ class V1Services:
     knowledge_service: KnowledgeReaderService | None = None
     service_registration: ServiceRegistrationApplicationService | None = None
     audit_service: AuditApplicationService | None = None
+    model_usage_service: ModelUsageApplicationService | None = None
 
 
 def build_v1_services() -> V1Services:
@@ -92,8 +99,9 @@ def build_v1_services() -> V1Services:
 
 
 def _resolved_coordinator_factory(runtime: PersistenceRuntime) -> Callable[[str | None], CoordinatorAgent]:
-    """构造每 Run 解析生效模型配置、运行时模式与运行参数的 Coordinator 工厂。"""
+    """构造每 Run 解析生效模型配置、运行时模式、运行参数与用量采集的 Coordinator 工厂。"""
     secret_key = _load_secret_key_or_none()
+    usage_recorder = SqlAlchemyUsageRecorder(runtime.session_factory)
 
     def build(service_id: str | None) -> CoordinatorAgent:
         resolution = resolve_runtime_mode(runtime.session_factory, secret_key)
@@ -101,6 +109,7 @@ def _resolved_coordinator_factory(runtime: PersistenceRuntime) -> Callable[[str 
         llm = build_llm_from_config(
             resolution["config"],
             params=ModelParams(temperature=params["temperature"], max_tokens=params["max_tokens"]),
+            usage_recorder=usage_recorder,
         )
         return build_coordinator(llm, service_id=service_id)
 
@@ -216,6 +225,10 @@ def build_v1_services_for_runtime(
         service_registration=service_registration,
         audit_service=AuditApplicationService(
             lambda: SqlAlchemyAuditActivityRepository(session_factory())
+        ),
+        model_usage_service=ModelUsageApplicationService(
+            usage_reader=SqlAlchemyModelUsageReader(session_factory),
+            price_reader=SqlAlchemyPriceOverridesReader(session_factory),
         ),
     )
 
