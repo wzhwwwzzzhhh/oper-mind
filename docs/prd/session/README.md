@@ -13,5 +13,5 @@
 | [P8-workbench-loop-closure.md](P8-workbench-loop-closure.md) | 会话工作台闭环——独立消息、取消 Run 与全局提案列表 | 完成 |
 | [P8-session-management.md](P8-session-management.md) | 会话管理——全局 Run 列表与会话搜索 | 完成 |
 | [P8-rerun-investigation.md](P8-rerun-investigation.md) | 调查重跑——重新生成并关联原 Run | 完成 |
-| [P8-message-edit-delete.md](P8-message-edit-delete.md) | 消息编辑与删除——会话消息更正 | 已确认 |
+| [P8-message-edit-delete.md](P8-message-edit-delete.md) | 消息编辑与删除——会话消息更正 | 进行中 |
 | [P8-session-export.md](P8-session-export.md) | 会话导出——会话记录留存与分享 | 已确认 |
