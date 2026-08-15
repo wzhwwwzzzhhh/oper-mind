@@ -1,10 +1,10 @@
 ---
 title: 消息编辑与删除——会话消息更正
-status: 进行中
+status: 完成
 domain: session
 phase: P8
 issue: 75
-updated: 2026-08-14
+updated: 2026-08-15
 ---
 
 # 消息编辑与删除——会话消息更正 · PRD
