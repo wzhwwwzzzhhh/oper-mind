@@ -1,6 +1,8 @@
 import type { components, operations } from './generated'
 
 export const API_V1_DEFAULT_PAGE_SIZE = 20
+// 知识文档列表默认页大小（与后端 KNOWLEDGE_DEFAULT_PAGE_SIZE=50 一致）
+export const API_V1_KNOWLEDGE_PAGE_SIZE = 50
 
 export type SessionResource = components['schemas']['SessionResource']
 export type MessageResource = components['schemas']['MessageResource']
@@ -101,6 +103,11 @@ export interface MonitorOverviewResponse {
   sample_interval_seconds: number
   retention_hours: number
   meta: components['schemas']['ResponseMeta']
+}
+
+export interface SessionExportResult {
+  text: string
+  filename: string
 }
 export interface ModelEndpointResource {
   provider: string
@@ -396,6 +403,10 @@ export interface ApiV1Client {
     session_id: string,
     options?: ApiRequestOptions,
   ): Promise<ApiResponse<SessionResponse>>
+  export_session_markdown(
+    session_id: string,
+    options?: ApiRequestOptions,
+  ): Promise<SessionExportResult>
   list_session_messages(
     session_id: string,
     query?: ListSessionMessagesQuery,
@@ -452,7 +463,10 @@ export interface ApiV1Client {
     payload: ActionExecutionRequest,
     options: ActionMutationOptions,
   ): Promise<ApiResponse<ActionExecutionResponse>>
-  list_knowledge_documents(options?: ApiRequestOptions): Promise<ApiResponse<KnowledgeListResponse>>
+  list_knowledge_documents(
+    query?: ListKnowledgeDocumentsQuery,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<KnowledgeListResponse>>
   search_knowledge(
     query: string,
     limit?: number,
@@ -635,6 +649,65 @@ async function request_json<TData>(
   return { data: payload as TData, diagnostics }
 }
 
+/** 导出下载响应：Markdown 文本 + 建议文件名（取自 Content-Disposition）。 */
+async function request_text(
+  fetch_impl: typeof fetch,
+  request_id_factory: () => string,
+  base_url: string,
+  path: string,
+  options?: ApiRequestOptions,
+): Promise<SessionExportResult> {
+  const request_id = request_id_factory()
+  let response: Response
+  const headers: Record<string, string> = {
+    Accept: 'text/markdown',
+    'X-Request-Id': request_id,
+  }
+
+  try {
+    response = await fetch_impl(resolve_url(base_url, path), {
+      method: 'GET',
+      headers,
+      signal: options?.signal,
+    })
+  } catch (error) {
+    const aborted = options?.signal?.aborted || (error instanceof DOMException && error.name === 'AbortError')
+    throw new ApiClientError(
+      aborted ? 'REQUEST_ABORTED' : 'NETWORK_ERROR',
+      aborted ? '请求已取消。' : '无法连接到服务。',
+      undefined,
+      { request_id, status: 0, protocol_issues: [] },
+    )
+  }
+
+  if (!response.ok) {
+    let payload: unknown
+    try {
+      payload = await response.json()
+    } catch {
+      payload = undefined
+    }
+    const diagnostics = build_diagnostics(request_id, response, payload)
+    const safe_error = read_safe_error(payload)
+    throw new ApiClientError(
+      typeof safe_error?.code === 'string' ? safe_error.code : 'HTTP_ERROR',
+      typeof safe_error?.message === 'string' ? safe_error.message : '导出服务请求失败。',
+      safe_error?.details,
+      diagnostics,
+    )
+  }
+
+  const text = await response.text()
+  const disposition = response.headers.get('Content-Disposition') ?? ''
+  const filename_match = /filename="([^"]+)"/.exec(disposition)
+  const session_id = path.split('/').at(-2) ?? 'export'
+  return {
+    text,
+    filename: filename_match?.[1] ?? `opermind-session-${session_id}.md`,
+  }
+}
+
+/** 审计导出下载：CSV/Markdown 文本 + 文件名 + 导出行数（X-Export-Count）。 */
 async function request_download(
   fetch_impl: typeof fetch,
   request_id_factory: () => string,
@@ -913,6 +986,14 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
         `/api/v1/sessions/${encodeURIComponent(session_id)}`,
         request_options,
       ),
+    export_session_markdown: (session_id, request_options) =>
+      request_text(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        `/api/v1/sessions/${encodeURIComponent(session_id)}/export`,
+        request_options,
+      ),
     list_session_messages: (session_id, query = {}, request_options) =>
       request_json<MessageListResponse>(
         fetch_impl ?? globalThis.fetch,
@@ -1054,12 +1135,12 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
           method: 'POST',
         },
       ),
-    list_knowledge_documents: (request_options) =>
+    list_knowledge_documents: (query, request_options) =>
       request_json<KnowledgeListResponse>(
         fetch_impl ?? globalThis.fetch,
         request_id_factory,
         base_url,
-        '/api/v1/knowledge/documents',
+        append_query('/api/v1/knowledge/documents', query),
         request_options,
       ),
     search_knowledge: (query, limit = 5, request_options) =>

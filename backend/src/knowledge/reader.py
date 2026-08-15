@@ -43,6 +43,15 @@ class KnowledgeDocumentMeta(BaseModel):
     relative_name: str
 
 
+class KnowledgeDocumentCursor(BaseModel):
+    """知识文档列表键集分页游标：上一页最后一条文档的相对路径。
+
+    仅与候选文档相对路径做字典序比较，绝不用于文件访问（无路径穿越面）。
+    """
+
+    relative_path: str
+
+
 class KnowledgeSearchHit(BaseModel):
     """单篇文档的确定性检索命中结果（标题 + 相对文件名 + 命中片段）。"""
 
@@ -186,6 +195,40 @@ def list_documents(root: Path) -> list[KnowledgeDocumentMeta]:
             )
         )
     return meta
+
+
+def list_documents_page(
+    root: Path,
+    cursor: KnowledgeDocumentCursor | None,
+    limit: int,
+) -> tuple[list[KnowledgeDocumentMeta], KnowledgeDocumentCursor | None]:
+    """按相对路径确定性排序后分页返回文档清单（`limit` >= 1）。
+
+    沿用 `collect_docs` 的候选收集与排除逻辑（隐藏/凭据路径、越权路径），并跳过内容为空或含
+    `sk-` 明文的文档；游标仅与候选相对路径做字典序比较（跳过 `<= cursor` 的条目），绝不用于
+    文件访问。返回 `(本页条目, 下一页光标)`：本页满 `limit` 时下一页光标为最后一条相对路径，
+    否则为 None（末尾语义，翻页超出末尾返回空条目 + None）。
+    """
+    limit = max(1, limit)
+    items: list[KnowledgeDocumentMeta] = []
+    next_cursor: KnowledgeDocumentCursor | None = None
+    for path in collect_docs(root):
+        relative_name = path.resolve().relative_to(root).as_posix()
+        if cursor is not None and relative_name <= cursor.relative_path:
+            continue
+        text = read_limited(path)
+        if not text or "sk-" in text:
+            continue
+        items.append(
+            KnowledgeDocumentMeta(
+                title=extract_title(path, text),
+                relative_name=relative_name,
+            )
+        )
+        if len(items) >= limit:
+            next_cursor = KnowledgeDocumentCursor(relative_path=relative_name)
+            break
+    return items, next_cursor
 
 
 def search_documents(root: Path, query: str, limit: int = _DEFAULT_LIMIT) -> list[KnowledgeSearchHit]:

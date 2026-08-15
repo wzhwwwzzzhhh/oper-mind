@@ -167,3 +167,10 @@ class AuditExportLimitExceededError(ApplicationError):
 
     code = "EXPORT_LIMIT_EXCEEDED"
     message = "导出结果超过单次上限，请收窄时间窗或过滤条件后重试。"
+
+
+class SessionExportUnavailableError(ApplicationError):
+    """会话导出聚合读取失败，不允许返回半截文档。"""
+
+    code = "EXPORT_UNAVAILABLE"
+    message = "会话导出暂时不可用，请稍后重试。"
