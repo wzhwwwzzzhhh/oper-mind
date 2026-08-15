@@ -1,6 +1,6 @@
 ---
 title: 审计导出——审计活动留档与外部核验
-status: 进行中
+status: 完成
 domain: audit
 phase: P8
 issue: 79
