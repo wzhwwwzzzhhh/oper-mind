@@ -148,6 +148,43 @@ describe('v1 API 客户端', () => {
     await expect(requests[0]?.json()).resolves.toEqual({ title: '预发布调查', service_ids: ['postgres-production', 'postgres-staging'] })
   })
 
+  it('以 PATCH JSON 更新会话标题', async () => {
+    const requests: Request[] = []
+    const client = create_api_v1_client({
+      fetch_impl: async (input, init) => {
+        requests.push(new Request(input, init))
+        return HttpResponse.json(
+          { session: { id: 'session-1', title: '已改名', status: 'active' }, meta: { request_id: 'patch-session-id' } },
+          { status: 200, headers: { 'Content-Type': 'application/json', 'X-Request-Id': 'patch-session-id' } },
+        )
+      },
+    })
+
+    const result = await client.update_session('session-1', { title: '已改名' })
+
+    expect(requests).toHaveLength(1)
+    expect(requests[0]?.method).toBe('PATCH')
+    expect(requests[0]?.url).toContain('/api/v1/sessions/session-1')
+    await expect(requests[0]?.json()).resolves.toEqual({ title: '已改名' })
+    expect(result.data.session).toMatchObject({ id: 'session-1', title: '已改名' })
+  })
+
+  it('以 DELETE 归档会话并接受 204', async () => {
+    const requests: Request[] = []
+    const client = create_api_v1_client({
+      fetch_impl: async (input, init) => {
+        requests.push(new Request(input, init))
+        return new Response(null, { status: 204, headers: { 'X-Request-Id': 'delete-session-id' } })
+      },
+    })
+
+    const result = await client.delete_session('session-1')
+
+    expect(requests).toHaveLength(1)
+    expect(requests[0]?.method).toBe('DELETE')
+    expect(result.diagnostics.status).toBe(204)
+  })
+
   it('将网络中断明确标记为 transport 错误', async () => {
     const client = create_api_v1_client({
       fetch_impl: async () => Promise.reject(new TypeError('network unavailable')),

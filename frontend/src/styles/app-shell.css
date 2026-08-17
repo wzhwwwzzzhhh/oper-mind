@@ -383,6 +383,116 @@
   font-weight: 650;
 }
 
+.history-item-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.history-item-row .history-item {
+  flex: 1;
+  min-width: 0;
+}
+
+.session-actions {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.session-actions__trigger {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  color: var(--text-muted);
+  background: transparent;
+  opacity: 0;
+}
+
+.history-item-row:hover .session-actions__trigger,
+.session-actions__trigger:focus-visible,
+.session-actions__trigger[aria-expanded='true'] {
+  opacity: 1;
+}
+
+.session-actions__trigger:hover,
+.session-actions__trigger:focus-visible {
+  color: var(--text);
+  background: var(--surface-muted);
+  outline: none;
+}
+
+.session-actions__menu {
+  position: absolute;
+  z-index: 12;
+  top: calc(100% + 2px);
+  right: 0;
+  display: grid;
+  min-width: 112px;
+  padding: 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+}
+
+.session-actions__menu-item {
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  background: transparent;
+  font-size: 12px;
+  text-align: left;
+}
+
+.session-actions__menu-item:hover,
+.session-actions__menu-item:focus-visible {
+  color: var(--text);
+  background: var(--surface-muted);
+  outline: none;
+}
+
+.session-actions__menu-item.danger:hover,
+.session-actions__menu-item.danger:focus-visible {
+  color: var(--danger, #a13d32);
+}
+
+.session-actions__notice {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  right: 0;
+  width: 240px;
+}
+
+.session-actions__field {
+  display: grid;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.session-actions__field input {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  color: var(--text);
+  background: var(--surface);
+  font: inherit;
+}
+
+.session-actions__field input:focus {
+  border-color: var(--accent-line);
+  outline: 2px solid var(--accent-soft);
+}
+
 /* ===== 第二栏（运维模式）：服务中心上下文 ===== */
 .svc-context {
   display: flex;

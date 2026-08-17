@@ -908,6 +908,22 @@ export const api_v1_handlers = [
     if (requested_session_id !== session_id) return error_response(request, 'SESSION_NOT_FOUND', '会话不存在', 404)
     return response(request, { session })
   }),
+  http.patch(/\/api\/v1\/sessions\/([^/]+)$/, async ({ request }) => {
+    const requested_session_id = new URL(request.url).pathname.split('/').at(-1)
+    const payload = await request.json() as { title?: unknown }
+    if (requested_session_id !== session_id) return error_response(request, 'SESSION_NOT_FOUND', '会话不存在', 404)
+    if (typeof payload.title !== 'string' || payload.title.trim() === '') {
+      return error_response(request, 'VALIDATION_ERROR', '会话标题不能为空', 422)
+    }
+    return response(request, {
+      session: { ...session, title: payload.title.trim(), updated_at: '2026-08-10T02:00:00.000Z' },
+    })
+  }),
+  http.delete(/\/api\/v1\/sessions\/([^/]+)$/, ({ request }) => {
+    const requested_session_id = new URL(request.url).pathname.split('/').at(-1)
+    if (requested_session_id !== session_id) return error_response(request, 'SESSION_NOT_FOUND', '会话不存在', 404)
+    return HttpResponse.json(null, { status: 204 })
+  }),
   http.get(/\/api\/v1\/sessions\/([^/]+)\/messages$/, ({ request }) => {
     const url = new URL(request.url)
     const requested_session_id = url.pathname.split('/').at(-2)
