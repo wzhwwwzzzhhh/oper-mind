@@ -466,6 +466,12 @@ describe('App', () => {
     expect(await screen.findByText('已归档会话')).toBeInTheDocument()
     expect(await screen.findByLabelText('助手答复')).toBeInTheDocument()
     expect(within(screen.getByRole('main')).queryByRole('textbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '编辑' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '删除' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '重新生成' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '停止调查' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '批准固定修复' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '执行固定修复' })).not.toBeInTheDocument()
   })
 
   it('从服务中心服务目录发起只读调查，进入对应会话', async () => {
@@ -935,6 +941,25 @@ describe('App', () => {
     // 失败态诚实展示：错误提示出现，消息仍保留（未用本地数据伪造删除成功）。
     expect(await screen.findByText('MESSAGE_NOT_DELETABLE：只有用户消息可以删除。')).toBeInTheDocument()
     expect(screen.getByLabelText('用户问题')).toBeInTheDocument()
+  })
+
+  it('当前会话归档后返回工作台首页', async () => {
+    server.use(
+      http.delete(`/api/v1/sessions/${api_v1_contract_fixtures.session_id}`, () =>
+        new HttpResponse(null, { status: 204 }),
+      ),
+    )
+    open_path(`/workbench/sessions/${api_v1_contract_fixtures.session_id}`)
+    render(<App />)
+
+    const toolbar = await screen.findByLabelText('会话工具栏')
+    fireEvent.click(within(toolbar).getByRole('button', { name: '会话操作：Nginx 5xx 排查' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '归档' }))
+    fireEvent.click(screen.getByRole('button', { name: '确认归档' }))
+
+    await waitFor(() => expect(window.location.pathname).toBe('/workbench'))
+    expect(await screen.findByRole('heading', { name: '你好，我是 OperMind' })).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: '会话标题' })).not.toBeInTheDocument()
   })
 
 })

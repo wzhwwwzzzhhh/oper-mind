@@ -166,7 +166,7 @@ function terminal(status: ProposalStatus): boolean {
  * P4.2 最小产品面板：只读取服务器快照，用户不能编辑 SQL、目标或动作参数。
  * 支持两种取数方式：按 run_id 读取该 Run 产生的提案；或按 proposal_id 直达提案详情。
  */
-export function ActionProposalPanel({ run_id, proposal_id }: { run_id?: string; proposal_id?: string }): ReactElement | null {
+export function ActionProposalPanel({ run_id, proposal_id, read_only = false }: { run_id?: string; proposal_id?: string; read_only?: boolean }): ReactElement | null {
   const query_client = useQueryClient()
   const [confirm, set_confirm] = useState<'approve' | 'execute' | null>(null)
   const proposal_query = useQuery({
@@ -250,13 +250,13 @@ export function ActionProposalPanel({ run_id, proposal_id }: { run_id?: string; 
           <UiTitle id={`verify-plan-${proposal.id}`} level={5}>独立 Verify 计划</UiTitle>
           <UiList dataSource={proposal.verification_plan} renderItem={(item) => item} />
         </section>
-        {proposal.status === 'pending_approval' && (
+        {!read_only && proposal.status === 'pending_approval' && (
           <UiSpace wrap>
             <UiButton disabled={busy} onClick={() => set_confirm('approve')} type="primary">批准固定修复</UiButton>
             <UiButton danger disabled={busy} loading={reject_mutation.isPending} onClick={() => reject_mutation.mutate()}>拒绝</UiButton>
           </UiSpace>
         )}
-        {proposal.status === 'approved' && (
+        {!read_only && proposal.status === 'approved' && (
           <UiButton danger disabled={busy} onClick={() => set_confirm('execute')} type="primary">执行固定修复</UiButton>
         )}
         {(proposal.status === 'executing' || proposal.status === 'verifying') && <UiAlert description="页面正在轮询已提交的 action 审计事件；不会显示思维链、SQL、日志原文或内部请求 ID。" showIcon title="固定修复处理中" type="info" />}
@@ -283,9 +283,10 @@ export function ActionProposalPanel({ run_id, proposal_id }: { run_id?: string; 
             />
           </section>
         )}
-        {(approve_mutation.isError || reject_mutation.isError || execute_mutation.isError) && <UiAlert description={safe_error(approve_mutation.error ?? reject_mutation.error ?? execute_mutation.error)} showIcon title="固定修复操作未完成" type="error" />}
+        {!read_only && (approve_mutation.isError || reject_mutation.isError || execute_mutation.isError) && <UiAlert description={safe_error(approve_mutation.error ?? reject_mutation.error ?? execute_mutation.error)} showIcon title="固定修复操作未完成" type="error" />}
       </UiSpace>
-      <UiModal
+      {!read_only && (
+        <UiModal
         cancelText="取消"
         confirmLoading={confirm === 'approve' ? approve_mutation.isPending : execute_mutation.isPending}
         okButtonProps={{ danger: confirm === 'execute' }}
@@ -300,7 +301,8 @@ export function ActionProposalPanel({ run_id, proposal_id }: { run_id?: string; 
             ? '你将以 local_operator 记录对不可编辑固定提案的明确批准；这不是企业级多人审批。'
             : '系统只会对受控靶场执行代码内固定的联合索引重建，并在之后独立 Verify；验证失败不会自动回滚。'}
         </UiParagraph>
-      </UiModal>
+        </UiModal>
+      )}
     </UiCard>
   )
 }

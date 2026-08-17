@@ -43,6 +43,7 @@ import {
 } from './plain-message-intent'
 import { Composer } from '../shell/Composer'
 import { WelcomePanel } from '../shell/WelcomePanel'
+import { SessionActions } from '../session/SessionActions'
 import { TraceCard } from './TraceCard'
 import { merge_persisted_run_events, type PersistedRunEvent } from './run-events'
 import { use_run_event_stream } from './use-run-event-stream'
@@ -195,10 +196,12 @@ async function invalidate_session_queries(query_client: ReturnType<typeof useQue
 
 function RerunControls({
   investigation,
+  read_only,
   rerun_by,
   session_id,
 }: {
   investigation: ConversationInvestigation
+  read_only: boolean
   rerun_by: ReadonlyMap<string, string> | undefined
   session_id: string
 }): ReactElement {
@@ -219,17 +222,17 @@ function RerunControls({
         <UiText className="muted-note">重跑自 Run {investigation.rerun_of_run_id.slice(0, 8)}</UiText>
       )}
       {rerun_by_latest && <UiText className="muted-note">已被重跑为 Run {rerun_by_latest.slice(0, 8)}</UiText>}
-      {terminal && (
+      {!read_only && terminal && (
         <UiButton loading={rerun_mutation.isPending} onClick={rerun} type="primary">重新生成</UiButton>
       )}
-      {terminal && rerun_mutation.isError && (
+      {!read_only && terminal && rerun_mutation.isError && (
         <UiAlert description={safe_error(rerun_mutation.error).title} showIcon title="重新生成未完成" type="error" />
       )}
     </UiSpace>
   )
 }
 
-function InvestigationProcess({ investigation, session_id }: { investigation: ConversationInvestigation; session_id: string }): ReactElement {
+function InvestigationProcess({ investigation, read_only, session_id }: { investigation: ConversationInvestigation; read_only: boolean; session_id: string }): ReactElement {
   const query_client = useQueryClient()
   const [events, set_events] = useState<PersistedRunEvent[]>([])
   const [cancel_error, set_cancel_error] = useState<unknown>()
@@ -272,25 +275,27 @@ function InvestigationProcess({ investigation, session_id }: { investigation: Co
         events={events}
         running={is_live}
       />
-      {is_live && (
+      {!read_only && is_live && (
         <UiSpace wrap className="investigation-process-actions">
           <UiButton danger disabled={cancel_mutation.isPending} loading={cancel_mutation.isPending} onClick={() => cancel_mutation.mutate(investigation.id)}>
             停止调查
           </UiButton>
         </UiSpace>
       )}
-      {cancel_mutation.isError && <UiAlert description={safe_error(cancel_error).title} showIcon title="停止调查未完成" type="error" />}
+      {!read_only && cancel_mutation.isError && <UiAlert description={safe_error(cancel_error).title} showIcon title="停止调查未完成" type="error" />}
     </div>
   )
 }
 function AssistantReply({
   investigation,
   output,
+  read_only,
   rerun_by,
   session_id,
 }: {
   investigation: ConversationInvestigation
   output?: ConversationMessage
+  read_only: boolean
   rerun_by?: ReadonlyMap<string, string>
   session_id: string
 }): ReactElement {
@@ -307,7 +312,7 @@ function AssistantReply({
           <span className="meta-pill blue">工具调用</span>
           {output && <span>{output.created_at}</span>}
         </div>
-        <InvestigationProcess investigation={investigation} session_id={session_id} />
+        <InvestigationProcess investigation={investigation} read_only={read_only} session_id={session_id} />
         {output && <div className="bubble">{output.content}</div>}
         {!output && (
           <UiAlert
@@ -323,7 +328,7 @@ function AssistantReply({
             items={[{
               key: 'result',
               label: '展开结论、证据与建议',
-              children: <UiSpace direction="vertical" size="middle" style={{ width: '100%' }}><DiagnosisResultPanel result={result_read.result} /><ActionProposalPanel run_id={investigation.id} /></UiSpace>,
+              children: <UiSpace direction="vertical" size="middle" style={{ width: '100%' }}><DiagnosisResultPanel result={result_read.result} /><ActionProposalPanel read_only={read_only} run_id={investigation.id} /></UiSpace>,
             }]}
           />
         ) : (
@@ -334,7 +339,7 @@ function AssistantReply({
             type="warning"
           />
         )}
-        <RerunControls investigation={investigation} rerun_by={rerun_by} session_id={session_id} />
+        <RerunControls investigation={investigation} read_only={read_only} rerun_by={rerun_by} session_id={session_id} />
       </div>
     )
   }
@@ -352,8 +357,8 @@ function AssistantReply({
           title={code ?? '调查未完成'}
           type="error"
         />
-        <InvestigationProcess investigation={investigation} session_id={session_id} />
-        <RerunControls investigation={investigation} rerun_by={rerun_by} session_id={session_id} />
+        <InvestigationProcess investigation={investigation} read_only={read_only} session_id={session_id} />
+        <RerunControls investigation={investigation} read_only={read_only} rerun_by={rerun_by} session_id={session_id} />
       </div>
     )
   }
@@ -363,7 +368,7 @@ function AssistantReply({
       <div className="message-body">
         <div className="message-label">OperMind · 调查已取消</div>
         <UiAlert description="可保留已保存的会话内容；当前不推断取消原因或继续执行。" showIcon title="调查已取消" type="warning" />
-        <RerunControls investigation={investigation} rerun_by={rerun_by} session_id={session_id} />
+        <RerunControls investigation={investigation} read_only={read_only} rerun_by={rerun_by} session_id={session_id} />
       </div>
     )
   }
@@ -375,8 +380,8 @@ function AssistantReply({
         <span className="meta-pill readonly"><span className="mini-dot" />只读调查</span>
         <span className="meta-pill blue">工具调用中</span>
       </div>
-      <InvestigationProcess investigation={investigation} session_id={session_id} />
-      <RerunControls investigation={investigation} rerun_by={rerun_by} session_id={session_id} />
+      <InvestigationProcess investigation={investigation} read_only={read_only} session_id={session_id} />
+      <RerunControls investigation={investigation} read_only={read_only} rerun_by={rerun_by} session_id={session_id} />
     </div>
   )
 }
@@ -389,11 +394,13 @@ function service_result_title(service_id: string | undefined, services_by_id: Ma
 }
 
 function ConversationTurnCard({
+  read_only,
   rerun_by,
   session_id,
   services_by_id,
   turn,
 }: {
+  read_only: boolean
   rerun_by: ReadonlyMap<string, string> | undefined
   session_id: string
   services_by_id: Map<string, { kind?: string; title?: string }>
@@ -419,7 +426,7 @@ function ConversationTurnCard({
   const has_investigations = turn.investigations.length > 0
 
   const start_edit = (): void => {
-    if (!input) return
+    if (read_only || !input) return
     set_draft(input.content)
     set_action_error(undefined)
     set_editing(true)
@@ -435,7 +442,7 @@ function ConversationTurnCard({
     )
   }
   const confirm_remove = (): void => {
-    if (!input) return
+    if (read_only || !input) return
     set_action_error(undefined)
     delete_mutation.mutate(
       { session_id, message_id: input.id },
@@ -454,7 +461,7 @@ function ConversationTurnCard({
           <div className="message-label">你</div>
           {input === null ? (
             <div className="bubble message-deleted-placeholder">（问题已删除）</div>
-          ) : editing ? (
+          ) : !read_only && editing ? (
             <div className="message-edit-area">
               <textarea
                 aria-label="编辑消息内容"
@@ -486,19 +493,22 @@ function ConversationTurnCard({
                 {input.content}
                 {input.edited_at !== undefined && <UiTag>已编辑</UiTag>}
               </div>
-              <UiSpace className="message-actions" size="small">
-                <UiButton className="message-action-button" onClick={start_edit} type="link">
-                  编辑
-                </UiButton>
-                <UiButton className="message-action-button" danger onClick={() => set_confirm_delete(true)} type="link">
-                  删除
-                </UiButton>
-              </UiSpace>
+              {!read_only && (
+                <UiSpace className="message-actions" size="small">
+                  <UiButton className="message-action-button" onClick={start_edit} type="link">
+                    编辑
+                  </UiButton>
+                  <UiButton className="message-action-button" danger onClick={() => set_confirm_delete(true)} type="link">
+                    删除
+                  </UiButton>
+                </UiSpace>
+              )}
             </>
           )}
         </div>
       </article>
-      <UiModal
+      {!read_only && (
+        <UiModal
         cancelText="取消"
         confirmLoading={delete_mutation.isPending}
         okText="确认删除"
@@ -515,7 +525,8 @@ function ConversationTurnCard({
         {delete_mutation.isError && action_error !== undefined && (
           <UiAlert className="conversation-protocol-notice" description={safe_error(action_error).detail} showIcon title={safe_error(action_error).title} type="error" />
         )}
-      </UiModal>
+        </UiModal>
+      )}
       {turn.plain_reply && (
         <article aria-label="助手回复" className="message assistant plain-reply">
           <div className="message-avatar">O</div>
@@ -533,7 +544,7 @@ function ConversationTurnCard({
           <div className="message-avatar">O</div>
           <div className="service-investigation-result">
             <div className="service-result-label">{service_result_title(investigation.service_id, services_by_id)}</div>
-            <AssistantReply investigation={investigation} output={output} rerun_by={rerun_by} session_id={session_id} />
+            <AssistantReply investigation={investigation} output={output} read_only={read_only} rerun_by={rerun_by} session_id={session_id} />
           </div>
         </Container>
         )
@@ -542,7 +553,7 @@ function ConversationTurnCard({
   )
 }
 
-function ConversationTimeline({ messages, runs, services_by_id, session_id }: { messages: unknown[]; runs: unknown[]; services_by_id: Map<string, { kind?: string; title?: string }>; session_id: string }): ReactElement {
+function ConversationTimeline({ messages, read_only, runs, services_by_id, session_id }: { messages: unknown[]; read_only: boolean; runs: unknown[]; services_by_id: Map<string, { kind?: string; title?: string }>; session_id: string }): ReactElement {
   const { issues, rerun_by_latest, timeline } = useMemo(
     () => project_conversation_turns(messages, runs, session_id),
     [messages, runs, session_id],
@@ -583,6 +594,7 @@ function ConversationTimeline({ messages, runs, services_by_id, session_id }: { 
         return (
           <ConversationTurnCard
             key={item.turn.input?.id ?? item.turn.investigations[0]?.investigation.id}
+            read_only={read_only}
             rerun_by={rerun_by_latest}
             services_by_id={services_by_id}
             session_id={session_id}
@@ -605,6 +617,9 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
   const [recovery_error, set_recovery_error] = useState<unknown>()
   const automatic_recovery_attempts = useRef(new Set<string>())
   const session_query = useQuery({ ...get_session_query(session_id), enabled: Boolean(session_id) })
+  const session_is_fresh = session_query.isSuccess && session_query.isFetchedAfterMount && !session_query.isFetching
+  const session_is_active = session_is_fresh
+    && resource_string((session_query.data as ApiResponse<SessionResponse>).data.session, 'status', 'unknown') === 'active'
   const services_query = useQuery({
     ...list_services_query(),
     enabled: Boolean(session_query.data && session_service_ids((session_query.data as ApiResponse<SessionResponse>).data.session).length > 0),
@@ -718,17 +733,17 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
   })
 
   useEffect(() => {
-    if (!session_query.isSuccess || !send_intent?.runs.every((run) => run.phase === 'accepted') || create_run.isPending) return
+    if (!session_query.isSuccess || !session_is_active || !send_intent?.runs.every((run) => run.phase === 'accepted') || create_run.isPending) return
     const attempt_key = `${session_id}:${send_intent.runs.map((run) => run.accepted_run_id).join(':')}`
     if (automatic_recovery_attempts.current.has(attempt_key)) return
     automatic_recovery_attempts.current.add(attempt_key)
     void reconcile_accepted_intent(send_intent).catch(set_recovery_error)
-  }, [create_run.isPending, send_intent, session_id, session_query.isSuccess])
+  }, [create_run.isPending, send_intent, session_id, session_is_active, session_query.isSuccess])
 
   // 从欢迎页创建的会话：挂载时就带着预写发送意图（acceptance_unknown），进入会话页后自动提交调查。
   const auto_submit_attempted = useRef<string | null>(null)
   useEffect(() => {
-    if (!session_query.isSuccess || create_run.isPending) return
+    if (!session_query.isSuccess || !session_is_active || create_run.isPending) return
     if (!send_intent?.runs.some((run) => run.phase === 'acceptance_unknown')) return
     if (!send_intent.query.trim()) return
     // 仅自动提交"进会话前就写好"的意图，不处理用户在会话内新输入并发送的意图。
@@ -737,7 +752,7 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
     if (auto_submit_attempted.current === attempt_key) return
     auto_submit_attempted.current = attempt_key
     submit_investigation(send_intent.query)
-  }, [create_run.isPending, send_intent, session_id, session_query.isSuccess])
+  }, [create_run.isPending, send_intent, session_id, session_is_active, session_query.isSuccess])
 
   const discard_send_intent = (): void => {
     if (storage) clear_session_run_send_intent(storage, session_id)
@@ -746,7 +761,7 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
   }
 
   const submit_investigation = (composer_value?: string): void => {
-    if (create_run.isPending || !storage) return
+    if (create_run.isPending || !storage || !session_is_active) return
     const normalized_query = (composer_value ?? query).trim()
     if (!normalized_query) {
       set_recovery_error(new Error('调查问题不能为空。'))
@@ -807,7 +822,7 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
 
   /** 统一发送路由：调查意图走既有 Run 幂等链路；普通消息走独立消息通道（服务端权威 409 兜底）。 */
   const submit_text = (composer_value: string): void => {
-    if (send_plain.isPending || create_run.isPending) return
+    if (send_plain.isPending || create_run.isPending || !session_is_active) return
     const normalized = composer_value.trim()
     if (!normalized) {
       set_recovery_error(new Error('消息内容不能为空。'))
@@ -846,12 +861,12 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
   // 从欢迎页创建会话时预写的普通消息：进入会话页后自动发送一次。
   const pending_plain_attempted = useRef(false)
   useEffect(() => {
-    if (!session_query.isSuccess || send_plain.isPending || create_run.isPending) return
+    if (!session_query.isSuccess || !session_is_active || send_plain.isPending || create_run.isPending) return
     const pending = storage ? load_pending_plain_message(storage, session_id) : undefined
     if (!pending || pending_plain_attempted.current) return
     pending_plain_attempted.current = true
     submit_text(pending.query)
-  }, [create_run.isPending, send_plain.isPending, session_id, session_query.isSuccess])
+  }, [create_run.isPending, send_plain.isPending, session_id, session_is_active, session_query.isSuccess])
 
   if (session_query.isPending) return <LoadingBlock label="正在恢复会话" />
   if (session_query.isError) {
@@ -866,6 +881,8 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
 
   const session = (session_query.data as ApiResponse<SessionResponse>).data.session
   const session_status = resource_string(session, 'status', 'unknown')
+  const session_action_status = session_is_fresh && session_status === 'active' ? 'active' : 'archived'
+  const session_title = resource_string(session, 'title', '未命名会话')
   const selected_session_service_ids = session_service_ids(session)
   const session_service_titles = selected_session_service_ids.map((service_id) => {
     const service = read_items(services_query.data?.data).find((item) => resource_optional_string(item, 'id') === service_id)
@@ -875,11 +892,20 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
     const id = resource_optional_string(service, 'id')
     return id ? [[id, { kind: resource_optional_string(service, 'kind'), title: resource_optional_string(service, 'title') }] as const] : []
   }))
-  const can_send = session_status === 'active'
+  const can_send = session_is_active
   const has_idempotency_key_conflict = is_idempotency_key_conflict(recovery_error)
   return (
     <div className="chat-inner">
       <div aria-label="会话工具栏" className="session-toolbar">
+        <div className="session-toolbar__identity">
+          <UiText strong>{session_title}</UiText>
+          <SessionActions
+            on_archived={() => navigate('/workbench')}
+            session_id={session_id}
+            status={session_action_status}
+            title={session_title}
+          />
+        </div>
         <UiButton
           aria-label="导出会话"
           className="export-session"
@@ -909,8 +935,11 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
           <strong>{session_service_titles.join('、')}</strong>
         </div>
       )}
+      {!session_is_fresh && (
+        <UiAlert className="session-status-refreshing" description="正在确认最新会话状态，暂不提供编辑、发送或归档操作。" showIcon title="正在刷新会话状态" type="info" />
+      )}
       {session_status === 'archived' && (
-        <UiAlert className="archive-notice" description="会话已归档，仅可阅读历史内容；重新激活和编辑尚未实现。" showIcon title="已归档会话" type="info" />
+        <UiAlert className="archive-notice" description="会话已归档，仅可阅读历史内容；当前版本不支持恢复和编辑。" showIcon title="已归档会话" type="info" />
       )}
       {prefilled_query && !send_intent && !has_idempotency_key_conflict && (
         <UiAlert
@@ -927,7 +956,13 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
       {runs_query.isSuccess && messages_query.isError && <ApiErrorNotice error={messages_query.error} />}
       {runs_query.isSuccess && messages_query.isSuccess && (
         <>
-          <ConversationTimeline messages={recovered_messages} runs={recovered_runs} services_by_id={services_by_id} session_id={session_id} />
+          <ConversationTimeline
+            messages={recovered_messages}
+            read_only={!session_is_fresh || session_status === 'archived'}
+            runs={recovered_runs}
+            services_by_id={services_by_id}
+            session_id={session_id}
+          />
           <LoadMoreButton
             has_more={Boolean(runs_query.hasNextPage)}
             is_fetching={runs_query.isFetchingNextPage}

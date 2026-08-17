@@ -121,6 +121,31 @@
   margin-bottom: 14px;
 }
 
+.session-toolbar__identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-right: auto;
+}
+
+.session-toolbar__identity > .ui-text {
+  max-width: min(420px, 45vw);
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-toolbar__identity .session-actions__trigger {
+  opacity: 1;
+}
+
+.session-toolbar__identity .session-actions__notice {
+  right: auto;
+  left: 0;
+}
+
 .export-notice {
   font-size: 12px;
 }

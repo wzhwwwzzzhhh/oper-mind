@@ -10,6 +10,10 @@ export type DiagnosisRunResource = components['schemas']['DiagnosisRunResource']
 export type DiagnosisResultResource = components['schemas']['DiagnosisResultResource']
 export type SessionResponse = components['schemas']['SessionResponse']
 export type CreateSessionRequest = components['schemas']['CreateSessionRequest']
+export interface UpdateSessionRequest {
+  title?: string
+  status?: 'active' | 'archived'
+}
 export type SessionListResponse = components['schemas']['SessionListResponse']
 export type MessageListResponse = components['schemas']['MessageListResponse']
 export type MessageResponse = components['schemas']['MessageResponse']
@@ -456,6 +460,12 @@ export interface ApiV1Client {
     session_id: string,
     options?: ApiRequestOptions,
   ): Promise<ApiResponse<SessionResponse>>
+  update_session(
+    session_id: string,
+    payload: UpdateSessionRequest,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<SessionResponse>>
+  delete_session(session_id: string, options?: ApiRequestOptions): Promise<ApiResponse<void>>
   export_session_markdown(
     session_id: string,
     options?: ApiRequestOptions,
@@ -1074,6 +1084,24 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
         base_url,
         `/api/v1/sessions/${encodeURIComponent(session_id)}`,
         request_options,
+      ),
+    update_session: (session_id, payload, request_options) =>
+      request_json<SessionResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        `/api/v1/sessions/${encodeURIComponent(session_id)}`,
+        request_options,
+        { body: payload, method: 'PATCH' },
+      ),
+    delete_session: (session_id, request_options) =>
+      request_json<void>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        `/api/v1/sessions/${encodeURIComponent(session_id)}`,
+        request_options,
+        { method: 'DELETE' },
       ),
     export_session_markdown: (session_id, request_options) =>
       request_text(

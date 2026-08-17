@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 import { list_sessions_query } from '../../api/v1/queries'
+import { SessionActions } from '../session/SessionActions'
 import { read_items, resource_optional_string, resource_string } from '../workbench/resource-readers'
 import { Icon } from './Icon'
 
@@ -131,18 +132,28 @@ export function Sidebar({ collapsed, on_collapse }: SidebarProps): ReactElement 
         {sessions.map((session) => {
           const session_id = resource_optional_string(session, 'id')
           const title = resource_string(session, 'title', '未命名会话')
+          const status = resource_optional_string(session, 'status') === 'archived' ? 'archived' : 'active'
           const active = session_id != null && session_id === current_session_id
           return (
-            <button
-              aria-current={active ? 'true' : undefined}
-              className={`history-item${active ? ' active' : ''}`}
-              disabled={!session_id}
-              key={session_id ?? title}
-              onClick={() => session_id && navigate(`/workbench/sessions/${encodeURIComponent(session_id)}`)}
-              type="button"
-            >
-              {title}
-            </button>
+            <div className={`history-item-row${active ? ' active' : ''}`} key={session_id ?? title}>
+              <button
+                aria-current={active ? 'true' : undefined}
+                className={`history-item${active ? ' active' : ''}`}
+                disabled={!session_id}
+                onClick={() => session_id && navigate(`/workbench/sessions/${encodeURIComponent(session_id)}`)}
+                type="button"
+              >
+                {title}
+              </button>
+              {session_id && (
+                <SessionActions
+                  on_archived={active ? () => navigate('/workbench') : undefined}
+                  session_id={session_id}
+                  status={status}
+                  title={title}
+                />
+              )}
+            </div>
           )
         })}
       </nav>

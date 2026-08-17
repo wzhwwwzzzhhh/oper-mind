@@ -11,6 +11,7 @@ import {
   type CreateRunOptions,
   type CreateRunRequest,
   type CreateSessionRequest,
+  type UpdateSessionRequest,
   type CreateModelProviderRequest,
   type ActivateModelProviderRequest,
   type ProviderCreateOptions,
@@ -160,6 +161,24 @@ export function get_session_query(session_id: string) {
   return queryOptions({
     queryKey: api_v1_query_keys.session(session_id),
     queryFn: ({ signal }) => api_v1_client.get_session(session_id, { signal }),
+  })
+}
+
+export interface UpdateSessionMutationVariables {
+  session_id: string
+  payload: UpdateSessionRequest
+}
+
+export function update_session_mutation() {
+  return mutationOptions({
+    mutationFn: ({ session_id, payload }: UpdateSessionMutationVariables) =>
+      api_v1_client.update_session(session_id, payload),
+  })
+}
+
+export function delete_session_mutation() {
+  return mutationOptions({
+    mutationFn: (session_id: string) => api_v1_client.delete_session(session_id),
   })
 }
 
