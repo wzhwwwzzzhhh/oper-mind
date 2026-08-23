@@ -21,7 +21,7 @@ class TraceRecord(TypedDict):
     node: str
     detail: str
     timestamp: str
-    status: NotRequired[str]        # 仅 tool_invoked 事件携带
+    status: NotRequired[str]        # 工具与质量事件携带
     duration_ms: NotRequired[int]   # 仅 tool_invoked 事件携带
     role: NotRequired[str]          # 仅领域工具事件携带
 
@@ -145,10 +145,13 @@ class CoordinatorAgent:
                 "detail": str(event.get("detail", "节点已完成")),
                 "timestamp": str(event.get("timestamp") or self._timestamp()),
             }
+            status = event.get("status")
+            if isinstance(status, str):
+                record["status"] = status
+            role = event.get("role")
+            if isinstance(role, str):
+                record["role"] = role
             if node == "tool":
-                status = event.get("status")
-                if isinstance(status, str):
-                    record["status"] = status
                 duration = event.get("duration_ms")
                 if isinstance(duration, int) and not isinstance(duration, bool):
                     record["duration_ms"] = duration
@@ -164,7 +167,10 @@ class CoordinatorAgent:
         """在路由完成后补发领域 Agent 启动事件，供 SSE 前端即时点亮节点。"""
         strategy = str(update.get("strategy", ""))
         if strategy == "direct":
-            target = str(update.get("target", "db"))
+            raw_target = update.get("target")
+            if not isinstance(raw_target, str) or raw_target not in self.agents:
+                return []
+            target = raw_target
             detail = f"启动领域 Agent={target}"
         elif strategy == "chain":
             detail = "启动链式诊断，顺序=server → db → log"
@@ -261,8 +267,8 @@ class CoordinatorAgent:
                 strategy=strategy,
                 trace=emitted_trace,
             )
-        except Exception:
-            LOGGER.exception("流式诊断执行失败")
+        except Exception as error:
+            LOGGER.warning("DIAGNOSIS_FAILED exception_type=%s", type(error).__name__)
             self._store_result(emitted_trace)
             yield self._stream_item(
                 kind="error",

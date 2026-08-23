@@ -659,10 +659,21 @@ def _safe_event_data(
     if isinstance(summary, str) and 0 < len(summary) <= 280:
         data["summary"] = summary
     role = event.data.get("role")
-    if role in {"db", "log", "server"}:
+    if role in {"db", "log", "server", "knowledge"}:
         data["role"] = role
     status = event.data.get("status")
-    if status in {"running", "completed", "failed", "skipped", "ok", "rejected", "timeout", "error"}:
+    if status in {
+        "running",
+        "completed",
+        "failed",
+        "skipped",
+        "ok",
+        "attention",
+        "unavailable",
+        "rejected",
+        "timeout",
+        "error",
+    }:
         data["status"] = status
     duration_ms = event.data.get("duration_ms")
     if isinstance(duration_ms, int) and not isinstance(duration_ms, bool) and 0 <= duration_ms <= 60_000:

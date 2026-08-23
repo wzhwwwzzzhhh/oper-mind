@@ -2,7 +2,16 @@
 
 from data.scenarios import get_active_scenario
 
-from src.core.tool_registry import Tool
+from src.core.tool_registry import Tool, ToolExecutionResult
+
+
+def _unavailable(metric: str) -> ToolExecutionResult:
+    """构造不含异常细节或虚构数值的服务器指标降级结果。"""
+    return ToolExecutionResult(
+        status="unavailable",
+        output=f"{metric}指标采集暂不可用",
+        summary=f"服务器{metric}指标采集不可用",
+    )
 
 
 class CheckCpuTool(Tool):
@@ -19,7 +28,7 @@ class CheckCpuTool(Tool):
             },
         )
 
-    def execute(self) -> str:
+    def execute(self) -> str | ToolExecutionResult:
         """采集 CPU 指标"""
         active = get_active_scenario()
         if active is not None:  # mock 模式：读确定性场景指标，不走真机 psutil
@@ -33,9 +42,8 @@ class CheckCpuTool(Tool):
                 f"CPU 使用率: {cpu_percent}% ({cpu_count} 核)\n"
                 f"Load Average: {load_avg[0]:.2f}, {load_avg[1]:.2f}, {load_avg[2]:.2f}"
             )
-        except ImportError:
-            # 无 psutil 时返回模拟数据
-            return "CPU 使用率: 65% (4 核)\nLoad Average: 2.50, 1.80, 1.20"
+        except Exception:
+            return _unavailable("CPU")
 
 
 class CheckMemoryTool(Tool):
@@ -52,7 +60,7 @@ class CheckMemoryTool(Tool):
             },
         )
 
-    def execute(self) -> str:
+    def execute(self) -> str | ToolExecutionResult:
         active = get_active_scenario()
         if active is not None:  # mock 模式：读确定性场景指标
             return active.server["memory"]
@@ -67,8 +75,8 @@ class CheckMemoryTool(Tool):
                 f"Swap: 总计 {swap.total // 1024**3}GB, "
                 f"已用 {swap.used // 1024**3}GB ({swap.percent}%)"
             )
-        except ImportError:
-            return "内存: 总计 16GB, 已用 12GB (75%), 剩余 4GB\nSwap: 总计 2GB, 已用 1.5GB (75%)"
+        except Exception:
+            return _unavailable("内存")
 
 
 class CheckDiskTool(Tool):
@@ -85,7 +93,7 @@ class CheckDiskTool(Tool):
             },
         )
 
-    def execute(self) -> str:
+    def execute(self) -> str | ToolExecutionResult:
         active = get_active_scenario()
         if active is not None:  # mock 模式：读确定性场景指标
             return active.server["disk"]
@@ -99,8 +107,8 @@ class CheckDiskTool(Tool):
                     f"({usage.used // 1024**3}GB / {usage.total // 1024**3}GB)"
                 )
             return "磁盘使用情况:\n" + "\n".join(disks)
-        except ImportError:
-            return "磁盘使用情况:\n  /: 65% (120GB / 185GB)"
+        except Exception:
+            return _unavailable("磁盘")
 
 
 class CheckProcessTool(Tool):
@@ -117,7 +125,7 @@ class CheckProcessTool(Tool):
             },
         )
 
-    def execute(self) -> str:
+    def execute(self) -> str | ToolExecutionResult:
         active = get_active_scenario()
         if active is not None:  # mock 模式：读确定性场景指标
             return active.server["process"]
@@ -141,8 +149,8 @@ class CheckProcessTool(Tool):
             if high_mem:
                 result.append("高内存进程:\n" + "\n".join(high_mem[:5]))
             return "\n\n".join(result) if result else "未发现异常进程"
-        except ImportError:
-            return "高 CPU 进程:\n  mysqld(PID=1234): CPU 85%\n\n高内存进程:\n  java(PID=5678): 内存 45%"
+        except Exception:
+            return _unavailable("进程")
 
 
 class CheckNetworkTool(Tool):
@@ -159,7 +167,7 @@ class CheckNetworkTool(Tool):
             },
         )
 
-    def execute(self) -> str:
+    def execute(self) -> str | ToolExecutionResult:
         active = get_active_scenario()
         if active is not None:  # mock 模式：读确定性场景指标
             return active.server["network"]
@@ -174,5 +182,5 @@ class CheckNetworkTool(Tool):
                 f"ESTABLISHED: {established}\n"
                 f"TIME_WAIT: {time_wait}"
             )
-        except ImportError:
-            return "总连接数: 1024\nESTABLISHED: 512\nTIME_WAIT: 256\nCLOSE_WAIT: 12"
+        except Exception:
+            return _unavailable("网络")

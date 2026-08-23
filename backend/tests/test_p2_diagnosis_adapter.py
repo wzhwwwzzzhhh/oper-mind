@@ -90,3 +90,29 @@ def test_coordinator适配将阶段一错误映射为安全执行错误() -> Non
     with pytest.raises(DiagnosisExecutionError, match="诊断执行失败") as captured:
         list(executor.stream("检查安全适配"))
     assert captured.value.code == "DIAGNOSIS_FAILED"
+
+
+def test_coordinator最终报告执行末端再次安全投影() -> None:
+    """即使上游误传原始请求、SQL、路径与 traceback，执行端也必须移除。"""
+    executor = CoordinatorDiagnosisExecutor(
+        lambda: FakeCoordinator(
+            [
+                {
+                    "kind": "complete",
+                    "result": (
+                        "# 诊断报告\nSELECT secret FROM account\n"
+                        "C:\\private\\trace.log\nTraceback (most recent call last)\n证据来源：数据库工具"
+                    ),
+                    "strategy": "direct",
+                    "trace": [],
+                }
+            ]
+        )
+    )
+    result = next(executor.stream("检查安全适配"))
+    assert isinstance(result, DiagnosisExecutionResult)
+    assert result.report is not None
+    assert "SELECT secret" not in result.report
+    assert "C:\\private" not in result.report
+    assert "Traceback" not in result.report
+    assert "证据来源" in result.report

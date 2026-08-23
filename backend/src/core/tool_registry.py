@@ -1,4 +1,18 @@
-""" Tool注册中心：管理所有可用的工具"""
+"""Tool 注册中心：管理所有可用的受控工具。"""
+
+from __future__ import annotations
+
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+
+class ToolExecutionResult(BaseModel):
+    """工具内部结构化结果；用于区分成功事实与诚实不可用。"""
+
+    status: Literal["ok", "unavailable"]
+    output: str = Field(description="交给大脑的安全输出")
+    summary: str = Field(description="进入 Trace 的安全摘要")
 
 
 class Tool:
@@ -30,9 +44,13 @@ class Tool:
             }
         }
 
-    def execute(self, **kwargs) -> str:
+    def execute(self, **kwargs) -> str | ToolExecutionResult:
         """子类重写此方法"""
         raise NotImplementedError("子类必须实现此方法")
+
+    def execution_status(self) -> Literal["ok", "unavailable", "rejected"]:
+        """返回最近一次字符串结果的运行状态；默认兼容既有成功工具。"""
+        return "ok"
 
 class ToolRegistry:
     """工具注册中心"""

@@ -83,7 +83,8 @@ def test_mock路径不读参数() -> None:
     )
     result = llm.chat([{"role": "user", "content": "你好"}])
     assert result["role"] == "assistant"
-    assert "Mock回复" in result["content"]
+    assert "模拟场景" in result["content"]
+    assert "当前结论未知" in result["content"]
 
 
 def test_tools调用仍带工具参数且temperature生效() -> None:

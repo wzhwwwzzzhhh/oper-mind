@@ -9,7 +9,7 @@ from collections.abc import Iterator
 import pytest
 
 from src.core.tool_gateway import ToolGateway
-from src.core.tool_registry import Tool, ToolRegistry
+from src.core.tool_registry import Tool, ToolExecutionResult, ToolRegistry
 
 
 class EchoTool(Tool):
@@ -77,6 +77,20 @@ class BoomTool(Tool):
         raise RuntimeError("内部异常明文-不要外泄")
 
 
+class UnavailableTool(Tool):
+    """返回结构化不可用状态的最小测试工具。"""
+
+    def __init__(self) -> None:
+        super().__init__(name="unavailable", description="不可用", parameters={"type": "object", "properties": {}})
+
+    def execute(self) -> ToolExecutionResult:
+        return ToolExecutionResult(
+            status="unavailable",
+            output="指标采集暂不可用",
+            summary="服务器指标采集不可用",
+        )
+
+
 @pytest.fixture
 def registry() -> ToolRegistry:
     """构造只包含本测试桩工具的注册中心。"""
@@ -85,6 +99,7 @@ def registry() -> ToolRegistry:
     value.register(SensitiveTool())
     value.register(SlowTool())
     value.register(BoomTool())
+    value.register(UnavailableTool())
     return value
 
 
@@ -139,6 +154,14 @@ def test_invoke_success_returns_real_tool_output(gateway: ToolGateway) -> None:
 
     assert result.record.status == "ok"
     assert "真实返回内容" in result.output
+
+
+def test_invoke_structured_unavailable_is_not_marked_ok(gateway: ToolGateway) -> None:
+    """工具显式降级时 unavailable 状态应穿过网关，不得伪装成功。"""
+    result = gateway.invoke("unavailable", "{}")
+    assert result.record.status == "unavailable"
+    assert result.output == "指标采集暂不可用"
+    assert result.record.detail == "服务器指标采集不可用"
 
 
 def test_invoke_desensitizes_sensitive_tool_output(gateway: ToolGateway) -> None:

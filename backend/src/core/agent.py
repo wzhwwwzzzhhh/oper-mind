@@ -56,7 +56,7 @@ class BaseAgent:
                 response = self.llm.chat(messages, tools=tool_schemas)
 
                 if "error" in response:
-                    return f"LLM 调用失败：{response['error']}"
+                    return "LLM 调用失败：服务暂不可用"
 
                 self.short_term.add_message(response)
                 messages = self.short_term.get_messages_for_llm()
@@ -67,15 +67,15 @@ class BaseAgent:
                 if tool_calls:
                     for tc in tool_calls:
                         func = tc["function"]
-                        step_log = f"Step {step + 1}: 调用 {func['name']}({func['arguments']})"
                         # 只记工具名：arguments 可能含 SQL 或连接参数，不进日志。
                         LOGGER.debug("第 %d 步调用工具 %s", step + 1, func["name"])
 
                         gw_result = gateway.invoke(func["name"], func["arguments"])
                         result = gw_result.output
                         self._tool_invocations.append(gw_result.record)
-                        short_result = result[:100] + "..." if len(result) > 100 else result
-                        self.thinking_log.append(f"{step_log} → {short_result}")
+                        self.thinking_log.append(
+                            f"Step {step + 1}: 工具 {func['name']} 状态={gw_result.record.status}"
+                        )
 
                         self.short_term.add_message(
                             {
@@ -94,7 +94,7 @@ class BaseAgent:
                             diagnosis=content[:200],
                             tags=self._extract_tags(content),
                         )
-                    self.thinking_log.append(f"最终回答: {content[:100]}...")
+                    self.thinking_log.append("最终回答已生成")
                     return content
 
                 return "Agent 没有生成有效响应"
