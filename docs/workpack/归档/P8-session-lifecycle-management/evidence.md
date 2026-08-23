@@ -1,7 +1,7 @@
 # P8-session-lifecycle-management · 验证证据
 
 > 日期：2026-08-23
-> 状态：实现、验证与独立代码终审 PASS；PR #97 CI 全绿，待合并
+> 状态：实现、验证与独立代码终审 PASS；PR #97 已合并，issue #96 已关闭
 
 ## 交付摘要
 
@@ -60,5 +60,5 @@ Git 忽略的 `.tmp/`，不进入交付文件。
 - 无数据库迁移、新端点、新配置、凭据、真实网络目标、Connector、Tool 或 Agent 改动。
 - 无生命周期业务审计事件；既有通用请求日志行为未修改。
 - `git diff` 未包含 `.env`、`config.local.yaml`、API Key、DSN、Prompt、CoT 或原始工具输出。
-- 已提交并推送至 `codex/prd-p8-session-workbench-lifecycle`，PR #97 CI 全绿；未自动合并，
-  issue #96 由 `Closes #96` 在 PR 合并后自动关闭。
+- 已提交并推送至 `codex/prd-p8-session-workbench-lifecycle`；PR #97 CI 全绿并已合并，
+  issue #96 由 `Closes #96` 自动关闭。

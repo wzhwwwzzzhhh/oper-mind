@@ -1,6 +1,6 @@
 ---
 title: 会话工作台生命周期闭环——归档浏览与恢复
-status: 进行中
+status: 完成
 domain: session
 phase: P8
 issue: 96
@@ -10,8 +10,7 @@ updated: 2026-08-23
 # 会话工作台生命周期闭环——归档浏览与恢复 · PRD
 
 > 实现状态：2026-08-23 已完成实现、自动化门禁、浏览器端到端复验和独立代码终审；
-> [PR #97](https://github.com/wzhwwwzzzhhh/oper-mind/pull/97) CI 全绿、等待合并。issue 合并后自动关闭，
-> 因此 PRD 与索引在合并前继续保持“进行中”。
+> [PR #97](https://github.com/wzhwwwzzzhhh/oper-mind/pull/97) 已合并，issue #96 已自动关闭，工作包已归档。
 
 ## 背景
 
