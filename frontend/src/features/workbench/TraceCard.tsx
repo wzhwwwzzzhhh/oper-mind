@@ -5,28 +5,39 @@ import { Icon, type IconName } from '../shell/Icon'
 import type { PersistedRunEvent, RunEventType } from './run-events'
 import { run_event_summary } from './run-events'
 
-/** 后端 ToolInvocation.status 的四个取值；没有 "warn"。 */
-type ToolStatus = 'ok' | 'rejected' | 'timeout' | 'error'
+/** 工具与质量节点允许公开展示的受控状态。 */
+type TraceStatus = 'ok' | 'unavailable' | 'rejected' | 'timeout' | 'error' | 'failed' | 'attention' | 'skipped'
 
-const TOOL_STATUS_LABELS: Readonly<Record<ToolStatus, string>> = {
+const TRACE_STATUS_LABELS: Readonly<Record<TraceStatus, string>> = {
+  attention: '需关注',
   error: '失败',
+  failed: '失败',
   ok: '成功',
   rejected: '已拒绝',
+  skipped: '未执行',
   timeout: '超时',
+  unavailable: '不可用',
 }
 
-/** 状态 → 徽标视觉等级：拒绝/超时是需关注，失败是严重。 */
-const TOOL_STATUS_CLASSES: Readonly<Record<ToolStatus, string>> = {
+/** 状态 → 徽标视觉等级。 */
+const TRACE_STATUS_CLASSES: Readonly<Record<TraceStatus, string>> = {
+  attention: ' trace-badge--warn',
   error: ' trace-badge--danger',
+  failed: ' trace-badge--danger',
   ok: '',
   rejected: ' trace-badge--warn',
+  skipped: ' trace-badge--warn',
   timeout: ' trace-badge--warn',
+  unavailable: ' trace-badge--warn',
 }
 
 /** 事件类型 → 中文阶段名；不把 agent_start 这种内部标识直接给用户看。 */
 const EVENT_LABELS: Readonly<Partial<Record<RunEventType, string>>> = {
   agent_done: 'Agent 完成',
   agent_start: 'Agent 启动',
+  conflict_checked: '分歧检查',
+  debate_round: '辩论复核',
+  reflection: '反思复审',
   route_decided: '路由决策',
   tool_invoked: '工具调用',
 }
@@ -34,14 +45,15 @@ const EVENT_LABELS: Readonly<Partial<Record<RunEventType, string>>> = {
 /** 工具角色 → 图标；图标本身就是允许展示的"工具类别"。 */
 const ROLE_ICONS: Readonly<Record<string, IconName>> = {
   db: 'database',
+  knowledge: 'book',
   log: 'book',
   server: 'stack',
 }
 
-function read_tool_status(event: PersistedRunEvent): ToolStatus | undefined {
-  if (event.type !== 'tool_invoked') return undefined
+function read_trace_status(event: PersistedRunEvent): TraceStatus | undefined {
   const status = event.data.status
-  return status === 'ok' || status === 'rejected' || status === 'timeout' || status === 'error'
+  return status === 'ok' || status === 'unavailable' || status === 'rejected' || status === 'timeout' ||
+    status === 'error' || status === 'failed' || status === 'attention' || status === 'skipped'
     ? status
     : undefined
 }
@@ -56,6 +68,8 @@ function event_icon(event: PersistedRunEvent): IconName {
   if (event.type === 'agent_done') return 'check'
   if (event.type === 'agent_start') return 'spark'
   if (event.type === 'route_decided') return 'stack'
+  if (event.type === 'conflict_checked' || event.type === 'debate_round') return 'pulse'
+  if (event.type === 'reflection') return 'check'
   const role = event.data.role
   return typeof role === 'string' && role in ROLE_ICONS ? ROLE_ICONS[role] : 'pulse'
 }
@@ -68,9 +82,12 @@ function event_title(event: PersistedRunEvent): string {
   return EVENT_LABELS[event.type] ?? event.type
 }
 
-/** 只有 tool_invoked 携带 data；其余事件的 summary 是同一句兜底文案，不重复渲染。 */
+/** 工具与质量事件携带经过后端安全投影的摘要。 */
 function event_detail(event: PersistedRunEvent): string | undefined {
-  return event.type === 'tool_invoked' ? run_event_summary(event) : undefined
+  return event.type === 'tool_invoked' || event.type === 'conflict_checked' ||
+    event.type === 'debate_round' || event.type === 'reflection'
+    ? run_event_summary(event)
+    : undefined
 }
 
 function event_time_text(occurred_at: string): string {
@@ -89,18 +106,33 @@ export function TraceCard({ events, running }: TraceCardProps): ReactElement {
   const [collapsed, set_collapsed] = useState(false)
   const visible = events.filter((event) =>
     event.type === 'agent_start' || event.type === 'agent_done' ||
-    event.type === 'route_decided' || event.type === 'tool_invoked')
+    event.type === 'route_decided' || event.type === 'tool_invoked' ||
+    event.type === 'conflict_checked' || event.type === 'debate_round' || event.type === 'reflection')
   const tool_events = visible.filter((event) => event.type === 'tool_invoked')
-  const failed_count = tool_events.filter((event) => {
-    const status = read_tool_status(event)
-    return status !== undefined && status !== 'ok'
+  const attention_statuses: ReadonlySet<TraceStatus> = new Set([
+    'attention', 'error', 'failed', 'rejected', 'timeout', 'unavailable',
+  ])
+  const attention_count = visible.filter((event) => {
+    const status = read_trace_status(event)
+    return status !== undefined && attention_statuses.has(status)
   }).length
+  const skipped_count = visible.filter((event) => read_trace_status(event) === 'skipped').length
+  const failed_tool_count = tool_events.filter((event) => {
+    const status = read_trace_status(event)
+    return status !== undefined && attention_statuses.has(status)
+  }).length
+  const all_tools_ok = tool_events.length > 0 && tool_events.every((event) => read_trace_status(event) === 'ok')
+  const has_quality_attention = attention_count > failed_tool_count
 
   const state_text = running
     ? '进行中'
-    : failed_count > 0
-      ? `${failed_count} 个工具调用未通过`
-      : tool_events.length > 0
+    : attention_count > 0
+      ? has_quality_attention || skipped_count > 0
+        ? `${attention_count} 个事件需关注${skipped_count > 0 ? ` · ${skipped_count} 个未执行` : ''}`
+        : `${failed_tool_count} 个工具调用未通过`
+      : skipped_count > 0
+        ? `${skipped_count} 个阶段未执行`
+        : all_tools_ok
         ? '工具调用全部通过'
         : '已完成'
 
@@ -113,7 +145,7 @@ export function TraceCard({ events, running }: TraceCardProps): ReactElement {
     >
       <span className="trace-head-left">
         <span className="trace-title">
-          <i className={`pulse${running ? ' running' : ''}${failed_count > 0 ? ' attention' : ''}`} />
+          <i className={`pulse${running ? ' running' : ''}${attention_count > 0 ? ' attention' : ''}`} />
           调查过程
         </span>
         <span className="trace-meta">
@@ -122,7 +154,7 @@ export function TraceCard({ events, running }: TraceCardProps): ReactElement {
             : `${visible.length} 个事件${tool_events.length > 0 ? ` · ${tool_events.length} 个工具调用` : ''}`}
         </span>
         {visible.length > 0 && (
-          <span className={`trace-state${failed_count > 0 ? ' trace-state--attention' : ''}`}>{state_text}</span>
+          <span className={`trace-state${attention_count > 0 || skipped_count > 0 ? ' trace-state--attention' : ''}`}>{state_text}</span>
         )}
       </span>
       <Icon className="trace-toggle" name="chevron-down" size={14} />
@@ -140,7 +172,7 @@ export function TraceCard({ events, running }: TraceCardProps): ReactElement {
         {visible.map((event) => {
           const duration = event_duration_text(event)
           const detail = event_detail(event)
-          const status = read_tool_status(event)
+          const status = read_trace_status(event)
           return (
             <div className="trace-row" key={event.id}>
               <span className="trace-icon">
@@ -154,7 +186,7 @@ export function TraceCard({ events, running }: TraceCardProps): ReactElement {
                 </span>
               </div>
               {status !== undefined && (
-                <span className={`trace-badge${TOOL_STATUS_CLASSES[status]}`}>{TOOL_STATUS_LABELS[status]}</span>
+                <span className={`trace-badge${TRACE_STATUS_CLASSES[status]}`}>{TRACE_STATUS_LABELS[status]}</span>
               )}
             </div>
           )

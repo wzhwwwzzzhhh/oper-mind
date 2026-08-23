@@ -1,0 +1,8 @@
+# Agent 运行层 PRD
+
+> Coordinator、领域 Agent、受控工具调用、质量复核、结果汇总与安全 Trace。
+> 本域只定义 Agent 运行层应呈现的产品行为与验收边界；Connector、真实服务访问、长期记忆和高风险动作仍分别遵守其所属域的安全决策。
+
+| PRD | 主题 | 状态 |
+|---|---|---|
+| [P8-agent-runtime-truthfulness-evaluation.md](P8-agent-runtime-truthfulness-evaluation.md) | Agent 运行真实性与评测基线 | 完成 |

@@ -6,8 +6,13 @@ P6 不修改 `server_tools.py`；本文件锁定「mock 模式下各工具返回
 
 from __future__ import annotations
 
-from data.scenarios import set_active_scenario
+import sys
+from types import SimpleNamespace
+from unittest.mock import patch
 
+from data.scenarios import clear_active_scenario, set_active_scenario
+
+from src.core.tool_registry import ToolExecutionResult
 from src.tools.server_tools import (
     CheckCpuTool,
     CheckDiskTool,
@@ -62,3 +67,28 @@ class TestMockModeUnchanged:
         from data.scenarios import get_active_scenario
 
         assert CheckProcessTool().execute() == get_active_scenario().server["process"]
+
+
+def test_real模式缺少采集依赖返回unavailable而非固定指标() -> None:
+    """真实环境缺 psutil 时显式不可用，不再返回貌似真实的固定 CPU 数值。"""
+    clear_active_scenario()
+    with patch.dict(sys.modules, {"psutil": None}):
+        result = CheckCpuTool().execute()
+    assert isinstance(result, ToolExecutionResult)
+    assert result.status == "unavailable"
+    assert "65%" not in result.output
+
+
+def test_real模式采集失败返回unavailable且不泄露异常() -> None:
+    """采集异常收敛为结构化不可用结果，不外泄底层异常文本。"""
+    clear_active_scenario()
+
+    def fail_cpu(_interval: int) -> float:
+        raise RuntimeError("主机内部路径与异常明文")
+
+    fake = SimpleNamespace(cpu_percent=fail_cpu)
+    with patch.dict(sys.modules, {"psutil": fake}):
+        result = CheckCpuTool().execute()
+    assert isinstance(result, ToolExecutionResult)
+    assert result.status == "unavailable"
+    assert "主机内部路径" not in result.output

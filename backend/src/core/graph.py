@@ -18,6 +18,12 @@ from typing_extensions import TypedDict
 from src.agents.report_agent import ReportAgent
 from src.core.debate import DebateArena
 from src.core.llm import LLMClient
+from src.core.mock_runtime import (
+    assess_mock_conflict,
+    assess_mock_reflection,
+    has_attributable_mock_evidence,
+    resolve_mock_debate,
+)
 from src.core.reflection import ReflectionEngine
 
 # ===== 1. 状态定义 =====
@@ -26,7 +32,7 @@ class DiagnosisState(TypedDict, total=False):
     """在图节点之间传递的状态"""
     query: str                     # 用户原始问题
     strategy: str                  # direct / chain / parallel
-    target: str                    # direct 模式命中的目标 Agent
+    target: str | None             # direct 模式命中的目标 Agent；无适用领域为 None
     agent_results: dict            # {agent 名: 诊断结论}
     agent_thinking: dict           # {agent 名: 思考链路}
     has_conflict: bool             # 并行结论是否分歧
@@ -170,30 +176,52 @@ def build_diagnosis_graph(
         else:
             trace = [*trace, {"node": "route", "detail": f"LLM 路由 → {strategy}"}]
 
-        # target 始终表示主要领域，direct 模式据此选择领域 Agent。
-        target = target or _keyword_target(query) or "db"
+        # mock 无领域命中必须失败关闭；real 保留既有默认 DB 兼容兜底。
+        keyword_target = _keyword_target(query)
+        target = target or keyword_target
+        if not _is_mock(llm):
+            target = target or "db"
 
         return {"strategy": strategy, "target": target, "trace": trace}
 
     # ---- 节点:直达 ----
     def direct_node(state: DiagnosisState) -> DiagnosisState:
         query = state["query"]
-        target = state.get("target") or "db"
+        target = state.get("target")
         trace = state.get("trace", [])
 
-        if target not in agents:
-            result = f"未找到可处理的 Agent:{target}"
+        if target is None:
+            result = "暂无适用领域 Agent；暂无可用证据，当前结论未知。"
             thinking: list[dict] = []
+            result_key = "unassigned"
+            status = "skipped"
+        elif target not in agents:
+            result = "目标领域 Agent 未注册；暂无可用证据，当前结论未知。"
+            thinking = []
+            result_key = target
+            status = "skipped"
         else:
             agent = agents[target]
             result = agent.run(query)
             thinking = agent.get_thinking() if hasattr(agent, "get_thinking") else []
             trace = trace + _tool_traces(agent, target)
+            result_key = target
+            status = "ok"
 
-        trace = [*trace, {"node": "direct", "detail": f"目标 Agent={target}"}]
+        detail = f"目标 Agent={target}" if target is not None else "无适用领域 Agent，已跳过"
+        trace = [
+            *trace,
+            {"node": "direct", "detail": detail, "status": status},
+            {
+                "node": "conflict_check",
+                "detail": "direct 策略不满足多结论前置条件，分歧检查未执行",
+                "status": "skipped",
+            },
+            {"node": "debate", "detail": "direct 策略无分歧检查结果，辩论未执行", "status": "skipped"},
+        ]
         return {
-            "agent_results": {target: result},
-            "agent_thinking": {target: thinking},
+            "agent_results": {result_key: result},
+            "agent_thinking": {result_key: thinking},
             "trace": trace,
         }
 
@@ -222,6 +250,15 @@ def build_diagnosis_graph(
             context += f"\n[{name}] {res[:200]}"
             trace = [*trace, {"node": "chain", "detail": f"逐层:{name}"}]
 
+        trace = [
+            *trace,
+            {
+                "node": "conflict_check",
+                "detail": "chain 策略不进入并行分歧检查，分歧检查未执行",
+                "status": "skipped",
+            },
+            {"node": "debate", "detail": "chain 策略无分歧检查结果，辩论未执行", "status": "skipped"},
+        ]
         return {"agent_results": results, "agent_thinking": thinking_map, "trace": trace}
 
     # ---- 节点:并行(真并发) ----
@@ -253,12 +290,17 @@ def build_diagnosis_graph(
         trace = state.get("trace", [])
         conflict = False
 
-        valid = {k: v for k, v in results.items() if v and "未找到" not in v}
+        if _is_mock(llm):
+            valid = {k: v for k, v in results.items() if has_attributable_mock_evidence(v)}
+        else:
+            valid = {
+                k: v
+                for k, v in results.items()
+                if v and not any(marker in v for marker in ("未找到", "暂无可用证据", "当前结论未知"))
+            }
         if len(valid) >= 2:
             if _is_mock(llm):
-                # 启发式:结论文本差异较大即视为分歧
-                conclusions = list(valid.values())
-                conflict = len({c[:60] for c in conclusions}) > 1
+                conflict = assess_mock_conflict(valid)
             else:
                 view = "\n".join(f"[{k}] {v[:300]}" for k, v in valid.items())
                 prompt = f"""下面是多个运维 Agent 对同一问题的诊断结论。
@@ -270,7 +312,15 @@ def build_diagnosis_graph(
                 parsed = _extract_json(resp.get("content", "")) if "error" not in resp else None
                 conflict = bool(parsed.get("conflict")) if parsed else False
 
-        trace = [*trace, {"node": "conflict_check", "detail": f"分歧={conflict}"}]
+        if len(valid) < 2:
+            detail = "有来源结论不足两个，分歧检查未执行"
+            status = "skipped"
+        else:
+            detail = "发现实质根因冲突" if conflict else "未发现实质根因冲突"
+            status = "attention" if conflict else "ok"
+        trace = [*trace, {"node": "conflict_check", "detail": detail, "status": status}]
+        if not conflict:
+            trace.append({"node": "debate", "detail": "无实质冲突，辩论未执行", "status": "skipped"})
         return {"has_conflict": conflict, "trace": trace}
 
     # ---- 节点:辩论 ----
@@ -280,8 +330,15 @@ def build_diagnosis_graph(
         thinking = state.get("agent_thinking", {})
         trace = state.get("trace", [])
 
-        consensus = debate.debate(query, results, thinking)
-        trace = [*trace, {"node": "debate", "detail": "辩论裁决完成"}]
+        if _is_mock(llm):
+            consensus = resolve_mock_debate(results)
+            status = "ok"
+            detail = "模拟场景辩论已执行，冲突保留待人工复核"
+        else:
+            consensus = debate.debate(query, results, thinking)
+            status = "ok"
+            detail = "辩论裁决完成"
+        trace = [*trace, {"node": "debate", "detail": detail, "status": status}]
         return {"debate_result": consensus, "trace": trace}
 
     # ---- 节点:报告(初稿 / 据反馈修订) ----
@@ -294,18 +351,12 @@ def build_diagnosis_graph(
         if state.get("debate_result"):
             results["共识(辩论)"] = state["debate_result"]
 
-        thinking_flat = [
-            f"{name}: {step}"
-            for name, steps in state.get("agent_thinking", {}).items()
-            for step in (steps or [])
-        ]
-
         if feedback:
             # 据 Reflection 反馈修订上一版初稿
             draft = _revise_report(llm, state.get("report_draft", ""), feedback)
             trace = [*trace, {"node": "report", "detail": "据复审反馈修订"}]
         else:
-            draft = report.generate(query, results, thinking_flat or None)
+            draft = report.generate(query, results)
             trace = [*trace, {"node": "report", "detail": "生成初稿"}]
 
         return {"report_draft": draft, "trace": trace}
@@ -317,16 +368,41 @@ def build_diagnosis_graph(
         revision = state.get("revision_count", 0)
 
         if _is_mock(llm):
-            issues = []   # mock 模式下确定性通过,保证链路可测
+            results = state.get("agent_results", {})
+            if not any(has_attributable_mock_evidence(result) for result in results.values()):
+                trace = [
+                    *trace,
+                    {
+                        "node": "reflection",
+                        "detail": "无可归因工具证据，反思复审未执行",
+                        "status": "skipped",
+                    },
+                ]
+                return {"final_report": draft, "review_feedback": [], "trace": trace}
+            issues = assess_mock_reflection(draft)
         else:
             reviewers = list(agents.values())
             issues = reflection.collect_feedback(draft, reviewers)
 
         if not issues or revision >= MAX_REVISION:
-            trace = [*trace, {"node": "reflection", "detail": "复审通过" if not issues else "达修订上限,采用当前稿"}]
+            trace = [
+                *trace,
+                {
+                    "node": "reflection",
+                    "detail": "复审通过" if not issues else "达到修订上限，采用已降级当前稿",
+                    "status": "ok" if not issues else "failed",
+                },
+            ]
             return {"final_report": draft, "review_feedback": [], "trace": trace}
 
-        trace = [*trace, {"node": "reflection", "detail": f"发现 {len(issues)} 处问题,回退修订"}]
+        trace = [
+            *trace,
+            {
+                "node": "reflection",
+                "detail": f"发现 {len(issues)} 处证据问题，回退修订",
+                "status": "attention",
+            },
+        ]
         return {"review_feedback": issues, "revision_count": revision + 1, "trace": trace}
 
     # ---- 条件边 ----
@@ -377,6 +453,8 @@ def _revise_report(llm: LLMClient, draft: str, feedback: list) -> str:
     """据复审反馈修订报告初稿"""
     if not draft:
         return draft
+    if _is_mock(llm):
+        return draft + "\n\n## 复审说明\n暂无可用证据的断言已降级，当前结论未知。"
     fb = "\n".join(f"- {f}" for f in feedback)
     prompt = f"""请根据以下审核反馈修订诊断报告,输出修订后的完整报告。
 

@@ -57,6 +57,24 @@ describe('TraceCard', () => {
     expect(screen.getByText('工具调用全部通过')).toBeInTheDocument()
   })
 
+  it('展示 unavailable 与质量节点的关注/跳过状态，不把未执行画成成功', () => {
+    render(<TraceCard events={[
+      event(1, 'tool_invoked', { status: 'unavailable', summary: '服务器 CPU 指标采集不可用', role: 'server' }),
+      event(2, 'conflict_checked', { status: 'attention', summary: '发现实质根因冲突' }),
+      event(3, 'debate_round', { status: 'skipped', summary: '无实质冲突，辩论未执行' }),
+      event(4, 'reflection', { status: 'ok', summary: '复审通过' }),
+    ]} />)
+
+    expect(screen.getByText('不可用')).toBeInTheDocument()
+    expect(screen.getByText('需关注')).toBeInTheDocument()
+    expect(screen.getByText('未执行')).toBeInTheDocument()
+    expect(screen.getByText('分歧检查')).toBeInTheDocument()
+    expect(screen.getByText('辩论复核')).toBeInTheDocument()
+    expect(screen.getByText('反思复审')).toBeInTheDocument()
+    expect(screen.getByText('发现实质根因冲突')).toBeInTheDocument()
+    expect(screen.queryByText('工具调用全部通过')).not.toBeInTheDocument()
+  })
+
   it('非工具事件展示中文阶段名，不暴露内部事件标识，也不带状态徽标', () => {
     render(<TraceCard events={[
       event(1, 'route_decided'),

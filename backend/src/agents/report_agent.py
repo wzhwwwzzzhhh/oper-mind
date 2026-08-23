@@ -3,6 +3,8 @@
 将诊断结果转化为结构化报告，支持文字分析 + 图表数据。
 """
 
+from src.core.public_projection import project_public_text, safe_request_topic
+
 
 class ReportAgent:
     """
@@ -37,22 +39,20 @@ class ReportAgent:
         report = f"""# 运维诊断报告
 
 ## 问题描述
-{query}
+{safe_request_topic(query)}
 
 """
         # 各领域诊断结果
         for agent_name, diagnosis in diagnoses.items():
-            report += f"## {agent_name} 诊断\n{diagnosis}\n\n"
+            safe_name = project_public_text(agent_name, limit=40)
+            report += f"## {safe_name} 诊断\n{project_public_text(diagnosis)}\n\n"
 
         # 汇总根因
         report += "## 综合结论\n"
         report += self._summarize(diagnoses)
 
-        # 思考过程（可选）
-        if thinking:
-            report += "\n## 诊断链路\n"
-            for step in thinking:
-                report += f"- {step}\n"
+        # thinking 仅供内部运行态使用，公开报告不得展示思考链或工具参数。
+        _ = thinking
 
         return report
 
@@ -61,7 +61,7 @@ class ReportAgent:
         parts = []
         for agent_name, diagnosis in diagnoses.items():
             # 提取前五行非空行作为摘要
-            lines = [line for line in diagnosis.split("\n") if line.strip()]
+            lines = [line for line in project_public_text(diagnosis).split("\n") if line.strip()]
             summary = "\n".join(lines[:5])
             parts.append(f"**{agent_name}**:\n{summary}")
 

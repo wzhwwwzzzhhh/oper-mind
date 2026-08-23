@@ -121,30 +121,27 @@ def _table_exists(connection: Any, table: str) -> bool:
     return bool(result.mappings().all())
 
 
-def _explain_mock(sql: str) -> str:
-    """保留既有 mock EXPLAIN 的格式与告警行为。"""
-    from data.mock_db import explain_sql, extract_table_name
-
-    plan = explain_sql(sql)
-    table_name = extract_table_name(sql)
-    result = f"EXPLAIN {table_name or '(unknown)'}:\n"
-    result += f" 查询类型：{plan['select_type']}\n"
-    result += f" 访问类型：{plan['type']}\n"
-    result += f" 可能索引：{plan['possible_keys']}\n"
-    result += f" 实际索引：{plan['key']}\n"
-    result += f" 扫描行数：{plan['rows']}\n"
-    result += f" 额外信息：{plan['Extra']}\n"
-
-    warnings = []
-    if plan["type"] == "ALL":
-        warnings.append("⚠️ 全表扫描，性能风险高")
-    if plan["Extra"] and "filesort" in plan["Extra"].lower():
-        warnings.append("⚠️ 文件排序，数据量大时性能差")
-    if plan["key"] is None and plan["possible_keys"]:
-        warnings.append("⚠️ 有可用索引但没使用，可能是函数包裹或类型转换导致")
-    if warnings:
-        result += "\n" + "\n".join(warnings)
-    return result
+def _explain_mock() -> str:
+    """只格式化当前场景显式提供的执行计划事实。"""
+    scenario = get_active_scenario()
+    fact = scenario.db.explain if scenario is not None and scenario.db is not None else None
+    if fact is None:
+        return "当前场景未提供数据库执行计划事实"
+    possible = "、".join(fact.possible_indexes) if fact.possible_indexes else "无"
+    used = fact.used_index or "无"
+    lines = [
+        f"EXPLAIN {fact.table}:",
+        f" 访问类型：{fact.access_type}",
+        f" 可能索引：{possible}",
+        f" 实际索引：{used}",
+        f" 扫描行数：{fact.scanned_rows}",
+        f" 额外信息：{fact.extra}",
+    ]
+    if fact.access_type == "ALL":
+        lines.append("⚠️ 全表扫描，性能风险高")
+    if "filesort" in fact.extra.lower():
+        lines.append("⚠️ 文件排序，数据量大时性能差")
+    return "\n".join(lines)
 
 
 class ExplainTool(Tool):
@@ -165,7 +162,7 @@ class ExplainTool(Tool):
     def execute(self, sql: str) -> str:
         """按当前模式返回 mock 或真实 PostgreSQL 执行计划。"""
         if get_active_scenario() is not None:
-            return _explain_mock(sql)
+            return _explain_mock()
         normalized_sql = sql.strip()
         statement_sql = normalized_sql.rstrip(";").rstrip()
         if (
@@ -206,17 +203,11 @@ class ShowIndexTool(Tool):
     def execute(self, table: str) -> str:
         """返回 mock 或真实 PostgreSQL 索引信息。"""
         if get_active_scenario() is not None:
-            from data.mock_db import get_indexes
-
-            indexes = get_indexes(table)
-            if indexes is None:
-                return f"表 '{table}' 不存在或没有索引信息"
-            result = f"表 {table} 的索引:\n"
-            result += f"{'索引名':<20} {'列名':<15} {'顺序':>5} {'非唯一':>8} {'基数':>10}\n"
-            result += "-" * 60 + "\n"
-            for index in indexes:
-                result += f"{index['Key_name']:<20} {index['Column_name']:<15} {index['Seq_in_index']:>5} {index['Non_unique']:>8} {index['Cardinality']:>10}\n"
-            return result
+            scenario = get_active_scenario()
+            fact = scenario.db.table if scenario is not None and scenario.db is not None else None
+            if fact is None or fact.table != table:
+                return "当前场景未提供该表的数据库索引事实"
+            return f"表 {fact.table} 的索引:\n" + "\n".join(f"  {item}" for item in fact.indexes)
 
         if not _is_identifier(table):
             return "表名格式非法，已拒绝"
@@ -265,10 +256,11 @@ class ShowCreateTableTool(Tool):
     def execute(self, table: str) -> str:
         """返回 mock 或真实 PostgreSQL 建表语句。"""
         if get_active_scenario() is not None:
-            from data.mock_db import get_create_table
-
-            result = get_create_table(table)
-            return result if result is not None else f"表 '{table}' 不存在"
+            scenario = get_active_scenario()
+            fact = scenario.db.table if scenario is not None and scenario.db is not None else None
+            if fact is None or fact.table != table:
+                return "当前场景未提供该表的数据库结构事实"
+            return "表结构摘要 " + fact.table + ":\n" + "\n".join(f"  {column}" for column in fact.columns)
 
         if not _is_identifier(table):
             return "表名格式非法，已拒绝"
@@ -441,9 +433,14 @@ class CheckLockStatusTool(Tool):
             return "数据库不可用"
 
     def _mock_lock(self) -> str:
-        """mock 模式如实返回"无锁等待"（场景数据不含锁事实，不伪造）。"""
-        status = LockWaitStatus(status="ok", message="锁等待：无锁等待")
-        self._last_summary = "锁等待：无锁等待（mock）"
+        """只消费当前场景显式提供的锁事实。"""
+        scenario = get_active_scenario()
+        summary = scenario.db.lock_summary if scenario is not None and scenario.db is not None else None
+        if summary is None:
+            self._last_summary = "当前场景未提供数据库锁事实"
+            return self._last_summary
+        status = LockWaitStatus(status="ok", message=summary)
+        self._last_summary = f"{summary}（mock）"
         return _format_lock_wait(status)
 
     def _real_lock_status(self, connection: Any, database: str | None) -> LockWaitStatus:
@@ -552,14 +549,19 @@ class CheckConnectionPoolTool(Tool):
             return "数据库不可用"
 
     def _mock_pool(self) -> str:
-        """mock 模式返回确定性场景占用（不改场景数据源，不标注为实时监控）。"""
-        active = get_active_scenario()
-        scenario_key = active.key if active is not None else "S1"
-        facts: dict[str, tuple[int, int, int, int, int]] = {
-            "S1": (1024, 900, 64, 60, 1024),
-            "S4": (100, 95, 0, 5, 100),
-        }
-        total, act, idle, wait, maximum = facts.get(scenario_key, (120, 60, 40, 20, 200))
+        """只消费当前场景显式提供的连接池事实。"""
+        scenario = get_active_scenario()
+        fact = scenario.db.pool if scenario is not None and scenario.db is not None else None
+        if fact is None:
+            self._last_summary = "当前场景未提供数据库连接池事实"
+            return self._last_summary
+        total, act, idle, wait, maximum = (
+            fact.total,
+            fact.active,
+            fact.idle,
+            fact.waiting,
+            fact.maximum,
+        )
         utilization = (total / maximum) if maximum else 0.0
         health: Literal["正常", "接近上限", "已耗尽"] = (
             "已耗尽" if utilization >= 1.0 else "接近上限" if utilization >= 0.8 else "正常"

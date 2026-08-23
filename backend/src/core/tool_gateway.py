@@ -19,7 +19,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from src.core.tool_registry import ToolRegistry
+from src.core.tool_registry import ToolExecutionResult, ToolRegistry
 
 # 脱敏规则：命中即整体替换为占位符，防止凭据/密钥流入结果、Trace、日志。
 # 说明：这是"最后一道防线"，工具本身也不应把凭据放进返回值。
@@ -43,7 +43,7 @@ class ToolInvocation(BaseModel):
     """
 
     tool: str = Field(description="被调用的工具名")
-    status: Literal["ok", "rejected", "timeout", "error"] = Field(description="调用结果状态")
+    status: Literal["ok", "unavailable", "rejected", "timeout", "error"] = Field(description="调用结果状态")
     started_at: str = Field(description="调用开始的 UTC ISO 8601 时间戳")
     duration_ms: int = Field(ge=0, description="调用耗时（毫秒）")
     detail: str = Field(description="脱敏后的简要说明，供前端 Trace 展示")
@@ -158,7 +158,7 @@ class ToolGateway:
         # 关 3 + 4：限时 + 执行
         try:
             future = self._executor.submit(tool.execute, **args)
-            output = str(future.result(timeout=self._timeout_seconds))
+            raw_result = future.result(timeout=self._timeout_seconds)
         except FutureTimeoutError:
             msg = f"工具执行超过 {self._timeout_seconds:g}s，已中止"
             return _finish("timeout", json.dumps({"error": msg}, ensure_ascii=False), msg)
@@ -173,6 +173,10 @@ class ToolGateway:
         # 关 5 + 6：脱敏 + 留痕（在 _finish 内统一完成）
         # detail 支持工具可选脱敏审计摘要：工具定义 audit_summary() 则用之，
         # 否则维持中性文案；对既有工具零影响、向后兼容。摘要同样过脱敏兜底。
+        if isinstance(raw_result, ToolExecutionResult):
+            return _finish(raw_result.status, raw_result.output, raw_result.summary)
+
+        output = str(raw_result)
         detail = f"调用 {name} 成功"
         audit_summary = getattr(tool, "audit_summary", None)
         if callable(audit_summary):
@@ -180,7 +184,7 @@ class ToolGateway:
                 detail = str(audit_summary())
             except Exception:
                 detail = f"调用 {name} 成功"
-        return _finish("ok", output, detail)
+        return _finish(tool.execution_status(), output, detail)
 
     def shutdown(self) -> None:
         """释放内部线程池。"""

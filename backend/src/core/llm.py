@@ -6,6 +6,7 @@ from typing import Any, cast
 
 from openai import OpenAI
 
+from src.core.mock_runtime import infer_mock_role, mock_evidence_summary, plan_mock_tool
 from src.domain.model_usage import UsageRecorder
 
 LOGGER = logging.getLogger(__name__)
@@ -97,10 +98,10 @@ class LLMClient:
                     for tc in message.tool_calls
                 ]
             return  result
-        except Exception as e:
+        except Exception as error:
             # 只记异常类型：异常文本可能带 base_url 或密钥片段。
-            LOGGER.warning("LLM API 调用失败：%s", type(e).__name__)
-            return {"role": "assistant", "content": "LLM API 调用失败", "error": str(e)}
+            LOGGER.warning("LLM API 调用失败：%s", type(error).__name__)
+            return {"role": "assistant", "content": "LLM API 调用失败", "error": "LLM_UNAVAILABLE"}
 
     def _record_usage(self, usage: Any) -> None:
         """把单次真实调用的用量写入应用库；失败降级为日志，不阻断调用。
@@ -128,23 +129,21 @@ class LLMClient:
             LOGGER.warning("用量采集失败（不影响本次调用）：%s", type(error).__name__)
 
     def _mock_chat(self, messages, tools):
-        """Mock LLM 返回，不需要 API Key"""
+        """按互斥角色工具菜单和显式场景事实返回确定性 mock 响应。"""
 
-        # 检查是否已经执行过工具（有 tool 角色的消息）
-        # 如果有，说明这是 ReAct 循环的第二轮以上，直接给最终答案
-        has_tool_result = any(
-            m.get("role") == "tool" for m in messages
-        )
-        if has_tool_result:
+        role = infer_mock_role(tools)
+        if tools and role is None:
             return {
                 "role": "assistant",
-                "content": (
-                    "【诊断结论】通过 EXPLAIN 分析发现该 SQL 存在全表扫描问题。\n"
-                    "问题根因：status 字段没有索引导致全表扫描 50000 行。\n"
-                    "优化建议：为 status 字段添加索引。\n"
-                    "```sql\nALTER TABLE `orders` ADD INDEX `idx_status` (`status`);\n```\n"
-                    "预期效果：访问类型从 ALL 变为 ref，扫描行数从 50000 降至约 8000。"
-                ),
+                "content": "模拟场景：工具边界无法唯一识别，已失败关闭；暂无可用证据，当前结论未知。",
+            }
+
+        tool_messages = [message for message in messages if message.get("role") == "tool"]
+        if tool_messages and role is not None:
+            tool_name = _last_mock_tool_name(messages) or "unknown"
+            return {
+                "role": "assistant",
+                "content": mock_evidence_summary(role, tool_name, str(tool_messages[-1].get("content", ""))),
             }
 
         # 获取最后一条用户消息
@@ -154,31 +153,21 @@ class LLMClient:
                 last_msg = m["content"]
                 break
 
-        # 模拟工具调用：检查是否需要分析 SQL
-        sql_keywords = ["select", "from", "where", "join", "order by", "group by"]
-        is_sql = any(kw in last_msg.lower() for kw in sql_keywords)
+        if role is not None and tools:
+            from data.scenarios import get_active_scenario
 
-        if is_sql and tools:
-            # 模拟 LLM 调用 explain_sql
+            call = plan_mock_tool(role, last_msg, tools, get_active_scenario())
+            if call is not None:
+                return {"role": "assistant", "content": None, "tool_calls": [call]}
             return {
                 "role": "assistant",
-                "content": None,
-                "tool_calls": [
-                    {
-                        "id": "call_mock_1",
-                        "type": "function",
-                        "function": {
-                            "name": "explain_sql",
-                            "arguments": '{"sql": "' + last_msg.replace('"', '\\"') + '"}',
-                        },
-                    }
-                ],
+                "content": "模拟场景：当前角色没有适用的显式场景事实；暂无可用证据，当前结论未知。",
             }
 
         # 默认回复
         return {
             "role": "assistant",
-            "content": "Mock回复：收到了你的消息。如果是SQL诊断，请提供完整的SQL语句。",
+            "content": "模拟场景：当前没有可用的受控工具事实；暂无可用证据，当前结论未知。",
         }
 
     def _mock_response(self, messages: list[dict], tools: list[dict] | None = None) -> dict:
@@ -210,3 +199,15 @@ class LLMClient:
             "role": "assistant",
             "content": f"Mock回复: {last_msg[:50]}",
         }
+
+
+def _last_mock_tool_name(messages: list[dict]) -> str | None:
+    """从最近一次 assistant tool_calls 中提取工具名。"""
+    for message in reversed(messages):
+        calls = message.get("tool_calls")
+        if not isinstance(calls, list) or not calls:
+            continue
+        function = calls[-1].get("function", {}) if isinstance(calls[-1], dict) else {}
+        name = function.get("name") if isinstance(function, dict) else None
+        return str(name) if name else None
+    return None

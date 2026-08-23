@@ -6,7 +6,7 @@ from src.application.contracts import DiagnosisExecutionEvent, DiagnosisExecutio
 from src.application.services import _safe_event_data
 from src.core.coordinator import CoordinatorAgent
 from src.domain.diagnosis import RunEventType
-from src.infrastructure.diagnosis.coordinator_executor import CoordinatorDiagnosisExecutor
+from src.infrastructure.diagnosis.coordinator_executor import CoordinatorDiagnosisExecutor, _event_data
 
 
 class FakeCoordinator:
@@ -70,6 +70,41 @@ def test_safe_event_data_preserves_gateway_statuses() -> None:
 
     rejected = event.model_copy(update={"data": {"summary": "调用 x 被拒绝", "status": "rejected"}})
     assert _safe_event_data(rejected)["status"] == "rejected"
+
+
+def test_unavailable与质量状态穿过事件安全投影() -> None:
+    """unavailable、knowledge 与质量复核摘要应保留为受控字段。"""
+    unavailable = _event_data(
+        {
+            "type": "tool_invoked",
+            "detail": "知识库采集不可用",
+            "status": "unavailable",
+            "role": "knowledge",
+            "duration_ms": 3,
+        }
+    )
+    assert unavailable == {
+        "summary": "知识库采集不可用",
+        "status": "unavailable",
+        "duration_ms": 3,
+        "role": "knowledge",
+    }
+    quality = _event_data(
+        {"type": "reflection", "detail": "无实质冲突，复审跳过", "status": "skipped"}
+    )
+    assert quality == {"summary": "无实质冲突，复审跳过", "status": "skipped"}
+
+    occurred_at = datetime.now(UTC)
+    persisted = _safe_event_data(
+        DiagnosisExecutionEvent(
+            type=RunEventType.TOOL_INVOKED,
+            node="tool",
+            occurred_at=occurred_at,
+            data=unavailable,
+        )
+    )
+    assert persisted["status"] == "unavailable"
+    assert persisted["role"] == "knowledge"
 
 
 def test_coordinator_normalizes_tool_trace_fields() -> None:

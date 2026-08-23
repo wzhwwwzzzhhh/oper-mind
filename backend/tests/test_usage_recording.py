@@ -94,7 +94,7 @@ def test_mock调用不采集() -> None:
     recorder = _CapturingRecorder()
     llm = LLMClient(api_key="mock", base_url="http://mock", model="mock", usage_recorder=recorder)
     result = llm.chat([{"role": "user", "content": "你好"}])
-    assert "Mock回复" in result["content"]
+    assert "模拟场景" in result["content"]
     assert recorder.records == []
 
 

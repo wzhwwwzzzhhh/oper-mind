@@ -14,6 +14,7 @@ from src.application.contracts import (
     DiagnosisExecutor,
 )
 from src.core.coordinator import CoordinatorAgent
+from src.core.public_projection import project_public_report
 from src.domain.diagnosis import RunEventType
 from src.infrastructure.diagnosis.postgres_missing_index import PostgresMissingIndexCollector
 
@@ -73,8 +74,9 @@ def _event_type(value: Mapping[str, Any]) -> RunEventType | None:
 
 
 def _event_data(event: Mapping[str, Any], service_id: str | None = None) -> dict[str, Any]:
-    """仅为工具事件构造安全 data；其余事件保持空 data，维持既有行为。"""
-    if str(event.get("type")) != "tool_invoked":
+    """为工具与质量事件构造受控摘要，其余事件保持空 data。"""
+    event_type = str(event.get("type"))
+    if event_type not in {"tool_invoked", "conflict_checked", "debate_round", "reflection"}:
         return {}
     data: dict[str, Any] = {}
     detail = event.get("detail")
@@ -87,7 +89,7 @@ def _event_data(event: Mapping[str, Any], service_id: str | None = None) -> dict
     if isinstance(duration, int) and not isinstance(duration, bool):
         data["duration_ms"] = duration
     role = event.get("role")
-    if role in {"db", "server", "log"}:
+    if role in {"db", "server", "log", "knowledge"}:
         data["role"] = role
     if service_id is not None and role in {"db", "log"}:
         data["service_id"] = service_id
@@ -117,7 +119,7 @@ def _safe_report(value: object) -> str | None:
     report = value.strip()
     if not report:
         return None
-    return report[:8000]
+    return project_public_report(report)[:8000]
 
 
 def _parse_timestamp(value: object) -> datetime:

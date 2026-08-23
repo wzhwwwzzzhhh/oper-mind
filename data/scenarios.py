@@ -16,6 +16,48 @@ from typing import Any
 
 
 @dataclass(frozen=True)
+class DbExplainFact:
+    """场景显式提供的执行计划事实；不从全局 mock 数据回退。"""
+
+    table: str
+    access_type: str
+    possible_indexes: tuple[str, ...]
+    used_index: str | None
+    scanned_rows: int
+    extra: str
+
+
+@dataclass(frozen=True)
+class DbTableFact:
+    """场景显式提供的表结构与索引摘要。"""
+
+    table: str
+    columns: tuple[str, ...]
+    indexes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class DbPoolFact:
+    """场景显式提供的连接池占用事实。"""
+
+    total: int
+    active: int
+    idle: int
+    waiting: int
+    maximum: int
+
+
+@dataclass(frozen=True)
+class DbScenarioFacts:
+    """一个场景可供数据库工具消费的全部只读事实。"""
+
+    explain: DbExplainFact | None = None
+    table: DbTableFact | None = None
+    lock_summary: str | None = None
+    pool: DbPoolFact | None = None
+
+
+@dataclass(frozen=True)
 class Scenario:
     """一起故障场景的完整世界状态。
 
@@ -29,6 +71,7 @@ class Scenario:
     logs: tuple[str, ...]  # 系统日志，SearchLogsTool / AggregateErrorsTool 消费
     slow_queries: tuple[dict[str, Any], ...]  # 慢查询，QuerySlowLogTool 消费
     server: dict[str, str]  # 键：cpu/memory/disk/process/network → 预格式化指标串（只读；S1–S4 为共享单例，勿原地改）
+    db: DbScenarioFacts | None = None  # 仅显式存在时可供 DB mock 工具消费
 
 
 # ============================================================
@@ -63,6 +106,23 @@ _S1 = Scenario(
         "process": "高 CPU 进程:\n  mysqld(PID=1234): CPU 85%\n\n高内存进程:\n  java(PID=5678): 内存 45%",
         "network": "总连接数: 1024\nESTABLISHED: 512\nTIME_WAIT: 256\nCLOSE_WAIT: 12",
     },
+    db=DbScenarioFacts(
+        explain=DbExplainFact(
+            table="orders",
+            access_type="ALL",
+            possible_indexes=("idx_create_time",),
+            used_index=None,
+            scanned_rows=50000,
+            extra="Using where; Using filesort",
+        ),
+        table=DbTableFact(
+            table="orders",
+            columns=("id bigint", "status varchar(32)", "create_time timestamp"),
+            indexes=("PRIMARY(id)", "idx_create_time(create_time)"),
+        ),
+        lock_summary="锁等待：无锁等待",
+        pool=DbPoolFact(total=1024, active=900, idle=64, waiting=60, maximum=1024),
+    ),
 )
 
 
@@ -142,6 +202,10 @@ _S4 = Scenario(
         "process": "未发现异常进程",
         "network": "总连接数: 100\nESTABLISHED: 100\nTIME_WAIT: 5",  # 连接数正好卡在配置上限 100
     },
+    db=DbScenarioFacts(
+        lock_summary="锁等待：无锁等待",
+        pool=DbPoolFact(total=100, active=95, idle=0, waiting=5, maximum=100),
+    ),
 )
 
 
