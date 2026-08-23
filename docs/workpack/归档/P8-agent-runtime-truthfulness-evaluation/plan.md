@@ -125,4 +125,4 @@
 - [x] 专用分支/worktree 已创建，基线为 `main` / `b91e67b`
 - [x] Design 第四轮独立终审 PASS（无 P0–P3）
 - [x] 用户确认 Design 决策与本计划
-- [ ] 实现、验证、独立代码 Review、提交与交付
+- [x] 实现、验证、独立代码 Review、提交与交付

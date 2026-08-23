@@ -20,12 +20,12 @@ docs/workpack/
 
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
-| P8 | agent-runtime-truthfulness-evaluation | Review PASS，待提交交付 | [plan](P8-agent-runtime-truthfulness-evaluation/plan.md) | [review](P8-agent-runtime-truthfulness-evaluation/review.md) | [evidence](P8-agent-runtime-truthfulness-evaluation/evidence.md) |
 
 ## 已归档
 
 | 阶段 | 切片 | PR | 完成日期 |
 |---|---|---|---|
+| P8 | agent-runtime-truthfulness-evaluation | 待创建 | 2026-08-23 |
 | P8 | session-lifecycle-management | #97 | 2026-08-23 |
 | P8 | audit-export | #90 | 2026-08-15 |
 | P8 | model-usage-stats | #86 | 2026-08-15 |

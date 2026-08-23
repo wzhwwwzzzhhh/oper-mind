@@ -1,6 +1,6 @@
 # P8-agent-runtime-truthfulness-evaluation · 验证证据
 
-> 状态：实现、全量验证与第三轮独立代码终审完成（PASS，无 P0–P3），待提交与交付
+> 状态：实现、全量验证与第三轮独立代码终审完成（PASS，无 P0–P3），随实现 PR 交付归档
 
 ## AC 证据
 

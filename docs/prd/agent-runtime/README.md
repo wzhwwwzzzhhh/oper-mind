@@ -5,4 +5,4 @@
 
 | PRD | 主题 | 状态 |
 |---|---|---|
-| [P8-agent-runtime-truthfulness-evaluation.md](P8-agent-runtime-truthfulness-evaluation.md) | Agent 运行真实性与评测基线 | 进行中 |
+| [P8-agent-runtime-truthfulness-evaluation.md](P8-agent-runtime-truthfulness-evaluation.md) | Agent 运行真实性与评测基线 | 完成 |
