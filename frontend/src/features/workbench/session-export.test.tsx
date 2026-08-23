@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 
 import { server } from '../../test/server'
+import { SessionNavigationProvider } from '../session/SessionNavigationContext'
 import { WorkbenchPage } from './WorkbenchPage'
 
 const session_id = '11111111-1111-4111-8111-111111111111'
@@ -22,9 +23,11 @@ function render_workbench(path: string): void {
   render(
     <QueryClientProvider client={query_client}>
       <MemoryRouter initialEntries={[path]}>
-        <Routes>
-          <Route path="/workbench/sessions/:session_id" element={<WorkbenchPage />} />
-        </Routes>
+        <SessionNavigationProvider>
+          <Routes>
+            <Route path="/workbench/sessions/:session_id" element={<WorkbenchPage />} />
+          </Routes>
+        </SessionNavigationProvider>
       </MemoryRouter>
     </QueryClientProvider>,
   )

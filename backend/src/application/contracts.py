@@ -48,7 +48,7 @@ class CreateSessionCommand(ApplicationCommand):
 
 
 class UpdateSessionCommand(ApplicationCommand):
-    """更新会话标题或将会话归档。"""
+    """更新会话标题，或将会话归档/恢复。"""
 
     session_id: UUID
     title: str | None = Field(default=None, min_length=1, max_length=200)

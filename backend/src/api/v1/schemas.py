@@ -557,7 +557,7 @@ class CreateSessionRequest(ApiV1Model):
 
 
 class UpdateSessionRequest(ApiV1Model):
-    """更新会话标题或逻辑归档状态的请求。"""
+    """更新会话标题，或修改逻辑归档/恢复状态的请求。"""
 
     title: str | None = Field(default=None, min_length=1, max_length=200)
     status: Literal["active", "archived"] | None = None

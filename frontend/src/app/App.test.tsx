@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { App } from './App'
 import { api_v1_contract_fixtures } from '../test/handlers'
 import { server } from '../test/server'
+import { save_pending_plain_message } from '../features/workbench/plain-message-intent'
+import { create_session_run_send_intent, save_session_run_send_intent } from '../features/workbench/send-intent'
 
 function open_path(path: string): void {
   window.history.replaceState({}, '', path)
@@ -255,7 +257,7 @@ describe('App', () => {
         }, 202)
       }),
     )
-    open_path(`/workbench/sessions/${session_id}`)
+    open_path(`/workbench/sessions/${session_id}?intent=orders_slow_query.v1`)
     render(<App />)
 
     const input = await screen.findByRole('textbox', { name: '调查问题' })
@@ -435,7 +437,7 @@ describe('App', () => {
     expect(screen.queryByLabelText('助手答复')).not.toBeInTheDocument()
   })
 
-  it('归档会话仍只读展示历史 Turn，不提供发送能力', async () => {
+  it('归档会话限制录入但保留 Run 与提案既有入口', async () => {
     const session_id = api_v1_contract_fixtures.archived_session_id
     const resources = conversation_resources()
     const archived_run = { ...resources.run, session_id }
@@ -468,10 +470,154 @@ describe('App', () => {
     expect(within(screen.getByRole('main')).queryByRole('textbox')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '编辑' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '删除' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '重新生成' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '重新生成' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '停止调查' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '批准固定修复' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '执行固定修复' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '恢复会话' })).toBeInTheDocument()
+    expect(screen.queryByText('尚未开始调查')).not.toBeInTheDocument()
+  })
+
+  it('归档会话中的 running Run 继续展示并允许按既有规则取消', async () => {
+    const session_id = api_v1_contract_fixtures.archived_session_id
+    const resources = conversation_resources({ include_output: false, run_status: 'running' })
+    const run = { ...resources.run, session_id }
+    let cancel_posted = 0
+    server.use(
+      http.get(new RegExp(`/api/v1/sessions/${session_id}$`), ({ request }) => response(request, {
+        session: {
+          id: session_id,
+          title: '运行中的归档会话',
+          status: 'archived',
+          created_at: '2026-07-28T07:00:00.000Z',
+          updated_at: '2026-07-28T08:00:00.000Z',
+          archived_at: '2026-07-28T08:01:00.000Z',
+        },
+      })),
+      http.get(new RegExp(`/api/v1/sessions/${session_id}/runs$`), ({ request }) =>
+        response(request, { items: [run], page: { next_cursor: null, has_more: false } }),
+      ),
+      http.get(new RegExp(`/api/v1/sessions/${session_id}/messages$`), ({ request }) =>
+        response(request, {
+          items: resources.messages.map((message) => ({ ...message, session_id })),
+          page: { next_cursor: null, has_more: false },
+        }),
+      ),
+      http.post(new RegExp(`/api/v1/runs/${run.id}/cancel$`), () => {
+        cancel_posted += 1
+        return HttpResponse.json(null, { status: 204 })
+      }),
+    )
+    open_path(`/workbench/sessions/${session_id}`)
+    render(<App />)
+
+    expect(await screen.findByRole('button', { name: '停止调查' })).toBeInTheDocument()
+    expect(within(screen.getByRole('main')).queryByRole('textbox')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '停止调查' }))
+
+    await waitFor(() => expect(cancel_posted).toBe(1))
+  })
+
+  it('从 archived 详情恢复同一会话后重新提供录入控件', async () => {
+    const session_id = api_v1_contract_fixtures.archived_session_id
+    let restored = false
+    server.use(
+      http.get(new RegExp(`/api/v1/sessions/${session_id}$`), ({ request }) => response(request, {
+        session: {
+          id: session_id,
+          title: '已归档的历史会话',
+          status: restored ? 'active' : 'archived',
+          created_at: '2026-07-28T07:00:00.000Z',
+          updated_at: restored ? '2026-08-23T02:00:00.000Z' : '2026-07-28T08:00:00.000Z',
+          archived_at: restored ? null : '2026-07-28T08:01:00.000Z',
+        },
+      })),
+      http.patch(new RegExp(`/api/v1/sessions/${session_id}$`), ({ request }) => {
+        restored = true
+        return response(request, {
+          session: {
+            id: session_id,
+            title: '已归档的历史会话',
+            status: 'active',
+            created_at: '2026-07-28T07:00:00.000Z',
+            updated_at: '2026-08-23T02:00:00.000Z',
+            archived_at: null,
+          },
+        })
+      }),
+      http.get(new RegExp(`/api/v1/sessions/${session_id}/runs$`), ({ request }) =>
+        response(request, { items: [], page: { next_cursor: null, has_more: false } }),
+      ),
+      http.get(new RegExp(`/api/v1/sessions/${session_id}/messages$`), ({ request }) =>
+        response(request, { items: [], page: { next_cursor: null, has_more: false } }),
+      ),
+    )
+    open_path(`/workbench/sessions/${session_id}`)
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: '恢复会话' }))
+    fireEvent.click(screen.getByRole('button', { name: '确认恢复' }))
+
+    expect(await screen.findByText('会话已恢复')).toBeInTheDocument()
+    expect(within(screen.getByRole('main')).getByRole('textbox')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '会话操作：已归档的历史会话' })).toBeInTheDocument()
+  })
+
+  it('恢复 archived 会话不会自动提交遗留调查或普通消息意图', async () => {
+    const session_id = api_v1_contract_fixtures.archived_session_id
+    let restored = false
+    let automatic_posts = 0
+    save_session_run_send_intent(
+      window.sessionStorage,
+      create_session_run_send_intent(session_id, '检查恢复后的慢查询', {
+        created_at: '2026-08-23T02:00:00.000Z',
+        idempotency_keys: ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'],
+      }),
+    )
+    save_pending_plain_message(window.sessionStorage, session_id, '恢复后等待用户明确发送')
+    server.use(
+      http.get(new RegExp(`/api/v1/sessions/${session_id}$`), ({ request }) => response(request, {
+        session: {
+          id: session_id,
+          title: '已归档的历史会话',
+          status: restored ? 'active' : 'archived',
+          created_at: '2026-07-28T07:00:00.000Z',
+          updated_at: restored ? '2026-08-23T02:00:00.000Z' : '2026-07-28T08:00:00.000Z',
+          archived_at: restored ? null : '2026-07-28T08:01:00.000Z',
+        },
+      })),
+      http.patch(new RegExp(`/api/v1/sessions/${session_id}$`), ({ request }) => {
+        restored = true
+        return response(request, {
+          session: {
+            id: session_id,
+            title: '已归档的历史会话',
+            status: 'active',
+            created_at: '2026-07-28T07:00:00.000Z',
+            updated_at: '2026-08-23T02:00:00.000Z',
+            archived_at: null,
+          },
+        })
+      }),
+      http.get(new RegExp(`/api/v1/sessions/${session_id}/runs$`), ({ request }) =>
+        response(request, { items: [], page: { next_cursor: null, has_more: false } }),
+      ),
+      http.get(new RegExp(`/api/v1/sessions/${session_id}/messages$`), ({ request }) =>
+        response(request, { items: [], page: { next_cursor: null, has_more: false } }),
+      ),
+      http.post(new RegExp(`/api/v1/sessions/${session_id}/(?:runs|messages)$`), () => {
+        automatic_posts += 1
+        return HttpResponse.json({}, { status: 500 })
+      }),
+    )
+    open_path(`/workbench/sessions/${session_id}`)
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: '恢复会话' }))
+    fireEvent.click(screen.getByRole('button', { name: '确认恢复' }))
+
+    expect(await screen.findByText('会话已恢复')).toBeInTheDocument()
+    expect(within(screen.getByRole('main')).getByRole('textbox')).toBeInTheDocument()
+    await new Promise((resolve) => window.setTimeout(resolve, 100))
+    expect(automatic_posts).toBe(0)
   })
 
   it('从服务中心服务目录发起只读调查，进入对应会话', async () => {

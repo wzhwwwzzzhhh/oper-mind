@@ -13,6 +13,7 @@ import pytest
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
+from src.domain.actions import ActionEventData, ActionEventType, ActionProposalData
 from src.domain.diagnosis import DiagnosisSeverity, MessageRole, RunEventType, RunStatus, SessionStatus
 from src.domain.records import (
     DiagnosisResultData,
@@ -21,6 +22,10 @@ from src.domain.records import (
     RunEventData,
     RunIdempotencyKeyData,
     SessionData,
+)
+from src.infrastructure.persistence.action_repositories import (
+    SqlAlchemyActionEventRepository,
+    SqlAlchemyActionProposalRepository,
 )
 from src.infrastructure.persistence.database import create_persistence_runtime
 from src.infrastructure.persistence.models import SessionRecord
@@ -191,6 +196,105 @@ def test_repositories_六类对象可staged_add并读取(repository_session: Ses
     ) == idempotency_data
 
 
+def test_session恢复保留服务提案与审计关联且不新增事件(repository_session: Session) -> None:
+    """Session 单表恢复不得改写服务关联、提案或 Run/Action 审计事件。"""
+    session_repository = SqlAlchemySessionRepository(repository_session)
+    message_repository = SqlAlchemyMessageRepository(repository_session)
+    run_repository = SqlAlchemyDiagnosisRunRepository(repository_session)
+    run_event_repository = SqlAlchemyRunEventRepository(repository_session)
+    proposal_repository = SqlAlchemyActionProposalRepository(repository_session)
+    action_event_repository = SqlAlchemyActionEventRepository(repository_session)
+    session_data = SessionData(
+        id=_uuid(200),
+        title="完整关联恢复",
+        service_id="postgres-production",
+        service_ids=("postgres-production", "redis-production"),
+        created_at=_time(1),
+        updated_at=_time(1),
+    )
+    session_repository.add(session_data)
+    repository_session.flush()
+    message = MessageData(
+        id=_uuid(201),
+        session_id=session_data.id,
+        role=MessageRole.USER,
+        content="检查完整关联",
+        created_at=_time(2),
+    )
+    message_repository.add(message)
+    repository_session.flush()
+    run = DiagnosisRunData(
+        id=_uuid(202),
+        session_id=session_data.id,
+        trace_id=_uuid(203),
+        input_message_id=message.id,
+        service_id="postgres-production",
+        status=RunStatus.SUCCEEDED,
+        created_at=_time(3),
+        finished_at=_time(4),
+    )
+    run_repository.add(run)
+    repository_session.flush()
+    run_event = RunEventData(
+        id=_uuid(204),
+        run_id=run.id,
+        sequence=1,
+        type=RunEventType.RUN_SUCCEEDED,
+        occurred_at=_time(4),
+        data={"summary": "调查完成"},
+    )
+    run_event_repository.add(run_event)
+    proposal = ActionProposalData(
+        id=_uuid(205),
+        source_run_id=run.id,
+        action_id="controlled.test.action",
+        action_digest="a" * 64,
+        mode="mock",
+        title="固定测试提案",
+        description="验证恢复不改变提案关联。",
+        target={"service_id": "postgres-production"},
+        root_cause_id=_uuid(206),
+        evidence_ids=[_uuid(207), _uuid(208), _uuid(209)],
+        risk_summary="仅验证应用元数据。",
+        verification_plan=["确认关联保持"],
+        created_at=_time(5),
+        updated_at=_time(5),
+    )
+    proposal_repository.add(proposal)
+    repository_session.flush()
+    action_event = ActionEventData(
+        id=_uuid(210),
+        proposal_id=proposal.id,
+        sequence=1,
+        type=ActionEventType.PROPOSAL_CREATED,
+        occurred_at=_time(6),
+        data={"summary": "已生成测试提案"},
+    )
+    action_event_repository.add(action_event)
+    repository_session.flush()
+
+    archived = session_data.model_copy(
+        update={"status": SessionStatus.ARCHIVED, "archived_at": _time(7), "updated_at": _time(7)}
+    )
+    assert session_repository.save(archived) is True
+    repository_session.flush()
+    before_run_events = run_event_repository.list_by_run(run.id, cursor=None, limit=10).items
+    before_action_events = action_event_repository.list_by_proposal(proposal.id, cursor=None, limit=10).items
+
+    assert session_repository.restore(session_data.id, _time(8)) is True
+    repository_session.flush()
+
+    restored = session_repository.get_by_id(session_data.id)
+    assert restored is not None
+    assert restored.service_id == session_data.service_id
+    assert restored.service_ids == session_data.service_ids
+    assert message_repository.get_by_id(message.id) == message
+    assert run_repository.get_by_id(run.id) == run
+    assert proposal_repository.get_by_source_run_id(run.id) == proposal
+    assert run_event_repository.list_by_run(run.id, cursor=None, limit=10).items == before_run_events
+    assert action_event_repository.list_by_proposal(proposal.id, cursor=None, limit=10).items == before_action_events
+
+
 def test_session_message_run_event分页遵循固定排序(repository_session: Session) -> None:
     """四类列表查询以 P0.3/P2.1 固定顺序和复合 cursor 读取 limit + 1。"""
     session_repository = SqlAlchemySessionRepository(repository_session)
@@ -220,6 +324,26 @@ def test_session_message_run_event分页遵循固定排序(repository_session: S
     assert [item.id for item in second_sessions.items] == [session_one.id]
     assert second_sessions.has_more is False
     assert session_repository.list_page(cursor=None, limit=10, status=SessionStatus.ARCHIVED).items == [archived]
+
+    restored_at = _time(7)
+    assert session_repository.restore(archived.id, restored_at) is True
+    restored = session_repository.get_by_id(archived.id)
+    assert restored is not None
+    assert restored.status == SessionStatus.ACTIVE
+    assert restored.archived_at is None
+    assert restored.updated_at == restored_at
+    assert restored.title == archived.title
+    assert session_repository.restore(archived.id, _time(8)) is False
+    assert session_repository.get_by_id(archived.id) == restored
+
+    assert session_repository.touch_updated_at(archived.id, _time(6)) is True
+    assert session_repository.get_by_id(archived.id) == restored
+    assert session_repository.touch_updated_at(archived.id, _time(9)) is True
+    touched = session_repository.get_by_id(archived.id)
+    assert touched is not None
+    assert touched.status == SessionStatus.ACTIVE
+    assert touched.archived_at is None
+    assert touched.updated_at == _time(9)
 
     message_repository = SqlAlchemyMessageRepository(repository_session)
     message_one = MessageData(

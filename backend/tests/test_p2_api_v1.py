@@ -160,6 +160,21 @@ def test_v1_session资源分页更新归档与UTCZ序列化(v1_client: TestClien
     assert no_op.status_code == 200
     assert no_op.json()["session"]["updated_at"] == updated.json()["session"]["updated_at"]
 
+    accepted = v1_client.post(
+        f"/api/v1/sessions/{session_id}/runs",
+        headers=_run_headers(),
+        json={"query": "验证恢复保留调查关联"},
+    )
+    assert accepted.status_code == 202
+    run_id = accepted.json()["run"]["id"]
+    before_run_ids = [item["id"] for item in v1_client.get(f"/api/v1/sessions/{session_id}/runs").json()["items"]]
+    before_message_ids = [
+        item["id"] for item in v1_client.get(f"/api/v1/sessions/{session_id}/messages").json()["items"]
+    ]
+    before_event_sequences = [
+        item["sequence"] for item in v1_client.get(f"/api/v1/runs/{run_id}/events").json()["items"]
+    ]
+
     deleted = v1_client.delete(f"/api/v1/sessions/{session_id}")
     assert deleted.status_code == 204
     repeated = v1_client.delete(f"/api/v1/sessions/{session_id}")
@@ -172,6 +187,39 @@ def test_v1_session资源分页更新归档与UTCZ序列化(v1_client: TestClien
     )
     assert forbidden.status_code == 409
     assert forbidden.json()["error"]["code"] == "SESSION_ARCHIVED"
+
+    restored = v1_client.patch(f"/api/v1/sessions/{session_id}", json={"status": "active"})
+    assert restored.status_code == 200
+    restored_session = restored.json()["session"]
+    assert restored_session["id"] == session_id
+    assert restored_session["status"] == "active"
+    assert restored_session["archived_at"] is None
+    assert restored_session["title"] == "已改名"
+    assert [
+        item["id"] for item in v1_client.get(f"/api/v1/sessions/{session_id}/runs").json()["items"]
+    ] == before_run_ids
+    assert [
+        item["id"] for item in v1_client.get(f"/api/v1/sessions/{session_id}/messages").json()["items"]
+    ] == before_message_ids
+    assert [
+        item["sequence"] for item in v1_client.get(f"/api/v1/runs/{run_id}/events").json()["items"]
+    ] == before_event_sequences
+
+    restored_again = v1_client.patch(f"/api/v1/sessions/{session_id}", json={"status": "active"})
+    assert restored_again.status_code == 200
+    assert restored_again.json()["session"]["updated_at"] == restored_session["updated_at"]
+
+    assert v1_client.delete(f"/api/v1/sessions/{session_id}").status_code == 204
+    combined = v1_client.patch(
+        f"/api/v1/sessions/{session_id}",
+        json={"title": "不允许同步改名", "status": "active"},
+    )
+    assert combined.status_code == 409
+    assert combined.json()["error"]["code"] == "SESSION_ARCHIVED"
+
+    missing_restore = v1_client.patch(f"/api/v1/sessions/{uuid4()}", json={"status": "active"})
+    assert missing_restore.status_code == 404
+    assert missing_restore.json()["error"]["code"] == "SESSION_NOT_FOUND"
 
 
 def test_v1_run幂等后台执行事件和结构化结果(v1_client: TestClient) -> None:

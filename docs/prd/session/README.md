@@ -11,6 +11,7 @@
 | [P6-log-source-real.md](P6-log-source-real.md) | 日志真实源接入 | 完成 |
 | [P7-db-lock-connection-diagnostics.md](P7-db-lock-connection-diagnostics.md) | 数据库深度只读诊断——锁与连接池（慢查询深化第一切片） | 完成 |
 | [P8-workbench-loop-closure.md](P8-workbench-loop-closure.md) | 会话工作台闭环——独立消息、取消 Run 与全局提案列表 | 完成 |
+| [P8-session-lifecycle-management.md](P8-session-lifecycle-management.md) | 会话工作台生命周期闭环——归档浏览与恢复 | 完成 |
 | [P8-session-management.md](P8-session-management.md) | 会话管理——全局 Run 列表与会话搜索 | 完成 |
 | [P8-rerun-investigation.md](P8-rerun-investigation.md) | 调查重跑——重新生成并关联原 Run | 完成 |
 | [P8-message-edit-delete.md](P8-message-edit-delete.md) | 消息编辑与删除——会话消息更正 | 完成 |

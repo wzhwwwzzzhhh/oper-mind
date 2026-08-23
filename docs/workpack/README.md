@@ -20,12 +20,12 @@ docs/workpack/
 
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
-| （无活跃工作包） | | | | | |
 
 ## 已归档
 
 | 阶段 | 切片 | PR | 完成日期 |
 |---|---|---|---|
+| P8 | session-lifecycle-management | #97 | 2026-08-23 |
 | P8 | audit-export | #90 | 2026-08-15 |
 | P8 | model-usage-stats | #86 | 2026-08-15 |
 | P8 | message-edit-delete | #88 | 2026-08-15 |

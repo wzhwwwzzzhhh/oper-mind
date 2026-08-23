@@ -196,12 +196,10 @@ async function invalidate_session_queries(query_client: ReturnType<typeof useQue
 
 function RerunControls({
   investigation,
-  read_only,
   rerun_by,
   session_id,
 }: {
   investigation: ConversationInvestigation
-  read_only: boolean
   rerun_by: ReadonlyMap<string, string> | undefined
   session_id: string
 }): ReactElement {
@@ -222,17 +220,17 @@ function RerunControls({
         <UiText className="muted-note">重跑自 Run {investigation.rerun_of_run_id.slice(0, 8)}</UiText>
       )}
       {rerun_by_latest && <UiText className="muted-note">已被重跑为 Run {rerun_by_latest.slice(0, 8)}</UiText>}
-      {!read_only && terminal && (
+      {terminal && (
         <UiButton loading={rerun_mutation.isPending} onClick={rerun} type="primary">重新生成</UiButton>
       )}
-      {!read_only && terminal && rerun_mutation.isError && (
+      {terminal && rerun_mutation.isError && (
         <UiAlert description={safe_error(rerun_mutation.error).title} showIcon title="重新生成未完成" type="error" />
       )}
     </UiSpace>
   )
 }
 
-function InvestigationProcess({ investigation, read_only, session_id }: { investigation: ConversationInvestigation; read_only: boolean; session_id: string }): ReactElement {
+function InvestigationProcess({ investigation, session_id }: { investigation: ConversationInvestigation; session_id: string }): ReactElement {
   const query_client = useQueryClient()
   const [events, set_events] = useState<PersistedRunEvent[]>([])
   const [cancel_error, set_cancel_error] = useState<unknown>()
@@ -275,27 +273,25 @@ function InvestigationProcess({ investigation, read_only, session_id }: { invest
         events={events}
         running={is_live}
       />
-      {!read_only && is_live && (
+      {is_live && (
         <UiSpace wrap className="investigation-process-actions">
           <UiButton danger disabled={cancel_mutation.isPending} loading={cancel_mutation.isPending} onClick={() => cancel_mutation.mutate(investigation.id)}>
             停止调查
           </UiButton>
         </UiSpace>
       )}
-      {!read_only && cancel_mutation.isError && <UiAlert description={safe_error(cancel_error).title} showIcon title="停止调查未完成" type="error" />}
+      {cancel_mutation.isError && <UiAlert description={safe_error(cancel_error).title} showIcon title="停止调查未完成" type="error" />}
     </div>
   )
 }
 function AssistantReply({
   investigation,
   output,
-  read_only,
   rerun_by,
   session_id,
 }: {
   investigation: ConversationInvestigation
   output?: ConversationMessage
-  read_only: boolean
   rerun_by?: ReadonlyMap<string, string>
   session_id: string
 }): ReactElement {
@@ -312,7 +308,7 @@ function AssistantReply({
           <span className="meta-pill blue">工具调用</span>
           {output && <span>{output.created_at}</span>}
         </div>
-        <InvestigationProcess investigation={investigation} read_only={read_only} session_id={session_id} />
+        <InvestigationProcess investigation={investigation} session_id={session_id} />
         {output && <div className="bubble">{output.content}</div>}
         {!output && (
           <UiAlert
@@ -328,7 +324,7 @@ function AssistantReply({
             items={[{
               key: 'result',
               label: '展开结论、证据与建议',
-              children: <UiSpace direction="vertical" size="middle" style={{ width: '100%' }}><DiagnosisResultPanel result={result_read.result} /><ActionProposalPanel read_only={read_only} run_id={investigation.id} /></UiSpace>,
+              children: <UiSpace direction="vertical" size="middle" style={{ width: '100%' }}><DiagnosisResultPanel result={result_read.result} /><ActionProposalPanel run_id={investigation.id} /></UiSpace>,
             }]}
           />
         ) : (
@@ -339,7 +335,7 @@ function AssistantReply({
             type="warning"
           />
         )}
-        <RerunControls investigation={investigation} read_only={read_only} rerun_by={rerun_by} session_id={session_id} />
+        <RerunControls investigation={investigation} rerun_by={rerun_by} session_id={session_id} />
       </div>
     )
   }
@@ -357,8 +353,8 @@ function AssistantReply({
           title={code ?? '调查未完成'}
           type="error"
         />
-        <InvestigationProcess investigation={investigation} read_only={read_only} session_id={session_id} />
-        <RerunControls investigation={investigation} read_only={read_only} rerun_by={rerun_by} session_id={session_id} />
+        <InvestigationProcess investigation={investigation} session_id={session_id} />
+        <RerunControls investigation={investigation} rerun_by={rerun_by} session_id={session_id} />
       </div>
     )
   }
@@ -368,7 +364,7 @@ function AssistantReply({
       <div className="message-body">
         <div className="message-label">OperMind · 调查已取消</div>
         <UiAlert description="可保留已保存的会话内容；当前不推断取消原因或继续执行。" showIcon title="调查已取消" type="warning" />
-        <RerunControls investigation={investigation} read_only={read_only} rerun_by={rerun_by} session_id={session_id} />
+        <RerunControls investigation={investigation} rerun_by={rerun_by} session_id={session_id} />
       </div>
     )
   }
@@ -380,8 +376,8 @@ function AssistantReply({
         <span className="meta-pill readonly"><span className="mini-dot" />只读调查</span>
         <span className="meta-pill blue">工具调用中</span>
       </div>
-      <InvestigationProcess investigation={investigation} read_only={read_only} session_id={session_id} />
-      <RerunControls investigation={investigation} read_only={read_only} rerun_by={rerun_by} session_id={session_id} />
+      <InvestigationProcess investigation={investigation} session_id={session_id} />
+      <RerunControls investigation={investigation} rerun_by={rerun_by} session_id={session_id} />
     </div>
   )
 }
@@ -544,7 +540,7 @@ function ConversationTurnCard({
           <div className="message-avatar">O</div>
           <div className="service-investigation-result">
             <div className="service-result-label">{service_result_title(investigation.service_id, services_by_id)}</div>
-            <AssistantReply investigation={investigation} output={output} read_only={read_only} rerun_by={rerun_by} session_id={session_id} />
+            <AssistantReply investigation={investigation} output={output} rerun_by={rerun_by} session_id={session_id} />
           </div>
         </Container>
         )
@@ -620,6 +616,17 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
   const session_is_fresh = session_query.isSuccess && session_query.isFetchedAfterMount && !session_query.isFetching
   const session_is_active = session_is_fresh
     && resource_string((session_query.data as ApiResponse<SessionResponse>).data.session, 'status', 'unknown') === 'active'
+  const automatic_submit_eligibility = useRef<{ allowed: boolean; session_id: string } | null>(null)
+  useEffect(() => {
+    if (!session_is_fresh || automatic_submit_eligibility.current?.session_id === session_id) return
+    const session = (session_query.data as ApiResponse<SessionResponse>).data.session
+    if (resource_optional_string(session, 'id') !== session_id) return
+    const status = resource_optional_string(session, 'status')
+    if (status !== 'active' && status !== 'archived') return
+    // 只有首次权威事实就是 active 的新会话导航才允许恢复欢迎页预写意图；
+    // archived → active 的人工恢复只重新开放录入控件，不自动创建 Message/Run。
+    automatic_submit_eligibility.current = { allowed: status === 'active', session_id }
+  }, [session_id, session_is_fresh, session_query.data])
   const services_query = useQuery({
     ...list_services_query(),
     enabled: Boolean(session_query.data && session_service_ids((session_query.data as ApiResponse<SessionResponse>).data.session).length > 0),
@@ -744,6 +751,8 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
   const auto_submit_attempted = useRef<string | null>(null)
   useEffect(() => {
     if (!session_query.isSuccess || !session_is_active || create_run.isPending) return
+    if (automatic_submit_eligibility.current?.session_id !== session_id
+      || !automatic_submit_eligibility.current.allowed) return
     if (!send_intent?.runs.some((run) => run.phase === 'acceptance_unknown')) return
     if (!send_intent.query.trim()) return
     // 仅自动提交"进会话前就写好"的意图，不处理用户在会话内新输入并发送的意图。
@@ -862,6 +871,8 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
   const pending_plain_attempted = useRef(false)
   useEffect(() => {
     if (!session_query.isSuccess || !session_is_active || send_plain.isPending || create_run.isPending) return
+    if (automatic_submit_eligibility.current?.session_id !== session_id
+      || !automatic_submit_eligibility.current.allowed) return
     const pending = storage ? load_pending_plain_message(storage, session_id) : undefined
     if (!pending || pending_plain_attempted.current) return
     pending_plain_attempted.current = true
@@ -881,7 +892,9 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
 
   const session = (session_query.data as ApiResponse<SessionResponse>).data.session
   const session_status = resource_string(session, 'status', 'unknown')
-  const session_action_status = session_is_fresh && session_status === 'active' ? 'active' : 'archived'
+  const session_action_status = !session_is_fresh
+    ? 'unknown'
+    : session_status === 'active' ? 'active' : 'archived'
   const session_title = resource_string(session, 'title', '未命名会话')
   const selected_session_service_ids = session_service_ids(session)
   const session_service_titles = selected_session_service_ids.map((service_id) => {
@@ -936,12 +949,12 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
         </div>
       )}
       {!session_is_fresh && (
-        <UiAlert className="session-status-refreshing" description="正在确认最新会话状态，暂不提供编辑、发送或归档操作。" showIcon title="正在刷新会话状态" type="info" />
+        <UiAlert className="session-status-refreshing" description="正在确认最新会话状态，暂不提供编辑、发送或生命周期操作。" showIcon title="正在刷新会话状态" type="info" />
       )}
       {session_status === 'archived' && (
-        <UiAlert className="archive-notice" description="会话已归档，仅可阅读历史内容；当前版本不支持恢复和编辑。" showIcon title="已归档会话" type="info" />
+        <UiAlert className="archive-notice" description="会话已归档；历史、Run、提案与导出仍可查看，可使用“恢复会话”重新开启消息与调查录入。" showIcon title="已归档会话" type="info" />
       )}
-      {prefilled_query && !send_intent && !has_idempotency_key_conflict && (
+      {can_send && prefilled_query && !send_intent && !has_idempotency_key_conflict && (
         <UiAlert
           className="investigation-send-notice"
           description="此会话从服务中心进入，预填问题尚未提交。你可以修改问题；只有点击发送后才会创建 Message 和 Run。"
@@ -988,7 +1001,7 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
           value={query}
         />
       )}
-      {send_intent?.runs.some((run) => run.phase === 'acceptance_unknown') && (
+      {can_send && send_intent?.runs.some((run) => run.phase === 'acceptance_unknown') && (
         <UiAlert
           className="investigation-send-notice"
           description="本次请求的受理结果尚未确认。请使用同一问题和同一幂等键重试，或刷新页面恢复；不要修改问题后盲目再次发送。"
@@ -997,7 +1010,7 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
           type="warning"
         />
       )}
-      {has_idempotency_key_conflict && (
+      {can_send && has_idempotency_key_conflict && (
         <UiAlert
           action={<UiButton onClick={discard_send_intent} type="link">丢弃当前发送意图</UiButton>}
           className="investigation-send-notice"

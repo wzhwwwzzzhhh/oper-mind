@@ -72,7 +72,7 @@ class AcceptedRun(BaseModel):
 
 
 class SessionApplicationService:
-    """Session 创建与逻辑归档用例。"""
+    """Session 创建、更新、逻辑归档与恢复用例。"""
 
     def __init__(self, session_factory: SessionFactory, registry: ServiceRegistry | None = None) -> None:
         self._session_factory = session_factory
@@ -108,15 +108,24 @@ class SessionApplicationService:
         )
 
     def update_session(self, command: UpdateSessionCommand) -> SessionData:
-        """在一个短事务内更新标题或逻辑归档，不允许重新激活。"""
+        """在一个短事务内更新标题、归档或幂等恢复会话。"""
 
         def operation(session: Session) -> SessionData:
             repository = SqlAlchemySessionRepository(session)
+            if command.status == SessionStatus.ACTIVE and command.title is None:
+                repository.restore(command.session_id, _utc_now())
+                restored = repository.get_by_id(command.session_id)
+                if restored is None:
+                    raise SessionNotFoundError()
+                if restored.status != SessionStatus.ACTIVE:
+                    raise SessionArchivedError("会话状态已变化，请刷新后重试。")
+                return restored
+
             current = repository.get_by_id(command.session_id)
             if current is None:
                 raise SessionNotFoundError()
             if command.status == SessionStatus.ACTIVE and current.status == SessionStatus.ARCHIVED:
-                raise SessionArchivedError("已归档会话不能重新激活。")
+                raise SessionArchivedError("请先恢复会话，再修改标题。")
 
             should_archive = command.status == SessionStatus.ARCHIVED
             if command.title is None and (
@@ -685,8 +694,7 @@ def _touch_session(
     session: SessionData | UUID,
     updated_at: datetime,
 ) -> None:
-    """在 Run 受理或终态写入时更新 Session 活动时间。"""
-    current = session if isinstance(session, SessionData) else repository.get_by_id(session)
-    if current is None:
+    """在 Run 受理或终态写入时单调更新 Session 活动时间。"""
+    session_id = session.id if isinstance(session, SessionData) else session
+    if not repository.touch_updated_at(session_id, updated_at):
         raise SessionNotFoundError()
-    repository.save(current.model_copy(update={"updated_at": updated_at}))
