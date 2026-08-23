@@ -892,14 +892,20 @@ export const api_v1_handlers = [
     const url = new URL(request.url)
     const cursor = url.searchParams.get('cursor')
     const q = url.searchParams.get('q')
+    const status = url.searchParams.get('status')
     if (cursor === 'empty-page') {
       return response(request, { items: [], page: { next_cursor: null, has_more: false } })
     }
     if (cursor === 'session-page-2') {
+      if (status === 'archived') {
+        return response(request, { items: [], page: { next_cursor: null, has_more: false } })
+      }
       return response(request, { items: [paged_active_session], page: { next_cursor: null, has_more: false } })
     }
-    const items = q ? [session].filter((item) => item.title.includes(q)) : [session]
-    return response(request, { items, page: { next_cursor: q ? null : 'session-page-2', has_more: !q } })
+    const source = status === 'archived' ? [archived_session] : [session]
+    const items = q ? source.filter((item) => item.title.includes(q)) : source
+    const has_more = !q && status !== 'archived'
+    return response(request, { items, page: { next_cursor: has_more ? 'session-page-2' : null, has_more } })
   }),
   http.get(/\/api\/v1\/sessions\/([^/]+)$/, ({ request }) => {
     const requested_session_id = new URL(request.url).pathname.split('/').at(-1)
@@ -910,7 +916,17 @@ export const api_v1_handlers = [
   }),
   http.patch(/\/api\/v1\/sessions\/([^/]+)$/, async ({ request }) => {
     const requested_session_id = new URL(request.url).pathname.split('/').at(-1)
-    const payload = await request.json() as { title?: unknown }
+    const payload = await request.json() as { status?: unknown; title?: unknown }
+    if (requested_session_id === archived_session_id && payload.status === 'active') {
+      return response(request, {
+        session: {
+          ...archived_session,
+          status: 'active',
+          archived_at: null,
+          updated_at: '2026-08-23T02:00:00.000Z',
+        },
+      })
+    }
     if (requested_session_id !== session_id) return error_response(request, 'SESSION_NOT_FOUND', '会话不存在', 404)
     if (typeof payload.title !== 'string' || payload.title.trim() === '') {
       return error_response(request, 'VALIDATION_ERROR', '会话标题不能为空', 422)

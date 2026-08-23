@@ -330,6 +330,44 @@
   background: var(--surface-muted);
 }
 
+.session-view-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  margin: 12px 0 8px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-muted);
+}
+
+.session-view-switch button {
+  min-height: 30px;
+  border: 0;
+  border-radius: 5px;
+  color: var(--text-muted);
+  background: transparent;
+  font-size: 12px;
+}
+
+.session-view-switch button.active,
+.session-view-switch button:focus-visible {
+  color: var(--accent);
+  background: var(--surface);
+  outline: none;
+  box-shadow: var(--shadow-subtle);
+}
+
+.session-lifecycle-notice {
+  margin: 8px 2px 0;
+  padding: 7px 9px;
+  border: 1px solid var(--success-border, #b8dac7);
+  border-radius: 6px;
+  color: var(--success, #246a43);
+  background: var(--success-soft, #edf8f1);
+  font-size: 12px;
+}
+
 .history-heading {
   display: flex;
   align-items: center;
@@ -383,6 +421,20 @@
   font-weight: 650;
 }
 
+.history-item > span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.archived-session-label {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
 .history-item-row {
   position: relative;
   display: flex;
@@ -424,6 +476,39 @@
   color: var(--text);
   background: var(--surface-muted);
   outline: none;
+}
+
+.session-actions--restore {
+  padding-right: 2px;
+}
+
+.session-actions__restore {
+  padding-inline: 5px !important;
+  font-size: 11px !important;
+  white-space: nowrap;
+}
+
+.history-load-more,
+.history-page-error button {
+  min-height: 30px;
+  border: 0;
+  color: var(--accent);
+  background: transparent;
+  font-size: 11px;
+}
+
+.history-load-more:disabled {
+  color: var(--text-muted);
+}
+
+.history-page-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 9px;
+  color: var(--danger, #a13d32);
+  font-size: 11px;
 }
 
 .session-actions__menu {

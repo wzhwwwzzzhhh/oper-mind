@@ -6,7 +6,8 @@ import os
 import subprocess
 import sys
 from collections.abc import Callable, Iterator
-from datetime import UTC, datetime
+from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -18,6 +19,7 @@ from src.application.contracts import (
     DiagnosisExecutionError,
     DiagnosisExecutionEvent,
     DiagnosisExecutionResult,
+    UpdateSessionCommand,
 )
 from src.application.errors import (
     IdempotencyKeyReusedError,
@@ -138,6 +140,105 @@ def test_session创建归档与归档后拒绝受理(persistence_runtime: Persis
         )
     with pytest.raises(SessionNotFoundError):
         session_service.archive_session(uuid4())
+
+
+def test_session恢复保持同一资源且重复恢复不更新时间(persistence_runtime: PersistenceRuntime) -> None:
+    """首次恢复清空 archived_at；重复恢复只观察 active 事实。"""
+    session_service = SessionApplicationService(persistence_runtime.session_factory)
+    created = session_service.create_session(CreateSessionCommand(title="需要恢复的会话"))
+    archived = session_service.archive_session(created.id)
+
+    restored = session_service.update_session(
+        UpdateSessionCommand(session_id=created.id, status=SessionStatus.ACTIVE)
+    )
+    repeated = session_service.update_session(
+        UpdateSessionCommand(session_id=created.id, status=SessionStatus.ACTIVE)
+    )
+
+    assert restored.id == created.id
+    assert restored.title == created.title
+    assert restored.status == SessionStatus.ACTIVE
+    assert restored.archived_at is None
+    assert restored.updated_at > archived.updated_at
+    assert repeated == restored
+
+    session_service.archive_session(created.id)
+    with pytest.raises(SessionArchivedError, match="先恢复"):
+        session_service.update_session(
+            UpdateSessionCommand(
+                session_id=created.id,
+                title="不允许同步改名",
+                status=SessionStatus.ACTIVE,
+            )
+        )
+
+
+def test_session并发恢复只有一次状态转换(persistence_runtime: PersistenceRuntime) -> None:
+    """并发恢复必须收敛到同一 active 资源，且只有 CAS 胜者更新时间。"""
+    session_service = SessionApplicationService(persistence_runtime.session_factory)
+    created = session_service.create_session(CreateSessionCommand(title="并发恢复会话"))
+    archived = session_service.archive_session(created.id)
+
+    def restore() -> tuple[UUID, SessionStatus, datetime]:
+        value = SessionApplicationService(persistence_runtime.session_factory).update_session(
+            UpdateSessionCommand(session_id=created.id, status=SessionStatus.ACTIVE)
+        )
+        return value.id, value.status, value.updated_at
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda _: restore(), range(2)))
+
+    assert {result[0] for result in results} == {created.id}
+    assert {result[1] for result in results} == {SessionStatus.ACTIVE}
+    assert len({result[2] for result in results}) == 1
+    assert results[0][2] > archived.updated_at
+
+
+def test_session恢复后旧时间触碰不能回退状态或时间(persistence_runtime: PersistenceRuntime) -> None:
+    """延迟事务只能单调推进 updated_at，不能用旧归档对象覆盖恢复事实。"""
+    session_service = SessionApplicationService(persistence_runtime.session_factory)
+    created = session_service.create_session(CreateSessionCommand(title="防旧写覆盖会话"))
+    archived = session_service.archive_session(created.id)
+    restored = session_service.update_session(
+        UpdateSessionCommand(session_id=created.id, status=SessionStatus.ACTIVE)
+    )
+
+    db_session = persistence_runtime.session_factory()
+    try:
+        repository = SqlAlchemySessionRepository(db_session)
+        assert repository.touch_updated_at(created.id, archived.updated_at) is True
+        db_session.commit()
+        current = repository.get_by_id(created.id)
+        assert current is not None
+        assert current.status == SessionStatus.ACTIVE
+        assert current.archived_at is None
+        assert current.updated_at == restored.updated_at
+    finally:
+        db_session.close()
+
+
+def test_session较晚活动先提交时较早恢复时间不能回退(persistence_runtime: PersistenceRuntime) -> None:
+    """CAS 恢复本身也须单调更新时间，覆盖 touch 先提交的反向交错。"""
+    session_service = SessionApplicationService(persistence_runtime.session_factory)
+    created = session_service.create_session(CreateSessionCommand(title="恢复时间单调会话"))
+    archived = session_service.archive_session(created.id)
+    restore_time = archived.updated_at + timedelta(seconds=1)
+    later_activity_time = restore_time + timedelta(seconds=1)
+
+    db_session = persistence_runtime.session_factory()
+    try:
+        repository = SqlAlchemySessionRepository(db_session)
+        assert repository.touch_updated_at(created.id, later_activity_time) is True
+        db_session.commit()
+        assert repository.restore(created.id, restore_time) is True
+        db_session.commit()
+        restored = repository.get_by_id(created.id)
+        assert restored is not None
+        assert restored.status == SessionStatus.ACTIVE
+        assert restored.archived_at is None
+        assert restored.updated_at == later_activity_time
+    finally:
+        db_session.close()
 
 
 def test_run受理幂等重放冲突与受理事务(persistence_runtime: PersistenceRuntime) -> None:

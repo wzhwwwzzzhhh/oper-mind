@@ -66,8 +66,28 @@ describe('Sidebar 会话搜索与 Ctrl K', () => {
 
     fireEvent.keyDown(search_box, { key: 'Escape' })
 
-    expect(await screen.findByText('最近会话')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: '最近会话', pressed: true })).toBeInTheDocument()
     expect(screen.getByText('Nginx 5xx 排查')).toBeInTheDocument()
+  })
+
+  it('在 debounce 到期前清空不会让旧关键词回写', async () => {
+    const queries: Array<string | null> = []
+    server.use(
+      http.get(/\/api\/v1\/sessions$/, ({ request }) => {
+        queries.push(new URL(request.url).searchParams.get('q'))
+        return response(request, { items: [], page: { next_cursor: null, has_more: false } })
+      }),
+    )
+    open_workbench()
+    render(<App />)
+
+    const search_box = await screen.findByRole('textbox', { name: '搜索会话' })
+    fireEvent.change(search_box, { target: { value: '不应回写' } })
+    fireEvent.click(screen.getByRole('button', { name: '清空搜索' }))
+    await new Promise((resolve) => window.setTimeout(resolve, 400))
+
+    expect(search_box).toHaveValue('')
+    expect(queries).not.toContain('不应回写')
   })
 
   it('提供最近调查入口并跳转', async () => {
@@ -77,6 +97,100 @@ describe('Sidebar 会话搜索与 Ctrl K', () => {
     fireEvent.click(await screen.findByRole('button', { name: '最近调查' }))
 
     expect(window.location.pathname).toBe('/workbench/runs')
+  })
+
+  it('切换已归档视图后只请求并展示 archived 会话', async () => {
+    const statuses: Array<string | null> = []
+    server.use(
+      http.get(/\/api\/v1\/sessions$/, ({ request }) => {
+        const status = new URL(request.url).searchParams.get('status')
+        statuses.push(status)
+        const items = status === 'archived'
+          ? [{ id: '99999999-9999-4999-8999-999999999999', title: '历史故障复盘', status: 'archived' }]
+          : [{ id: '11111111-1111-4111-8111-111111111111', title: 'Nginx 5xx 排查', status: 'active' }]
+        return response(request, { items, page: { next_cursor: null, has_more: false } })
+      }),
+    )
+    open_workbench()
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: '已归档' }))
+
+    expect(await screen.findByText('历史故障复盘')).toBeInTheDocument()
+    expect(screen.getByText('已归档', { selector: 'small' })).toBeInTheDocument()
+    expect(statuses).toContain('archived')
+    expect(screen.queryByText('Nginx 5xx 排查')).not.toBeInTheDocument()
+  })
+
+  it('归档视图搜索无匹配时不回退 active 会话充数', async () => {
+    open_workbench()
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: '已归档' }))
+    const search_box = screen.getByRole('textbox', { name: '搜索会话' })
+    fireEvent.change(search_box, { target: { value: '不存在' } })
+
+    expect(await screen.findByText('无匹配归档会话')).toBeInTheDocument()
+    expect(screen.queryByText('Nginx 5xx 排查')).not.toBeInTheDocument()
+  })
+
+  it('归档视图按 cursor 加载下一页并保留已加载记录', async () => {
+    server.use(
+      http.get(/\/api\/v1\/sessions$/, ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get('cursor')
+        return cursor === 'archived-next'
+          ? response(request, {
+              items: [{ id: '88888888-8888-4888-8888-888888888888', title: '归档第二页', status: 'archived' }],
+              page: { next_cursor: null, has_more: false },
+            })
+          : response(request, {
+              items: [{ id: '99999999-9999-4999-8999-999999999999', title: '归档第一页', status: 'archived' }],
+              page: { next_cursor: 'archived-next', has_more: true },
+            })
+      }),
+    )
+    open_workbench()
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: '已归档' }))
+    expect(await screen.findByText('归档第一页')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '加载更多会话' }))
+
+    expect(await screen.findByText('归档第二页')).toBeInTheDocument()
+    expect(screen.getByText('归档第一页')).toBeInTheDocument()
+  })
+
+  it('归档下一页失败时保留首屏并允许重试', async () => {
+    let next_attempts = 0
+    server.use(
+      http.get(/\/api\/v1\/sessions$/, ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get('cursor')
+        if (cursor !== 'retry-next') {
+          return response(request, {
+            items: [{ id: '99999999-9999-4999-8999-999999999999', title: '保留的归档首屏', status: 'archived' }],
+            page: { next_cursor: 'retry-next', has_more: true },
+          })
+        }
+        next_attempts += 1
+        return next_attempts === 1
+          ? error_response(request, 'INTERNAL_ERROR', '暂时失败', 500)
+          : response(request, {
+              items: [{ id: '88888888-8888-4888-8888-888888888888', title: '重试后的下一页', status: 'archived' }],
+              page: { next_cursor: null, has_more: false },
+            })
+      }),
+    )
+    open_workbench()
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: '已归档' }))
+    fireEvent.click(await screen.findByRole('button', { name: '加载更多会话' }))
+    expect(await screen.findByText('加载更多失败')).toBeInTheDocument()
+    expect(screen.getByText('保留的归档首屏')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '重试' }))
+
+    expect(await screen.findByText('重试后的下一页')).toBeInTheDocument()
+    expect(next_attempts).toBe(2)
   })
 
   it('从会话侧栏重命名并调用 PATCH', async () => {

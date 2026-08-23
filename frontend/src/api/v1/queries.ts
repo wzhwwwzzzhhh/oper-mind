@@ -1,4 +1,4 @@
-import { mutationOptions, queryOptions } from '@tanstack/react-query'
+import { infiniteQueryOptions, mutationOptions, queryOptions } from '@tanstack/react-query'
 
 import {
   API_V1_DEFAULT_PAGE_SIZE,
@@ -154,6 +154,25 @@ export function list_sessions_query(query: ListSessionsQuery = {}) {
   return queryOptions({
     queryKey: api_v1_query_keys.sessions(query),
     queryFn: ({ signal }) => api_v1_client.list_sessions(query, { signal }),
+  })
+}
+
+export function list_sessions_infinite_query(query: Omit<ListSessionsQuery, 'cursor'> = {}) {
+  return infiniteQueryOptions({
+    queryKey: api_v1_query_keys.sessions(query),
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam, signal }) => api_v1_client.list_sessions(
+      { ...query, cursor: pageParam },
+      { signal },
+    ),
+    getNextPageParam: (last_page) => {
+      const page = last_page.data.page
+      if (!page || typeof page !== 'object') return undefined
+      const record = page as Record<string, unknown>
+      return record.has_more === true && typeof record.next_cursor === 'string'
+        ? record.next_cursor
+        : undefined
+    },
   })
 }
 

@@ -34,13 +34,20 @@ class SessionRepository(Protocol):
     def save(self, session: SessionData) -> bool:
         """保存已有会话，返回是否找到目标记录，不提交。"""
 
+    def restore(self, session_id: UUID, restored_at: datetime) -> bool:
+        """仅当会话已归档时原子恢复，返回是否完成状态转换，不提交。"""
+
+    def touch_updated_at(self, session_id: UUID, updated_at: datetime) -> bool:
+        """仅单调更新会话活动时间，返回是否找到目标记录，不提交。"""
+
     def list_page(
         self,
         cursor: SessionCursor | None,
         limit: int,
         status: SessionStatus | None = None,
+        q: str | None = None,
     ) -> RepositoryPage[SessionData, SessionCursor]:
-        """按更新时间倒序读取会话页。"""
+        """按更新时间倒序读取会话页，可按状态和标题关键词过滤。"""
 
 
 class MessageRepository(Protocol):

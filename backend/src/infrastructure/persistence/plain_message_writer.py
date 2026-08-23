@@ -61,9 +61,8 @@ class SqlAlchemyPlainMessageWriter:
             )
             message_repository.add(user_message)
             message_repository.add(assistant_message)
-            session_repository.save(
-                session_data.model_copy(update={"updated_at": assistant_message.created_at})
-            )
+            if not session_repository.touch_updated_at(session_id, assistant_message.created_at):
+                raise SessionNotFoundError()
             session.commit()
             return user_message, assistant_message
         except Exception:

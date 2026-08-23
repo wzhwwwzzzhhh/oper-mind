@@ -1143,7 +1143,7 @@ def update_session(
     response: Response,
     services: V1Services = Depends(get_v1_services),
 ) -> SessionResponse:
-    """更新标题或逻辑归档 Session；已归档记录不能重新激活。"""
+    """更新标题、逻辑归档或幂等恢复 Session。"""
     try:
         value = services.session_service.update_session(
             UpdateSessionCommand(

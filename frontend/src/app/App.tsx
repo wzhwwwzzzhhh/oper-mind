@@ -10,6 +10,7 @@ import { ModelSettingsPage } from '../features/models/ModelSettingsPage'
 import { AuditPage } from '../features/audit/AuditPage'
 import { ApprovalDetailPage, ApprovalsPage } from '../features/approvals/ApprovalsPage'
 import { RunsPage } from '../features/runs/RunsPage'
+import { SessionNavigationProvider } from '../features/session/SessionNavigationContext'
 import { GlobalNav } from '../features/shell/GlobalNav'
 import { ServiceContextNav } from '../features/shell/ServiceContextNav'
 import { Sidebar } from '../features/shell/Sidebar'
@@ -36,22 +37,24 @@ function ProductShell(): ReactElement {
   }
 
   return (
-    <div className={`app-shell${is_operations ? ' mode-service' : ' mode-chat'}`}>
-      <GlobalNav />
-      {/* 第二栏：随模式切换（会话侧栏 / 服务中心上下文） */}
-      {is_operations ? <ServiceContextNav /> : <Sidebar collapsed={sidebar_collapsed} on_collapse={() => set_sidebar_collapsed((value) => !value)} />}
-      <main className="workspace">
-        <TopBar
-          on_theme={() => set_theme_modal_open(true)}
-          on_share={() => show_toast('分享链接功能将在接入权限系统后启用')}
-        />
-        <div className="main-scroll">
-          <Outlet />
-        </div>
-      </main>
-      <ThemeModal on_close={() => set_theme_modal_open(false)} open={theme_modal_open} />
-      {toast && <div className="toast show">{toast}</div>}
-    </div>
+    <SessionNavigationProvider>
+      <div className={`app-shell${is_operations ? ' mode-service' : ' mode-chat'}`}>
+        <GlobalNav />
+        {/* 第二栏：随模式切换（会话侧栏 / 服务中心上下文） */}
+        {is_operations ? <ServiceContextNav /> : <Sidebar collapsed={sidebar_collapsed} on_collapse={() => set_sidebar_collapsed((value) => !value)} />}
+        <main className="workspace">
+          <TopBar
+            on_theme={() => set_theme_modal_open(true)}
+            on_share={() => show_toast('分享链接功能将在接入权限系统后启用')}
+          />
+          <div className="main-scroll">
+            <Outlet />
+          </div>
+        </main>
+        <ThemeModal on_close={() => set_theme_modal_open(false)} open={theme_modal_open} />
+        {toast && <div className="toast show">{toast}</div>}
+      </div>
+    </SessionNavigationProvider>
   )
 }
 

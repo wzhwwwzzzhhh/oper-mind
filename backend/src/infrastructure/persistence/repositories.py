@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from typing import overload
 from uuid import UUID
 
-from sqlalchemy import RowMapping, Select, and_, or_, select, update
+from sqlalchemy import RowMapping, Select, and_, case, or_, select, update
 from sqlalchemy.orm import Session
 
 from src.domain.diagnosis import DiagnosisSeverity, MessageRole, RunEventType, RunStatus, SessionStatus
@@ -116,7 +116,11 @@ class SqlAlchemySessionRepository:
 
     def get_by_id(self, session_id: UUID) -> SessionData | None:
         """按主键读取会话。"""
-        record = self._session.get(SessionRecord, session_id)
+        record = self._session.scalar(
+            select(SessionRecord)
+            .where(SessionRecord.id == session_id)
+            .execution_options(populate_existing=True)
+        )
         return self._session_data(record) if record is not None else None
 
     def save(self, session: SessionData) -> bool:
@@ -132,6 +136,41 @@ class SqlAlchemySessionRepository:
         record.updated_at = session.updated_at
         record.archived_at = session.archived_at
         return True
+
+    def restore(self, session_id: UUID, restored_at: datetime) -> bool:
+        """以条件更新原子恢复会话；只有首次 archived → active 会更新时间。"""
+        result = self._session.execute(
+            update(SessionRecord)
+            .where(
+                SessionRecord.id == session_id,
+                SessionRecord.status == SessionStatus.ARCHIVED.value,
+            )
+            .values(
+                status=SessionStatus.ACTIVE.value,
+                archived_at=None,
+                updated_at=case(
+                    (SessionRecord.updated_at < restored_at, restored_at),
+                    else_=SessionRecord.updated_at,
+                ),
+            )
+            .execution_options(synchronize_session=False)
+        )
+        return _rowcount(result) == 1
+
+    def touch_updated_at(self, session_id: UUID, updated_at: datetime) -> bool:
+        """只更新活动时间且保持单调，禁止旧 Session 快照覆盖生命周期字段。"""
+        result = self._session.execute(
+            update(SessionRecord)
+            .where(SessionRecord.id == session_id)
+            .values(
+                updated_at=case(
+                    (SessionRecord.updated_at < updated_at, updated_at),
+                    else_=SessionRecord.updated_at,
+                )
+            )
+            .execution_options(synchronize_session=False)
+        )
+        return _rowcount(result) == 1
 
     def list_page(
         self,
