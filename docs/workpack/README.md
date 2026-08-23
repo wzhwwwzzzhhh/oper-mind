@@ -20,7 +20,7 @@ docs/workpack/
 
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
-| P8 | session-lifecycle-management | 终审 PASS，待提交/交付 | [plan](P8-session-lifecycle-management/plan.md) | [review](P8-session-lifecycle-management/review.md) | [evidence](P8-session-lifecycle-management/evidence.md) |
+| P8 | session-lifecycle-management | PR #97 CI 通过，待合并 | [plan](P8-session-lifecycle-management/plan.md) | [review](P8-session-lifecycle-management/review.md) | [evidence](P8-session-lifecycle-management/evidence.md) |
 
 ## 已归档
 
