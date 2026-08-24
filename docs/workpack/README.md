@@ -20,12 +20,12 @@ docs/workpack/
 
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
-| 完善 | shell-honesty（issue #103 壳层诚实化） | 开发中 | [plan.md](完善-shell-honesty/plan.md) | [review.md](完善-shell-honesty/review.md) | [evidence.md](完善-shell-honesty/evidence.md) |
 
 ## 已归档
 
 | 阶段 | 切片 | PR | 完成日期 |
 |---|---|---|---|
+| 完善 | shell-honesty（issue #103 壳层诚实化） | #106 | 2026-08-24 |
 | P8 | agent-runtime-truthfulness-evaluation | #99 | 2026-08-23 |
 | P8 | session-lifecycle-management | #97 | 2026-08-23 |
 | P8 | audit-export | #90 | 2026-08-15 |
