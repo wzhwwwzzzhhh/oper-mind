@@ -22,4 +22,27 @@ describe('WelcomePanel', () => {
 
     expect(on_service_change).toHaveBeenCalledWith(['postgres-production'])
   })
+
+  it('服务数如实展示"已接入"（注册口径），不再写"在线"', () => {
+    render(<WelcomePanel on_prompt={vi.fn()} service_count={2} />)
+
+    expect(screen.getByText('2 个服务已接入 · 默认只读调查')).toBeInTheDocument()
+    expect(screen.queryByText(/个服务在线/)).not.toBeInTheDocument()
+  })
+
+  it('没有传入服务数时默认 0，不写死 3', () => {
+    render(<WelcomePanel on_prompt={vi.fn()} />)
+
+    expect(screen.getByText('0 个服务已接入 · 默认只读调查')).toBeInTheDocument()
+  })
+
+  it('服务列表加载中/失败时如实展示，不冒充 0 个服务', () => {
+    const { rerender } = render(<WelcomePanel on_prompt={vi.fn()} services_loading />)
+    expect(screen.getByText('正在读取已接入服务… · 默认只读调查')).toBeInTheDocument()
+    expect(screen.queryByText(/个服务已接入/)).not.toBeInTheDocument()
+
+    rerender(<WelcomePanel on_prompt={vi.fn()} services_error />)
+    expect(screen.getByText('服务列表暂不可读 · 默认只读调查')).toBeInTheDocument()
+    expect(screen.getByText('服务列表暂不可读，稍后可重试')).toBeInTheDocument()
+  })
 })

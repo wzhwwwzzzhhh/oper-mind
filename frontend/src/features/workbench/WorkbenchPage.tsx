@@ -1085,6 +1085,8 @@ function ConversationHome(): ReactElement {
         selected_service_ids={selected_service_ids}
         service_count={service_count}
         services={services}
+        services_error={services_query.isError}
+        services_loading={services_query.isPending}
       />
       <Composer
         disabled={create_session.isPending}

@@ -54,12 +54,7 @@ export function Composer({ disabled, onSubmit, placeholder, value, onChange }: C
             value={value}
           />
           <div className="composer-tools">
-            <div className="tool-group">
-              <span className="context-strip">
-                <Icon className="context-strip__icon" name="shield" size={13} />
-                <span>默认只读调查</span>
-              </span>
-            </div>
+            {/* 不再写死"只读/服务"context-chip：服务上下文由父级真实渲染（会话工具栏/欢迎页/回答徽标）。 */}
             <button aria-label="发送" className={`send-btn${ready ? ' ready' : ''}`} disabled={disabled} onClick={submit} type="button">
               <Icon name="send" size={16} />
             </button>
