@@ -817,6 +817,20 @@
   color: var(--accent);
 }
 
+/* 生效模型只读标识：与 .top-action 同高，弱化展示，不是可点按钮。 */
+.effective-model {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  background: var(--surface-soft);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 /* 第三栏唯一的滚动容器：左侧图标轨和第二栏不随它一起动。
    both-edges 两侧都常留滚动条槽位：一是内容变长出现滚动条时正文不会左右跳，
    二是正文中线和固定在底部的输入区中线重合，输入区不会偏半个滚动条宽度。 */

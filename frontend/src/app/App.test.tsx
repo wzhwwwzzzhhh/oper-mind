@@ -128,6 +128,46 @@ describe('App', () => {
     expect(screen.getByLabelText('全局导航')).toBeInTheDocument()
   })
 
+  it('顶栏生效模型读后端真实配置，不再写死模型名', async () => {
+    render(<App />)
+
+    // 来自 MSW /api/v1/model/config 的真实返回：diagnostic-model · mock
+    expect(await screen.findByText(/生效模型 diagnostic-model · Mock/)).toBeInTheDocument()
+    expect(screen.queryByText(/OperMind-Reasoner/)).not.toBeInTheDocument()
+  })
+
+  it('顶栏在 real 不可用时如实标注暂不可用，不冒充真实调用', async () => {
+    server.use(
+      http.get('/api/v1/model/config', ({ request }) => response(request, {
+        config: {
+          mode: 'real',
+          mode_source: 'runtime',
+          mode_available: false,
+          mode_unavailable_reason: '无可用 Provider/API Key',
+          diagnostic_model: {
+            provider: 'mock.example',
+            base_url_host: 'mock.example',
+            model: 'diagnostic-model',
+            status: 'configured',
+          },
+          judge_model: null,
+          params: { temperature: null, max_tokens: null },
+          params_defaults: { temperature: 0.0, max_tokens: null },
+        },
+      })),
+    )
+    render(<App />)
+
+    expect(await screen.findByText(/生效模型 diagnostic-model · 真实（暂不可用）/)).toBeInTheDocument()
+  })
+
+  it('欢迎页服务数如实展示"已接入"口径，不再写"在线"', async () => {
+    render(<App />)
+
+    expect(await screen.findByText(/个服务已接入 · 默认只读调查/)).toBeInTheDocument()
+    expect(screen.queryByText(/个服务在线/)).not.toBeInTheDocument()
+  })
+
   it('全局图标轨只放正式模块，服务监控不在这里重复一个入口', () => {
     render(<App />)
 
@@ -195,6 +235,8 @@ describe('App', () => {
     expect(screen.getByRole('textbox', { name: '调查问题' })).toBeInTheDocument()
     await waitFor(() => expect(request_paths).toEqual([
       `/api/v1/sessions`,
+      // 顶栏生效模型标识：壳层挂载即读取模型配置（只读）。
+      `/api/v1/model/config`,
       `/api/v1/sessions/${api_v1_contract_fixtures.session_id}`,
       `/api/v1/sessions/${api_v1_contract_fixtures.session_id}/runs`,
       `/api/v1/sessions/${api_v1_contract_fixtures.session_id}/messages`,
@@ -381,6 +423,8 @@ describe('App', () => {
     expect(await screen.findByLabelText('用户问题')).toBeInTheDocument()
     await waitFor(() => expect(request_paths).toEqual([
       `/api/v1/sessions`,
+      // 顶栏生效模型标识：壳层挂载即读取模型配置（只读）。
+      `/api/v1/model/config`,
       `/api/v1/sessions/${api_v1_contract_fixtures.session_id}`,
       `/api/v1/sessions/${api_v1_contract_fixtures.session_id}/runs`,
       `/api/v1/sessions/${api_v1_contract_fixtures.session_id}/messages`,
