@@ -291,10 +291,28 @@ def test_操作不存在Provider返回404(api_client: TestClient) -> None:
 
     assert api_client.put(f"/api/v1/model/providers/{missing}", json=_payload()).status_code == 404
     assert (
-        api_client.post(f"/api/v1/model/providers/{missing}/activate", json={"endpoint": "judge"}).status_code
+        api_client.post(
+            f"/api/v1/model/providers/{missing}/activate",
+            json={"endpoint": "diagnostic"},
+        ).status_code
         == 404
     )
     assert api_client.delete(f"/api/v1/model/providers/{missing}").status_code == 404
+
+
+def test_激活judge端点被拒绝(api_client: TestClient) -> None:
+    """独立裁判端点已收口为未启用（issue #104）：激活 judge 应返回 400 而非生效。"""
+    provider = _create_provider(api_client)
+
+    response = api_client.post(
+        f"/api/v1/model/providers/{provider['id']}/activate",
+        json={"endpoint": "judge"},
+    )
+
+    assert response.status_code == 400, response.text
+    body = response.json()
+    assert body["error"]["code"] == "JUDGE_ENDPOINT_NOT_ENABLED"
+    assert "未启用" in body["error"]["message"]
 
 
 def test_未提供幂等键创建被拒绝(api_client: TestClient) -> None:
@@ -522,3 +540,31 @@ def test_枚举为无副作用只读探测(api_client: TestClient, monkeypatch: 
     listed = api_client.get("/api/v1/model/providers").json()["items"][0]
     assert listed["verify_status"] == "unknown"
     assert listed["last_verified_at"] is None
+
+
+def test_存量judge激活Provider公开投影为未启用() -> None:
+    """存量 judge 激活行保留，但公开投影值收口为 null（issue #104，Design D7）。"""
+    from src.api.v1.resources import provider_resource
+    from src.domain.model_provider import ModelProviderData, ProviderEndpoint, VerifyStatus
+
+    legacy = ModelProviderData(
+        id=uuid4(),
+        name="Legacy Judge",
+        base_url="https://api.example.com/v1",
+        model="judge-model",
+        active_endpoint=ProviderEndpoint.JUDGE,
+        verify_status=VerifyStatus.UNKNOWN,
+    )
+    resource = provider_resource(legacy)
+
+    assert resource.active_endpoint is None
+
+    diagnostic = ModelProviderData(
+        id=uuid4(),
+        name="Diagnostic",
+        base_url="https://api.example.com/v1",
+        model="diag-model",
+        active_endpoint=ProviderEndpoint.DIAGNOSTIC,
+        verify_status=VerifyStatus.UNKNOWN,
+    )
+    assert provider_resource(diagnostic).active_endpoint == "diagnostic"

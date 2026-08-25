@@ -53,6 +53,7 @@
 | P8 | 知识文档列表分页——目录浏览容量化 | `knowledge/P8-knowledge-document-pagination.md` | 完成 |
 | P8 | 审计导出——审计活动留档与外部核验 | `audit/P8-audit-export.md` | 完成 |
 | P8 | Agent 运行真实性与评测基线 | `agent-runtime/P8-agent-runtime-truthfulness-evaluation.md` | 完成 |
+| 完善收口 | Judge Runtime 真实性与配置面收口 | `agent-runtime/judge-runtime-truthfulness.md` | 完成 |
 
 ## 执行 AI 如何使用
 - 拿到 PRD 后：只实现「范围」内能力，逐条过「验收标准」，达到「完成定义」。

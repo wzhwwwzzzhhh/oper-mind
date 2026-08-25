@@ -195,3 +195,10 @@ class SessionExportUnavailableError(ApplicationError):
 
     code = "EXPORT_UNAVAILABLE"
     message = "会话导出暂时不可用，请稍后重试。"
+
+
+class JudgeEndpointNotEnabledError(ApplicationError):
+    """独立裁判端点未启用：全系统无执行节点消费 judge，激活入口一并收口（issue #104）。"""
+
+    code = "JUDGE_ENDPOINT_NOT_ENABLED"
+    message = "独立裁判模型未接入执行链，judge 端点未启用；质量复核由主诊断模型承担。"

@@ -15,6 +15,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from src.application.errors import (
+    JudgeEndpointNotEnabledError,
     ProviderIdempotencyReusedError,
     ProviderNotFoundError,
     SecretKeyNotConfiguredError,
@@ -215,7 +216,13 @@ class ModelProviderApplicationService:
         return _with_mask(in_transaction(self._session_factory, operation), self._secret_key)
 
     def activate(self, command: ActivateModelProviderCommand) -> ModelProviderData:
-        """单事务原子替换：目标端点只保留当前激活 Provider。"""
+        """单事务原子替换：目标端点只保留当前激活 Provider。
+
+        独立裁判端点（judge）已收口为未启用（issue #104）：全系统无执行节点消费它，
+        不再接受新的 judge 激活；存量 judge 行保留但永不被叠加消费或展示为生效。
+        """
+        if command.endpoint is ProviderEndpoint.JUDGE:
+            raise JudgeEndpointNotEnabledError()
 
         def operation(session: Session) -> ModelProviderData:
             activated = SqlAlchemyModelProviderRepository(session).activate(command.provider_id, command.endpoint)
@@ -325,8 +332,9 @@ def resolve_model_config(
 ) -> dict[str, dict[str, str]]:
     """解析生效模型配置：DB 激活 Provider 优先，未激活时回退 env/YAML；永不 raise。
 
-    返回结构与 ``load_config()`` 一致（``llm`` / ``judge_llm`` 段），供会话链路与
-    ``GET /model/config`` 使用；配置缺失或应用库不可用时不抛错，由消费方诚实降级。
+    返回结构与 ``load_config()`` 一致（``llm`` 段生效；``judge_llm`` 已收口为未启用，
+    不再承载任何激活 Provider，issue #104），供会话链路与 ``GET /model/config`` 使用；
+    配置缺失或应用库不可用时不抛错，由消费方诚实降级。
     """
     try:
         config = load_config()
@@ -342,14 +350,13 @@ def resolve_model_config(
             session.close()
     except SQLAlchemyError:
         providers = []
-    for endpoint, section in (("diagnostic", "llm"), ("judge", "judge_llm")):
-        provider = next(
-            (provider for provider in providers if provider.active_endpoint is ProviderEndpoint(endpoint)),
-            None,
-        )
-        overlay = _resolved_provider_config(provider, secret_key)
-        if overlay is not None:
-            config[section] = overlay
+    provider = next(
+        (provider for provider in providers if provider.active_endpoint is ProviderEndpoint.DIAGNOSTIC),
+        None,
+    )
+    overlay = _resolved_provider_config(provider, secret_key)
+    if overlay is not None:
+        config["llm"] = overlay
     return config
 
 

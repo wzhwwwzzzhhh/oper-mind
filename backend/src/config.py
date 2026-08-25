@@ -11,13 +11,12 @@ from src.project_paths import CONFIG_DIR, DATA_DIR
 
 # 环境变量名 -> 配置段与字段名的映射。
 # 环境变量优先级高于 YAML，用于把密钥等敏感信息从配置文件中剥离。
+# 注意：独立裁判模型（OPERMIND_JUDGE_*）已收口为未启用（issue #104），
+# 全系统无任何执行节点消费 judge_llm，故不再提供对应环境变量入口。
 _ENV_TO_CONFIG_KEY = {
     "OPERMIND_API_KEY": ("llm", "api_key"),
     "OPERMIND_BASE_URL": ("llm", "base_url"),
     "OPERMIND_MODEL": ("llm", "model"),
-    "OPERMIND_JUDGE_API_KEY": ("judge_llm", "api_key"),
-    "OPERMIND_JUDGE_BASE_URL": ("judge_llm", "base_url"),
-    "OPERMIND_JUDGE_MODEL": ("judge_llm", "model"),
     "OPERMIND_APP_DATABASE_URL": ("persistence", "database_url"),
     "OPERMIND_PG_DSN": ("services", "pg_dsn"),
     "OPERMIND_MONITOR_SAMPLE_INTERVAL_SECONDS": ("monitoring", "sample_interval_seconds"),
@@ -44,7 +43,7 @@ def _load_yaml_config() -> dict:
 
 
 def _apply_env_overrides(config: dict) -> dict:
-    """用环境变量覆盖诊断、裁判与应用数据库配置。"""
+    """用环境变量覆盖诊断与应用数据库配置。"""
     for env_name, (section_name, field_name) in _ENV_TO_CONFIG_KEY.items():
         env_value = os.environ.get(env_name)
         if env_value is None:
@@ -77,14 +76,10 @@ def _require_llm_config(config: dict, section_name: str) -> None:
     )
 
 
-def load_config(require_judge_llm: bool = False) -> dict:
-    """加载模型配置；真实评测可要求独立的裁判模型配置。"""
+def load_config() -> dict:
+    """加载模型配置（仅诊断主模型）；独立裁判配置已收口为未启用，不再要求或读取。"""
     config = _apply_env_overrides(_load_yaml_config())
     _require_llm_config(config, "llm")
-
-    if require_judge_llm:
-        _require_llm_config(config, "judge_llm")
-
     return config
 
 DEFAULT_APP_DATABASE_URL = f"sqlite:///{(DATA_DIR / 'opermind.sqlite3').as_posix()}"

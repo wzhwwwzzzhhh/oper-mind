@@ -54,8 +54,15 @@ def api_client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[Test
     runtime.engine.dispose()
 
 
-def test_模型配置接口返回安全的诊断和裁判配置(api_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    """接口应只暴露配置事实，不暴露 API Key 或完整 URL。"""
+def test_模型配置接口返回安全的诊断配置且裁判恒未启用(
+    api_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """接口应只暴露配置事实，不暴露 API Key 或完整 URL。
+
+    独立裁判（judge_llm）已收口为未启用（issue #104）：即使设置 OPERMIND_JUDGE_*
+    环境变量，`judge_model` 也恒为 None（字段结构保留，值表达未启用）。
+    """
     monkeypatch.setenv("OPERMIND_JUDGE_API_KEY", "judge-secret")
     monkeypatch.setenv("OPERMIND_JUDGE_BASE_URL", "https://judge.example/v1")
     monkeypatch.setenv("OPERMIND_JUDGE_MODEL", "judge-model")
@@ -75,12 +82,7 @@ def test_模型配置接口返回安全的诊断和裁判配置(api_client: Test
             "model": "diagnostic-model",
             "status": "configured",
         },
-        "judge_model": {
-            "provider": "judge.example",
-            "base_url_host": "judge.example",
-            "model": "judge-model",
-            "status": "configured",
-        },
+        "judge_model": None,
         "params": {"temperature": None, "max_tokens": None},
         "params_defaults": {"temperature": 0.0, "max_tokens": None},
     }
@@ -92,11 +94,11 @@ def test_模型配置接口返回安全的诊断和裁判配置(api_client: Test
     assert "sk-" not in serialized
 
 
-def test_模型配置接口如实返回_mock模式和未配置裁判模型(
+def test_模型配置接口如实返回_mock模式和裁判未启用(
     api_client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """mock 模式和缺少裁判配置都应有明确安全空态。"""
+    """mock 模式与裁判未启用都应有明确安全空态（judge_model 恒为 None）。"""
     monkeypatch.setenv("OPERMIND_JUDGE_API_KEY", "")
     monkeypatch.setenv("OPERMIND_JUDGE_BASE_URL", "")
     monkeypatch.setenv("OPERMIND_JUDGE_MODEL", "")

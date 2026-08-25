@@ -73,8 +73,11 @@ class ReflectionEngine:
         return issues
 
     def _review_by_agent(self, report: str, agent) -> str | None:
-        """让一个 Agent 审核报告"""
-        # 简化实现：让 LLM 审核
+        """让一个 Agent 审核报告。
+
+        质量节点由主诊断模型承担（issue #104 收口确认，不接入独立裁判模型；
+        此处即主 llm，非"简化实现"占位）。
+        """
         prompt = f"""请审核以下诊断报告，检查：
 1. 结论是否有据可查
 2. 建议是否具体可行

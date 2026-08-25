@@ -220,14 +220,16 @@ def _effective_runtime() -> ModelRuntimeResolution:
 
 
 def _env_config_fallback() -> dict[str, dict[str, str]]:
-    """应用尚未装配时仅从环境变量读取健康检查所需字段。"""
+    """应用尚未装配时仅从环境变量读取健康检查所需字段。
+
+    独立裁判（judge_llm）已收口为未启用（issue #104），健康检查回退不再兜该字段。
+    """
     return {
         "llm": {
             "api_key": os.environ.get("OPERMIND_API_KEY", ""),
             "base_url": os.environ.get("OPERMIND_BASE_URL", ""),
             "model": os.environ.get("OPERMIND_MODEL", ""),
         },
-        "judge_llm": {},
     }
 
 

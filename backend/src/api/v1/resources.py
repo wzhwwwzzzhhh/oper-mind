@@ -56,7 +56,7 @@ from src.domain.actions import (
 from src.domain.audit import AuditActivityData
 from src.domain.diagnosis import RunStatus
 from src.domain.host_metrics import HostMetricsData
-from src.domain.model_provider import ModelProviderData
+from src.domain.model_provider import ModelProviderData, ProviderEndpoint
 from src.domain.monitoring import (
     MonitorHistoryData,
     MonitorOverviewData,
@@ -457,9 +457,16 @@ def monitor_threshold_resource(value: MonitorThresholdView) -> dict[str, object]
 
 
 def provider_resource(value: ModelProviderData) -> ModelProviderResource:
-    """把领域 Provider 转为公开资源，绝不暴露密文或明文 Key。"""
+    """把领域 Provider 转为公开资源，绝不暴露密文或明文 Key。
+
+    独立裁判端点（judge）已收口为未启用（issue #104）：存量 judge 行保留，
+    但公开投影一律值收口为 null（未启用），避免被误读为已生效；diagnostic 正常投影。
+    """
     if value.id is None:
         raise ValueError("已持久化的 Provider 缺少 id。")
+    active_endpoint = value.active_endpoint.value if value.active_endpoint is not None else None
+    if active_endpoint is ProviderEndpoint.JUDGE.value:
+        active_endpoint = None
     return ModelProviderResource(
         id=value.id,
         name=value.name,
@@ -467,7 +474,7 @@ def provider_resource(value: ModelProviderData) -> ModelProviderResource:
         model=value.model,
         has_api_key=value.has_api_key,
         masked_tail=value.masked_tail,
-        active_endpoint=value.active_endpoint.value if value.active_endpoint is not None else None,
+        active_endpoint=active_endpoint,
         verify_status=value.verify_status.value,
         last_verified_at=value.last_verified_at,
         verify_error_code=value.verify_error_code,

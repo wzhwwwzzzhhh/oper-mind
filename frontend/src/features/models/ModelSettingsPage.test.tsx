@@ -23,12 +23,23 @@ describe('ModelSettingsPage', () => {
     render(<App />)
 
     expect((await screen.findAllByText('diagnostic-model')).length).toBeGreaterThan(0)
-    expect(screen.getByText('未配置独立裁判模型')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '＋ 添加模型服务' })).toBeEnabled()
     expect(await screen.findByText('DeepSeek 生产')).toBeInTheDocument()
     expect(screen.getByText(/Key 已配置/)).toBeInTheDocument()
     expect(screen.getByText(/末 1234/)).toBeInTheDocument()
     expect(screen.queryByText(/sk-test/)).not.toBeInTheDocument()
+  })
+
+  it('不展示裁判误导：无裁判模型卡片、无设为裁判操作，并如实说明质量节点由主诊断模型承担', async () => {
+    open_models()
+    render(<App />)
+
+    expect(await screen.findByText('DeepSeek 生产')).toBeInTheDocument()
+    expect(screen.queryByText('裁判模型')).not.toBeInTheDocument()
+    expect(screen.queryByText('裁判生效')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '设为裁判' })).not.toBeInTheDocument()
+    expect(screen.getByText(/质量复核（Debate \/ Reflection）由主诊断模型承担/)).toBeInTheDocument()
+    expect(screen.getByText(/不接入独立裁判模型/)).toBeInTheDocument()
   })
 
   it('打开添加表单并保存 Provider', async () => {

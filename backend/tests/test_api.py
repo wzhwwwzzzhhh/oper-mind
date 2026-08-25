@@ -82,7 +82,8 @@ def test_未装配时环境变量回退可用(monkeypatch: pytest.MonkeyPatch) -
     config = api_module._env_config_fallback()
 
     assert config["llm"] == {"api_key": "mock", "base_url": "http://mock", "model": "mock"}
-    assert config["judge_llm"] == {}
+    # 独立裁判（judge_llm）已收口为未启用（issue #104），健康检查回退不再兜该字段。
+    assert "judge_llm" not in config
 
 
 def test_模式判定在空密钥下不抛异常(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -6,3 +6,4 @@
 | PRD | 主题 | 状态 |
 |---|---|---|
 | [P8-agent-runtime-truthfulness-evaluation.md](P8-agent-runtime-truthfulness-evaluation.md) | Agent 运行真实性与评测基线 | 完成 |
+| [judge-runtime-truthfulness.md](judge-runtime-truthfulness.md) | Judge Runtime 真实性与配置面收口 | 完成 |

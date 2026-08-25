@@ -1,6 +1,7 @@
 """v1 API 的依赖装配。
 
-诊断执行统一走多 Agent 内核（Coordinator）；审批闭环保留为通用骨架，
+诊断执行统一走多 Agent 内核（Coordinator）；审批闭环经受控动作执行器装配
+（``action_mode=target`` 时挂接 PostgresTargetActionExecutor 白名单执行）；
 服务中心通过显式依赖装配注册已确认的只读服务 Connector。
 """
 
@@ -138,7 +139,8 @@ def build_v1_services_for_runtime(
     """用给定 Runtime 构造服务，供临时库测试安全替换。
 
     诊断执行固定使用多 Agent 内核（每 Run 现造）；结果用 KernelReportResultAssembler，
-    报告作答复、结构化字段保守留空。审批执行器仍为空骨架，服务注册表显式装配已确认的
+    报告作答复、结构化字段保守留空。审批执行器已实现为受控动作执行器（提案 → 审批 →
+    白名单执行，`action_mode=target` 时挂接靶场执行器），服务注册表显式装配已确认的
     硬编码 Connector，并可选加载已落库动态注册服务（registry_loader 注入，避免装配直连库）。
     """
     session_factory = runtime.session_factory

@@ -44,13 +44,14 @@ class DebateArena:
 
         # 1. 列出分歧点
         self.debate_log.append("\n--- 分歧点 ---")
-        # (简化实现：后续替换为 LLM 分析)
+        # 分歧点由各方结论的差异直接体现（确定性步骤，无需 LLM 分析）
 
         # 2. 收集各方观点
         for agent, conclusion in conclusions.items():
             self.debate_log.append(f"\n{agent} 的观点:\n{conclusion[:200]}")
 
-        # 3. LLM 裁决（简化实现）
+        # 3. LLM 裁决：质量节点由主诊断模型承担（issue #104 收口确认，
+        #    不接入独立裁判模型；此处即主 llm，非"简化实现"占位）
         consensus = self._judge(question, conclusions)
         self.debate_log.append(f"\n--- 裁决结果 ---\n{consensus}")
 
