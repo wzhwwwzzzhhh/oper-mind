@@ -63,7 +63,8 @@ function format_cost(value: number): string {
 
 function endpoint_label(endpoint: ModelProviderResource['active_endpoint']): string | null {
   if (endpoint === 'diagnostic') return '诊断生效'
-  if (endpoint === 'judge') return '裁判生效'
+  // 独立裁判（judge）已收口为未启用（issue #104）：后端对存量 judge 行投影为 null，
+  // 历史值同样按"未启用"处理（返回 null，与后端投影语义一致，绝不显示"裁判生效"）。
   return null
 }
 
@@ -287,7 +288,6 @@ export function ModelSettingsPage(): ReactElement {
 
   const config = model_config_query.data?.data.config
   const diagnostic = config?.diagnostic_model
-  const judge = config?.judge_model
   const providers = providers_query.data?.data.items ?? []
   const saving = create_mutation.isPending || update_mutation.isPending
 
@@ -318,7 +318,6 @@ export function ModelSettingsPage(): ReactElement {
 
       <section className="model-summary">
         <article><small>诊断模型</small><strong>{diagnostic?.model ?? '未配置'}</strong><span>{diagnostic ? diagnostic.provider : '后端未返回配置'}</span></article>
-        <article><small>裁判模型</small><strong>{judge?.model ?? '未配置'}</strong><span>{judge ? judge.provider : '未配置独立裁判模型'}</span></article>
         <article><small>运行模式</small><strong>{config == null ? '未知' : config.mode === 'mock' ? 'Mock' : '真实调用'}</strong><span>{config == null ? '后端未返回配置' : config.mode === 'mock' ? '返回确定性样例，不出网' : '按生效 Provider 真实调用'}</span></article>
         <article><small>已配置 Provider</small><strong>{providers_query.isSuccess ? providers.length : '—'} <em>个</em></strong><span>{providers_query.isSuccess ? '来自后端安全视图' : '尚未读取到列表'}</span></article>
       </section>
@@ -436,12 +435,11 @@ export function ModelSettingsPage(): ReactElement {
             <div className="provider-meta">
               <small>生效状态</small>
               <b className={`provider-state ${endpoint_label(provider.active_endpoint) != null ? 'sample' : 'muted'}`}>{endpoint_label(provider.active_endpoint) ?? '未启用'}</b>
-              <span>{provider.active_endpoint != null ? '当前会话链路使用' : '未设为生效配置'}</span>
+              <span>{provider.active_endpoint === 'diagnostic' ? '当前会话链路使用' : '未设为生效配置'}</span>
             </div>
             <div className="provider-actions">
               <button className="model-link" onClick={() => verify_mutation.mutate(provider.id)} disabled={verify_mutation.isPending} type="button">验证连接</button>
               <button className="model-link" onClick={() => activate_mutation.mutate({ provider_id: provider.id, endpoint: 'diagnostic' })} disabled={activate_mutation.isPending || provider.active_endpoint === 'diagnostic'} type="button">设为诊断</button>
-              <button className="model-link" onClick={() => activate_mutation.mutate({ provider_id: provider.id, endpoint: 'judge' })} disabled={activate_mutation.isPending || provider.active_endpoint === 'judge'} type="button">设为裁判</button>
               <button className="model-link" onClick={() => open_edit(provider)} type="button">编辑</button>
               <button className="model-link" onClick={() => set_deleting(provider)} type="button">删除</button>
             </div>
@@ -457,6 +455,7 @@ export function ModelSettingsPage(): ReactElement {
             <li>DB / Server / Log Agent 只能调用各自注册的受控 Tool</li>
             <li>Tool 调用进入后端网关，Trace 只展示安全摘要</li>
             <li>Debate、Reflection、Report 只处理结构化诊断结果</li>
+            <li>质量复核（Debate / Reflection）由主诊断模型承担，不接入独立裁判模型（未启用）</li>
             <li>高风险动作仍需提案、审批、白名单执行和验证</li>
           </ul>
           <div className="boundary-note">Provider 与 API Key 在此页管理；Key 加密存储、掩码展示，明文不进日志、Trace 或接口响应。</div>
