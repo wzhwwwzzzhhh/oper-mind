@@ -2,22 +2,17 @@
 #
 # 安全建议：优先通过环境变量注入密钥，不要将真实 Key 写入 YAML。
 # 诊断模型：OPERMIND_API_KEY / OPERMIND_BASE_URL / OPERMIND_MODEL
-# 裁判模型：OPERMIND_JUDGE_API_KEY / OPERMIND_JUDGE_BASE_URL / OPERMIND_JUDGE_MODEL
 # 模型 Provider API Key 与服务中心服务 DSN 的加密主密钥：OPERMIND_SECRET_KEY
 #   （>=32 字符，必填才能在前端保存 API Key / 注册带 DSN 的服务；
 #   未配置时允许只读与无 Key 元数据保存。务必妥善备份，丢失后已存密文无法解密）
 # 环境变量存在时会覆盖下方同名字段；mock 回归只需设置 OPERMIND_API_KEY=mock。
+# 注意：独立裁判模型（judge_llm / OPERMIND_JUDGE_*）已收口为未启用（issue #104），
+# 质量复核（Debate / Reflection）由主诊断模型承担，请勿再配置裁判模型段。
 
 llm:
   api_key: "your-diagnosis-api-key" # 被测诊断模型的 API Key
   base_url: "https://api.deepseek.com"
   model: "your-diagnosis-model"
-
-judge_llm:
-  # 真实评测时必填。可以先与诊断模型共用同一个 API Key，建议选择不同模型名。
-  api_key: "your-judge-api-key"
-  base_url: "https://api.deepseek.com"
-  model: "your-judge-model"
 # 应用元数据数据库：Session、Run、Event、Result、幂等与审计。
 # 未配置时，开发默认使用仓库根 data/opermind.sqlite3；真实 URL 只放环境变量
 # OPERMIND_APP_DATABASE_URL 或被忽略的 config.local.yaml，绝不复用诊断数据源账号。

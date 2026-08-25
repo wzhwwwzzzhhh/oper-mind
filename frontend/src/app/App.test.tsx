@@ -756,8 +756,12 @@ describe('App', () => {
 
     expect(await screen.findByRole('heading', { name: '模型服务' })).toBeInTheDocument()
     expect((await screen.findAllByText('diagnostic-model')).length).toBeGreaterThan(0)
-    expect(screen.getByText('未配置独立裁判模型')).toBeInTheDocument()
     expect(screen.getByText('返回确定性样例，不出网')).toBeInTheDocument()
+
+    // 独立裁判已收口为未启用（issue #104）：不展示裁判卡片，也不提供设为裁判操作。
+    expect(screen.queryByText('裁判模型')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '设为裁判' })).not.toBeInTheDocument()
+    expect(screen.getByText(/质量复核（Debate \/ Reflection）由主诊断模型承担/)).toBeInTheDocument()
 
     // 只写 localStorage 的假开关与写死的示例模型卡已删除，不应再出现。
     expect(screen.queryByRole('button', { name: 'Coordinator 策略开关' })).not.toBeInTheDocument()

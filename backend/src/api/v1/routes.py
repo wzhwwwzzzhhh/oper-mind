@@ -223,6 +223,7 @@ APPLICATION_ERROR_STATUS = {
     "MESSAGE_NOT_EDITABLE": 422,
     "MESSAGE_NOT_DELETABLE": 422,
     "EXPORT_UNAVAILABLE": 503,
+    "JUDGE_ENDPOINT_NOT_ENABLED": 400,
 }
 
 
@@ -390,7 +391,9 @@ def _model_config_resource(services: V1Services) -> ModelConfigResource:
             model="未配置",
             status="not_configured",
         )
-    judge = _model_endpoint_resource(config.get("judge_llm"))
+    # 独立裁判模型已收口为未启用（issue #104）：全系统无执行节点消费 judge_llm，
+    # 公开契约保留 judge_model 字段结构，但恒表达"未启用"（None），不再投影为已配置。
+    judge = None
     params = resolve_model_params(SqlAlchemyAppSettingsStore(services.session_factory))
     return ModelConfigResource(
         mode=runtime["mode"],

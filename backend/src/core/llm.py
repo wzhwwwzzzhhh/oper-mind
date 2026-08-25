@@ -170,36 +170,6 @@ class LLMClient:
             "content": "模拟场景：当前没有可用的受控工具事实；暂无可用证据，当前结论未知。",
         }
 
-    def _mock_response(self, messages: list[dict], tools: list[dict] | None = None) -> dict:
-        """模拟 LLM 返回，测试 ReAct 循环时不需要真实 API Key"""
-        last_msg = messages[-1]["content"] if messages else ""
-
-        # 如果已经执行过工具，直接返回最终答案，不再继续调工具
-        for m in reversed(messages):
-            if m.get("role") == "tool":
-                return {
-                    "role": "assistant",
-                    "content": "当前时间已返回，无需进一步操作。",
-                }
-
-        if tools and ("时间" in last_msg or "几" in last_msg):
-            return {
-                "role": "assistant",
-                "content": None,
-                "tool_calls": [
-                    {
-                        "id": "call_mock",
-                        "type": "function",
-                        "function": {"name": "get_current_time", "arguments": "{}"},
-                    }
-                ],
-            }
-
-        return {
-            "role": "assistant",
-            "content": f"Mock回复: {last_msg[:50]}",
-        }
-
 
 def _last_mock_tool_name(messages: list[dict]) -> str | None:
     """从最近一次 assistant tool_calls 中提取工具名。"""
