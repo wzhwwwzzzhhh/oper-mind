@@ -464,9 +464,11 @@ def provider_resource(value: ModelProviderData) -> ModelProviderResource:
     """
     if value.id is None:
         raise ValueError("已持久化的 Provider 缺少 id。")
-    active_endpoint = value.active_endpoint.value if value.active_endpoint is not None else None
-    if active_endpoint is ProviderEndpoint.JUDGE.value:
-        active_endpoint = None
+    # 独立裁判端点（judge）已收口为未启用（issue #104）：存量 judge 行保留，但公开投影一律
+    # 值收口为 None（未启用），因此此处只可能投影出 "diagnostic" 或 None，绝不出现 "judge"。
+    active_endpoint: Literal["diagnostic"] | None = None
+    if value.active_endpoint is ProviderEndpoint.DIAGNOSTIC:
+        active_endpoint = "diagnostic"
     return ModelProviderResource(
         id=value.id,
         name=value.name,
