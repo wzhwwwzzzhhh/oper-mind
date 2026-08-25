@@ -27,7 +27,7 @@ docs/workpack/
 |---|---|---|---|
 | 完善 | shell-honesty（issue #103 壳层诚实化） | #106 | 2026-08-24 |
 | P8 | agent-runtime-truthfulness-evaluation | #99 | 2026-08-23 |
-| P8 | judge-runtime-truthfulness | PR 待建 | 2026-08-27 |
+| P8 | judge-runtime-truthfulness | #108 | 2026-08-27 |
 | P8 | session-lifecycle-management | #97 | 2026-08-23 |
 | P8 | audit-export | #90 | 2026-08-15 |
 | P8 | model-usage-stats | #86 | 2026-08-15 |
