@@ -324,7 +324,7 @@ function AssistantReply({
             items={[{
               key: 'result',
               label: '展开结论、证据与建议',
-              children: <UiSpace direction="vertical" size="middle" style={{ width: '100%' }}><DiagnosisResultPanel result={result_read.result} /><ActionProposalPanel run_id={investigation.id} /></UiSpace>,
+              children: <UiSpace direction="vertical" size="middle" style={{ width: '100%' }}><DiagnosisResultPanel result={result_read.result} /><ActionProposalPanel run_id={investigation.id} session_id={session_id} /></UiSpace>,
             }]}
           />
         ) : (

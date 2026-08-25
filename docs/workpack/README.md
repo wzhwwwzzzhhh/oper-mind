@@ -20,6 +20,7 @@ docs/workpack/
 
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
+| P8 | controlled-action-closeout | 待用户确认计划 | [plan.md](P8-controlled-action-closeout/plan.md) | — | — |
 
 ## 已归档
 
