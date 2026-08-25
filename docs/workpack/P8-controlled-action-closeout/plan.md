@@ -5,7 +5,8 @@
 > 复用已确认 Design：`docs/design/approval/P5受控动作联合索引Design.md`（已确认）
 > 关联清单：`docs/完善清单.md` P0-1（① ② 已合入 main，③ 真实复核未做）、P1-11（未修）
 > 关联卡点：`docs/跑通验证.md` C1（代码已修、端到端未复验）
-> 基线：main（2eb058c）；worktree：`D:/market-handsome/oper-mind-worktrees/p8-controlled-action-closeout`；分支：`feat/p8-controlled-action-closeout`
+> 基线：main（2eb058c，2026-08-25 已合入 origin/main d299661）；worktree：`D:/market-handsome/oper-mind-worktrees/p8-controlled-action-closeout`；分支：`feat/p8-controlled-action-closeout`；PR：#107
+> 计划状态：2026-08-25 用户确认（"继续"），S1 已交付、S2 待真实资源授权与 DSN 注入
 
 ## 范围
 
