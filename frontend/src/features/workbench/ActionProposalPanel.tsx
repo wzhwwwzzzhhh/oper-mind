@@ -7,6 +7,7 @@ import {
   api_v1_client,
   type ActionApprovalRequest,
   type ActionExecutionRequest,
+  type CreateRunOptions,
 } from '../../api/v1/client'
 import {
   UiAlert,
@@ -39,16 +40,17 @@ type ProposalStatus =
 type ActionProposalView = {
   id: string
   status: ProposalStatus
-  mode: 'mock' | 'target'
-  title: string
-  description: string
-  target: Record<string, string>
-  risk_summary: string
-  verification_plan: string[]
+  mode?: 'mock' | 'target'
+  source_run_id?: string
+  title?: string
+  description?: string
+  target?: Record<string, string>
+  risk_summary?: string
+  verification_plan?: string[]
   failure_message?: string
   approval?: { actor: string; decision: string }
   execution?: { status: string; precondition_summary?: string; action_summary?: string; failure_message?: string }
-  verification?: { status: string; summary: string; facts: Record<string, string | number | boolean> }
+  verification?: { status: string; summary: string; facts?: Record<string, string | number | boolean> }
 }
 
 type ActionEventView = {
@@ -83,22 +85,20 @@ function read_facts(value: unknown): Record<string, string | number | boolean> |
   return record as Record<string, string | number | boolean>
 }
 
+/**
+ * P1-11：字段缺失降级渲染——只要求核心字段（id/status）必须存在；
+ * 其余字段缺失时返回部分视图，由渲染层按可用字段降级展示，不让整卡消失。
+ */
 function read_proposal(value: unknown): ActionProposalView | null {
   const root = read_record(value)
   const proposal = read_record(root?.proposal)
   if (!proposal) return null
   const id = read_string(proposal.id)
   const status = read_string(proposal.status)
-  const mode = read_string(proposal.mode)
-  const title = read_string(proposal.title)
-  const description = read_string(proposal.description)
-  const target = read_target(proposal.target)
-  const risk_summary = read_string(proposal.risk_summary)
-  const verification_plan = read_string_array(proposal.verification_plan)
   const allowed_statuses: ProposalStatus[] = ['pending_approval', 'approved', 'rejected', 'expired', 'executing', 'verifying', 'verified', 'blocked', 'failed']
-  if (!id || !status || !allowed_statuses.includes(status as ProposalStatus) || (mode !== 'mock' && mode !== 'target') || !title || !description || !target || !risk_summary || !verification_plan) {
-    return null
-  }
+  if (!id || !status || !allowed_statuses.includes(status as ProposalStatus)) return null
+  const mode_value = read_string(proposal.mode)
+  const mode = mode_value === 'mock' || mode_value === 'target' ? mode_value : undefined
   const approval_record = read_record(proposal.approval)
   const execution_record = read_record(proposal.execution)
   const verification_record = read_record(proposal.verification)
@@ -113,14 +113,28 @@ function read_proposal(value: unknown): ActionProposalView | null {
         failure_message: read_string(execution_record.failure_message),
       }
     : undefined
-  const verification = verification_record && read_string(verification_record.status) && read_string(verification_record.summary) && read_facts(verification_record.facts)
+  const verification = verification_record && read_string(verification_record.status) && read_string(verification_record.summary)
     ? {
         status: read_string(verification_record.status) as string,
         summary: read_string(verification_record.summary) as string,
-        facts: read_facts(verification_record.facts) as Record<string, string | number | boolean>,
+        facts: read_facts(verification_record.facts),
       }
     : undefined
-  return { id, status: status as ProposalStatus, mode, title, description, target, risk_summary, verification_plan, failure_message: read_string(proposal.failure_message), approval, execution, verification }
+  return {
+    id,
+    status: status as ProposalStatus,
+    mode,
+    source_run_id: read_string(proposal.source_run_id),
+    title: read_string(proposal.title),
+    description: read_string(proposal.description),
+    target: read_target(proposal.target),
+    risk_summary: read_string(proposal.risk_summary),
+    verification_plan: read_string_array(proposal.verification_plan),
+    failure_message: read_string(proposal.failure_message),
+    approval,
+    execution,
+    verification,
+  }
 }
 
 function read_action_events(value: unknown): ActionEventView[] {
@@ -153,6 +167,12 @@ function status_text(status: ProposalStatus): string {
   return labels[status]
 }
 
+function mode_label(mode: ActionProposalView['mode']): string {
+  if (mode === 'mock') return '模拟模式：不含真实 DDL'
+  if (mode === 'target') return '受控靶场 target 模式'
+  return '模式未返回'
+}
+
 function safe_error(error: unknown): string {
   if (error instanceof ApiClientError) return `${error.code}：${error.message}`
   return '请求未完成；页面没有用本地状态替代服务端事实。'
@@ -162,11 +182,17 @@ function terminal(status: ProposalStatus): boolean {
   return ['rejected', 'expired', 'verified', 'blocked', 'failed'].includes(status)
 }
 
+/** 结束且未验证的状态可使用"重新发起调查"入口生成新提案（提案本身不可重试）。 */
+function retryable(status: ProposalStatus): boolean {
+  return ['blocked', 'failed', 'expired', 'rejected'].includes(status)
+}
+
 /**
  * P4.2 最小产品面板：只读取服务器快照，用户不能编辑 SQL、目标或动作参数。
  * 支持两种取数方式：按 run_id 读取该 Run 产生的提案；或按 proposal_id 直达提案详情。
+ * P1-11：批准/执行按钮 loading；失败态"重新发起调查"入口；字段缺失按可用字段降级渲染。
  */
-export function ActionProposalPanel({ run_id, proposal_id, read_only = false }: { run_id?: string; proposal_id?: string; read_only?: boolean }): ReactElement | null {
+export function ActionProposalPanel({ run_id, proposal_id, read_only = false, session_id }: { run_id?: string; proposal_id?: string; read_only?: boolean; session_id?: string }): ReactElement | null {
   const query_client = useQueryClient()
   const [confirm, set_confirm] = useState<'approve' | 'execute' | null>(null)
   const proposal_query = useQuery({
@@ -224,6 +250,20 @@ export function ActionProposalPanel({ run_id, proposal_id, read_only = false }: 
       await invalidate_proposal()
     },
   })
+  const rerun_mutation = useMutation({
+    mutationFn: (source_run_id: string) => api_v1_client.rerun_run(
+      source_run_id,
+      { idempotency_key: globalThis.crypto.randomUUID() } satisfies CreateRunOptions,
+    ),
+    onSuccess: async () => {
+      await invalidate_proposal()
+      if (session_id) {
+        // 前缀命中原会话的 runs/messages 查询，让新 Run 出现在会话工作台。
+        await query_client.invalidateQueries({ queryKey: ['api-v1', 'session-runs', session_id] })
+        await query_client.invalidateQueries({ queryKey: ['api-v1', 'session-messages', session_id] })
+      }
+    },
+  })
 
   if (proposal_query.isLoading) return <UiSpin label="正在读取固定修复提案" />
   if (proposal_query.isError) return <UiAlert description={safe_error(proposal_query.error)} showIcon title="固定修复提案暂不可读取" type="warning" />
@@ -232,41 +272,67 @@ export function ActionProposalPanel({ run_id, proposal_id, read_only = false }: 
   const events = read_action_events(events_query.data)
   const busy = approve_mutation.isPending || reject_mutation.isPending || execute_mutation.isPending
   const failure = proposal.failure_message ?? proposal.execution?.failure_message
+  const rerun_target = proposal.source_run_id ?? run_id
+  const show_rerun_entrance = !read_only && retryable(proposal.status) && Boolean(rerun_target)
   return (
     <UiCard title="固定修复提案">
       <UiSpace direction="vertical" size="middle" style={{ width: '100%' }}>
         <UiSpace wrap>
           <UiTag color={status_color(proposal.status)}>{status_text(proposal.status)}</UiTag>
-          <UiTag color={proposal.mode === 'mock' ? 'orange' : 'blue'}>{proposal.mode === 'mock' ? '模拟模式：不含真实 DDL' : '受控靶场 target 模式'}</UiTag>
+          <UiTag color={proposal.mode === 'mock' ? 'orange' : proposal.mode === 'target' ? 'blue' : 'gold'}>{mode_label(proposal.mode)}</UiTag>
         </UiSpace>
-        <UiText strong>{proposal.title}</UiText>
-        <UiParagraph>{proposal.description}</UiParagraph>
+        <UiText strong>{proposal.title ?? '（服务端未返回标题）'}</UiText>
+        <UiParagraph>{proposal.description ?? '（服务端未返回描述）'}</UiParagraph>
         <UiAlert description="当前没有多用户身份或 RBAC；审批 actor 固定记录为 local_operator，只表示本地操作者明确确认。" showIcon title="本地人工审批限制" type="info" />
         <UiDescriptions title="固定边界">
-          {Object.entries(proposal.target).map(([key, value]) => <UiDescriptionsItem key={key} label={key}>{value}</UiDescriptionsItem>)}
-          <UiDescriptionsItem label="风险">{proposal.risk_summary}</UiDescriptionsItem>
+          {proposal.target && Object.keys(proposal.target).length > 0
+            ? Object.entries(proposal.target).map(([key, value]) => <UiDescriptionsItem key={key} label={key}>{value}</UiDescriptionsItem>)
+            : <UiDescriptionsItem label="边界">（服务端未返回固定边界）</UiDescriptionsItem>}
+          <UiDescriptionsItem label="风险">{proposal.risk_summary ?? '（服务端未返回风险说明）'}</UiDescriptionsItem>
         </UiDescriptions>
         <section aria-labelledby={`verify-plan-${proposal.id}`}>
           <UiTitle id={`verify-plan-${proposal.id}`} level={5}>独立 Verify 计划</UiTitle>
-          <UiList dataSource={proposal.verification_plan} renderItem={(item) => item} />
+          {proposal.verification_plan && proposal.verification_plan.length > 0
+            ? <UiList dataSource={proposal.verification_plan} renderItem={(item) => item} />
+            : <UiText className="muted-note">（服务端未返回验证计划）</UiText>}
         </section>
         {!read_only && proposal.status === 'pending_approval' && (
           <UiSpace wrap>
-            <UiButton disabled={busy} onClick={() => set_confirm('approve')} type="primary">批准固定修复</UiButton>
+            <UiButton disabled={busy} loading={approve_mutation.isPending} onClick={() => set_confirm('approve')} type="primary">批准固定修复</UiButton>
             <UiButton danger disabled={busy} loading={reject_mutation.isPending} onClick={() => reject_mutation.mutate()}>拒绝</UiButton>
           </UiSpace>
         )}
         {!read_only && proposal.status === 'approved' && (
-          <UiButton danger disabled={busy} onClick={() => set_confirm('execute')} type="primary">执行固定修复</UiButton>
+          <UiButton danger disabled={busy} loading={execute_mutation.isPending} onClick={() => set_confirm('execute')} type="primary">执行固定修复</UiButton>
         )}
         {(proposal.status === 'executing' || proposal.status === 'verifying') && <UiAlert description="页面正在轮询已提交的 action 审计事件；不会显示思维链、SQL、日志原文或内部请求 ID。" showIcon title="固定修复处理中" type="info" />}
         {proposal.status === 'verified' && proposal.verification && (
           <UiAlert description={proposal.verification.summary} showIcon title="Verify 已通过" type="success" />
         )}
-        {failure && <UiAlert description={`${failure} 请重新发起调查以生成新提案。`} showIcon title="该提案不能重试" type="error" />}
+        {failure && (
+          <UiAlert
+            description={`${failure} 该提案本身不能重试；可重新发起调查生成新提案。`}
+            showIcon
+            title="该提案不能重试"
+            type="error"
+          />
+        )}
+        {retryable(proposal.status) && !rerun_target && (
+          <UiAlert description="服务端未返回来源 Run 标识，无法从面板直接重新发起调查；请回到会话工作台处理。" showIcon title="缺少来源 Run" type="warning" />
+        )}
+        {show_rerun_entrance && (
+          <UiSpace wrap>
+            <UiButton loading={rerun_mutation.isPending} onClick={() => rerun_target && rerun_mutation.mutate(rerun_target)} type="primary">重新发起调查</UiButton>
+            {!failure && proposal.status === 'rejected' && <UiText className="muted-note">提案已被拒绝；可重新发起调查以生成新提案。</UiText>}
+          </UiSpace>
+        )}
+        {rerun_mutation.isSuccess && <UiAlert description="已按原 Run 的会话与服务上下文重新发起调查；新提案将绑定新 Run。" showIcon title="已重新发起调查" type="success" />}
+        {rerun_mutation.isError && <UiAlert description={safe_error(rerun_mutation.error)} showIcon title="重新发起调查未完成" type="error" />}
         {proposal.verification && (
           <UiDescriptions title="Verify 脱敏事实">
-            {Object.entries(proposal.verification.facts).map(([key, value]) => <UiDescriptionsItem key={key} label={key}>{String(value)}</UiDescriptionsItem>)}
+            {proposal.verification.facts
+              ? Object.entries(proposal.verification.facts).map(([key, value]) => <UiDescriptionsItem key={key} label={key}>{String(value)}</UiDescriptionsItem>)
+              : <UiDescriptionsItem label="事实">（服务端未返回 Verify 脱敏事实）</UiDescriptionsItem>}
           </UiDescriptions>
         )}
         {events.length > 0 && (

@@ -20,6 +20,7 @@ docs/workpack/
 
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
+| P8 | controlled-action-closeout | S1、S2 已完成；真实受控链路 verified，待提交/更新 PR #107 | [plan.md](P8-controlled-action-closeout/plan.md) | [review.md](P8-controlled-action-closeout/review.md) | [evidence.md](P8-controlled-action-closeout/evidence.md) |
 
 ## 已归档
 

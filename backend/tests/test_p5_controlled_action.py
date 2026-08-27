@@ -79,6 +79,59 @@ def test_缺索引信号保留固定列顺序() -> None:
     assert _signal().columns == ("customer_id", "created_at")
 
 
+def test_结果资源携带缺索引信号可安全序列化() -> None:
+    """真实诊断产出缺索引信号时，GET runs 不得因 extra_forbidden 返回 500。"""
+    from src.api.v1.resources import result_resource
+
+    result = DiagnosisResultData(
+        run_id=uuid4(),
+        summary="固定缺索引事实",
+        severity=DiagnosisSeverity.HIGH,
+        confidence=1.0,
+        root_causes=[
+            {
+                "id": str(uuid4()),
+                "title": "缺少固定联合索引",
+                "summary": "只读诊断确认固定目标存在 seq scan 信号。",
+                "confidence": 1.0,
+                "evidence_ids": [str(uuid4()), str(uuid4()), str(uuid4())],
+                "missing_index": _signal().model_dump(mode="json", by_alias=True),
+            }
+        ],
+        evidence=[],
+        recommendations=[],
+        risks=[],
+        requires_approval=True,
+        agent_summary=[],
+    )
+    payload = result_resource(result).model_dump(by_alias=True, mode="json")
+    signal = payload["root_causes"][0]["missing_index"]
+    assert signal["schema"] == "public"
+    assert signal["table"] == "orders"
+    assert signal["columns"] == ["customer_id", "created_at"]
+    assert signal["index_name"] == "idx_orders_customer_created_at"
+
+
+def test_结果资源无信号时缺索引字段为空() -> None:
+    """没有缺索引信号时响应字段应为 null，而不是缺失或报错。"""
+    from src.api.v1.resources import result_resource
+
+    result = DiagnosisResultData(
+        run_id=uuid4(),
+        summary="无信号结果",
+        severity=DiagnosisSeverity.LOW,
+        confidence=0.0,
+        root_causes=[],
+        evidence=[],
+        recommendations=[],
+        risks=[],
+        requires_approval=False,
+        agent_summary=[],
+    )
+    payload = result_resource(result).model_dump(by_alias=True, mode="json")
+    assert payload["root_causes"] == []
+
+
 def test_提案根因必须绑定匹配的缺索引信号() -> None:
     signal = _signal().model_dump(mode="json", by_alias=True)
     evidence_ids = [uuid4(), uuid4(), uuid4()]

@@ -606,6 +606,18 @@ class EvidenceResource(ApiV1Model):
     attributes: dict[str, str | int | float | bool | None] = Field(default_factory=dict)
 
 
+class MissingIndexResource(ApiV1Model):
+    """受控缺索引信号（脱敏：仅固定对象身份，不含 SQL 原文）。"""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    service_id: str = Field(min_length=1, max_length=64)
+    schema_name: str = Field(alias="schema", min_length=1, max_length=63)
+    table: str = Field(min_length=1, max_length=63)
+    columns: list[str] = Field(min_length=1, max_length=8)
+    index_name: str = Field(min_length=1, max_length=63)
+
+
 class RootCauseResource(ApiV1Model):
     """结构化根因。"""
 
@@ -614,6 +626,7 @@ class RootCauseResource(ApiV1Model):
     summary: str
     confidence: float = Field(ge=0.0, le=1.0)
     evidence_ids: list[UUID] = Field(default_factory=list)
+    missing_index: MissingIndexResource | None = None
 
 
 class ImpactResource(ApiV1Model):

@@ -500,7 +500,7 @@ export interface paths {
         head?: never;
         /**
          * Update Session
-         * @description 更新标题或逻辑归档 Session；已归档记录不能重新激活。
+         * @description 更新标题、逻辑归档或幂等恢复 Session。
          */
         patch: operations["update_session_api_v1_sessions__session_id__patch"];
         trace?: never;
@@ -1622,6 +1622,22 @@ export interface components {
             meta: unknown;
         };
         /**
+         * MissingIndexResource
+         * @description 受控缺索引信号（脱敏：仅固定对象身份，不含 SQL 原文）。
+         */
+        MissingIndexResource: {
+            /** Service Id */
+            service_id: unknown;
+            /** Schema */
+            schema: unknown;
+            /** Table */
+            table: unknown;
+            /** Columns */
+            columns: unknown;
+            /** Index Name */
+            index_name: unknown;
+        };
+        /**
          * ModelConfigResource
          * @description 模型配置的安全视图，不包含 API Key 或完整连接 URL。
          */
@@ -1996,6 +2012,7 @@ export interface components {
             confidence: unknown;
             /** Evidence Ids */
             evidence_ids?: unknown;
+            missing_index?: unknown;
         };
         /**
          * RootResponse
@@ -2350,7 +2367,7 @@ export interface components {
         };
         /**
          * UpdateSessionRequest
-         * @description 更新会话标题或逻辑归档状态的请求。
+         * @description 更新会话标题，或修改逻辑归档/恢复状态的请求。
          */
         UpdateSessionRequest: {
             /** Title */
