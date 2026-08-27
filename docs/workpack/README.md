@@ -20,12 +20,12 @@ docs/workpack/
 
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
-| 完善 | stage-acceptance-closeout（issue #105） | 实现、体验复验与最终全量验证完成；等待交付授权 | [plan.md](P8-stage-acceptance-closeout/plan.md) | [review.md](P8-stage-acceptance-closeout/review.md) | [evidence.md](P8-stage-acceptance-closeout/evidence.md) |
 
 ## 已归档
 
 | 阶段 | 切片 | PR | 完成日期 |
 |---|---|---|---|
+| 完善 | stage-acceptance-closeout（issue #105） | #111 | 2026-08-27 |
 | 完善 | session-run-feedback（issue #102） | #110 | 2026-08-27 |
 | 完善 | structured-diagnosis-truthfulness（issue #101） | #109 | 2026-08-27 |
 | P8 | controlled-action-closeout（issue #100） | #107 | 2026-08-27 |
