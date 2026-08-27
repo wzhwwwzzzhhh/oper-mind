@@ -1,6 +1,6 @@
 # Issue #102 会话回答与运行反馈 · Review
 
-> 状态：Review PASS；等待提交授权
+> 状态：Review PASS；PR #110 已合并
 > 更新：2026-08-27
 
 ## 结论

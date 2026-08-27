@@ -67,6 +67,55 @@ def test_mock规划只会选择当前角色工具(
     assert {call["function"]["name"] for call in calls} <= allowed
 
 
+@pytest.mark.parametrize(
+    ("query", "expected_tool"),
+    [
+        ("请检查数据库锁等待与阻塞情况", "check_lock_status"),
+        ("请检查数据库连接池是否耗尽", "check_connection_pool"),
+    ],
+)
+def test_mock数据库显式诊断意图优先选择对应工具(query: str, expected_tool: str) -> None:
+    """锁与连接池问题必须命中专用只读工具，不能被通用 Explain 抢先。"""
+    set_active_scenario("S1")
+    response = _mock_llm().chat(
+        [{"role": "user", "content": query}],
+        tools=_schemas(
+            "explain_sql",
+            "show_index",
+            "show_create_table",
+            "check_lock_status",
+            "check_connection_pool",
+        ),
+    )
+
+    calls = response.get("tool_calls", [])
+    assert len(calls) == 1
+    assert calls[0]["function"]["name"] == expected_tool
+
+
+@pytest.mark.parametrize(
+    ("query", "summary_fragment"),
+    [
+        ("请检查数据库锁等待与阻塞情况", "锁等待"),
+        ("请检查数据库连接池是否耗尽", "连接"),
+    ],
+)
+def test_mock数据库专项问题经正式图产出专用工具事件(query: str, summary_fragment: str) -> None:
+    """P7 专项问题必须经过 DB Agent，并向公开 Trace 投影对应工具的脱敏摘要。"""
+    set_active_scenario("S1")
+    items = list(build_coordinator(_mock_llm(), enable_long_term_memory=False).route_stream(query))
+    complete = items[-1]
+
+    assert complete["kind"] == "complete"
+    assert complete["strategy"] == "direct"
+    starts = [event for event in complete["trace"] if event["type"] == "agent_start"]
+    assert len(starts) == 1 and "Agent=db" in starts[0]["detail"]
+    tool_events = [event for event in complete["trace"] if event["type"] == "tool_invoked"]
+    assert len(tool_events) == 1
+    assert tool_events[0].get("role") == "db"
+    assert summary_fragment in tool_events[0]["detail"]
+
+
 def test_mock混合工具菜单失败关闭() -> None:
     """混合角色工具菜单不能猜测角色或选择越权工具。"""
     response = _mock_llm().chat(

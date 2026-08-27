@@ -6,7 +6,7 @@
 > 关联清单：`docs/完善清单.md` P0-1、P1-11（均已完成）
 > 关联卡点：`docs/跑通验证.md` C1（已解决）
 > 基线：main（2eb058c，2026-08-25 已合入 origin/main d299661）；worktree：`D:/market-handsome/oper-mind-worktrees/p8-controlled-action-closeout`；分支：`feat/p8-controlled-action-closeout`；PR：#107
-> 计划状态：2026-08-27 S1、S2 均完成；真实受控链路已 Verify 通过
+> 交付状态：2026-08-27 S1、S2 均完成；真实受控链路 Verify 通过；PR #107 已 squash 合并
 
 ## 范围
 

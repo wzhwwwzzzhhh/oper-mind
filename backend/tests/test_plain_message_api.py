@@ -132,6 +132,20 @@ def test_调查意图消息返回409且不创建任何消息(v1_client: TestClie
     assert messages == []
 
 
+@pytest.mark.parametrize("content", ["检查连接池", "检查锁等待", "检查数据库锁"])
+def test_数据库专项诊断意图进入Run主链而非普通消息(v1_client: TestClient, content: str) -> None:
+    """P7 锁与连接池问题由服务端权威判定为调查意图。"""
+    session = _create_session(v1_client)
+
+    response = v1_client.post(
+        f"/api/v1/sessions/{session['id']}/messages",
+        json={"content": content},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "INVESTIGATION_REQUIRED"
+
+
 def test_助手回复内容为确定性模板且不含伪造结果(v1_client: TestClient) -> None:
     """AC3：普通回复明确说明未启动调查，不伪造调查结果。"""
     session = _create_session(v1_client)
