@@ -4,6 +4,8 @@ import { Icon } from './Icon'
 
 interface ComposerProps {
   disabled?: boolean
+  loading?: boolean
+  loading_label?: string
   onSubmit: (value: string) => void
   placeholder?: string
   /** 受控值；父组件负责维护（含恢复/禁用语义）。 */
@@ -14,8 +16,17 @@ interface ComposerProps {
 /** 输入框自动增高上限（px）：超过后内部滚动，避免输入区吃掉整屏。 */
 const MAX_TEXTAREA_HEIGHT = 320
 
-export function Composer({ disabled, onSubmit, placeholder, value, onChange }: ComposerProps): ReactElement {
+export function Composer({
+  disabled,
+  loading = false,
+  loading_label = '正在发送',
+  onSubmit,
+  placeholder,
+  value,
+  onChange,
+}: ComposerProps): ReactElement {
   const ready = value.trim().length > 0
+  const interaction_disabled = Boolean(disabled || loading)
   const textarea_ref = useRef<HTMLTextAreaElement>(null)
 
   // 随内容自动增高：每次值变化后按 scrollHeight 重算，超过上限才交给内部滚动。
@@ -30,7 +41,7 @@ export function Composer({ disabled, onSubmit, placeholder, value, onChange }: C
 
   const submit = (): void => {
     const text = value.trim()
-    if (!text || disabled) return
+    if (!text || interaction_disabled) return
     onSubmit(text)
   }
 
@@ -40,7 +51,7 @@ export function Composer({ disabled, onSubmit, placeholder, value, onChange }: C
         <div className="composer">
           <textarea
             aria-label="调查问题"
-            disabled={disabled}
+            disabled={interaction_disabled}
             onChange={(event) => onChange?.(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
@@ -55,8 +66,14 @@ export function Composer({ disabled, onSubmit, placeholder, value, onChange }: C
           />
           <div className="composer-tools">
             {/* 不再写死"只读/服务"context-chip：服务上下文由父级真实渲染（会话工具栏/欢迎页/回答徽标）。 */}
-            <button aria-label="发送" className={`send-btn${ready ? ' ready' : ''}`} disabled={disabled} onClick={submit} type="button">
-              <Icon name="send" size={16} />
+            <button
+              aria-label={loading ? loading_label : '发送'}
+              className={`send-btn${ready ? ' ready' : ''}`}
+              disabled={interaction_disabled}
+              onClick={submit}
+              type="button"
+            >
+              {loading ? <span aria-hidden="true" className="feedback-spinner send-btn__spinner" /> : <Icon name="send" size={16} />}
             </button>
           </div>
         </div>

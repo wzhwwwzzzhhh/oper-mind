@@ -774,6 +774,37 @@
   opacity: 0.55;
 }
 
+.feedback-spinner {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  border: 2px solid color-mix(in srgb, currentColor 28%, transparent);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: ui-spin 0.75s linear infinite;
+}
+
+.send-btn__spinner {
+  width: 15px;
+  height: 15px;
+}
+
+.welcome-creation-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 14px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.quick-card:disabled,
+.service-selector input:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .disclaimer {
   margin-top: 7px;
   color: var(--text-muted);
@@ -1545,6 +1576,68 @@
 
 .investigation-process-actions {
   margin-top: 8px;
+}
+
+.assistant-progress-bubble {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: fit-content;
+  max-width: 100%;
+  margin: 8px 0 12px;
+  padding: 11px 13px;
+  border: 1px solid var(--accent-line);
+  border-radius: 9px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.assistant-progress-bubble > span:last-child {
+  display: grid;
+  gap: 3px;
+}
+
+.assistant-progress-bubble strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.assistant-progress-bubble small {
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.assistant-progress-bubble.failed {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+}
+
+.pending-conversation-feedback {
+  display: grid;
+  gap: 18px;
+}
+
+.pending-message {
+  opacity: 0.82;
+}
+
+.pending-message .bubble {
+  padding: 9px 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 9px;
+  background: var(--surface-muted);
+}
+
+.pending-assistant .assistant-progress-bubble {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feedback-spinner {
+    animation: none;
+  }
 }
 
 /* P8：待审批提案列表页。 */
