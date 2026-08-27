@@ -49,7 +49,10 @@ MAX_REVISION = 2   # Reflection 回退修订上限,防止死循环
 
 # ===== 2. 工具函数:关键词兜底路由 =====
 
-_SQL_KW = ["select", "from", "where", "join", "explain", "sql", "索引", "慢查询", "慢sql"]
+_SQL_KW = [
+    "select", "from", "where", "join", "explain", "sql", "索引", "慢查询", "慢sql",
+    "数据库", "postgres", "连接池", "锁等待", "数据库锁", "pg_stat", "schema",
+]
 _SERVER_KW = ["cpu", "内存", "磁盘", "进程", "负载", "服务器", "线程", "network", "网络"]
 _LOG_KW = ["日志", "错误", "异常", "报错", "log", "timeout", "超时"]
 _KNOWLEDGE_KW = ["知识库", "知识", "文档", "sop", "手册", "howto", "操作指引", "检索知识", "排障记录"]

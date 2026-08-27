@@ -154,6 +154,7 @@ def test_默认装配为每个实例读取各自环境变量(monkeypatch: Any) -
     """默认 v1 装配不会把一个实例的 DSN 复用到另一个实例。"""
     monkeypatch.setenv("OPERMIND_SERVICE_POSTGRES_PRODUCTION_DSN", "production-secret")
     monkeypatch.setenv("OPERMIND_SERVICE_POSTGRES_STAGING_DSN", "staging-secret")
+    monkeypatch.delenv("OPERMIND_SERVICE_POSTGRES_TARGET_DSN", raising=False)
     monkeypatch.delenv("OPERMIND_SERVICE_REDIS_PRODUCTION_DSN", raising=False)
 
     class Runtime:

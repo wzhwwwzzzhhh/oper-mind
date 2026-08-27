@@ -3,7 +3,7 @@
 > 工作包：P8-controlled-action-closeout（issue #100：受控动作与审批闭环——真实链路复核与 UI 反馈）
 > PRD/Design 复用：`docs/prd/approval/P5-controlled-action-real.md`、`docs/design/approval/P5受控动作联合索引Design.md`
 > 关联清单：`docs/完善清单.md` P0-1、P1-11；`docs/跑通验证.md` C1
-> 分支：`feat/p8-controlled-action-closeout`（基线 main @ d299661；已合并 origin/main @ 61ef746）
+> 交付：PR #107 已于 2026-08-27 squash 合并至 main
 
 ## S1 · P1-11 前端 UI 反馈（已交付 ✅）
 

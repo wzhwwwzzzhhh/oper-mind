@@ -2,7 +2,7 @@
 
 ## 结论
 
-PASS
+PASS（PR #107 已于 2026-08-27 合并）
 
 S1（前端 ActionProposalPanel UI 反馈）经独立只读子代理审查，首轮发现 1 项 P1（rejected 终态无"重新发起调查"入口，入口被嵌套在 `failure &&` 内而 rejected 无 failure_message），修复后复核 PASS；修复未引入新的 P0/P1。
 

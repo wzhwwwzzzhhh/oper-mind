@@ -54,6 +54,10 @@ def plan_mock_tool(role: str, query: str, tools: list[dict], scenario: Scenario 
             word in text for word in ("连接", "pool")
         ):
             return _call("check_connection_pool", {})
+        if facts.lock_summary is not None and "check_lock_status" in available and any(
+            word in text for word in ("锁", "阻塞", "lock")
+        ):
+            return _call("check_lock_status", {})
         if facts.explain is not None and "explain_sql" in available:
             return _call("explain_sql", {"sql": "SELECT 1"})
         if facts.table is not None and "show_index" in available:

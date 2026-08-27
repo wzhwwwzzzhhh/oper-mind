@@ -17,7 +17,7 @@ def requires_database_context(query: str) -> bool:
     lowered = query.lower()
     database_keywords = (
         "select", "sql", "explain", "索引", "慢查询", "数据库", "postgres",
-        "连接池", "pg_stat", "schema",
+        "连接池", "锁等待", "数据库锁", "pg_stat", "schema",
     )
     if any(keyword in lowered for keyword in ("日志", "log", "错误", "异常", "报错", "超时")):
         return any(keyword in lowered for keyword in database_keywords)
