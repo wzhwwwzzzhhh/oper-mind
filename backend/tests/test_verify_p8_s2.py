@@ -157,6 +157,11 @@ PROPOSAL_ID = "33333333-3333-4333-8333-333333333333"
 EXECUTION_ID = "44444444-4444-4444-8444-444444444444"
 VERIFICATION_ID = "55555555-5555-4555-8555-555555555555"
 ACTION_DIGEST = "a" * 64
+EVIDENCE_IDS = [
+    "66666666-6666-4666-8666-666666666661",
+    "66666666-6666-4666-8666-666666666662",
+    "66666666-6666-4666-8666-666666666663",
+]
 EVENT_TYPES = [
     "proposal_created",
     "approval_recorded",
@@ -239,6 +244,38 @@ class _ApiChainClient:
             {"proposal_id": PROPOSAL_ID, "sequence": sequence, "type": event_type}
             for sequence, event_type in enumerate(EVENT_TYPES, start=1)
         ]
+        self.structured_result: dict[str, object] = {
+            "evidence": [
+                {
+                    "id": evidence_id,
+                    "title": title,
+                    "source_type": "database",
+                    "source_name": "postgres_read_only",
+                }
+                for evidence_id, title in zip(
+                    EVIDENCE_IDS,
+                    ["目标表存在", "固定联合索引缺失", "顺序扫描信号"],
+                    strict=True,
+                )
+            ],
+            "impact": {
+                "summary": verifier.COMPOUND_INDEX_TEMPLATE.impact_summary,
+                "affected_services": [verifier.TARGET_SERVICE],
+                "affected_scope": verifier.COMPOUND_INDEX_TEMPLATE.impact_scope,
+            },
+            "recommendations": [
+                {
+                    "id": str(verifier.recommendation_id(verifier.TARGET_ACTION_ID)),
+                    "title": verifier.COMPOUND_INDEX_TEMPLATE.recommendation_title,
+                    "description": verifier.COMPOUND_INDEX_TEMPLATE.recommendation_description,
+                    "priority": verifier.COMPOUND_INDEX_TEMPLATE.recommendation_priority,
+                    "risk_level": verifier.COMPOUND_INDEX_TEMPLATE.recommendation_risk_level,
+                    "requires_approval": True,
+                    "evidence_ids": EVIDENCE_IDS,
+                }
+            ],
+            "requires_approval": True,
+        }
 
     def post(self, path: str, **_kwargs: object) -> _Response:
         if path == "/api/v1/sessions":
@@ -254,7 +291,14 @@ class _ApiChainClient:
     def get(self, path: str) -> _Response:
         if path == f"/api/v1/runs/{RUN_ID}":
             return _Response(
-                {"run": {"id": RUN_ID, "service_id": verifier.TARGET_SERVICE, "status": "succeeded"}},
+                {
+                    "run": {
+                        "id": RUN_ID,
+                        "service_id": verifier.TARGET_SERVICE,
+                        "status": "succeeded",
+                        "result": self.structured_result,
+                    }
+                },
                 200,
             )
         if path == f"/api/v1/runs/{RUN_ID}/action-proposal":
@@ -283,6 +327,13 @@ def test_离线_api_链验证固定边界与完整关联() -> None:
     assert result["proposal_id"] == PROPOSAL_ID
     assert result["execution_id"] == EXECUTION_ID
     assert result["proposal_status"] == "verified"
+    assert result["structured_result"] == {
+        "recommendation_count": 1,
+        "recommendation_id": str(verifier.recommendation_id(verifier.TARGET_ACTION_ID)),
+        "evidence_count": 3,
+        "impact_present": True,
+        "requires_approval": True,
+    }
     assert result["verification_facts"] == {
         "index_exists": True,
         "index_valid": True,

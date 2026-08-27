@@ -283,6 +283,93 @@
   line-height: 1.78;
 }
 
+.safe-markdown {
+  color: inherit;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.safe-markdown > :first-child {
+  margin-top: 0;
+}
+
+.safe-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.safe-markdown h1,
+.safe-markdown h2,
+.safe-markdown h3,
+.safe-markdown h4,
+.safe-markdown h5,
+.safe-markdown h6 {
+  margin: 1em 0 0.45em;
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.safe-markdown p,
+.safe-markdown blockquote,
+.safe-markdown pre,
+.safe-markdown table,
+.safe-markdown ul,
+.safe-markdown ol {
+  margin: 0.65em 0;
+}
+
+.safe-markdown code {
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  background: var(--surface-muted);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.safe-markdown pre {
+  padding: 10px 12px;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-soft);
+}
+
+.safe-markdown pre code {
+  padding: 0;
+  background: transparent;
+}
+
+.safe-markdown blockquote {
+  padding-left: 12px;
+  border-left: 3px solid var(--border-strong);
+  color: var(--text-secondary);
+}
+
+.safe-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.safe-markdown th,
+.safe-markdown td {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+.safe-markdown__disabled-link {
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.safe-markdown__disabled-image {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.safe-markdown--fallback {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
 .user .bubble {
   padding: 10px 14px;
   border: 1px solid var(--border);
@@ -1289,6 +1376,28 @@
   line-height: 1.65;
 }
 
+.diagnosis-result-panel__report {
+  margin-top: 16px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-soft);
+}
+
+.diagnosis-result-panel__report summary {
+  padding: 10px 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.diagnosis-result-panel__report-content {
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
 .diagnosis-result-panel__section {
   margin-top: 22px;
 }
@@ -1378,6 +1487,10 @@
   background: var(--surface-soft);
   font-size: 11px;
   text-align: center;
+}
+
+.diagnosis-result-panel > .diagnosis-result-panel__empty {
+  margin-top: 18px;
 }
 
 .diagnosis-result-panel__relations {

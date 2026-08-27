@@ -112,7 +112,7 @@ def _structured_result(run_id: str, created_at: str, summary: str = "Nginx 上�
                 "duration_ms": 120,
             }
         ],
-        "report_markdown": "# Mock 结果补充\n\n该字段仅用于契约覆盖，P3 不渲染。",
+        "report_markdown": "# Mock 结果补充\n\n该字段用于安全 Markdown 与报告全文契约覆盖。",
         "created_at": created_at,
     }
 

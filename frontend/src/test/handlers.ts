@@ -398,7 +398,7 @@ const run = {
       summary: '已完成服务侧连接池诊断。',
       duration_ms: 120,
     }],
-    report_markdown: '# Mock 结果补充\n\n该字段仅用于契约覆盖，P3 不渲染。',
+    report_markdown: '# Mock 结果补充\n\n该字段用于安全 Markdown 与报告全文契约覆盖。',
     created_at: '2026-07-27T01:00:33.000Z',
   },
   error: null,

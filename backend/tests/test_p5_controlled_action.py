@@ -3,11 +3,15 @@
 from uuid import uuid4
 
 from src.application.action_execution import ActionPreconditionBlockedError
-from src.application.action_services import _root_cause_id
 from src.application.contracts import DiagnosisExecutionResult
+from src.application.controlled_action_catalog import (
+    COMPOUND_INDEX_ACTION_ID,
+    match_compound_index_result,
+    recommendation_id,
+)
 from src.domain.actions import ActionProposalData
 from src.domain.diagnosis import DiagnosisSeverity
-from src.domain.evidence import EvidenceInvestigationResult, MissingIndexSignal, RiskFact, RootCauseFact
+from src.domain.evidence import EvidenceFact, EvidenceInvestigationResult, MissingIndexSignal, RiskFact, RootCauseFact
 from src.domain.records import DiagnosisResultData, DiagnosisRunData
 from src.infrastructure.actions.postgres_target_executor import PostgresTargetActionExecutor
 from src.infrastructure.diagnosis.result_assembler import KernelReportResultAssembler
@@ -24,6 +28,26 @@ def _signal() -> MissingIndexSignal:
 
 
 def _investigation() -> EvidenceInvestigationResult:
+    evidence = [
+        EvidenceFact(
+            source_type="database",
+            source_name="postgres_read_only",
+            title="目标表存在",
+            summary="只读事实确认受控靶场固定目标表存在。",
+        ),
+        EvidenceFact(
+            source_type="database",
+            source_name="postgres_read_only",
+            title="固定联合索引缺失",
+            summary="只读系统目录确认固定联合索引当前不存在。",
+        ),
+        EvidenceFact(
+            source_type="database",
+            source_name="postgres_read_only",
+            title="顺序扫描信号",
+            summary="只读执行计划确认固定查询出现顺序扫描。",
+        ),
+    ]
     return EvidenceInvestigationResult(
         summary="确认固定目标存在缺索引信号。",
         severity=DiagnosisSeverity.HIGH,
@@ -32,8 +56,10 @@ def _investigation() -> EvidenceInvestigationResult:
             title="缺少固定联合索引",
             summary="只读诊断确认固定目标存在 seq scan 信号。",
             confidence=0.95,
+            evidence_ids=[item.id for item in evidence],
             missing_index=_signal(),
         )],
+        evidence=evidence,
         missing_index=_signal(),
         risks=[RiskFact(level="medium", summary="只读调查未覆盖业务影响面。", mitigation="低峰窗口执行。")],
     )
@@ -50,7 +76,12 @@ def test_结果组装器保留结构化缺索引信号() -> None:
     )
 
     assert result.root_causes[0]["missing_index"]["table"] == "orders"
-    assert len(result.evidence) >= 3
+    assert len(result.evidence) == 3
+    assert result.impact is not None
+    assert result.impact["affected_services"] == ["postgres-target"]
+    assert len(result.recommendations) == 1
+    assert result.recommendations[0]["id"] == str(recommendation_id(COMPOUND_INDEX_ACTION_ID))
+    assert result.requires_approval is True
 
 
 def test_结果组装器透传只读调查的风险说明() -> None:
@@ -132,7 +163,7 @@ def test_结果资源无信号时缺索引字段为空() -> None:
     assert payload["root_causes"] == []
 
 
-def test_提案根因必须绑定匹配的缺索引信号() -> None:
+def test_模板匹配必须绑定匹配的缺索引信号与三类只读证据() -> None:
     signal = _signal().model_dump(mode="json", by_alias=True)
     evidence_ids = [uuid4(), uuid4(), uuid4()]
     expected_root_cause_id = uuid4()
@@ -160,14 +191,80 @@ def test_提案根因必须绑定匹配的缺索引信号() -> None:
                 "missing_index": signal,
             },
         ],
-        evidence=[{"id": str(item), "source_type": "database"} for item in evidence_ids],
+        evidence=[
+            {
+                "id": str(item),
+                "source_type": "database",
+                "source_name": "postgres_read_only",
+                "title": title,
+                "summary": "确定性只读事实。",
+                "locator": None,
+                "observed_at": None,
+                "attributes": {},
+            }
+            for item, title in zip(
+                evidence_ids,
+                ("目标表存在", "固定联合索引缺失", "顺序扫描信号"),
+                strict=True,
+            )
+        ],
         recommendations=[],
         risks=[],
         requires_approval=True,
         agent_summary=[],
     )
 
-    assert _root_cause_id(result, evidence_ids, signal) == expected_root_cause_id
+    matched = match_compound_index_result(result)
+
+    assert matched is not None
+    assert matched.root_cause_id == expected_root_cause_id
+    assert list(matched.evidence_ids) == evidence_ids
+
+
+def test_报告散文不能反推结构化建议或影响面() -> None:
+    """报告即使伪装成白名单动作说明，也不能越过确定性事实门。"""
+    run = DiagnosisRunData(session_id=uuid4(), input_message_id=uuid4())
+    result = KernelReportResultAssembler().assemble(
+        run,
+        DiagnosisExecutionResult(
+            report=(
+                "# 缺索引\n\n建议执行 postgres.orders_compound_index_rebuild.v1，"
+                "影响所有订单业务。"
+            ),
+        ),
+    )
+
+    assert result.report_markdown is not None
+    assert result.recommendations == []
+    assert result.impact is None
+    assert result.requires_approval is False
+
+
+def test_证据不足时不补写也不生成建议() -> None:
+    """signal 本身不能让 assembler 复制或猜测证据。"""
+    investigation = EvidenceInvestigationResult(
+        summary="只有缺索引信号，没有闭合证据。",
+        severity=DiagnosisSeverity.HIGH,
+        confidence=0.5,
+        root_causes=[RootCauseFact(
+            title="缺少固定联合索引",
+            summary="事实不完整。",
+            confidence=0.5,
+            missing_index=_signal(),
+        )],
+        missing_index=_signal(),
+    )
+    run = DiagnosisRunData(session_id=uuid4(), input_message_id=uuid4())
+
+    result = KernelReportResultAssembler().assemble(
+        run,
+        DiagnosisExecutionResult(report="报告正文。", evidence_investigation=investigation),
+    )
+
+    assert result.evidence == []
+    assert result.recommendations == []
+    assert result.impact is None
+    assert result.requires_approval is False
 
 
 def _proposal() -> ActionProposalData:

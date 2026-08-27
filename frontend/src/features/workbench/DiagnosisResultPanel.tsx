@@ -11,6 +11,7 @@ import type {
   RecommendationPriority,
   RiskLevel,
 } from './result-readers'
+import { SafeMarkdown } from './SafeMarkdown'
 
 const SEVERITY_CLASSES: Record<DiagnosisResultProjection['severity'], string> = {
   critical: 'critical',
@@ -104,10 +105,10 @@ function ImpactBlock({ impact }: { impact: DiagnosisImpact }): ReactElement {
       <p className="diagnosis-result-panel__item-copy">{impact.summary}</p>
       <div className="diagnosis-result-panel__details">
         <span className="diagnosis-result-panel__meta-line">
-          影响范围：{impact.affected_scope ?? '服务未界定影响范围'}
+          影响范围：{impact.affected_scope ?? '本次未采集影响范围'}
         </span>
         {impact.affected_services.length === 0
-          ? <span className="diagnosis-result-panel__meta-line">受影响服务：服务未返回受影响清单</span>
+          ? <span className="diagnosis-result-panel__meta-line">受影响服务：本次未采集受影响服务</span>
           : (
             <div className="diagnosis-result-panel__tags">
               <span className="diagnosis-result-panel__meta-line">受影响服务：</span>
@@ -137,6 +138,7 @@ function RecommendationItem({
         <span className="diagnosis-result-panel__item-title">{recommendation.title}</span>
       </div>
       <p className="diagnosis-result-panel__item-copy">{recommendation.description}</p>
+      <p className="diagnosis-result-panel__meta-line">说明性建议，不等同于动作提案。</p>
       <div className="diagnosis-result-panel__tags">
         <span className={`diagnosis-result-panel__tag diagnosis-result-panel__tag--${RISK_CLASSES[recommendation.risk_level]}`}>
           {RISK_LABELS[recommendation.risk_level]}
@@ -194,10 +196,17 @@ function EmptyState({ children }: { children: string }): ReactElement {
 }
 
 /**
- * 仅渲染已通过运行时校验的 P2 结构化结果；不解析 Markdown 或跳转 Trace。
+ * 仅渲染已通过运行时校验的结构化结果；报告 Markdown 走独立白名单组件。
  */
 export function DiagnosisResultPanel({ result }: { result: DiagnosisResultProjection }): ReactElement {
   const evidence_by_id = new Map(result.evidence.map((evidence) => [evidence.id, evidence]))
+  const has_structured_details = result.root_causes.length > 0
+    || result.impact !== null
+    || result.recommendations.length > 0
+    || result.evidence.length > 0
+    || result.agent_summary.length > 0
+    || result.risks.length > 0
+  const report_markdown = result.report_markdown?.trim() ? result.report_markdown : null
 
   return (
     <article className="diagnosis-result-panel">
@@ -212,56 +221,53 @@ export function DiagnosisResultPanel({ result }: { result: DiagnosisResultProjec
 
       <p aria-label="诊断结果摘要" className="diagnosis-result-panel__summary">{result.summary}</p>
 
-      <section aria-labelledby="root-causes-heading" className="diagnosis-result-panel__section">
+      {report_markdown && (
+        <details className="diagnosis-result-panel__report">
+          <summary>完整诊断报告</summary>
+          <SafeMarkdown className="diagnosis-result-panel__report-content" content={report_markdown} />
+        </details>
+      )}
+
+      {!has_structured_details && (
+        <EmptyState>只读调查未产生可展示的结构化证据</EmptyState>
+      )}
+
+      {result.root_causes.length > 0 && <section aria-labelledby="root-causes-heading" className="diagnosis-result-panel__section">
         <h4 className="diagnosis-result-panel__section-title" id="root-causes-heading">可能根因</h4>
-        {result.root_causes.length === 0
-          ? <EmptyState>服务未返回结构化根因</EmptyState>
-          : <ul className="diagnosis-result-panel__list">{result.root_causes.map((root_cause) => <RootCauseItem evidence_by_id={evidence_by_id} key={root_cause.id} root_cause={root_cause} />)}</ul>}
-      </section>
+        <ul className="diagnosis-result-panel__list">{result.root_causes.map((root_cause) => <RootCauseItem evidence_by_id={evidence_by_id} key={root_cause.id} root_cause={root_cause} />)}</ul>
+      </section>}
 
-      <section aria-labelledby="impact-heading" className="diagnosis-result-panel__section">
+      {result.impact !== null && <section aria-labelledby="impact-heading" className="diagnosis-result-panel__section">
         <h4 className="diagnosis-result-panel__section-title" id="impact-heading">影响面</h4>
-        {result.impact === null
-          ? <EmptyState>服务未返回影响面评估</EmptyState>
-          : <ImpactBlock impact={result.impact} />}
-      </section>
+        <ImpactBlock impact={result.impact} />
+      </section>}
 
-      <section aria-labelledby="recommendations-heading" className="diagnosis-result-panel__section">
+      {result.recommendations.length > 0 && <section aria-labelledby="recommendations-heading" className="diagnosis-result-panel__section">
         <h4 className="diagnosis-result-panel__section-title" id="recommendations-heading">
           处置建议
           {result.requires_approval && <span className="diagnosis-result-panel__badge diagnosis-result-panel__badge--medium">整体需人工审批</span>}
         </h4>
-        {result.recommendations.length === 0
-          ? <EmptyState>服务未返回处置建议</EmptyState>
-          : (
-            <ul className="diagnosis-result-panel__list">
-              {result.recommendations.map((recommendation) => (
-                <RecommendationItem evidence_by_id={evidence_by_id} key={recommendation.id} recommendation={recommendation} />
-              ))}
-            </ul>
-          )}
-      </section>
+        <ul className="diagnosis-result-panel__list">
+          {result.recommendations.map((recommendation) => (
+            <RecommendationItem evidence_by_id={evidence_by_id} key={recommendation.id} recommendation={recommendation} />
+          ))}
+        </ul>
+      </section>}
 
-      <section aria-labelledby="evidence-heading" className="diagnosis-result-panel__section">
+      {result.evidence.length > 0 && <section aria-labelledby="evidence-heading" className="diagnosis-result-panel__section">
         <h4 className="diagnosis-result-panel__section-title" id="evidence-heading">结构化证据</h4>
-        {result.evidence.length === 0
-          ? <EmptyState>服务未返回结构化证据</EmptyState>
-          : <ul className="diagnosis-result-panel__list">{result.evidence.map((evidence) => <EvidenceItem evidence={evidence} key={evidence.id} />)}</ul>}
-      </section>
+        <ul className="diagnosis-result-panel__list">{result.evidence.map((evidence) => <EvidenceItem evidence={evidence} key={evidence.id} />)}</ul>
+      </section>}
 
-      <section aria-labelledby="agent-summary-heading" className="diagnosis-result-panel__section">
+      {result.agent_summary.length > 0 && <section aria-labelledby="agent-summary-heading" className="diagnosis-result-panel__section">
         <h4 className="diagnosis-result-panel__section-title" id="agent-summary-heading">调查角色摘要</h4>
-        {result.agent_summary.length === 0
-          ? <EmptyState>服务未返回角色调查摘要</EmptyState>
-          : <ul className="diagnosis-result-panel__list">{result.agent_summary.map((item) => <AgentSummaryItem item={item} key={`${item.agent}-${item.status}`} />)}</ul>}
-      </section>
+        <ul className="diagnosis-result-panel__list">{result.agent_summary.map((item) => <AgentSummaryItem item={item} key={`${item.agent}-${item.status}`} />)}</ul>
+      </section>}
 
-      <section aria-labelledby="risks-heading" className="diagnosis-result-panel__section">
+      {result.risks.length > 0 && <section aria-labelledby="risks-heading" className="diagnosis-result-panel__section">
         <h4 className="diagnosis-result-panel__section-title" id="risks-heading">调查范围与风险</h4>
-        {result.risks.length === 0
-          ? <EmptyState>服务未返回风险说明</EmptyState>
-          : <ul className="diagnosis-result-panel__list">{result.risks.map((risk) => <RiskItem key={risk.id} risk={risk} />)}</ul>}
-      </section>
+        <ul className="diagnosis-result-panel__list">{result.risks.map((risk) => <RiskItem key={risk.id} risk={risk} />)}</ul>
+      </section>}
 
       <section aria-labelledby="result-relations-heading" className="diagnosis-result-panel__relations">
         <h4 className="diagnosis-result-panel__section-title" id="result-relations-heading">结果关联</h4>

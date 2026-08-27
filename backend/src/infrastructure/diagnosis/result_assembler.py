@@ -3,8 +3,13 @@
 from __future__ import annotations
 
 from src.application.contracts import DiagnosisExecutionResult, ResultAssembler
+from src.application.controlled_action_catalog import (
+    COMPOUND_INDEX_TEMPLATE,
+    TARGET_SERVICE_ID,
+    match_compound_index_result,
+    recommendation_id,
+)
 from src.domain.diagnosis import DiagnosisSeverity
-from src.domain.evidence import EvidenceFact
 from src.domain.records import DiagnosisResultData, DiagnosisRunData
 
 
@@ -49,17 +54,7 @@ class KernelReportResultAssembler(ResultAssembler):
         investigation = result.evidence_investigation
         root_causes = [item.model_dump(mode="json", by_alias=True) for item in investigation.root_causes] if investigation else []
         evidence = [item.model_dump(mode="json") for item in investigation.evidence] if investigation else []
-        if investigation and investigation.missing_index is not None:
-            while len(evidence) < 3:
-                evidence.append(
-                    EvidenceFact(
-                        source_type="database",
-                        source_name="postgres_read_only",
-                        title="缺索引结构化证据",
-                        summary="只读数据库事实支持固定缺索引信号。",
-                    ).model_dump(mode="json")
-                )
-        return DiagnosisResultData(
+        assembled = DiagnosisResultData(
             run_id=run.id,
             summary=summary,
             severity=investigation.severity if investigation else DiagnosisSeverity.INFO,
@@ -69,7 +64,31 @@ class KernelReportResultAssembler(ResultAssembler):
             recommendations=[],
             # 风险来自只读收集器的确定性范围说明，不做推断；无调查时留空。
             risks=[item.model_dump(mode="json") for item in investigation.risks] if investigation else [],
-            requires_approval=investigation is not None and investigation.missing_index is not None,
+            requires_approval=False,
             agent_summary=[item.model_dump(mode="json") for item in investigation.agent_summary] if investigation else [],
             report_markdown=report_markdown,
+        )
+        matched_facts = match_compound_index_result(assembled)
+        if matched_facts is None:
+            return assembled
+        return assembled.model_copy(
+            update={
+                "impact": {
+                    "summary": COMPOUND_INDEX_TEMPLATE.impact_summary,
+                    "affected_services": [TARGET_SERVICE_ID],
+                    "affected_scope": COMPOUND_INDEX_TEMPLATE.impact_scope,
+                },
+                "recommendations": [
+                    {
+                        "id": str(recommendation_id(COMPOUND_INDEX_TEMPLATE.action_id)),
+                        "title": COMPOUND_INDEX_TEMPLATE.recommendation_title,
+                        "description": COMPOUND_INDEX_TEMPLATE.recommendation_description,
+                        "priority": COMPOUND_INDEX_TEMPLATE.recommendation_priority,
+                        "risk_level": COMPOUND_INDEX_TEMPLATE.recommendation_risk_level,
+                        "requires_approval": True,
+                        "evidence_ids": [str(item) for item in matched_facts.evidence_ids],
+                    }
+                ],
+                "requires_approval": True,
+            }
         )
