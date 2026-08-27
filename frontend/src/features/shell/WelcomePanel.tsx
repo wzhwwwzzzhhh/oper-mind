@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 
 interface WelcomePanelProps {
+  creating_session?: boolean
   on_prompt: (prompt: string) => void
   service_count?: number
   services?: Array<{ id: string; title: string }>
@@ -35,6 +36,7 @@ const QUICK_PROMPTS: Array<{ title: string; note: string; prompt: string }> = [
 ]
 
 export function WelcomePanel({
+  creating_session = false,
   on_prompt,
   service_count = 0,
   services = [],
@@ -68,6 +70,7 @@ export function WelcomePanel({
             <label key={service.id}>
               <input
                 checked={selected_service_ids.includes(service.id)}
+                disabled={creating_session}
                 onChange={(event) => on_service_change?.(event.target.checked
                   ? [...selected_service_ids, service.id]
                   : selected_service_ids.filter((id) => id !== service.id))}
@@ -78,9 +81,15 @@ export function WelcomePanel({
           ))}
         </div>
       </fieldset>
+      {creating_session && (
+        <div aria-label="创建会话进度" aria-live="polite" className="welcome-creation-status" role="status">
+          <span aria-hidden="true" className="feedback-spinner" />
+          <span>正在创建会话并准备发送内容…</span>
+        </div>
+      )}
       <div className="quick-grid">
         {QUICK_PROMPTS.map((item) => (
-          <button className="quick-card" key={item.title} onClick={() => on_prompt(item.prompt)} type="button">
+          <button className="quick-card" disabled={creating_session} key={item.title} onClick={() => on_prompt(item.prompt)} type="button">
             <strong>{item.title}</strong>
             <span>{item.note}</span>
           </button>

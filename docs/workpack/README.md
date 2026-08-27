@@ -20,6 +20,7 @@ docs/workpack/
 
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
+| 完善 | session-run-feedback（issue #102） | 实现、自动化与浏览器复验完成；等待提交授权 | [plan.md](P8-session-run-feedback/plan.md) | [review.md](P8-session-run-feedback/review.md) | [evidence.md](P8-session-run-feedback/evidence.md) |
 | P8 | controlled-action-closeout | S1、S2 已完成；真实受控链路 verified，待提交/更新 PR #107 | [plan.md](P8-controlled-action-closeout/plan.md) | [review.md](P8-controlled-action-closeout/review.md) | [evidence.md](P8-controlled-action-closeout/evidence.md) |
 | P8 | structured-diagnosis-truthfulness（issue #101） | 实现、自动化、浏览器与真实受控靶场复核完成；等待提交授权 | [plan.md](P8-structured-diagnosis-truthfulness/plan.md) | [review.md](P8-structured-diagnosis-truthfulness/review.md) | [evidence.md](P8-structured-diagnosis-truthfulness/evidence.md) |
 

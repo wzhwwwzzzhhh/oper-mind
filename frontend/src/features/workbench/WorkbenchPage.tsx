@@ -377,8 +377,65 @@ function AssistantReply({
         <span className="meta-pill readonly"><span className="mini-dot" />只读调查</span>
         <span className="meta-pill blue">工具调用中</span>
       </div>
+      <div aria-label="调查进度" aria-live="polite" className="assistant-progress-bubble" role="status">
+        <span aria-hidden="true" className="feedback-spinner" />
+        <span>
+          <strong>{investigation.status === 'queued' ? '请求已受理，正在准备调查' : '正在执行只读调查'}</strong>
+          <small>
+            {investigation.status === 'queued'
+              ? '等待运行开始；尚未产生调查结论。'
+              : '公开阶段与证据摘要会在下方 Trace 中更新。'}
+          </small>
+        </span>
+      </div>
       <InvestigationProcess investigation={investigation} session_id={session_id} />
       <RerunControls investigation={investigation} rerun_by={rerun_by} session_id={session_id} />
+    </div>
+  )
+}
+
+interface PendingOutgoingMessage {
+  content: string
+  kind: 'investigation' | 'plain'
+  phase: 'accepted' | 'failed' | 'sending'
+  server_message_ids: string[]
+}
+
+function PendingConversationFeedback({ pending }: { pending: PendingOutgoingMessage }): ReactElement {
+  const failed = pending.phase === 'failed'
+  const status_title = failed
+    ? '发送未完成'
+    : pending.phase === 'accepted'
+      ? '请求已受理，正在恢复会话记录'
+      : pending.kind === 'investigation'
+        ? '正在提交调查请求'
+        : '正在发送消息'
+  const status_detail = failed
+    ? '这条内容尚未确认保存；可根据错误提示重试。'
+    : pending.phase === 'accepted'
+      ? '服务端已经返回消息标识；正在读取权威会话记录。'
+      : '这条内容是本地临时回显，尚未标记为已保存。'
+  const user_status = failed
+    ? '发送未完成'
+    : pending.phase === 'accepted'
+      ? '已受理，待恢复'
+      : '正在发送'
+  return (
+    <div className="pending-conversation-feedback">
+      <article aria-label="用户问题（待确认）" className="message user pending-message">
+        <div className="message-avatar">W</div>
+        <div className="message-body">
+          <div className="message-label">你 · {user_status}</div>
+          <div className="bubble">{pending.content}</div>
+        </div>
+      </article>
+      <article aria-label="消息发送进度" aria-live="polite" className="message assistant pending-assistant" role="status">
+        <div className="message-avatar">O</div>
+        <div className={`assistant-progress-bubble${failed ? ' failed' : ''}`}>
+          {!failed && <span aria-hidden="true" className="feedback-spinner" />}
+          <span><strong>{status_title}</strong><small>{status_detail}</small></span>
+        </div>
+      </article>
     </div>
   )
 }
@@ -550,11 +607,28 @@ function ConversationTurnCard({
   )
 }
 
-function ConversationTimeline({ messages, read_only, runs, services_by_id, session_id }: { messages: unknown[]; read_only: boolean; runs: unknown[]; services_by_id: Map<string, { kind?: string; title?: string }>; session_id: string }): ReactElement {
+function ConversationTimeline({
+  messages,
+  pending_outgoing,
+  read_only,
+  runs,
+  services_by_id,
+  session_id,
+}: {
+  messages: unknown[]
+  pending_outgoing?: PendingOutgoingMessage
+  read_only: boolean
+  runs: unknown[]
+  services_by_id: Map<string, { kind?: string; title?: string }>
+  session_id: string
+}): ReactElement {
   const { issues, rerun_by_latest, timeline } = useMemo(
     () => project_conversation_turns(messages, runs, session_id),
     [messages, runs, session_id],
   )
+  const pending_is_recovered = pending_outgoing?.server_message_ids.some((message_id) =>
+    messages.some((message) => resource_optional_string(message, 'id') === message_id),
+  ) ?? false
 
   return (
     <section className="conversation">
@@ -599,6 +673,7 @@ function ConversationTimeline({ messages, read_only, runs, services_by_id, sessi
           />
         )
       })}
+      {pending_outgoing && !pending_is_recovered && <PendingConversationFeedback pending={pending_outgoing} />}
     </section>
   )
 }
@@ -612,6 +687,7 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
     storage ? load_session_run_send_intent(storage, session_id) : undefined,
   )
   const [recovery_error, set_recovery_error] = useState<unknown>()
+  const [pending_outgoing, set_pending_outgoing] = useState<PendingOutgoingMessage | undefined>()
   const automatic_recovery_attempts = useRef(new Set<string>())
   const session_query = useQuery({ ...get_session_query(session_id), enabled: Boolean(session_id) })
   const session_is_fresh = session_query.isSuccess && session_query.isFetchedAfterMount && !session_query.isFetching
@@ -674,6 +750,7 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
     set_send_intent(restored)
     set_query(restored?.query ?? prefilled_query)
     set_recovery_error(undefined)
+    set_pending_outgoing(undefined)
   }, [prefilled_query, session_id, storage])
 
   // 记录挂载时已存在的发送意图：仅对"进会话前就写好"的意图做自动提交，
@@ -709,6 +786,7 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
     if (storage) clear_session_run_send_intent(storage, session_id)
     set_send_intent(undefined)
     set_query('')
+    set_pending_outgoing(undefined)
   }
 
   const create_run = useMutation({
@@ -729,6 +807,14 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
       }
 
       const accepted_intent = mark_session_run_send_intent_accepted(current_intent, variables.idempotency_key, accepted_run_id, input_message_id)
+      set_pending_outgoing((current) => current && current.content === current_intent.query
+        ? {
+            ...current,
+            kind: 'investigation',
+            phase: 'accepted',
+            server_message_ids: [...new Set([...current.server_message_ids, input_message_id])],
+          }
+        : current)
       if (storage) save_session_run_send_intent(storage, accepted_intent)
       set_send_intent(accepted_intent)
     },
@@ -737,6 +823,9 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
         void query_client.invalidateQueries({ queryKey: api_v1_query_keys.session(session_id) })
       }
       set_recovery_error(error)
+      set_pending_outgoing((current) => current
+        ? { ...current, phase: current.server_message_ids.length > 0 ? 'accepted' : 'failed' }
+        : current)
     },
   })
 
@@ -768,6 +857,7 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
     if (storage) clear_session_run_send_intent(storage, session_id)
     set_send_intent(undefined)
     set_recovery_error(undefined)
+    set_pending_outgoing(undefined)
   }
 
   const submit_investigation = (composer_value?: string): void => {
@@ -790,6 +880,12 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
     save_session_run_send_intent(storage, current_intent)
     set_send_intent(current_intent)
     set_recovery_error(undefined)
+    set_pending_outgoing({
+      content: normalized_query,
+      kind: 'investigation',
+      phase: 'sending',
+      server_message_ids: [],
+    })
     const submit_next = async (): Promise<void> => {
       const errors = await submit_unaccepted_session_runs(current_intent, (intent_run) =>
         create_run.mutateAsync({ idempotency_key: intent_run.idempotency_key, query: current_intent.query, service_id: intent_run.service_id, session_id }).then(() => undefined),
@@ -843,16 +939,24 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
       submit_investigation(normalized)
       return
     }
+    set_pending_outgoing({ content: normalized, kind: 'plain', phase: 'sending', server_message_ids: [] })
     send_plain.mutate(
       { session_id, content: normalized },
       {
-        onSuccess: async () => {
+        onSuccess: async (response) => {
+          const user_message_id = resource_optional_string(response.data.user_message, 'id')
+          if (user_message_id) {
+            set_pending_outgoing((current) => current
+              ? { ...current, phase: 'accepted', server_message_ids: [user_message_id] }
+              : current)
+          }
           if (storage) clear_pending_plain_message(storage, session_id)
           set_query('')
           await Promise.all([
             query_client.invalidateQueries({ queryKey: messages_query_key }),
             query_client.invalidateQueries({ queryKey: runs_query_key }),
           ])
+          set_pending_outgoing(undefined)
         },
         onError: (error) => {
           if (error instanceof ApiClientError && error.code === 'INVESTIGATION_REQUIRED') {
@@ -863,6 +967,7 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
             void query_client.invalidateQueries({ queryKey: api_v1_query_keys.session(session_id) })
           }
           set_recovery_error(error)
+          set_pending_outgoing((current) => current ? { ...current, phase: 'failed' } : current)
         },
       },
     )
@@ -972,6 +1077,7 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
         <>
           <ConversationTimeline
             messages={recovered_messages}
+            pending_outgoing={pending_outgoing}
             read_only={!session_is_fresh || session_status === 'archived'}
             runs={recovered_runs}
             services_by_id={services_by_id}
@@ -993,7 +1099,8 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
       )}
       {can_send && (
         <Composer
-          disabled={create_run.isPending || send_plain.isPending || has_idempotency_key_conflict}
+          disabled={has_idempotency_key_conflict}
+          loading={create_run.isPending || send_plain.isPending}
           onChange={(text) => {
             set_query(text)
             if (is_validation_error(recovery_error)) set_recovery_error(undefined)
@@ -1081,6 +1188,7 @@ function ConversationHome(): ReactElement {
   return (
     <div className="chat-inner">
       <WelcomePanel
+        creating_session={create_session.isPending}
         on_prompt={submit_prompt}
         on_service_change={set_selected_service_ids}
         selected_service_ids={selected_service_ids}
@@ -1090,7 +1198,8 @@ function ConversationHome(): ReactElement {
         services_loading={services_query.isPending}
       />
       <Composer
-        disabled={create_session.isPending}
+        loading={create_session.isPending}
+        loading_label="正在创建会话"
         onChange={set_query}
         onSubmit={submit_prompt}
         value={query}

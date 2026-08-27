@@ -224,6 +224,40 @@ describe('App', () => {
     )
   })
 
+  it('创建会话期间显示 spinner 并阻断快捷卡与 Composer 重复提交', async () => {
+    const session_id = api_v1_contract_fixtures.session_id
+    let release_request: () => void = () => undefined
+    const request_gate = new Promise<void>((resolve) => { release_request = resolve })
+    server.use(
+      http.post(/\/api\/v1\/sessions$/, async ({ request }) => {
+        await request_gate
+        return response(request, {
+          session: {
+            id: session_id,
+            title: '帮我排查订单服务最近的慢查询，先从数据库只读调查开始。',
+            status: 'active',
+            service_id: null,
+            service_ids: [],
+            created_at: '2026-07-28T09:00:00.000Z',
+            updated_at: '2026-07-28T09:00:00.000Z',
+            archived_at: null,
+          },
+        }, 201)
+      }),
+    )
+    render(<App />)
+
+    const quick_prompt = await screen.findByRole('button', { name: /排查慢查询/ })
+    fireEvent.click(quick_prompt)
+
+    expect(await screen.findByRole('status', { name: '创建会话进度' })).toHaveTextContent('正在创建会话')
+    expect(quick_prompt).toBeDisabled()
+    expect(screen.getByRole('button', { name: '正在创建会话' })).toBeDisabled()
+
+    release_request()
+    await waitFor(() => expect(request_paths).toContain(`/api/v1/sessions/${session_id}`))
+  })
+
   it('按 Session、Runs、Message 的顺序恢复只读 Conversation Turn', async () => {
     use_conversation_handlers(conversation_resources())
     open_path(`/workbench/sessions/${api_v1_contract_fixtures.session_id}`)
@@ -905,6 +939,148 @@ describe('App', () => {
 
     await waitFor(() => expect(request_paths.filter((path) => path.endsWith('/messages')).length).toBeGreaterThanOrEqual(2))
     expect(run_posted).toBe(0)
+  })
+
+  it('普通消息发送后立即临时回显并显示 loading，权威消息恢复后不重复', async () => {
+    const session_id = api_v1_contract_fixtures.session_id
+    const content = '谢谢'
+    const user_message = {
+      id: '99999999-9999-4999-8999-999999999981',
+      session_id,
+      run_id: null,
+      role: 'user',
+      content,
+      created_at: '2026-08-27T09:00:00.000Z',
+      edited_at: null,
+    }
+    const assistant_message = {
+      id: '99999999-9999-4999-8999-999999999982',
+      session_id,
+      run_id: null,
+      role: 'assistant',
+      content: '不客气。',
+      created_at: '2026-08-27T09:00:01.000Z',
+      edited_at: null,
+    }
+    let completed = false
+    let release_request: () => void = () => undefined
+    const request_gate = new Promise<void>((resolve) => { release_request = resolve })
+    server.use(
+      http.get(new RegExp(`/api/v1/sessions/${session_id}/runs$`), ({ request }) =>
+        response(request, { items: [], page: { next_cursor: null, has_more: false } }),
+      ),
+      http.get(new RegExp(`/api/v1/sessions/${session_id}/messages$`), ({ request }) =>
+        response(request, {
+          items: completed ? [user_message, assistant_message] : [],
+          page: { next_cursor: null, has_more: false },
+        }),
+      ),
+      http.post(new RegExp(`/api/v1/sessions/${session_id}/messages$`), async ({ request }) => {
+        await request_gate
+        completed = true
+        return response(request, { user_message, assistant_message }, 201)
+      }),
+    )
+    open_path(`/workbench/sessions/${session_id}`)
+    render(<App />)
+
+    const input = await screen.findByRole('textbox', { name: '调查问题' })
+    fireEvent.change(input, { target: { value: content } })
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
+
+    expect(await screen.findByLabelText('用户问题（待确认）')).toHaveTextContent(content)
+    expect(screen.getByRole('status', { name: '消息发送进度' })).toHaveTextContent('本地临时回显')
+    expect(screen.getByRole('button', { name: '正在发送' })).toBeDisabled()
+
+    release_request()
+    expect(await screen.findByLabelText('用户问题')).toHaveTextContent(content)
+    expect(await screen.findByLabelText('助手回复')).toHaveTextContent('不客气。')
+    await waitFor(() => expect(screen.queryByLabelText('用户问题（待确认）')).not.toBeInTheDocument())
+    expect(screen.getAllByText(content)).toHaveLength(1)
+  })
+
+  it('调查发送在 Run 受理前立即回显，受理后切换为 queued 阶段气泡', async () => {
+    const session_id = api_v1_contract_fixtures.session_id
+    const run_id = '99999999-9999-4999-8999-999999999983'
+    const input_message_id = '99999999-9999-4999-8999-999999999984'
+    const content = '请检查连接池慢查询。'
+    let accepted = false
+    let release_request: () => void = () => undefined
+    const request_gate = new Promise<void>((resolve) => { release_request = resolve })
+    server.use(
+      http.get(new RegExp(`/api/v1/sessions/${session_id}/runs$`), ({ request }) => response(request, {
+        items: accepted ? [{
+          id: run_id,
+          session_id,
+          trace_id: api_v1_contract_fixtures.trace_id,
+          input_message_id,
+          status: 'queued',
+          result: null,
+          error: null,
+          created_at: '2026-08-27T09:05:00.000Z',
+          started_at: null,
+          finished_at: null,
+        }] : [],
+        page: { next_cursor: null, has_more: false },
+      })),
+      http.get(new RegExp(`/api/v1/sessions/${session_id}/messages$`), ({ request }) => response(request, {
+        items: accepted ? [{
+          id: input_message_id,
+          session_id,
+          run_id: null,
+          role: 'user',
+          content,
+          created_at: '2026-08-27T09:05:00.000Z',
+        }] : [],
+        page: { next_cursor: null, has_more: false },
+      })),
+      http.post(new RegExp(`/api/v1/sessions/${session_id}/runs$`), async ({ request }) => {
+        await request_gate
+        accepted = true
+        return response(request, {
+          run: {
+            id: run_id,
+            session_id,
+            trace_id: api_v1_contract_fixtures.trace_id,
+            input_message_id,
+            status: 'queued',
+            result: null,
+            error: null,
+            created_at: '2026-08-27T09:05:00.000Z',
+            started_at: null,
+            finished_at: null,
+          },
+        }, 202)
+      }),
+    )
+    open_path(`/workbench/sessions/${session_id}`)
+    render(<App />)
+
+    const input = await screen.findByRole('textbox', { name: '调查问题' })
+    fireEvent.change(input, { target: { value: content } })
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
+
+    expect(await screen.findByLabelText('用户问题（待确认）')).toHaveTextContent(content)
+    expect(screen.getByRole('status', { name: '消息发送进度' })).toHaveTextContent('正在提交调查请求')
+    expect(screen.getByRole('button', { name: '正在发送' })).toBeDisabled()
+
+    release_request()
+    expect(await screen.findByLabelText('用户问题')).toHaveTextContent(content)
+    expect(await screen.findByRole('status', { name: '调查进度' })).toHaveTextContent('请求已受理，正在准备调查')
+    await waitFor(() => expect(screen.queryByLabelText('用户问题（待确认）')).not.toBeInTheDocument())
+  })
+
+  it.each([
+    ['queued', '请求已受理，正在准备调查', '尚未产生调查结论'],
+    ['running', '正在执行只读调查', 'Trace 中更新'],
+  ] as const)('%s 调查展示诚实阶段气泡', async (status, title, detail) => {
+    use_conversation_handlers(conversation_resources({ include_output: false, run_status: status }))
+    open_path(`/workbench/sessions/${api_v1_contract_fixtures.session_id}`)
+    render(<App />)
+
+    const progress = await screen.findByRole('status', { name: '调查进度' })
+    expect(progress).toHaveTextContent(title)
+    expect(progress).toHaveTextContent(detail)
   })
 
   it('运行中的调查可点击停止并取消 Run', async () => {
