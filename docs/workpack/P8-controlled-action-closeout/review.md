@@ -24,9 +24,16 @@ S1（前端 ActionProposalPanel UI 反馈）经独立只读子代理审查，首
 
 ## 验证记录
 
-- 前端全量：`npm run typecheck` 通过；`npm run test` → 203 passed / 20 files；`npm run build` 成功。
+- 合并最新 main 后前端全量：`npm run typecheck` 通过；`npm run test` → 210 passed / 20 files；`npm run build` 成功。
 - 面板聚焦：`npm run test -- --run src/features/workbench/action-proposal-panel.test.tsx` → 9 passed。
 
-## 非阻塞后续
+## S2 最终复核
 
-- S2（P0-1 真实链路复核）需真实受控靶场授权与 `OPERMIND_SERVICE_POSTGRES_TARGET_DSN` 注入，审查时尚未执行；执行后需按 `docs/跑通验证.md` C1 回写。
+PASS
+
+- 用户依次确认受控资源边界、批准新提案并二次确认执行；两个随机 challenge 均与当次提案匹配，未自动批准或自动执行。
+- Preflight 锁定表/列存在、索引不存在且计划为 Seq Scan；执行后独立 postflight 锁定索引存在、有效，并由固定目标索引承担 Index Scan。
+- API 提案终态 `verified`，execution/verification 均为 `target`；8 类关键事件各一次且顺序、序号完整。
+- 首次真实链暴露 `missing_index` 响应 schema 漏接；修复只允许固定、脱敏对象字段，不含 SQL/DSN/凭据，并有序列化测试与 OpenAPI 生成类型同步。
+- 最终门禁：Ruff PASS；mypy 112 source files PASS；后端 630 passed；前端 210 passed、typecheck/build PASS；`git diff --check` PASS。
+- 局限如实保留：LLM provider 为确定性 mock；真实部分覆盖 PostgreSQL collector、固定 DDL executor、独立 Verify、API、持久化、人工审批和审计链。成功创建的固定索引未自动删除。

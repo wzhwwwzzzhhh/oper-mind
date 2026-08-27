@@ -3,10 +3,10 @@
 > issue：#100（受控动作与审批闭环——真实链路复核与 UI 反馈）
 > 复用已确认 PRD：`docs/prd/approval/P5-controlled-action-real.md`（完成状态）
 > 复用已确认 Design：`docs/design/approval/P5受控动作联合索引Design.md`（已确认）
-> 关联清单：`docs/完善清单.md` P0-1（① ② 已合入 main，③ 真实复核未做）、P1-11（未修）
-> 关联卡点：`docs/跑通验证.md` C1（代码已修、端到端未复验）
+> 关联清单：`docs/完善清单.md` P0-1、P1-11（均已完成）
+> 关联卡点：`docs/跑通验证.md` C1（已解决）
 > 基线：main（2eb058c，2026-08-25 已合入 origin/main d299661）；worktree：`D:/market-handsome/oper-mind-worktrees/p8-controlled-action-closeout`；分支：`feat/p8-controlled-action-closeout`；PR：#107
-> 计划状态：2026-08-25 用户确认（"继续"），S1 已交付、S2 待真实资源授权与 DSN 注入
+> 计划状态：2026-08-27 S1、S2 均完成；真实受控链路已 Verify 通过
 
 ## 范围
 
@@ -23,15 +23,15 @@
 
 ### 明确不做
 - 不连接真实生产 / 预发布库；执行器只接受 `postgres-target`（P5 已确认边界不变）。
-- 不新增公开 API、不新增数据库迁移、不新增 Connector；`generated.ts` 无需重新生成。
+- 不新增 endpoint、数据库迁移或 Connector；S2 发现结果 schema 漏接既有 `missing_index` 领域信号，因此补齐响应 schema 并同步生成 `generated.ts`。
 - 不改 mock 数据源（`data/mock_db.py`、`data/scenarios.py`）与 S1–S4 评测路径。
 - 不做自动批准 / 自动执行 / 自动回滚；不做 RBAC / 多用户审批。
 - 不处理 `docs/跑通验证.md` C2（demo schema.sql 与固定对象对齐，记为后续待办，非本 issue 范围）。
 - 不触碰主仓库工作区其他未提交改动（agent-runtime 文档），只在本 worktree 内开发。
 
 ## 切片拆分
-- [ ] S1：ActionProposalPanel loading / 失败重试入口 / 降级渲染 + 前端交互测试
-- [ ] S2：真实靶场全链路复核（需用户授权）+ 证据落盘 + 清单 / 跑通验证回写
+- [x] S1：ActionProposalPanel loading / 失败重试入口 / 降级渲染 + 前端交互测试
+- [x] S2：真实靶场全链路复核 + 证据落盘 + 清单 / 跑通验证回写
 
 ## 改动面（文件级）
 - `frontend/src/features/workbench/ActionProposalPanel.tsx`（修改：loading、重试入口、降级渲染）
@@ -42,7 +42,8 @@
 - `docs/workpack/README.md`（修改：登记/归档）
 - `docs/完善清单.md`（修改：P0-1、P1-11 状态回写）
 - `docs/跑通验证.md`（修改：C1 状态回写）
-- 仅 S2 需要：`config/config.local.yaml`（git-ignore，仅本机放真实 LLM 配置，不提交）与后端启动环境变量
+- S2 写前保障：`backend/scripts/verify_p8_s2.py` 与 `backend/tests/test_verify_p8_s2.py`；真实 DSN 只从进程环境 `OPERMIND_SERVICE_POSTGRES_TARGET_DSN` 读取，不写任何文件；批准与执行各需一次独立、匹配随机 challenge 的人工确认
+- S2 真实链暴露的响应契约修复：`backend/src/api/v1/schemas.py`、`backend/tests/test_p5_controlled_action.py`、生成文件 `frontend/src/api/v1/generated.ts`
 
 ## 验证方法
 - 前端：`npm run typecheck`、`npm run test -- --run src/features/workbench/action-proposal-panel.test.tsx`、`npm run build`（在 `frontend/`）。
