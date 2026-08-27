@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { DiagnosisResultPanel } from './DiagnosisResultPanel'
@@ -26,7 +26,7 @@ function complete_result() {
     recommendations: [{
       description: '扩容连接池。', evidence_ids: ['evidence-1'], id: 'recommendation-1', priority: 'p1', requires_approval: true, risk_level: 'medium', title: '调整连接池',
     }],
-    report_markdown: '# 不应被面板渲染的补充 Markdown',
+    report_markdown: '# 补充诊断报告\n\n- 已核对结构化证据',
     requires_approval: true,
     risks: [{ id: 'risk-1', level: 'medium', mitigation: '分批发布。', summary: '扩容可能影响连接数。' }],
     root_causes: [{ confidence: 0.88, evidence_ids: ['evidence-1'], id: 'root-cause-1', summary: '连接池长期耗尽。', title: '上游连接池不足' }],
@@ -72,7 +72,7 @@ describe('read_diagnosis_result', () => {
 })
 
 describe('DiagnosisResultPanel', () => {
-  it('以只读结构化区域呈现摘要、根因与证据，不渲染 Markdown', () => {
+  it('呈现只读结构化区域，并在折叠区安全渲染完整报告 Markdown', () => {
     const read = read_diagnosis_result(complete_result(), RUN_ID)
     if (!read.result) throw new Error('测试夹具必须通过 Result reader')
 
@@ -88,7 +88,10 @@ describe('DiagnosisResultPanel', () => {
     expect(screen.getByText('已完成服务侧摘要。')).toBeInTheDocument()
     expect(screen.getByText('调查范围与风险')).toBeInTheDocument()
     expect(screen.getByText('扩容可能影响连接数。')).toBeInTheDocument()
-    expect(screen.queryByText('# 不应被面板渲染的补充 Markdown')).not.toBeInTheDocument()
+    expect(screen.getByText('完整诊断报告')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('完整诊断报告'))
+    expect(screen.getByRole('heading', { name: '补充诊断报告' })).toBeInTheDocument()
+    expect(screen.getByText('已核对结构化证据')).toBeInTheDocument()
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
   })
 
@@ -126,7 +129,7 @@ describe('DiagnosisResultPanel', () => {
     expect(screen.queryByText('风险 medium')).not.toBeInTheDocument()
   })
 
-  it('影响面与建议缺失时显示空状态，不用占位文案假装有结论', () => {
+  it('部分字段缺失时隐藏对应板块，不刷逐字段占位噪音', () => {
     const result = complete_result()
     result.impact = null as unknown as typeof result.impact
     result.recommendations = []
@@ -135,8 +138,9 @@ describe('DiagnosisResultPanel', () => {
 
     render(<DiagnosisResultPanel result={read.result} />)
 
-    expect(screen.getByText('服务未返回影响面评估')).toBeInTheDocument()
-    expect(screen.getByText('服务未返回处置建议')).toBeInTheDocument()
+    expect(screen.queryByText('影响面')).not.toBeInTheDocument()
+    expect(screen.queryByText('处置建议')).not.toBeInTheDocument()
+    expect(screen.queryByText(/服务未返回/)).not.toBeInTheDocument()
   })
 
   it('在根因引用缺失证据时显示安全页内标记，不跳转外部资源', () => {
@@ -151,17 +155,23 @@ describe('DiagnosisResultPanel', () => {
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
   })
 
-  it('对合法空数组显示局部空状态，不伪造结果', () => {
+  it('结构化字段整体为空时只显示一个诚实空态', () => {
     const result = complete_result()
     result.root_causes = []
     result.evidence = []
+    result.impact = null as unknown as typeof result.impact
+    result.recommendations = []
+    result.agent_summary = []
+    result.risks = []
     const read = read_diagnosis_result(result, RUN_ID)
     if (!read.result) throw new Error('空数组是合法 Result')
 
     render(<DiagnosisResultPanel result={read.result} />)
 
-    expect(screen.getByText('服务未返回结构化根因')).toBeInTheDocument()
-    expect(screen.getByText('服务未返回结构化证据')).toBeInTheDocument()
+    expect(screen.getByText('只读调查未产生可展示的结构化证据')).toBeInTheDocument()
+    expect(screen.queryByText(/服务未返回/)).not.toBeInTheDocument()
+    expect(screen.queryByText('可能根因')).not.toBeInTheDocument()
+    expect(screen.queryByText('结构化证据')).not.toBeInTheDocument()
     expect(screen.getByLabelText('诊断结果摘要')).toHaveTextContent('Nginx 上游连接池已耗尽。')
   })
 })

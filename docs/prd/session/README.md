@@ -16,3 +16,4 @@
 | [P8-rerun-investigation.md](P8-rerun-investigation.md) | 调查重跑——重新生成并关联原 Run | 完成 |
 | [P8-message-edit-delete.md](P8-message-edit-delete.md) | 消息编辑与删除——会话消息更正 | 完成 |
 | [P8-session-export.md](P8-session-export.md) | 会话导出——会话记录留存与分享 | 完成 |
+| [structured-diagnosis-result-truthfulness.md](structured-diagnosis-result-truthfulness.md) | 结构化诊断结果真实性——事实来源与安全呈现 | 已完成，待提交 |

@@ -9,7 +9,7 @@ from typing import Any
 from sqlalchemy import RowMapping, text
 from sqlalchemy.engine import Engine
 
-from src.application.action_services import (
+from src.application.controlled_action_catalog import (
     TARGET_COLUMNS,
     TARGET_INDEX_NAME,
     TARGET_SCHEMA,

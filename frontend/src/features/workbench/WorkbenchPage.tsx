@@ -35,6 +35,7 @@ import {
 } from './conversation-turns'
 import { ActionProposalPanel } from './ActionProposalPanel'
 import { DiagnosisResultPanel } from './DiagnosisResultPanel'
+import { SafeMarkdown } from './SafeMarkdown'
 import { is_investigation_message } from './message-intent'
 import {
   clear_pending_plain_message,
@@ -309,7 +310,7 @@ function AssistantReply({
           {output && <span>{output.created_at}</span>}
         </div>
         <InvestigationProcess investigation={investigation} session_id={session_id} />
-        {output && <div className="bubble">{output.content}</div>}
+        {output && <SafeMarkdown className="bubble" content={output.content} />}
         {!output && (
           <UiAlert
             description="服务端已标记调查成功，但尚未恢复关联的助手答复。页面不会根据 Result 伪造一条已保存消息。"
@@ -528,7 +529,7 @@ function ConversationTurnCard({
           <div className="message-avatar">O</div>
           <div className="message-body">
             <div className="message-label">OperMind · 普通对话</div>
-            <div className="bubble">{turn.plain_reply.content}</div>
+            <SafeMarkdown className="bubble" content={turn.plain_reply.content} />
           </div>
         </article>
       )}
@@ -582,7 +583,7 @@ function ConversationTimeline({ messages, read_only, runs, services_by_id, sessi
               <div className="message-avatar">O</div>
               <div className="message-body">
                 <div className="message-label">OperMind · 普通对话</div>
-                <div className="bubble">{item.message.content}</div>
+                <SafeMarkdown className="bubble" content={item.message.content} />
               </div>
             </article>
           )

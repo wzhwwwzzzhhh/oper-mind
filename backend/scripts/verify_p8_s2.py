@@ -28,6 +28,11 @@ bootstrap_import_paths()
 
 from sqlalchemy import text  # noqa: E402
 
+from src.application.controlled_action_catalog import (  # noqa: E402
+    COMPOUND_INDEX_TEMPLATE,
+    recommendation_id,
+)
+
 TARGET_ENV = "OPERMIND_SERVICE_POSTGRES_TARGET_DSN"
 HUMAN_GATE_DIR_ENV = "OPERMIND_P8_S2_HUMAN_GATE_DIR"
 TARGET_SERVICE = "postgres-target"
@@ -470,6 +475,60 @@ def run_api_chain_with_client(
     require(run.get("status") == "succeeded", "RUN_NOT_SUCCEEDED")
     require(run.get("service_id") == TARGET_SERVICE, "RUN_TARGET_SERVICE_MISMATCH")
 
+    result = run.get("result")
+    require(isinstance(result, dict), "STRUCTURED_RESULT_MISSING")
+    evidence = result.get("evidence")
+    require(isinstance(evidence, list), "STRUCTURED_EVIDENCE_MISSING")
+    evidence_by_id = {
+        item.get("id"): item
+        for item in evidence
+        if isinstance(item, dict) and isinstance(item.get("id"), str)
+    }
+    recommendations = result.get("recommendations")
+    require(isinstance(recommendations, list) and len(recommendations) == 1, "STRUCTURED_RECOMMENDATION_MISMATCH")
+    recommendation = recommendations[0]
+    require(isinstance(recommendation, dict), "STRUCTURED_RECOMMENDATION_MISMATCH")
+    recommendation_evidence_ids = recommendation.get("evidence_ids")
+    require(
+        isinstance(recommendation_evidence_ids, list) and len(recommendation_evidence_ids) == 3,
+        "STRUCTURED_RECOMMENDATION_EVIDENCE_MISMATCH",
+    )
+    referenced_evidence = [evidence_by_id.get(item_id) for item_id in recommendation_evidence_ids]
+    require(
+        all(isinstance(item, dict) for item in referenced_evidence)
+        and {item.get("title") for item in referenced_evidence if isinstance(item, dict)}
+        == {"目标表存在", "固定联合索引缺失", "顺序扫描信号"}
+        and all(
+            item.get("source_type") == "database" and item.get("source_name") == "postgres_read_only"
+            for item in referenced_evidence
+            if isinstance(item, dict)
+        ),
+        "STRUCTURED_RECOMMENDATION_EVIDENCE_MISMATCH",
+    )
+    require(
+        recommendation
+        == {
+            "id": str(recommendation_id(TARGET_ACTION_ID)),
+            "title": COMPOUND_INDEX_TEMPLATE.recommendation_title,
+            "description": COMPOUND_INDEX_TEMPLATE.recommendation_description,
+            "priority": COMPOUND_INDEX_TEMPLATE.recommendation_priority,
+            "risk_level": COMPOUND_INDEX_TEMPLATE.recommendation_risk_level,
+            "requires_approval": True,
+            "evidence_ids": recommendation_evidence_ids,
+        },
+        "STRUCTURED_RECOMMENDATION_MISMATCH",
+    )
+    require(
+        result.get("impact")
+        == {
+            "summary": COMPOUND_INDEX_TEMPLATE.impact_summary,
+            "affected_services": [TARGET_SERVICE],
+            "affected_scope": COMPOUND_INDEX_TEMPLATE.impact_scope,
+        },
+        "STRUCTURED_IMPACT_MISMATCH",
+    )
+    require(result.get("requires_approval") is True, "STRUCTURED_APPROVAL_FLAG_MISMATCH")
+
     proposal_body = safe_json(client.get(f"/api/v1/runs/{run_id}/action-proposal"), 200)
     proposal = proposal_body.get("proposal")
     require(isinstance(proposal, dict), "PROPOSAL_NOT_CREATED")
@@ -633,6 +692,13 @@ def run_api_chain_with_client(
             "proposal_id": proposal_id,
             "execution_id": execution_id,
             "run_status": run.get("status"),
+            "structured_result": {
+                "recommendation_count": len(recommendations),
+                "recommendation_id": recommendation.get("id"),
+                "evidence_count": len(recommendation_evidence_ids),
+                "impact_present": result.get("impact") is not None,
+                "requires_approval": result.get("requires_approval"),
+            },
             "proposal_status": final_proposal.get("status"),
             "proposal_target_matched": True,
             "approval_digest_matched": True,
