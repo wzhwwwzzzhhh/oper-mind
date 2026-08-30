@@ -13,6 +13,31 @@ from src.domain.diagnosis import RunEventType, SessionStatus
 from src.domain.evidence import EvidenceInvestigationResult
 from src.domain.records import DiagnosisResultData, DiagnosisRunData
 
+_SAFE_TOOL_TRACE_SUMMARIES: dict[str, str] = {
+    "running": "工具调用中",
+    "completed": "工具调用完成",
+    "failed": "工具调用失败",
+    "skipped": "工具调用已跳过",
+    "ok": "工具调用成功",
+    "attention": "工具调用需要关注",
+    "unavailable": "工具调用不可用",
+    "rejected": "工具调用已拒绝",
+    "timeout": "工具调用超时",
+    "error": "工具调用失败",
+}
+
+
+def normalize_tool_trace_status(value: object) -> str | None:
+    """只接受公开 Trace 契约允许展示的工具状态。"""
+    if isinstance(value, str) and value in _SAFE_TOOL_TRACE_SUMMARIES:
+        return value
+    return None
+
+
+def safe_tool_trace_summary(status: str | None) -> str:
+    """由受控状态生成中性摘要，禁止复用上游自由文本。"""
+    return _SAFE_TOOL_TRACE_SUMMARIES.get(status or "", "工具调用状态已更新")
+
 
 class ApplicationCommand(BaseModel):
     """Application Service 命令基类。"""

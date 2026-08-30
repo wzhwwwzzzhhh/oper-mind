@@ -39,13 +39,13 @@ class FakeCoordinator:
 
 
 def test_executor_emits_safe_tool_event_data() -> None:
-    """执行器应保留工具事件的摘要、状态和耗时，其他事件 data 为空。"""
+    """执行器应由状态生成工具摘要、保留状态耗时，其他事件 data 为空。"""
     executor = CoordinatorDiagnosisExecutor(FakeCoordinator)
     events = list(executor.stream("q"))
 
     assert isinstance(events[0], DiagnosisExecutionEvent)
     assert events[0].type is RunEventType.TOOL_INVOKED
-    assert events[0].data["summary"] == "调用 explain_sql 成功"
+    assert events[0].data["summary"] == "工具调用成功"
     assert events[0].data["status"] == "ok"
     assert events[0].data["duration_ms"] == 7
     assert isinstance(events[1], DiagnosisExecutionEvent)
@@ -54,7 +54,7 @@ def test_executor_emits_safe_tool_event_data() -> None:
 
 
 def test_safe_event_data_preserves_gateway_statuses() -> None:
-    """Application Service 应保留工具摘要、网关状态和耗时白名单字段。"""
+    """Application Service 应重建工具摘要并保留网关状态和耗时白名单字段。"""
     occurred_at = datetime.now(UTC)
     event = DiagnosisExecutionEvent(
         type=RunEventType.TOOL_INVOKED,
@@ -64,12 +64,17 @@ def test_safe_event_data_preserves_gateway_statuses() -> None:
     )
 
     safe_data = _safe_event_data(event)
-    assert safe_data["summary"] == "调用 x 成功"
+    assert safe_data["summary"] == "工具调用成功"
     assert safe_data["status"] == "ok"
     assert safe_data["duration_ms"] == 7
 
     rejected = event.model_copy(update={"data": {"summary": "调用 x 被拒绝", "status": "rejected"}})
     assert _safe_event_data(rejected)["status"] == "rejected"
+
+    untrusted = event.model_copy(
+        update={"data": {"summary": "SELECT secret FROM credentials", "status": "password=hunter2"}}
+    )
+    assert _safe_event_data(untrusted) == {"node": "tool", "summary": "工具调用状态已更新"}
 
 
 def test_unavailable与质量状态穿过事件安全投影() -> None:
@@ -84,7 +89,7 @@ def test_unavailable与质量状态穿过事件安全投影() -> None:
         }
     )
     assert unavailable == {
-        "summary": "知识库采集不可用",
+        "summary": "工具调用不可用",
         "status": "unavailable",
         "duration_ms": 3,
         "role": "knowledge",
@@ -105,6 +110,7 @@ def test_unavailable与质量状态穿过事件安全投影() -> None:
     )
     assert persisted["status"] == "unavailable"
     assert persisted["role"] == "knowledge"
+    assert persisted["summary"] == "工具调用不可用"
 
 
 def test_coordinator_normalizes_tool_trace_fields() -> None:

@@ -359,6 +359,43 @@ def test_run执行成功在无事务区间调用执行器并写入安全终态(p
         session.close()
 
 
+def test_tool事件自由文本不进入持久化Trace(persistence_runtime: PersistenceRuntime) -> None:
+    """即使执行器越界提供敏感摘要，Run 事件也只持久化状态派生的中性投影。"""
+    unsafe_summary = "SELECT password FROM credentials; C:\\Users\\admin\\secret.env; token=private-token"
+    session_data = SessionApplicationService(persistence_runtime.session_factory).create_session(
+        CreateSessionCommand(title="Trace 安全投影")
+    )
+    executor = FakeExecutor(
+        items=[
+            DiagnosisExecutionEvent(
+                type=RunEventType.TOOL_INVOKED,
+                node="tool",
+                occurred_at=datetime.now(UTC),
+                data={"summary": unsafe_summary, "status": "ok", "duration_ms": 7},
+            ),
+            DiagnosisExecutionResult(strategy="direct"),
+        ]
+    )
+    run_service = RunApplicationService(
+        persistence_runtime.session_factory,
+        executor,
+        ConservativeResultAssembler(),
+    )
+    accepted = run_service.accept_run(
+        CreateRunCommand(session_id=session_data.id, query="验证 Trace 安全", idempotency_key=uuid4())
+    )
+
+    assert run_service.execute_run(accepted.run.id).status == RunStatus.SUCCEEDED
+    tool_event = next(
+        event
+        for event in _load_events(persistence_runtime, accepted.run.id)
+        if event.type is RunEventType.TOOL_INVOKED
+    )
+
+    assert tool_event.data == {"node": "tool", "summary": "工具调用成功", "status": "ok", "duration_ms": 7}
+    assert unsafe_summary not in str(tool_event.data)
+
+
 def test_run执行失败写入安全错误与终态事件(persistence_runtime: PersistenceRuntime) -> None:
     """执行器错误不可泄露内部原因，必须转换为失败 Run 与 run_failed 事件。"""
     session_data = SessionApplicationService(persistence_runtime.session_factory).create_session(
