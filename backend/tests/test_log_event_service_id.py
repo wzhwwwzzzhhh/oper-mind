@@ -41,8 +41,9 @@ class TestEventServiceId:
     def test_non_tool_event_keeps_empty_data(self) -> None:
         assert _event_data({"type": "agent_done"}) == {}
 
-    def test_summary_truncated_to_280(self) -> None:
+    def test_summary_does_not_use_untrusted_detail(self) -> None:
         event = _tool_event("log")
-        event["detail"] = "x" * 300
+        event["detail"] = "SELECT password FROM credentials; C:\\Users\\admin\\secret.env"
         data = _event_data(event, service_id="s")
-        assert len(data["summary"]) == 280
+        assert data["summary"] == "工具调用成功"
+        assert event["detail"] not in str(data)

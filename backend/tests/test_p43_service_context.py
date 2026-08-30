@@ -51,7 +51,7 @@ def test_工具事件携带绑定服务且仍只保留安全摘要() -> None:
             data={"summary": "只读工具完成", "service_id": "postgres-staging", "status": "ok"},
         )
     )
-    assert data == {"node": "tool", "summary": "只读工具完成", "status": "ok", "service_id": "postgres-staging"}
+    assert data == {"node": "tool", "summary": "工具调用成功", "status": "ok", "service_id": "postgres-staging"}
 
 
 def test_执行器把服务上下文传给每次新建内核() -> None:
@@ -79,7 +79,7 @@ def test_执行器把服务上下文传给每次新建内核() -> None:
     events = list(CoordinatorDiagnosisExecutor(factory).stream("检查", "postgres-staging"))
     assert seen == ["postgres-staging"]
     assert events[0].data == {
-        "summary": "只读工具完成",
+        "summary": "工具调用成功",
         "status": "ok",
         "role": "db",
         "service_id": "postgres-staging",

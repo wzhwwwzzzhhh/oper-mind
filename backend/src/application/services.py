@@ -23,6 +23,8 @@ from src.application.contracts import (
     DiagnosisExecutor,
     ResultAssembler,
     UpdateSessionCommand,
+    normalize_tool_trace_status,
+    safe_tool_trace_summary,
 )
 from src.application.errors import (
     IdempotencyKeyReusedError,
@@ -655,25 +657,17 @@ def _safe_event_data(
     service_id 白名单来自运行时注册表（含动态注册服务）；registry 缺失时退回静态集合。
     """
     data: dict[str, JsonValue] = {"node": event.node}
-    summary = event.data.get("summary")
-    if isinstance(summary, str) and 0 < len(summary) <= 280:
-        data["summary"] = summary
+    status = normalize_tool_trace_status(event.data.get("status"))
+    if event.type is RunEventType.TOOL_INVOKED:
+        data["summary"] = safe_tool_trace_summary(status)
+    else:
+        summary = event.data.get("summary")
+        if isinstance(summary, str) and 0 < len(summary) <= 280:
+            data["summary"] = summary
     role = event.data.get("role")
     if role in {"db", "log", "server", "knowledge"}:
         data["role"] = role
-    status = event.data.get("status")
-    if status in {
-        "running",
-        "completed",
-        "failed",
-        "skipped",
-        "ok",
-        "attention",
-        "unavailable",
-        "rejected",
-        "timeout",
-        "error",
-    }:
+    if status is not None:
         data["status"] = status
     duration_ms = event.data.get("duration_ms")
     if isinstance(duration_ms, int) and not isinstance(duration_ms, bool) and 0 <= duration_ms <= 60_000:

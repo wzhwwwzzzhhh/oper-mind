@@ -12,6 +12,8 @@ from src.application.contracts import (
     DiagnosisExecutionEvent,
     DiagnosisExecutionResult,
     DiagnosisExecutor,
+    normalize_tool_trace_status,
+    safe_tool_trace_summary,
 )
 from src.core.coordinator import CoordinatorAgent
 from src.core.public_projection import project_public_report
@@ -79,14 +81,17 @@ def _event_data(event: Mapping[str, Any], service_id: str | None = None) -> dict
     if event_type not in {"tool_invoked", "conflict_checked", "debate_round", "reflection"}:
         return {}
     data: dict[str, Any] = {}
-    detail = event.get("detail")
-    if isinstance(detail, str) and detail:
-        data["summary"] = detail[:280]
-    status = event.get("status")
-    if isinstance(status, str):
+    status = normalize_tool_trace_status(event.get("status"))
+    if event_type == "tool_invoked":
+        data["summary"] = safe_tool_trace_summary(status)
+    else:
+        detail = event.get("detail")
+        if isinstance(detail, str) and detail:
+            data["summary"] = detail[:280]
+    if status is not None:
         data["status"] = status
     duration = event.get("duration_ms")
-    if isinstance(duration, int) and not isinstance(duration, bool):
+    if isinstance(duration, int) and not isinstance(duration, bool) and 0 <= duration <= 60_000:
         data["duration_ms"] = duration
     role = event.get("role")
     if role in {"db", "server", "log", "knowledge"}:
