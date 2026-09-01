@@ -1,14 +1,14 @@
-# P9 Harness Contract Kernel 与回归基线 · 实施 Design
+# 后续候选：Harness Contract Kernel 与回归基线 · 实施 Design
 
-> 状态：已确认（2026-08-30）；结构性独立 Review PASS，Safe Trace 已在目标 Python 3.11.9 通过回归；形成干净 base 前仍不授权创建 Workpack 或开发
-> 更新：2026-08-30
+> 状态：已确认的规划储备；结构性独立 Review PASS，Safe Trace 已通过目标 Python 3.11.9 与 GitHub CI 回归；未立项实施，不授权创建 Workpack 或开发
+> 更新：2026-09-01
 > Issue：[#113](https://github.com/wzhwwwzzzhhh/oper-mind/issues/113)
 > PRD：[P9-harness-contract-kernel.md](../../prd/agent-runtime/P9-harness-contract-kernel.md)
 > 上游研究：[P9AgentHarness正式化Design.md](P9AgentHarness正式化Design.md)、[P9AgentHarness综合设计矩阵.md](P9AgentHarness综合设计矩阵.md)、[P9AgentHarness最终取舍与后续建议.md](P9AgentHarness最终取舍与后续建议.md)
 
 ## 1. 本 Design 的决策范围
 
-本文只为已确认 PRD 的三个切片确定可实施结构：
+本文是 P9 规划产出的后续候选 Design，只为已确认 PRD 的三个切片确定可实施结构：
 
 1. **Harness Contract Kernel**：七类正交状态命名空间与通用 identity / version / generation / fencing value objects；
 2. **Adapter Contract Test Harness**：框架无关的 reference Adapter contract suite，以及当前 `DiagnosisExecutor` / `ToolGateway` 的兼容性 profile；
@@ -16,7 +16,7 @@
 
 本 Design 不实现 P9 建议分期 A 的其余内容，也不进入 B–E。不新增 Task / Attempt / ContextManifest / BindingSnapshot，不接入 Registry、Policy、UoW、Event Pipeline、Recovery、Grant、durable worker 或长期记忆。
 
-本文获用户确认后也只授权创建对应 Workpack；实际开发仍须按 Workpack 的计划、Review 和 evidence 门推进。
+本文获用户确认只表示技术边界可作为规划储备保留，不授权创建 Workpack。只有未来用户再次明确选择本候选、确定后续阶段归属并授权进入开发后，才按 Workpack 的计划、Review 和 evidence 门推进。
 
 ## 2. 当前代码基线与诚实缺口
 
@@ -41,7 +41,7 @@ RunApplicationService
 |---|---|---|
 | 流式事件 | 支持 Iterator 事件 + 最终结果 | 作为 supported baseline |
 | 服务上下文 | `service_id` 可传入；兼容旧测试端口的反射 fallback 仍存在 | 作为 mapped capability，不改 fallback |
-| 安全事件/结果 | 已有 Pydantic 契约；`tool_invoked.summary` 已改为只由受控 status 生成的固定中性摘要，并在 Adapter / Application 双边界投影 | 作为 AC9 前置已修保证纳入 baseline；P9 本包不再改生产行为 |
+| 安全事件/结果 | 已有 Pydantic 契约；`tool_invoked.summary` 已改为只由受控 status 生成的固定中性摘要，并在 Adapter / Application 双边界投影 | 作为 AC9 前置已修保证纳入 baseline；本候选包不再改生产行为 |
 | typed failure | 显式 error item 通过 `DiagnosisExecutionError` 表达；factory、route、collector 等意外异常仍可逸出 | 显式 error 作为 mapped；意外异常归一化作为 expected gap |
 | capability 声明 | 无 | 只在测试 profile 中声明，不接生产 DI |
 | absolute deadline | port 无输入 | expected gap，不补实现 |
@@ -75,9 +75,9 @@ RunApplicationService
 2. `CoordinatorDiagnosisExecutor` 忽略 `tool_invoked.detail`，只投影受控 status、有限 duration、role 与 service；
 3. `RunApplicationService` 在持久化前再次丢弃 Executor 自由文本并重建摘要，假执行器也不能绕过；
 4. 负向样例覆盖原始 SQL、Windows/POSIX 路径、凭据、原始异常、Prompt 和原始 Tool 输出，并覆盖最终 RunEvent 持久化；
-5. 目标 Python 3.11.9 下聚焦回归 `36 passed`、后端全量 `579 passed`、mypy 与 ruff 通过。
+5. 在 PR #114 合并前的目标 Python 3.11.9 最新主线复验中，聚焦回归 `38 passed`、后端全量 `647 passed`、mypy 与 ruff 通过；GitHub 后端、前端与 Gitleaks CI 全部通过。
 
-该修复属于 `docs/prd/session/structured-diagnosis-result-truthfulness.md` AC7 的既有前置收口，不扩入 P9 实现范围。由于仓库根 `.venv` 的基础解释器已被卸载，本次使用隔离的便携 Python 3.11.9 与仓库锁定依赖完成正式版本验证；临时环境验证后已清理，未修改系统 Python 或仓库 `.venv`。安全与环境功能阻塞均已解除，尚待前置收口 Review/提交形成可引用的 clean base。
+该修复属于 `docs/prd/session/structured-diagnosis-result-truthfulness.md` AC7 的既有前置收口，不扩入本候选实施范围。由于仓库根 `.venv` 的基础解释器已被卸载，验证使用隔离的便携 Python 3.11.9 与仓库锁定依赖完成；临时环境验证后已清理，未修改系统 Python 或仓库 `.venv`。修复与规划文档已经 PR #114 Review、CI 并合入 `main`，可作为未来立项时重新选取 clean base 的既有证据。
 
 ## 3. 模块放置与依赖方向
 
@@ -97,7 +97,7 @@ src.application.runtime_contracts
   ├── src.domain.harness_contracts
   └── src.application.contracts
 
-tests/support/p9_harness_contracts
+tests/support/harness_contracts
   ├── 上述两个新契约模块
   ├── 当前 DiagnosisExecutor
   └── 当前 ToolGateway
@@ -206,7 +206,7 @@ UTC aware datetime
 reviewed expected profile 使用只增不改的版本化 JSON fixture；本包首次创建：
 
 ```text
-backend/tests/fixtures/p9/current_capability_profile.v1.json
+backend/tests/fixtures/harness/current_capability_profile.v1.json
 ```
 
 fixture schema 固定包含 `contract_version`、`profile_version` 和完整 capability map；每项必须有 `expected_status`、可空 `gap_id`、`evidence.kind`、`evidence.locator` 与 `evidence.assertion`。probe 不读取 expected fixture，也不得直接返回 fixture 中的 status；它只返回由执行结果推导的 observed facts。comparator 对 capability key 集合、status、gap ID 和证据 locator 做精确比较。
@@ -237,7 +237,7 @@ ToolGateway 不实现 Runtime Adapter contract。测试复用当前公开行为�
 | Run 受理/终态 | `test_p2_application_services.py` | 终态不被迟到 success/failure 覆盖；不新增状态 |
 | Runtime 安全适配 | `test_p2_diagnosis_adapter.py`、`test_p43_service_context.py` | capability profile 与映射一致 |
 | ToolGateway | `test_tool_gateway.py`、`test_agent_gateway.py` | expected gap 与敏感负向输入门禁 |
-| Safe Trace | `test_p2_diagnosis_adapter.py`、`test_p2b_tool_trace.py`、`test_p2_application_services.py`、`test_log_event_service_id.py` + API 相关场景 | 复跑已落地的自由文本负向样例；公开 Adapter 与持久化 RunEvent 只能出现 status 派生的固定摘要，否则 P9 不启动 |
+| Safe Trace | `test_p2_diagnosis_adapter.py`、`test_p2b_tool_trace.py`、`test_p2_application_services.py`、`test_log_event_service_id.py` + API 相关场景 | 复跑已落地的自由文本负向样例；公开 Adapter 与持久化 RunEvent 只能出现 status 派生的固定摘要，否则候选实施不得启动 |
 | 取消 | `test_run_cancel.py` | queued 不启动、running 后续事件停止、迟到完成不覆盖 cancelled；明确无法中断阻塞执行 |
 | 固定动作 | `test_p5_controlled_action.py` 及 action repository/API 既有测试 | 使用 fake executor 的 Proposal → approve → request → execute → Verify 确定性闭环；状态、事件、幂等和生产目标拦截保持现状 |
 
@@ -250,16 +250,16 @@ ToolGateway 不实现 Runtime Adapter contract。测试复用当前公开行为�
 - “当前保证”“当前 expected gap”“未来目标”分栏记录，gap 不能被描述成已交付能力。
 - 负向输入被 validator / gate 拒绝，承载断言的 pytest 用例本身通过；仓库不提交故意失败测试。
 
-Safe Trace 不使用“正常 ToolGateway 上游已经脱敏”的窄样例替代公开边界负向测试；§2.4 的已落地恶意输入与持久化测试必须在 P9 base 上继续通过。
+Safe Trace 不使用“正常 ToolGateway 上游已经脱敏”的窄样例替代公开边界负向测试；§2.4 的已落地恶意输入与持久化测试必须在未来候选实施 base 上继续通过。
 
 ## 7. 零行为变化机器门禁
 
 ### 7.1 基线捕获
 
-Workpack 开发前，必须在干净实现 worktree 的确定 base commit 上生成。当前工作区已有 P9 文档改动且根 `.venv` 启动器失效，明确禁止在当前工作区捕获 baseline；只能在前置安全修复与本文均确认、合并后的新干净 worktree 中捕获：
+候选被未来单独立项后，必须在新建的干净实现 worktree 中，从当时最新且已确认、已合并的确定 base commit 生成 baseline；不得在规划收口分支、其他功能分支或包含候选代码的工作区捕获：
 
 ```text
-backend/tests/fixtures/p9/zero_behavior_baseline.v1.json
+backend/tests/fixtures/harness/zero_behavior_baseline.v1.json
 ```
 
 基线至少记录：
@@ -276,16 +276,16 @@ backend/tests/fixtures/p9/zero_behavior_baseline.v1.json
 
 所有 tracked 内容哈希都禁止直接对 checkout `read_bytes()`：baseline 通过 Git plumbing 读取 `<base>:<path>` 的 blob 原始 bytes 并计算 SHA-256；持续校验读取当前 `HEAD:<path>` 的 blob bytes。聚合哈希按 POSIX path 排序，对每项使用 `UTF-8 path + NUL + blob SHA-256` 的稳定 framing 后再求 SHA-256。这样 CRLF checkout、`core.autocrlf` 和不同 OS 不改变结果；working tree / index 的任何漂移由四集合 diff 负责，不靠 checkout raw hash 猜测。
 
-生成器只使用 Python 标准库和现有应用依赖，放在 `backend/tests/support/p9_zero_behavior.py`。它是 Workpack 的第一个代码 bootstrap，不再错误要求“生成器尚不存在时工作区零变更”。默认模式只校验；显式写模式必须同时提供 `--write-baseline --base-sha <sha> --reviewed-generator-raw-sha256 <reviewed-sha>`，并满足：
+生成器只使用 Python 标准库和现有应用依赖，放在 `backend/tests/support/harness_zero_behavior.py`。它是 Workpack 的第一个代码 bootstrap，不再错误要求“生成器尚不存在时工作区零变更”。默认模式只校验；显式写模式必须同时提供 `--write-baseline --base-sha <sha> --reviewed-generator-raw-sha256 <reviewed-sha>`，并满足：
 
 1. `HEAD` 等于指定 base；
 2. 当前 worktree 的实际 generator raw SHA-256 与 Reviewer 通过 `Get-FileHash` 得到并传入的 `reviewed-sha` 完全相同；同时把 generator 解码为无 BOM UTF-8、将 CRLF / CR 规范化为 LF 后计算 canonical SHA-256 并写入 baseline；
-3. committed / staged / unstaged / untracked 四集合并集只能是以下 bootstrap 集合的子集：`backend/tests/support/p9_zero_behavior.py`、`docs/workpack/P9-harness-contract-kernel/plan.md`、`docs/workpack/README.md`；其中 generator 必须存在，两个管理文档可以已经在 base 中或处于待提交状态；
+3. committed / staged / unstaged / untracked 四集合并集只能是以下 bootstrap 集合的子集：`backend/tests/support/harness_zero_behavior.py`、`docs/workpack/harness-contract-kernel/plan.md`、`docs/workpack/README.md`；其中 generator 必须存在，两个管理文档可以已经在 base 中或处于待提交状态；
 4. 任何生产代码、测试、fixture、依赖、API、迁移或前端变化都使写模式拒绝运行。
 
-检查通过后，`zero_behavior_baseline.v1.json` 才作为第二个代码工件生成。该流程允许经过 Review 的单一生成器启动，同时不允许其他 P9 代码先于现状取样。
+检查通过后，`zero_behavior_baseline.v1.json` 才作为第二个代码工件生成。该流程允许经过 Review 的单一生成器启动，同时不允许其他候选代码先于现状取样。
 
-bootstrap generator 必须在首次 Review 时已经同时具备 write 与 verify 全部逻辑；baseline 记录 hash 后保持不变。若之后发现 generator 缺陷，必须删除 baseline 及其后新增的 P9 测试/fixture/contract，回到同一 clean base 的 bootstrap 步骤，以新 reviewed hash 重新生成；禁止保留后续代码同时刷新 baseline。
+bootstrap generator 必须在首次 Review 时已经同时具备 write 与 verify 全部逻辑；baseline 记录 hash 后保持不变。若之后发现 generator 缺陷，必须删除 baseline 及其后新增的候选测试/fixture/contract，回到同一 clean base 的 bootstrap 步骤，以新 reviewed hash 重新生成；禁止保留后续代码同时刷新 baseline。
 
 后续 worktree / CI 复验 generator 使用 canonical SHA-256；同一 bootstrap worktree 的写入授权使用 reviewed raw SHA-256，防止 Review 后文件变化。generator 最终进入 Git 后，其 LF Git blob bytes 必须与上述 UTF-8/LF canonical bytes 一致，否则门禁失败。
 
@@ -293,7 +293,7 @@ bootstrap generator 必须在首次 Review 时已经同时具备 write 与 verif
 
 ### 7.2 持续校验
 
-`backend/tests/test_p9_zero_behavior_gate.py` 必须机器验证：
+`backend/tests/test_harness_zero_behavior_gate.py` 必须机器验证：
 
 1. 依赖文件、迁移目录、API、前端和关键生产文件哈希与基线一致；
 2. 当前规范化 OpenAPI 哈希与 Alembic heads 与基线一致；
@@ -301,10 +301,10 @@ bootstrap generator 必须在首次 Review 时已经同时具备 write 与 verif
 4. 通过 AST 扫描确认：除 `src.application.runtime_contracts` 外，`backend/src` 既有生产模块不导入 `src.domain.harness_contracts`；任何生产模块都不导入 `src.application.runtime_contracts`；
 5. 新 contract module 不导入 core、agents、tools、infrastructure、api 或具体 Agent 框架；
 6. 当前 `DiagnosisExecutor`、`CoordinatorDiagnosisExecutor`、`RunApplicationService`、`ToolGateway` 与生产 DI 文件没有 diff；受保护目录新增 staged / unstaged / untracked 文件同样失败；
-7. 当前 skip / xfail AST inventory 与 baseline 完全一致，且所有 `test_p9_*` 与 P9 support 文件中 inventory 为空；扫描至少覆盖 `pytest.skip/xfail/importorskip`、`pytest.mark.skip/skipif/xfail`、`pytest.param(..., marks=...)`、模块级 `pytestmark`、`unittest.skip/skipIf/skipUnless/expectedFailure`，并解析常见模块别名与 `from ... import ... as ...`；不以 pytest 退出码代替该棘轮；
+7. 当前 skip / xfail AST inventory 与 baseline 完全一致，且所有 `test_harness_*` 与 Harness support 文件中 inventory 为空；扫描至少覆盖 `pytest.skip/xfail/importorskip`、`pytest.mark.skip/skipif/xfail`、`pytest.param(..., marks=...)`、模块级 `pytestmark`、`unittest.skip/skipIf/skipUnless/expectedFailure`，并解析常见模块别名与 `from ... import ... as ...`；不以 pytest 退出码代替该棘轮；
 8. base 中已存在的 `current_capability_profile.vN.json` 保持 byte-for-byte 不变，新版本连续递增且 payload 版本与文件名一致。
 
-只写“人工看过 diff”不能通过。若基线因 main 上其他已合并改动失效，必须先 rebase，在无 P9 代码改动的状态重新生成基线并经 Review；不得在同一提交里一边改受保护文件一边刷新基线。
+只写“人工看过 diff”不能通过。若基线因 main 上其他已合并改动失效，必须先 rebase，在无候选代码改动的状态重新生成基线并经 Review；不得在同一提交里一边改受保护文件一边刷新基线。
 
 ### 7.3 允许路径
 
@@ -314,16 +314,16 @@ bootstrap generator 必须在首次 Review 时已经同时具备 write 与 verif
 backend/src/domain/harness_contracts.py
 backend/src/application/runtime_contracts.py
 backend/tests/support/__init__.py
-backend/tests/support/p9_harness_contracts.py
-backend/tests/support/p9_zero_behavior.py
-backend/tests/fixtures/p9/current_capability_profile.v1.json
-backend/tests/fixtures/p9/zero_behavior_baseline.v1.json
-backend/tests/test_p9_harness_contract_kernel.py
-backend/tests/test_p9_runtime_adapter_contract.py
-backend/tests/test_p9_regression_baseline.py
-backend/tests/test_p9_zero_behavior_gate.py
-docs/workpack/P9-harness-contract-kernel/**
-docs/workpack/归档/P9-harness-contract-kernel/**
+backend/tests/support/harness_contracts.py
+backend/tests/support/harness_zero_behavior.py
+backend/tests/fixtures/harness/current_capability_profile.v1.json
+backend/tests/fixtures/harness/zero_behavior_baseline.v1.json
+backend/tests/test_harness_contract_kernel.py
+backend/tests/test_harness_runtime_adapter_contract.py
+backend/tests/test_harness_regression_baseline.py
+backend/tests/test_harness_zero_behavior_gate.py
+docs/workpack/harness-contract-kernel/**
+docs/workpack/归档/harness-contract-kernel/**
 docs/workpack/README.md
 docs/design/agent-runtime/P9HarnessContractKernel实施Design.md
 docs/prd/agent-runtime/P9-harness-contract-kernel.md
@@ -339,14 +339,16 @@ Workpack 完成交付时允许把同名目录从 active 位置移动到上述精
 
 ## 8. 实施切片与文件面
 
-### 8.1 Workpack 前置步骤
+### 8.1 未来立项后的 Workpack 前置步骤
 
-1. 确认 §2.4 Safe Trace 修复已纳入前置收口、在正式 Python 3.11 环境复跑并形成已合并证据；没有 clean-base 证据则停止，不创建 P9 Workpack；
+本节是候选被未来单独立项后的执行说明，不是 P9 收口后的自动下一步。
+
+1. 确认 §2.4 Safe Trace 修复已纳入前置收口、在正式 Python 3.11 环境复跑并形成已合并证据；没有 clean-base 证据则停止，不创建候选 Workpack；
 2. 从届时已确认、已合并的 base 创建新 worktree；在创建 active Workpack 文档和任何代码前，`git status --porcelain=v1 --untracked-files=all` 必须为空并记录 `$baseSha = git rev-parse HEAD`；
-3. 按已确认 Design 创建 active Workpack、完成计划确认；其 plan / README 是 §7.1 唯一允许的非代码 bootstrap 差异；
+3. 在未来立项授权成立后，按已确认 Design 创建 active Workpack、完成计划确认；其 plan / README 是 §7.1 唯一允许的非代码 bootstrap 差异；
 4. 确认根 `.venv` 可执行；若新 worktree 无可用环境，按仓库 Windows 规则重建，不改 requirements / pyproject 或任何锁定依赖；
 5. 先运行现有聚焦回归与后端全量测试；基线不绿则不进入开发；
-6. 只新增 `p9_zero_behavior.py`，经 Review 计算 SHA-256 后以显式写模式生成 baseline；baseline 生成成功前不得新增其他测试、fixture 或 contract module。
+6. 只新增 `harness_zero_behavior.py`，经 Review 计算 SHA-256 后以显式写模式生成 baseline；baseline 生成成功前不得新增其他测试、fixture 或 contract module。
 
 Windows 环境检查与重建命令固定为：
 
@@ -365,9 +367,9 @@ generator bootstrap 从仓库根执行，`reviewed-sha` 必须来自 Review 后�
 
 ```powershell
 $baseSha = git rev-parse HEAD
-Get-FileHash backend/tests/support/p9_zero_behavior.py -Algorithm SHA256
+Get-FileHash backend/tests/support/harness_zero_behavior.py -Algorithm SHA256
 $reviewedGeneratorSha = "<Workpack-evidence-中已复核的-sha256>"
-.\.venv\Scripts\python.exe backend/tests/support/p9_zero_behavior.py --write-baseline --base-sha $baseSha --reviewed-generator-raw-sha256 $reviewedGeneratorSha
+.\.venv\Scripts\python.exe backend/tests/support/harness_zero_behavior.py --write-baseline --base-sha $baseSha --reviewed-generator-raw-sha256 $reviewedGeneratorSha
 ```
 
 命令参数不构成自我批准：Workpack evidence 必须记录 Reviewer 核对的 generator diff 与 hash；文件在核对后变化会因实际 hash 与传入值/记录值不一致而失败。
@@ -390,40 +392,40 @@ $reviewedGeneratorSha = "<Workpack-evidence-中已复核的-sha256>"
 
 | AC | 测试 / fixture | 核心 oracle 与失败条件 |
 |---|---|---|
-| AC1 | `test_p9_harness_contract_kernel.py::test_七维同名code不能跨维度解析` | 七个 model 分别 round-trip；任一 model 接受另一 dimension tag、自由 code 或错误 Failure namespace 即失败 |
+| AC1 | `test_harness_contract_kernel.py::test_七维同名code不能跨维度解析` | 七个 model 分别 round-trip；任一 model 接受另一 dimension tag、自由 code 或错误 Failure namespace 即失败 |
 | AC2 | 同文件 `test_identity_version_generation_fencing合法往返并拒绝非法值` | 固定序列化；空 namespace、非法 UUID、负版本/代数、禁止排序 fencing 均拒绝 |
 | AC3 | 同文件 `test_kernel不包含阶段B业务实体或持久化映射` + import AST gate | 出现 Task/Attempt/Context/Binding 类型、ORM 或受禁依赖即失败 |
-| AC4 | `test_p9_runtime_adapter_contract.py` 的 reference 参数化套件 | query、execution_id、version、service、deadline、control 全字段可观察；0..n event + 恰一 terminal；零/多 terminal、terminal 后 event、意外异常未转 typed failure 均失败 |
+| AC4 | `test_harness_runtime_adapter_contract.py` 的 reference 参数化套件 | query、execution_id、version、service、deadline、control 全字段可观察；0..n event + 恰一 terminal；零/多 terminal、terminal 后 event、意外异常未转 typed failure 均失败 |
 | AC5 / AC15 | `current_capability_profile.v1.json` + `test_current_diagnosis_executor_observed_profile精确匹配reviewed_expected` | observed probe 独立执行；capability key/status/gap ID/evidence/version 任一未知或不一致即失败 |
-| AC6 / AC11 | `test_p9_regression_baseline.py::test_toolgateway拒绝非法请求且拒绝时不执行tool` | 未注册、坏 JSON、非对象、schema 错误、异常、敏感 output；拒绝计数必须为零次执行且安全结果无原始值 |
+| AC6 / AC11 | `test_harness_regression_baseline.py::test_toolgateway拒绝非法请求且拒绝时不执行tool` | 未注册、坏 JSON、非对象、schema 错误、异常、敏感 output；拒绝计数必须为零次执行且安全结果无原始值 |
 | AC7 | 同文件 `test_run代表性生命周期和迟到终态保持现状` | 只接受当前五态；迟到 success/failure 不覆盖终态；不读取 graph 私有 state |
 | AC8 | 同文件 `test_cancel保持协作式检查点和终态保护` | queued 不启动、running 在下一事件停止、迟到完成不覆盖 cancelled；阻塞调用不可中断被固定为 limitation |
-| AC9 / AC11 | 同文件 `test_tool_invoked公开投影拒绝敏感summary` | 直接向公开 Adapter 边界分别注入 SQL、Windows/POSIX 路径、credential、原始异常；API/持久化事件均不得出现原文；前置修复未满足则本测试失败并阻断 P9 |
+| AC9 / AC11 | 同文件 `test_tool_invoked公开投影拒绝敏感summary` | 直接向公开 Adapter 边界分别注入 SQL、Windows/POSIX 路径、credential、原始异常；API/持久化事件均不得出现原文；前置修复未满足则本测试失败并阻断候选实施 |
 | AC10 | 同文件 `test_固定动作从提案到独立验证保持既有边界` | 临时 SQLite + fake executor 完整走 Proposal → approve → request → execute → Verify；逐步断言既有状态、审计事件、幂等、生产目标拦截，无 Grant 或新增权限 |
 | AC12 | 同文件 `test_代表性场景归一化后重复运行一致` | 固定 clock/UUID/fake，连续两次结果相同；任何网络、真实模型、主机、日志或用户服务访问即失败 |
-| AC13 | `test_p9_zero_behavior_gate.py::test_skip_xfail_inventory未增长且P9为零` | AST inventory 与 base 精确相等，P9 文件为零；新增/扩大 skip、skipif、xfail、pytest.xfail 任一即失败 |
+| AC13 | `test_harness_zero_behavior_gate.py::test_skip_xfail_inventory未增长且候选文件为零` | AST inventory 与 base 精确相等，候选文件为零；新增/扩大 skip、skipif、xfail、pytest.xfail 任一即失败 |
 | AC14 | 同文件的 dependency / OpenAPI / Alembic / four-diff-set / import tests | 任一哈希变化、任一 committed/staged/unstaged/untracked 越界、生产导入或受保护路径新增文件即失败 |
-| AC16 | `test_p9_zero_behavior_gate.py::test_正式路线图登记范围与PRD一致` | 路线图必须已有三个切片登记且不把 A–E 标成批准实施；只读校验，不由测试改文档 |
+| AC16 | `test_harness_zero_behavior_gate.py::test_正式路线图候选范围与PRD一致` | 路线图必须把三个切片标为后续候选且不把 A–E 标成批准实施；只读校验，不由测试改文档 |
 
 ### 9.2 执行命令
 
 后端命令均从 `backend/` 执行，并使用根 `.venv`：
 
 ```powershell
-..\.venv\Scripts\python.exe -m pytest tests/test_p9_harness_contract_kernel.py -q
-..\.venv\Scripts\python.exe -m pytest tests/test_p9_runtime_adapter_contract.py -q
-..\.venv\Scripts\python.exe -m pytest tests/test_p9_regression_baseline.py -q
-..\.venv\Scripts\python.exe -m pytest tests/test_p9_zero_behavior_gate.py -q
+..\.venv\Scripts\python.exe -m pytest tests/test_harness_contract_kernel.py -q
+..\.venv\Scripts\python.exe -m pytest tests/test_harness_runtime_adapter_contract.py -q
+..\.venv\Scripts\python.exe -m pytest tests/test_harness_regression_baseline.py -q
+..\.venv\Scripts\python.exe -m pytest tests/test_harness_zero_behavior_gate.py -q
 ..\.venv\Scripts\python.exe -m pytest tests/test_p2_application_services.py tests/test_p2_diagnosis_adapter.py tests/test_p2b_tool_trace.py tests/test_tool_gateway.py tests/test_agent_gateway.py tests/test_run_cancel.py tests/test_p5_controlled_action.py tests/test_action_proposal_list.py tests/test_p43_service_context.py -q
 ..\.venv\Scripts\python.exe -m pytest tests -q
-..\.venv\Scripts\python.exe -m ruff check src/domain/harness_contracts.py src/application/runtime_contracts.py tests/support/p9_harness_contracts.py tests/support/p9_zero_behavior.py tests/test_p9_harness_contract_kernel.py tests/test_p9_runtime_adapter_contract.py tests/test_p9_regression_baseline.py tests/test_p9_zero_behavior_gate.py
+..\.venv\Scripts\python.exe -m ruff check src/domain/harness_contracts.py src/application/runtime_contracts.py tests/support/harness_contracts.py tests/support/harness_zero_behavior.py tests/test_harness_contract_kernel.py tests/test_harness_runtime_adapter_contract.py tests/test_harness_regression_baseline.py tests/test_harness_zero_behavior_gate.py
 ..\.venv\Scripts\python.exe -m mypy src/domain/harness_contracts.py src/application/runtime_contracts.py
 ```
 
 仓库根执行：
 
 ```powershell
-$baseSha = (Get-Content backend/tests/fixtures/p9/zero_behavior_baseline.v1.json -Encoding utf8 | ConvertFrom-Json).base_commit_sha
+$baseSha = (Get-Content backend/tests/fixtures/harness/zero_behavior_baseline.v1.json -Encoding utf8 | ConvertFrom-Json).base_commit_sha
 git diff --check
 git diff --name-only "$baseSha...HEAD"
 git diff --cached --name-only
@@ -456,7 +458,7 @@ git status --porcelain=v1 --untracked-files=all
 | Tool timeout 被误称“已停止” | profile 固定记录 wait timeout，不声明副作用终止 |
 | baseline 被随代码一起刷新 | 写基线必须在 base HEAD；保护文件变更与 baseline 刷新不得同提交 |
 | staged / untracked 越界绕过门禁 | committed、staged、unstaged、untracked 四集合取并集；保护目录拒绝新增 untracked 文件 |
-| 既有 skip 掩盖新增缺口 | AST inventory 以文件、所属测试、类别和条件摘要做等值棘轮；P9 文件必须为零 |
+| 既有 skip 掩盖新增缺口 | AST inventory 以文件、所属测试、类别和条件摘要做等值棘轮；候选文件必须为零 |
 | Safe Trace 泄漏被当成当前保证 | §2.4 修复及负向测试已落地；只有正式环境证据合并后才能作为 baseline 保证，失败样例不得被移除或放宽 |
 | 回归 snapshot 过脆弱 | 只比较 typed 稳定字段，归一化 ID/时间，不快照模型正文和框架 state |
 | 当前环境不可执行 | Workpack 前先修复本地虚拟环境并跑绿现有基线；环境修复不改锁定依赖 |
@@ -468,7 +470,7 @@ git status --porcelain=v1 --untracked-files=all
 - 需要 Task / Attempt / Context / Binding、Policy / Grant、Recovery 或 durable worker；
 - 发现现有安全保证实际缺失且必须改行为才能修复；该问题应独立登记，不能让 baseline 把缺陷固化为保证。
 
-最后一项曾由 `tool_invoked.summary` 内容安全缺口触发；当前工作区已完成 fail-closed 修复与回归。若前置收口 Review 发现仍需改变其他生产行为，继续在前置收口处理，不带入 P9 Workpack。
+最后一项曾由 `tool_invoked.summary` 内容安全缺口触发；该缺口已通过 PR #114 完成 fail-closed 修复与回归。若未来立项前又发现必须改变其他生产行为，继续在独立前置收口处理，不带入候选 Workpack。
 
 回滚方式是删除本包新增的未激活 contract / test / fixture 文件及对应 Workpack 状态回写；由于无生产 import、迁移、API 和数据变化，不需要数据回滚或运行时切换。
 
@@ -481,13 +483,13 @@ git status --porcelain=v1 --untracked-files=all
 - PRD 用户确认；
 - GitHub issue #113 创建。
 - 本实施 Design 的结构性独立 Review：`PASS`；
-- Safe Trace fail-closed 修复及恶意输入/持久化回归：工作区已完成；Python 3.11.9 聚焦 `36 passed`、全量 `579 passed`、mypy/ruff 通过。
+- Safe Trace fail-closed 修复及恶意输入/持久化回归已通过 PR #114 合入 `main`；Python 3.11.9 聚焦 `38 passed`、全量 `647 passed`、mypy/ruff 与 GitHub CI 通过。
 - 用户已于 2026-08-30 确认本实施 Design。
 
 当前尚未完成：
 
-- Safe Trace 修复纳入前置收口 Review/提交，形成 clean-base 证据；
-- Workpack 创建与计划确认；
-- 任何 P9 代码实现。
+- 候选是否进入后续实施阶段的独立立项决策；
+- 获得立项授权后的 Workpack 创建与计划确认；
+- 任何候选代码实现。
 
-首次独立 Review 的结论是 `NEEDS_REVISION`；经过三轮修订，最终结构性 Review 为 `PASS`，包括封闭类型、Adapter 映射、profile 棘轮、bootstrap、四集合 diff、跨 worktree hash 和具名 AC 证明。Review 发现的 Safe Trace 阻塞现已在前置收口工作区修复，并在目标 Python 3.11.9 通过完整回归；用户已确认本文。下一步仍不是直接开发：必须先把前置收口与 P9 规划文档 Review/提交为 clean base，再按 §8.1 创建并确认 Workpack；此前不修改 issue 状态、不开始 P9 代码。
+首次独立 Review 的结论是 `NEEDS_REVISION`；经过三轮修订，最终结构性 Review 为 `PASS`，包括封闭类型、Adapter 映射、profile 棘轮、bootstrap、四集合 diff、跨 worktree hash 和具名 AC 证明。Review 发现的 Safe Trace 阻塞已修复，前置收口与 P9 规划文档已通过 PR #114 合入 `main`；目标 Python 3.11.9 聚焦 `38 passed`、全量 `647 passed`，GitHub 后端、前端与 Gitleaks CI 全部通过。P9 至此完成规划收口，本文转为后续候选储备；下一步不是创建 Workpack，而是等待用户未来单独选择实施候选与阶段编号。

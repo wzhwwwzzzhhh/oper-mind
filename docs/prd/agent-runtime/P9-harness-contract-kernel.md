@@ -1,24 +1,24 @@
 ---
-title: Agent Harness 契约内核与回归基线
-status: 已确认
+title: 后续候选：Agent Harness 契约内核与回归基线
+status: 已确认（规划储备，未立项实施）
 domain: agent-runtime
-phase: P9（路线图已登记的 Harness 基础工程段）
+phase: P9 规划产出（后续阶段编号待定）
 issue: 113
-updated: 2026-08-30
+updated: 2026-09-01
 ---
 
-# Agent Harness 契约内核与回归基线 · PRD
+# 后续候选：Agent Harness 契约内核与回归基线 · PRD
 
 ## 背景
 
 OperMind 已具备正式会话、Run、SSE、`DiagnosisExecutor`、LangGraph 多 Agent 图、`ToolGateway`、安全 Trace、取消和固定动作链，但这些能力仍以现有实现的局部协议协作，缺少一套框架无关、可独立验证的 Harness 最小契约。继续增加 Agent、Tool、Connector 或恢复能力前，需要先固定共同语言与回归护栏，避免后续能力沿不同状态、错误和适配协议继续分叉。
 
-P9 研究阶段已完成七个开源项目的证据对照、当前代码 Baseline Gap Map、十七组目标契约、综合设计矩阵和独立 Reader Review，并由用户确认收口。最终方向是“OperMind 自有业务控制面 + 可替换 Agent Runtime Adapter”，不整体迁移到任何开源框架。研究结论不等于实施授权；本 PRD 只选择建议阶段 A 中第一个零行为变化候选包。
+P9 研究与后续开发规划阶段已完成七个开源项目的证据对照、当前代码 Baseline Gap Map、十七组目标契约、综合设计矩阵和独立 Reader Review，并由用户确认收口。最终方向是“OperMind 自有业务控制面 + 可替换 Agent Runtime Adapter”，不整体迁移到任何开源框架。本 PRD 是 P9 产出的第一个零行为变化实施候选，只作为规划储备；它不属于 P9 代码实施，也不自动授权创建 Workpack。文件名保留 `P9-` 前缀仅用于追溯来源，不表示实施阶段编号。
 
 关联依据：
 
 - `docs/产品定义.md`：OperMind 是会话式多 Agent DevOps Copilot；外部访问必须经过受控 Tool，公开 Trace 不展示 CoT、Prompt、原始 Tool 输出或凭据。
-- `docs/路线图.md`：已将本候选包登记在当前体验驱动完善收口后、第三阶段能力扩展前；只登记本 PRD，不承诺完整 A–E。
+- `docs/路线图.md`：已把本候选记录为 P9 产出的后续首个实施候选；阶段编号、开始时间与是否实施均待用户单独决定，不承诺完整 A–E。
 - `docs/开发规范.md`：跨层数据使用 Pydantic 或 TypedDict，Agent 与 Tool 复用约定接口，关键路径必须有确定性测试，编排语义变化必须 Design → Review → 用户确认。
 - [P9 Agent Harness 正式化 Design](../../design/agent-runtime/P9AgentHarness正式化Design.md)：给出完整目标架构与安全边界。
 - [P9 Agent Harness 综合设计矩阵](../../design/agent-runtime/P9AgentHarness综合设计矩阵.md)：给出七类正交维度、能力依赖和行为激活门。
@@ -165,7 +165,7 @@ P9 研究阶段已完成七个开源项目的证据对照、当前代码 Baselin
 - [ ] AC13: 当执行 Contract Kernel / Adapter / Regression 新增套件时应 100% 通过且无 `skip`、`xfail` / `xpass`；后端全量测试应按仓库既有基线通过，本包不得新增或扩大 skip / xfail，也不得放宽既有断言掩盖失败。
 - [ ] AC14: 当执行后续 Design 固定的边界门禁时，应机器确认：依赖清单与 lockfile 无变化；迁移、前端、API 路由 / schema、生产 DI、当前 Runtime / Run 服务 / ToolGateway 实现无 diff；规范化 OpenAPI 与迁移 head 不变；新增模块未被生产入口导入。只靠人工审查不能使本 AC 通过。
 - [ ] AC15: 当交付本候选包时，应形成版本化“当前行为基线与已知缺口”记录；新增未知 gap 必须失败，gap 变更必须有证据与 Review，并明确后续阶段仍需重新进入 PRD / Design / 用户确认流程。
-- [x] AC16: 当进入实施 Design 前，正式路线图应已同步登记“当前完善收口后、第三阶段能力扩展前的 Harness 基础工程段”，且只登记本候选包方向，不把 A–E 整体承诺为已批准阶段。
+- [x] AC16: 正式路线图已明确本 PRD 是 P9 规划产出的后续候选，不是 P9 实施阶段或已批准 Workpack，且不把 A–E 整体承诺为已批准阶段。
 
 ## 边界与约束
 
@@ -174,7 +174,7 @@ P9 研究阶段已完成七个开源项目的证据对照、当前代码 Baselin
 - **Tool 边界**：模型与 Runtime 不获得 Connector；Tool 执行继续只能经过现有 `ToolGateway`。
 - **行为边界**：本 PRD 只建独立类型、协议、测试辅助结构和文档，不把新协议接入生产调用链。
 - **扩范围处理**：任何迁移、API、生产接线、业务 identity、持久化、Recovery、权限或副作用语义需求必须停止当前包并单独决策，不能以“为未来预留”为由加入。
-- **工程闸门**：本 PRD 已由用户确认，并已作为“当前完善收口后、第三阶段扩展前的基础工程段”同步到 `docs/路线图.md`；issue #113、实施 Design、独立 Review 与用户确认均已完成，Safe Trace 前置阻塞也已修复并通过目标 Python 3.11.9 回归。下一步必须先让前置收口与 P9 规划提交形成已 Review、已合并的干净 base，再按实施 Design 创建并确认 Workpack；此前仍不授权 P9 代码开发。
+- **工程闸门**：本 PRD、issue #113、实施 Design、独立 Review 与 Safe Trace 前置收口均已完成并通过 PR #114 合入 `main`，证明候选技术边界已准备好；这不构成立项授权。只有未来用户再次明确选择本候选、确定其后续阶段归属并授权进入开发后，才能从届时最新的已合并干净 base 创建 Workpack；P9 收口本身不触发该动作。
 
 ## 完成定义（DoD）
 
@@ -185,14 +185,16 @@ P9 研究阶段已完成七个开源项目的证据对照、当前代码 Baselin
 - [ ] `git diff --check` 通过；后续 Design 固定的机器门禁证明依赖、迁移、OpenAPI、前端、生产接线与生产 import graph 未变化，并完成敏感字面量检查。
 - [ ] 无数据库迁移、公开 API / SSE / 前端、任何依赖清单或 lockfile 变化、真实外部访问、权限变化或用户可见行为变化。
 - [ ] “当前行为基线与已知缺口”记录完整区分现有保证、目标契约和未实现能力，不把 gap 描述为已交付。
-- [x] 实施 Design、独立 Review 和用户确认均已完成；Workpack 只在这些门通过后创建。
+- [x] 实施 Design、独立 Review 和用户确认均已完成；这些成果作为规划储备保留，Workpack 仍须未来单独立项授权后才能创建。
 
-## 已关闭的实现决策
+## 已关闭的技术决策与待定立项决策
 
-无产品或实现开放问题。包路径、依赖方向、value objects、`DiagnosisExecutor` 复用边界、兼容夹具、versioned expected capability profile、回归套件和 baseline / evidence 放置方式均已由 `docs/design/agent-runtime/P9HarnessContractKernel实施Design.md` 定稿；任何改变这些决定或本 PRD 严格边界的需求都必须重新进入 Design。
+包路径、依赖方向、value objects、`DiagnosisExecutor` 复用边界、兼容夹具、versioned expected capability profile、回归套件和 baseline / evidence 放置方式均已由 `docs/design/agent-runtime/P9HarnessContractKernel实施Design.md` 定稿；任何改变这些决定或本 PRD 严格边界的需求都必须重新进入 Design。
+
+仍待用户未来单独决定的只有：是否选择本候选进入开发、何时开始、归属哪个后续阶段，以及届时是否创建 Workpack。这些是立项决策，不是 P9 未完成事项。
 
 ## GitHub Issue
 
 - issue：[#113](https://github.com/wzhwwwzzzhhh/oper-mind/issues/113)——P9 Agent Harness 契约内核与回归基线。
 - issue 只描述本 PRD 的三个切片和严格排除项，不把阶段 A 其余内容或 B–E 纳入同一 issue。
-- 状态同步：本 PRD、正式路线图与 issue 已同步；实施 Design 已确认，尚未创建 Workpack，issue 与 Design 均不等于 P9 代码开发授权。
+- 状态同步：本 PRD、正式路线图与 issue 已同步为 P9 规划产出的后续候选；实施 Design 已确认但未立项实施，issue 与 Design 均不等于代码开发授权。
