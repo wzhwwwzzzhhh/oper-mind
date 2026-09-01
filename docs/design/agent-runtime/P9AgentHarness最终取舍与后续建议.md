@@ -113,7 +113,7 @@ Harness Contract Kernel + Regression Baseline
 2. 围绕当前 DiagnosisExecutor/ToolGateway 的 Adapter contract test harness；
 3. 当前权限、Trace、取消和固定动作链的确定性回归场景。
 
-P10 不新增数据库迁移、公开 API、Connector、真实连接、审批能力或 durable worker；若实际切片触及这些边界，必须拆出独立 Design。P9 本身没有创建 Workpack；P10 立项与 Workpack 计划现已分别确认，仍须在立项文档合入 `main`、建立干净实施 base 且开始门禁通过后才进入代码实施。
+P10 不新增数据库迁移、公开 API、Connector、真实连接、审批能力或 durable worker；若实际切片触及这些边界，必须拆出独立 Design。P9 本身没有创建 Workpack；P10 立项与 Workpack 计划现已分别确认并通过 PR #116 合入 `main`，仍须记录最终实施 base 且开始门禁通过后才进入代码实施。
 
 ## 7. 独立 Design 与激活门
 
@@ -143,7 +143,7 @@ P9 已完成：
 
 - 正式路线只把已确认 PRD 的三个切片立项为 P10，不承诺完整 A–E；
 - P10 Workpack 计划已经创建并由用户确认；
-- 立项与计划文档合入 `main`、建立干净实施 base 且开始门禁通过前不修改 Runtime、数据库、API 或生产行为；
+- 最终实施 base 与开始门禁通过前不修改 Runtime、数据库、API 或生产行为；
 - A 的其余内容与 B–E 仍只能作为未来决策输入。
 
-issue、PRD、实施 Design 与 Workpack 计划均已完成确认，阶段归属已确定为 P10；当前下一工程门是立项与计划文档合入 `main`，随后建立干净实施 base。未来是否继续 A 的其余内容或 B–E 仍须逐项另行决定，不能由本文或 P10 自动触发。
+issue、PRD、实施 Design 与 Workpack 计划均已完成确认并通过 PR #116 合入 `main`，阶段归属已确定为 P10；当前下一工程门是本状态同步合入后快进并记录最终实施 base。未来是否继续 A 的其余内容或 B–E 仍须逐项另行决定，不能由本文或 P10 自动触发。

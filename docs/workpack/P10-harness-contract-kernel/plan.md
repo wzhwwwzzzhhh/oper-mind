@@ -1,12 +1,14 @@
 # P10 Harness Contract Kernel 与回归基线 · 工作包计划
 
-> 状态：用户已于 2026-09-01 确认；立项与计划文档合入 `main`、建立干净实施 base 且开始门禁通过前不进入代码实施
+> 状态：用户已于 2026-09-01 确认，相关文档已通过 PR #116 合入 `main`；独立 worktree 与内容等价预检已完成，待本状态同步合入后快进并记录最终实施 base
 > PRD：`docs/prd/agent-runtime/P9-harness-contract-kernel.md`（文件名保留 P9 规划来源，正式阶段为 P10）
 > Design：`docs/design/agent-runtime/P9HarnessContractKernel实施Design.md`
 > Issue：[#113](https://github.com/wzhwwwzzzhhh/oper-mind/issues/113)
 > 立项与计划分支：`codex/p10-harness-contract-kernel`
 > 立项与计划基线：`main` / `266a920`（PR #115）
-> 实施分支、worktree 与 base：本计划确认并随立项文档合入 `main` 后，从新的干净 `main` 另行创建并记录
+> 实施分支：`codex/p10-harness-contract-kernel-impl`
+> 实施 worktree：`D:/market-handsome/oper-mind/.tmp/worktrees/p10-harness-contract-kernel`
+> 最终实施 base：待本状态同步合入 `main` 后快进并记录；不得以状态同步前的 commit 代替
 
 ## 目标
 
@@ -25,9 +27,9 @@ P10 只交付共同语言、测试适配边界和现状保护，不接管生产�
 - [x] Safe Trace 前置修复已通过 PR #114 合入 `main`；目标 Python 3.11.9 聚焦、全量、mypy/ruff 与 GitHub CI 证据已形成。
 - [x] 用户已于 2026-09-01 将首个候选独立立项为 P10。
 - [x] 用户已于 2026-09-01 确认本 Workpack 计划。
-- [ ] 本立项与计划文档完成 Review、提交并合入 `main`。
-- [ ] 从届时最新 `main` 创建干净实施分支/worktree，并记录确定 base SHA。
-- [ ] 根 `.venv` 在项目支持的 Python 版本上可执行，现有聚焦测试与后端全量基线通过。
+- [x] 本立项与计划文档已通过 PR #116 Review、CI 并合入 `main`。
+- [x] 已创建独立实施分支/worktree；本状态同步合入后仍须快进并记录确定 base SHA。
+- [x] 根 `.venv` 使用项目支持的 Python 3.12.13；内容等价 tree 上聚焦 `79 passed`、全量 `647 passed`，ruff 与 mypy 通过。
 - [ ] `harness_zero_behavior.py` 单文件 bootstrap 经 Review 并记录 raw/canonical SHA-256，随后才允许写入 baseline。
 
 开始门禁未全部满足时，不新增 contract module、Adapter fixture、回归测试或其他 P10 代码。
@@ -146,6 +148,16 @@ git status --porcelain=v1 --untracked-files=all
   3. `文档: 收口P10 Harness工作包证据`
 - 未经用户明确授权，不提交、推送、创建 PR 或合并。
 
+## 开始门预检证据
+
+- PR #116 merge commit：`45f6e934d89c4862b88fa762de920e7e7fc8e6fd`。
+- 预检 tree：`890a6d6c85a727b7b188d606e8b463bf6f900c1f`；`7ae80ef` 与 `45f6e93` 的 tree diff 为空。
+- 受控环境：Codex bundled Python 3.12.13 创建 worktree 根 `.venv`，满足项目 `requires-python >=3.11`；依赖严格来自 `backend/requirements.txt`，未升级 pip、未修改依赖文件。PR #116 GitHub CI 继续覆盖 Python 3.11。
+- 聚焦回归：计划列出的九个既有测试文件，`79 passed`。
+- 后端全量：`647 passed`；ruff `All checks passed`；mypy `Success: no issues found in 113 source files`。
+- worktree tracked/untracked 状态为空；`.venv` 为 Git ignored 环境产物。
+- 本轮没有生成 baseline、generator、contract module、fixture 或任何 P10 代码。最终 base 只能在本状态同步合入后重新快进并记录。
+
 ## 停止条件
 
 出现以下任一情况立即停止并回到 Design：
@@ -164,5 +176,6 @@ git status --porcelain=v1 --untracked-files=all
 - [x] PRD、Design 与结构性 Review 已完成。
 - [x] Workpack 计划已起草。
 - [x] 用户已于 2026-09-01 确认本计划。
-- [ ] 立项与计划文档合入 `main`，创建干净实施 worktree。
+- [x] 立项与计划文档已通过 PR #116 合入 `main`，独立实施 worktree 与受控环境已创建。
+- [ ] 本状态同步合入 `main`，实施 worktree 快进并记录最终 base。
 - [ ] S1–S3 实现、验证、独立 Review、提交与交付完成。

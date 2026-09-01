@@ -1,6 +1,6 @@
 # P10 Harness Contract Kernel 与回归基线 · 实施 Design
 
-> 状态：P10 已立项，Workpack 计划已由用户确认；结构性独立 Review PASS，Safe Trace 已通过目标 Python 3.11.9 与 GitHub CI 回归；立项与计划文档合入 `main`、建立干净实施 base 且开始门禁通过前不进入代码实施
+> 状态：P10 已立项，Workpack 计划已由用户确认并通过 PR #116 合入 `main`；结构性独立 Review PASS，Safe Trace 已通过目标 Python 3.11.9 与 GitHub CI 回归；最终实施 base 与开始门禁通过前不进入代码实施
 > 更新：2026-09-01
 > Issue：[#113](https://github.com/wzhwwwzzzhhh/oper-mind/issues/113)
 > PRD：[P9-harness-contract-kernel.md](../../prd/agent-runtime/P9-harness-contract-kernel.md)
@@ -16,7 +16,7 @@
 
 本 Design 不实现 P9 建议分期 A 的其余内容，也不进入 B–E。不新增 Task / Attempt / ContextManifest / BindingSnapshot，不接入 Registry、Policy、UoW、Event Pipeline、Recovery、Grant、durable worker 或长期记忆。
 
-本 Design 的技术边界已经确认，用户又于 2026-09-01 将本候选独立立项为 P10 并确认 Workpack 计划。立项与计划文档先合入 `main`，再从新的干净 base 创建实施 worktree；开始门禁通过后按 Workpack、Review 和 evidence 门推进。
+本 Design 的技术边界已经确认，用户又于 2026-09-01 将本候选独立立项为 P10 并确认 Workpack 计划，相关文档已通过 PR #116 合入 `main`。独立实施 worktree 与受控环境已经建立；本状态同步合入后须快进并记录最终 base，开始门禁通过后按 Workpack、Review 和 evidence 门推进。
 
 ## 2. 当前代码基线与诚实缺口
 
@@ -256,7 +256,7 @@ Safe Trace 不使用“正常 ToolGateway 上游已经脱敏”的窄样例替�
 
 ### 7.1 基线捕获
 
-P10 Workpack 计划已经用户确认。立项与计划文档合入 `main` 后，必须在干净实现 worktree 中，从已记录且已确认、已合并的确定 base commit 生成 baseline；不得在其他功能分支或已经包含 P10 业务代码的工作区捕获：
+P10 Workpack 计划已经用户确认并合入 `main`。必须在干净实现 worktree 中，从已记录且已确认、已合并的确定 base commit 生成 baseline；不得在其他功能分支或已经包含 P10 业务代码的工作区捕获：
 
 ```text
 backend/tests/fixtures/harness/zero_behavior_baseline.v1.json
@@ -341,7 +341,7 @@ Workpack 完成交付时允许把同名目录从 active 位置移动到上述精
 
 ### 8.1 P10 Workpack 前置步骤
 
-P10 已由用户独立立项且 Workpack 计划已确认，本节现作为计划确认与代码实施之间的强制前置门；立项与计划文档合入 `main`、建立干净实施 base 前仍不执行以下代码步骤。
+P10 已由用户独立立项且 Workpack 计划已确认并合入 `main`，本节现作为计划确认与代码实施之间的强制前置门；最终实施 base 记录前仍不执行以下代码步骤。
 
 1. 确认 §2.4 Safe Trace 修复已纳入前置收口、在正式 Python 3.11 环境复跑并形成已合并证据；没有 clean-base 证据则停止；
 2. 从已确认、已合并的 base 创建干净分支或 worktree；在创建 active Workpack 文档和任何代码前，`git status --porcelain=v1 --untracked-files=all` 必须为空并记录 `$baseSha = git rev-parse HEAD`；
@@ -489,7 +489,7 @@ git status --porcelain=v1 --untracked-files=all
 
 当前尚未完成：
 
-- 立项与计划文档合入 `main`，并从新的干净 base 创建实施 worktree；
-- 开始门禁、任何 P10 代码实现与交付证据。
+- 本状态同步合入 `main`，实施 worktree 快进并记录最终 base；
+- bootstrap Review、baseline 捕获、任何 P10 代码实现与交付证据。
 
-首次独立 Review 的结论是 `NEEDS_REVISION`；经过三轮修订，最终结构性 Review 为 `PASS`，包括封闭类型、Adapter 映射、profile 棘轮、bootstrap、四集合 diff、跨 worktree hash 和具名 AC 证明。Review 发现的 Safe Trace 阻塞已修复，前置收口与 P9 规划文档已通过 PR #114 合入 `main`；目标 Python 3.11.9 聚焦 `38 passed`、全量 `647 passed`，GitHub 后端、前端与 Gitleaks CI 全部通过。P9 已完成规划收口，用户又于 2026-09-01 将本候选独立立项为 P10 并确认 Workpack 计划。当前下一工程门是先合入立项与计划文档，再建立干净实施 base；此前不开始代码。
+首次独立 Review 的结论是 `NEEDS_REVISION`；经过三轮修订，最终结构性 Review 为 `PASS`，包括封闭类型、Adapter 映射、profile 棘轮、bootstrap、四集合 diff、跨 worktree hash 和具名 AC 证明。Review 发现的 Safe Trace 阻塞已修复，前置收口与 P9 规划文档已通过 PR #114 合入 `main`；目标 Python 3.11.9 聚焦 `38 passed`、全量 `647 passed`，GitHub 后端、前端与 Gitleaks CI 全部通过。P9 已完成规划收口，P10 立项与 Workpack 计划已通过 PR #116 合入 `main`。独立 worktree 的内容等价预检已通过；当前下一工程门是本状态同步合入后快进并记录最终 base，此前不开始代码。
