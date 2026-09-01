@@ -89,7 +89,7 @@ OperMind 自有业务控制面
 
 ## 6. 建议后续分期
 
-以下 A–E 整体仍只是依赖建议，不是路线图承诺、阶段编号或 Workpack。首个零行为变化候选包已在本文件确认后的独立决策中作为后续规划储备写入正式路线；这不等于立项，也不扩展到 A 的其余内容或 B–E。每次实际工作仍须由用户单独选择 1–3 个紧密切片，并完成所需 Design → Review → 用户确认。
+以下 A–E 整体仍只是依赖建议，不是路线图承诺、阶段编号或 Workpack。首个零行为变化候选包已在本文件确认后的独立决策中立项为 P10；该决定只覆盖三个紧密切片，不扩展到 A 的其余内容或 B–E。每次实际工作仍须完成所需 Design → Review → 用户确认。
 
 | 序位 | 目标 | 建议内容 | 允许的激活 | 退出条件 |
 |---|---|---|---|---|
@@ -99,9 +99,9 @@ OperMind 自有业务控制面
 | D：工具与安全治理 | 闭合 Tool/Policy/Approval/Grant/Evidence/Trace 契约 | effect metadata、PolicyBundle、Grant+authorized Action 同事务、typed safe projection | 只读路径按门禁启用；副作用新语义只定义、测试、shadow | substitution/deny/secret leak/unknown outcome/Verify 测试通过；身份门明确 |
 | E：恢复与受控激活 | 对齐跨进程事实并逐能力开启新路径 | RecoverySupervisor、RepairCoordinator、fault injection、backfill/repair、kill switch | 只对 crash window、回退和安全门通过的能力逐项激活 | 固定 fault matrix 100% 通过；现有固定动作迁移也需单独确认 |
 
-### 6.1 推荐的第一个候选实现包
+### 6.1 已选择的第一个实现阶段：P10
 
-如果未来用户决定进入实现，推荐先从 A 中选择一个不改变产品行为的候选包：
+用户已于 2026-09-01 从 A 中选择以下不改变产品行为的候选包，并独立立项为 P10：
 
 ```text
 Harness Contract Kernel + Regression Baseline
@@ -113,13 +113,13 @@ Harness Contract Kernel + Regression Baseline
 2. 围绕当前 DiagnosisExecutor/ToolGateway 的 Adapter contract test harness；
 3. 当前权限、Trace、取消和固定动作链的确定性回归场景。
 
-该候选包不新增数据库迁移、公开 API、Connector、真实连接、审批能力或 durable worker；若实际切片触及这些边界，必须拆出独立 Design。它只是首选建议，P9 不创建该 Workpack。
+P10 不新增数据库迁移、公开 API、Connector、真实连接、审批能力或 durable worker；若实际切片触及这些边界，必须拆出独立 Design。P9 本身没有创建 Workpack；P10 立项与 Workpack 计划现已分别确认，仍须在立项文档合入 `main`、建立干净实施 base 且开始门禁通过后才进入代码实施。
 
 ## 7. 独立 Design 与激活门
 
 | 变化 | 必须先完成 |
 |---|---|
-| P9 产出的首个后续候选写入正式路线图 | 已完成：作为规划储备登记，阶段编号与开始时间待定；只包含已确认 PRD，不包含完整 A–E |
+| P9 产出的首个后续候选独立立项 | 已完成：确定为 P10；只包含已确认 PRD 的三个切片，不包含完整 A–E；Workpack 计划已确认 |
 | 新表、列、状态或公开 API | 数据模型/API Design、迁移 upgrade/downgrade、前后端契约确认 |
 | 身份、RBAC、审批人 | 独立产品与安全 Design；完成前不泛化 ExecutionGrant |
 | 持久化 Raw Blob | 数据安全 Design：分类、加密、访问控制、隔离、TTL/删除、审计、泄漏处置 |
@@ -139,11 +139,11 @@ P9 已完成：
 - 独立 Reader Review、三轮定向修订与无历史上下文复测；
 - 最终 Adopt / Adapt / Reject 与建议分期。
 
-用户已确认本文，P9 研究与后续开发规划阶段据此收口。此后又经独立决策，将首个零行为变化候选包登记为后续实施候选；该登记只表示规划储备，不表示 P9 进入开发。当前边界是：
+用户已确认本文，P9 研究与后续开发规划阶段据此收口。此后又经独立决策，将首个零行为变化候选包立项为 P10；该决定不表示 P9 进入开发，也不批准完整 A–E。当前边界是：
 
-- 正式路线只记录已确认 PRD 的三个候选切片，不承诺实施时间、阶段编号或完整 A–E；
-- 不创建 Workpack；
-- 不修改 Runtime、数据库、API 或生产行为；
+- 正式路线只把已确认 PRD 的三个切片立项为 P10，不承诺完整 A–E；
+- P10 Workpack 计划已经创建并由用户确认；
+- 立项与计划文档合入 `main`、建立干净实施 base 且开始门禁通过前不修改 Runtime、数据库、API 或生产行为；
 - A 的其余内容与 B–E 仍只能作为未来决策输入。
 
-issue 与实施 Design 已作为规划储备完成；是否以及何时创建 Workpack、候选归属哪个后续阶段，以及未来是否继续 A 的其余内容或 B–E，仍须逐项另行决定，不能由本文件自动触发。
+issue、PRD、实施 Design 与 Workpack 计划均已完成确认，阶段归属已确定为 P10；当前下一工程门是立项与计划文档合入 `main`，随后建立干净实施 base。未来是否继续 A 的其余内容或 B–E 仍须逐项另行决定，不能由本文或 P10 自动触发。

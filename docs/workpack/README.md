@@ -20,6 +20,7 @@ docs/workpack/
 
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
+| P10 | harness-contract-kernel | 计划已确认，待立项文档合入 | [plan.md](P10-harness-contract-kernel/plan.md) | — | — |
 
 ## 已归档
 
