@@ -7,4 +7,4 @@
 |---|---|---|
 | [P8-agent-runtime-truthfulness-evaluation.md](P8-agent-runtime-truthfulness-evaluation.md) | Agent 运行真实性与评测基线 | 完成 |
 | [judge-runtime-truthfulness.md](judge-runtime-truthfulness.md) | Judge Runtime 真实性与配置面收口 | 完成 |
-| [P9-harness-contract-kernel.md](P9-harness-contract-kernel.md) | Agent Harness 契约内核与回归基线 | 已确认 |
+| [P9-harness-contract-kernel.md](P9-harness-contract-kernel.md) | 后续候选：Agent Harness 契约内核与回归基线 | 已确认，未立项实施 |

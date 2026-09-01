@@ -1,10 +1,10 @@
 # P9 Agent Harness 正式化 · Design
 
-> 状态：P9 研究阶段已由用户确认收口，未授权实施
-> 更新：2026-08-30
-> 阶段说明：P9 研究已收口；首个零行为变化候选包已单独写入 `docs/路线图.md`，建议分期 B–E 未获路线承诺。
+> 状态：P9 研究与后续开发规划阶段已由用户确认收口，未授权实施
+> 更新：2026-09-01
+> 阶段说明：P9 研究与后续开发规划已收口；首个零行为变化候选只作为后续规划储备写入 `docs/路线图.md`，尚未立项实施，建议分期 B–E 未获路线承诺。
 > 研究材料：`D:\market-handsome\Framework-learn\学习指南\P9-Agent-Harness-学习路线\学习记录\`
-> 权威边界：本 Design 不自行改写 `docs/产品定义.md`、`docs/路线图.md` 或 `docs/开发规范.md`；正式路线只登记已确认 PRD 的首个候选包。
+> 权威边界：本 Design 不自行改写 `docs/产品定义.md`、`docs/路线图.md` 或 `docs/开发规范.md`；正式路线只记录已确认 PRD 的首个后续候选，不把候选视为 P9 实施阶段。
 > 最终取舍：[P9AgentHarness最终取舍与后续建议.md](P9AgentHarness最终取舍与后续建议.md)
 
 ## 1. 背景与目标
@@ -258,6 +258,6 @@ P9 完成后再决定具体实现阶段。后续工作包必须满足：
 - capability matrix、状态所有权与状态机、Event 字典和 failure 决策表已完成统一；
 - 独立 Reader Review 的 Blocking/Major 发现已完成修订；
 - 无历史上下文复测已通过，Reader Review 阶段收口；
-- 最终 Adopt/Adapt/Reject 与建议分期已获用户确认，P9 研究阶段收口；
+- 最终 Adopt/Adapt/Reject 与建议分期已获用户确认，P9 研究与后续开发规划阶段收口；
 - 本次确认不等于“可以实施”，也不把 P9 或 A–E 自动写入正式路线图；
 - 不得据此创建 Workpack 或修改运行时。

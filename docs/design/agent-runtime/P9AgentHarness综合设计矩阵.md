@@ -1,6 +1,6 @@
 # P9 Agent Harness 综合设计矩阵
 
-> 状态：Reader Review 已通过，P9 研究阶段已由用户确认收口，未授权实施
+> 状态：Reader Review 已通过，P9 研究与后续开发规划阶段已由用户确认收口，未授权实施
 > 更新：2026-08-30
 > 主 Design：[P9AgentHarness正式化Design.md](P9AgentHarness正式化Design.md)
 > 审阅结果：[P9AgentHarnessReaderReview.md](P9AgentHarnessReaderReview.md)
@@ -567,4 +567,4 @@ Capability、状态、事件和失败语义已按 Reader Review 完成修订并�
 - Recovery 被明确放在稳定身份、持久化和 Tool 副作用语义之后；
 - 所有权限、迁移、公开 API 和 durable execution 变化继续受独立 Design 门约束。
 
-Reader Review 已通过：上述十个问题 10/10，产品安全与运行时闭环复核均无 Blocking/Major。最终 Adopt/Adapt/Reject 与建议分期已经形成并获用户确认，P9 研究阶段已收口；该确认不授权实施。
+Reader Review 已通过：上述十个问题 10/10，产品安全与运行时闭环复核均无 Blocking/Major。最终 Adopt/Adapt/Reject 与建议分期已经形成并获用户确认，P9 研究与后续开发规划阶段已收口；该确认不授权实施。
