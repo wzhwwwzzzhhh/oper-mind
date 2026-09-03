@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "phase": "P11",
+  "issue": 121,
+  "base_commit_sha": "602323899595e2db34876d6cfc2f47e38ae74096",
+  "p10_delivery_sha": "4d17f6f65f616774b3b616faaed03348dd5a1c08",
+  "p10_assets": {
+    "baseline_raw_sha256": "98f6a8cb221461c8cf68b50e4c9af30c71560844e0f940236279b66b71dcbecd",
+    "generator_canonical_sha256": "0a7a05ed86e139d5528deeae64653e1fc478dba4fbc1ff4afa4429e01d9df5b8",
+    "profile_v1_raw_sha256": "ced10deadf1c46ed98d4e5db7d4641b784c7bc81b768c4a1317fc97b2d3a576f"
+  },
+  "openapi_normalized_sha256": "a47be238cb5e3652b382a73a6b48d99af23a26608ec7fcf07b02556bae7b15a3",
+  "alembic_heads": [
+    "20260815_14_merge_p8_heads"
+  ],
+  "allowed_paths": [
+    "backend/scripts/check_p11_real_resource_preflight.py",
+    "backend/src/application/runtime_safety.py",
+    "backend/src/application/services.py",
+    "backend/src/core/tool_gateway.py",
+    "backend/src/infrastructure/services/postgres_connector.py",
+    "backend/tests/conftest.py",
+    "backend/tests/fixtures/harness/current_capability_profile.v2.json",
+    "backend/tests/fixtures/harness/p11_stage_manifest.v1.json",
+    "backend/tests/support/harness_p11_contracts.py",
+    "backend/tests/support/harness_p11_stage_gate.py",
+    "backend/tests/test_harness_p11_runtime_safety.py",
+    "backend/tests/test_harness_p11_stage_gate.py",
+    "backend/tests/test_harness_p11_tool_connector_safety.py",
+    "backend/tests/test_harness_zero_behavior_gate.py",
+    "docs/design/agent-runtime/P11AgentHarness真实运行安全门实施Design.md",
+    "docs/workpack/P11-harness-real-runtime-safety-gate/evidence.md",
+    "docs/workpack/P11-harness-real-runtime-safety-gate/plan.md",
+    "docs/workpack/P11-harness-real-runtime-safety-gate/review.md",
+    "docs/workpack/README.md",
+    "docs/workpack/归档/P11-harness-real-runtime-safety-gate/evidence.md",
+    "docs/workpack/归档/P11-harness-real-runtime-safety-gate/plan.md",
+    "docs/workpack/归档/P11-harness-real-runtime-safety-gate/review.md"
+  ],
+  "active_workpack_paths": [
+    "docs/workpack/P11-harness-real-runtime-safety-gate/evidence.md",
+    "docs/workpack/P11-harness-real-runtime-safety-gate/plan.md",
+    "docs/workpack/P11-harness-real-runtime-safety-gate/review.md"
+  ],
+  "archived_workpack_paths": [
+    "docs/workpack/归档/P11-harness-real-runtime-safety-gate/evidence.md",
+    "docs/workpack/归档/P11-harness-real-runtime-safety-gate/plan.md",
+    "docs/workpack/归档/P11-harness-real-runtime-safety-gate/review.md"
+  ],
+  "prohibited_prefixes": [
+    ".github/workflows/",
+    "backend/migrations/",
+    "backend/src/api/",
+    "backend/src/tools/",
+    "frontend/"
+  ]
+}

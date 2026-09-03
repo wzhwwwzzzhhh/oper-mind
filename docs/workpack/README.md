@@ -20,7 +20,7 @@ docs/workpack/
 
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
-| — | 暂无 | — | — | — | — |
+| P11 | harness-real-runtime-safety-gate（issue #121） | active | [plan](P11-harness-real-runtime-safety-gate/plan.md) | [review](P11-harness-real-runtime-safety-gate/review.md) | [evidence](P11-harness-real-runtime-safety-gate/evidence.md) |
 
 ## 已归档
 

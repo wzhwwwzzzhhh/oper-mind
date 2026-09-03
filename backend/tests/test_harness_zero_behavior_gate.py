@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -15,12 +16,7 @@ from tests.support import harness_zero_behavior as gate
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BASELINE_PATH = REPO_ROOT / gate.BASELINE_PATH
-POST_P10_PLANNING_PATHS = frozenset(
-    {
-        "docs/路线图.md",
-        "docs/prd/agent-runtime/P11-harness-real-runtime-safety-gate.md",
-    }
-)
+P10_DELIVERY_SHA = "4d17f6f65f616774b3b616faaed03348dd5a1c08"
 
 
 @pytest.fixture(scope="module")
@@ -30,7 +26,33 @@ def baseline() -> dict[str, Any]:
     return payload
 
 
-def _fresh_process_openapi_sha() -> str:
+@pytest.fixture(scope="module")
+def p10_delivery_tree(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """把 P10 交付提交只读展开到临时目录，不切换当前 worktree。"""
+
+    root = tmp_path_factory.mktemp("p10-delivery")
+    archive = root / "tree.zip"
+    completed = subprocess.run(
+        [
+            gate._git_executable(),
+            "-C",
+            str(REPO_ROOT),
+            "archive",
+            "--format=zip",
+            f"--output={archive}",
+            P10_DELIVERY_SHA,
+        ],
+        check=False,
+        capture_output=True,
+    )
+    assert completed.returncode == 0, "P10 历史树无法读取"
+    checkout = root / "checkout"
+    with zipfile.ZipFile(archive) as package:
+        package.extractall(checkout)
+    return checkout
+
+
+def _fresh_process_openapi_sha(root: Path) -> str:
     """在干净解释器中计算 OpenAPI，隔离其他测试对已导入 app 的临时改装。"""
 
     environment = os.environ.copy()
@@ -40,7 +62,7 @@ def _fresh_process_openapi_sha() -> str:
             "OPERMIND_BASE_URL": "http://mock",
             "OPERMIND_MODEL": "mock",
             "PYTHONPATH": os.pathsep.join(
-                [str(REPO_ROOT / "backend"), str(REPO_ROOT), environment.get("PYTHONPATH", "")]
+                [str(root / "backend"), str(root), environment.get("PYTHONPATH", "")]
             ),
         }
     )
@@ -53,9 +75,9 @@ def _fresh_process_openapi_sha() -> str:
                 "from tests.support.harness_zero_behavior import _openapi_sha; "
                 "print(_openapi_sha(Path(__import__('sys').argv[1])))"
             ),
-            str(REPO_ROOT),
+            str(root),
         ],
-        cwd=REPO_ROOT / "backend",
+        cwd=root / "backend",
         env=environment,
         check=False,
         capture_output=True,
@@ -66,39 +88,51 @@ def _fresh_process_openapi_sha() -> str:
     return completed.stdout.strip()
 
 
-def test_dependency_openapi_alembic与受保护生产面保持baseline(baseline: dict[str, Any]) -> None:
-    assert gate._hash_files(REPO_ROOT, "HEAD", gate.DEPENDENCY_PATHS) == baseline[
+def test_P10交付树的依赖OpenAPI迁移与受保护生产面保持baseline(
+    baseline: dict[str, Any],
+    p10_delivery_tree: Path,
+) -> None:
+    assert gate._hash_files(REPO_ROOT, P10_DELIVERY_SHA, gate.DEPENDENCY_PATHS) == baseline[
         "dependency_git_blob_sha256"
     ]
-    assert gate._hash_files(REPO_ROOT, "HEAD", gate.PROTECTED_FILES) == baseline[
+    assert gate._hash_files(REPO_ROOT, P10_DELIVERY_SHA, gate.PROTECTED_FILES) == baseline[
         "protected_file_git_blob_sha256"
     ]
     assert {
-        prefix: gate._aggregate_prefix(REPO_ROOT, "HEAD", prefix)
+        prefix: gate._aggregate_prefix(REPO_ROOT, P10_DELIVERY_SHA, prefix)
         for prefix in gate.PROTECTED_PREFIXES
     } == baseline["protected_tree_aggregate_sha256"]
-    assert _fresh_process_openapi_sha() == baseline["openapi_normalized_sha256"]
-    assert gate._alembic_heads(REPO_ROOT) == baseline["alembic_heads"]
+    assert _fresh_process_openapi_sha(p10_delivery_tree) == baseline["openapi_normalized_sha256"]
+    assert gate._alembic_heads(p10_delivery_tree) == baseline["alembic_heads"]
 
 
-def test_committed_staged_unstaged_untracked四集合精确受allowlist约束(
+def test_P10历史交付diff精确受原allowlist约束且负向样例仍失败(
     baseline: dict[str, Any],
 ) -> None:
     base_sha = str(baseline["base_commit_sha"])
-    inventory = gate._diff_inventory(REPO_ROOT, base_sha)
-    closeout_inventory = {
-        name: [path for path in paths if path not in POST_P10_PLANNING_PATHS]
-        for name, paths in inventory.items()
+    committed = gate._nul_paths(
+        bytes(
+            gate._run_git(
+                REPO_ROOT,
+                "diff",
+                "--no-renames",
+                "--name-only",
+                "-z",
+                f"{base_sha}...{P10_DELIVERY_SHA}",
+            )
+        )
+    )
+    inventory = {
+        "committed": committed,
+        "staged": [],
+        "unstaged": [],
+        "untracked": [],
     }
 
     assert set(inventory) == {"committed", "staged", "unstaged", "untracked"}
-    assert POST_P10_PLANNING_PATHS.issubset(gate._inventory_union(inventory))
-    gate._assert_allowed_inventory(closeout_inventory, bootstrap=False)
-    dirty = gate._inventory_union(inventory)
-    assert not set(gate.PROTECTED_FILES) & dirty
-    assert not any(path.startswith(gate.PROTECTED_PREFIXES) for path in dirty)
+    gate._assert_allowed_inventory(inventory, bootstrap=False)
 
-    negative_inventory = {name: list(paths) for name, paths in closeout_inventory.items()}
+    negative_inventory = {name: list(paths) for name, paths in inventory.items()}
     negative_inventory["untracked"].append("backend/src/app.py")
     with pytest.raises(gate.GateError, match="四集合包含越界路径"):
         gate._assert_allowed_inventory(negative_inventory, bootstrap=False)
@@ -112,8 +146,14 @@ def test_baseline与generator提交后不可变(baseline: dict[str, Any]) -> Non
     gate._verify_generator_hashes(REPO_ROOT, generator, baseline_committed=True)
 
 
-def test_contract生产import_graph保持隔离且负向样例会失败() -> None:
-    gate._verify_import_boundaries(REPO_ROOT)
+def test_P10历史contract生产import_graph保持隔离且负向样例会失败(
+    p10_delivery_tree: Path,
+) -> None:
+    violations: list[str] = []
+    for path in sorted((p10_delivery_tree / "backend" / "src").rglob("*.py")):
+        relative = path.relative_to(p10_delivery_tree).as_posix()
+        violations.extend(gate._inspect_production_module(relative, "P10 delivery", path.read_bytes()))
+    assert violations == []
 
     violations = gate._inspect_production_module(
         "backend/src/application/services.py",

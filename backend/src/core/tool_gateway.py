@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import re
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import CancelledError, ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
 from datetime import UTC, datetime
 from typing import Any, Literal
@@ -20,6 +20,16 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from src.core.tool_registry import ToolExecutionResult, ToolRegistry
+
+ToolInvocationStatus = Literal["ok", "unavailable", "rejected", "timeout", "error"]
+ToolWaitStatus = Literal["not_waited", "completed", "timed_out"]
+ToolAcceptanceStatus = Literal["not_applicable", "accepted", "closed"]
+ToolUnderlyingExecutionStatus = Literal[
+    "not_started",
+    "completed",
+    "cancelled_before_start",
+    "stop_state_unknown",
+]
 
 # 脱敏规则：命中即整体替换为占位符，防止凭据/密钥流入结果、Trace、日志。
 # 说明：这是"最后一道防线"，工具本身也不应把凭据放进返回值。
@@ -43,10 +53,22 @@ class ToolInvocation(BaseModel):
     """
 
     tool: str = Field(description="被调用的工具名")
-    status: Literal["ok", "unavailable", "rejected", "timeout", "error"] = Field(description="调用结果状态")
+    status: ToolInvocationStatus = Field(description="调用结果状态")
     started_at: str = Field(description="调用开始的 UTC ISO 8601 时间戳")
     duration_ms: int = Field(ge=0, description="调用耗时（毫秒）")
     detail: str = Field(description="脱敏后的简要说明，供前端 Trace 展示")
+    wait_status: ToolWaitStatus = Field(
+        default="not_waited",
+        description="调用方等待是否完成或到期",
+    )
+    acceptance_status: ToolAcceptanceStatus = Field(
+        default="not_applicable",
+        description="本次调用是否仍接纳底层结果",
+    )
+    underlying_execution_status: ToolUnderlyingExecutionStatus = Field(
+        default="not_started",
+        description="仅表达 future 能证明的底层执行状态",
+    )
 
 
 class GatewayResult(BaseModel):
@@ -123,15 +145,26 @@ class ToolGateway:
         started_at = _now_iso()
         start = time.monotonic()
 
-        def _finish(status: str, output: str, detail: str) -> GatewayResult:
+        def _finish(
+            status: ToolInvocationStatus,
+            output: str,
+            detail: str,
+            *,
+            wait_status: ToolWaitStatus = "not_waited",
+            acceptance_status: ToolAcceptanceStatus = "not_applicable",
+            underlying_execution_status: ToolUnderlyingExecutionStatus = "not_started",
+        ) -> GatewayResult:
             duration_ms = int((time.monotonic() - start) * 1000)
             safe_output = desensitize(output)
             record = ToolInvocation(
                 tool=name,
-                status=status,  # type: ignore[arg-type]
+                status=status,
                 started_at=started_at,
                 duration_ms=duration_ms,
                 detail=desensitize(detail),
+                wait_status=wait_status,
+                acceptance_status=acceptance_status,
+                underlying_execution_status=underlying_execution_status,
             )
             return GatewayResult(output=safe_output, record=record)
 
@@ -156,25 +189,95 @@ class ToolGateway:
             return _finish("rejected", json.dumps({"error": msg}, ensure_ascii=False), msg)
 
         # 关 3 + 4：限时 + 执行
+        def _execute_tool() -> tuple[Literal["ok", "type_error", "error"], object | None]:
+            """在 worker 内封闭 Tool 异常，避免与 Gateway 等待超时混淆。"""
+
+            try:
+                return "ok", tool.execute(**args)
+            except TypeError:
+                return "type_error", None
+            except Exception:
+                return "error", None
+
         try:
-            future = self._executor.submit(tool.execute, **args)
-            raw_result = future.result(timeout=self._timeout_seconds)
-        except FutureTimeoutError:
-            msg = f"工具执行超过 {self._timeout_seconds:g}s，已中止"
-            return _finish("timeout", json.dumps({"error": msg}, ensure_ascii=False), msg)
-        except TypeError as exc:
-            msg = f"参数不匹配：{exc}"
-            return _finish("error", json.dumps({"error": msg}, ensure_ascii=False), msg)
+            future = self._executor.submit(_execute_tool)
         except Exception:
-            # 不外泄异常详情（安全硬规则）；仅给大脑与前端可展示的中性说明。
             msg = "工具执行异常"
             return _finish("error", json.dumps({"error": msg}, ensure_ascii=False), msg)
+
+        try:
+            outcome, raw_result = future.result(timeout=self._timeout_seconds)
+        except FutureTimeoutError:
+            cancelled_before_start = future.cancel()
+            if cancelled_before_start:
+                msg = f"工具等待超过 {self._timeout_seconds:g}s，结果接纳已关闭；排队执行已取消"
+                underlying_status: ToolUnderlyingExecutionStatus = "cancelled_before_start"
+            else:
+                msg = f"工具等待超过 {self._timeout_seconds:g}s，结果接纳已关闭；底层停止状态未知"
+                underlying_status = "stop_state_unknown"
+            return _finish(
+                "timeout",
+                json.dumps({"error": msg}, ensure_ascii=False),
+                msg,
+                wait_status="timed_out",
+                acceptance_status="closed",
+                underlying_execution_status=underlying_status,
+            )
+        except CancelledError:
+            msg = "工具排队执行已取消，结果接纳已关闭"
+            return _finish(
+                "error",
+                json.dumps({"error": msg}, ensure_ascii=False),
+                msg,
+                wait_status="completed",
+                acceptance_status="closed",
+                underlying_execution_status="cancelled_before_start",
+            )
+        except Exception:
+            # future 协议本身异常也只给出中性说明。
+            msg = "工具执行异常"
+            return _finish(
+                "error",
+                json.dumps({"error": msg}, ensure_ascii=False),
+                msg,
+                wait_status="completed",
+                acceptance_status="accepted",
+                underlying_execution_status="completed",
+            )
+
+        if outcome == "type_error":
+            msg = "工具参数不匹配"
+            return _finish(
+                "error",
+                json.dumps({"error": msg}, ensure_ascii=False),
+                msg,
+                wait_status="completed",
+                acceptance_status="accepted",
+                underlying_execution_status="completed",
+            )
+        if outcome == "error":
+            msg = "工具执行异常"
+            return _finish(
+                "error",
+                json.dumps({"error": msg}, ensure_ascii=False),
+                msg,
+                wait_status="completed",
+                acceptance_status="accepted",
+                underlying_execution_status="completed",
+            )
 
         # 关 5 + 6：脱敏 + 留痕（在 _finish 内统一完成）
         # detail 支持工具可选脱敏审计摘要：工具定义 audit_summary() 则用之，
         # 否则维持中性文案；对既有工具零影响、向后兼容。摘要同样过脱敏兜底。
         if isinstance(raw_result, ToolExecutionResult):
-            return _finish(raw_result.status, raw_result.output, raw_result.summary)
+            return _finish(
+                raw_result.status,
+                raw_result.output,
+                raw_result.summary,
+                wait_status="completed",
+                acceptance_status="accepted",
+                underlying_execution_status="completed",
+            )
 
         output = str(raw_result)
         detail = f"调用 {name} 成功"
@@ -184,8 +287,27 @@ class ToolGateway:
                 detail = str(audit_summary())
             except Exception:
                 detail = f"调用 {name} 成功"
-        return _finish(tool.execution_status(), output, detail)
+        try:
+            execution_status = tool.execution_status()
+        except Exception:
+            msg = "工具执行状态不可用"
+            return _finish(
+                "error",
+                json.dumps({"error": msg}, ensure_ascii=False),
+                msg,
+                wait_status="completed",
+                acceptance_status="accepted",
+                underlying_execution_status="completed",
+            )
+        return _finish(
+            execution_status,
+            output,
+            detail,
+            wait_status="completed",
+            acceptance_status="accepted",
+            underlying_execution_status="completed",
+        )
 
     def shutdown(self) -> None:
         """释放内部线程池。"""
-        self._executor.shutdown(wait=False)
+        self._executor.shutdown(wait=False, cancel_futures=True)
