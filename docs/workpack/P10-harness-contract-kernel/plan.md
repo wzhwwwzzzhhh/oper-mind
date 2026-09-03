@@ -1,6 +1,6 @@
 # P10 Harness Contract Kernel 与回归基线 · 工作包计划
 
-> 状态：用户已于 2026-09-01 确认；立项与计划已通过 PR #116、开始门状态同步已通过 PR #117 合入 `main`；bootstrap 与 S1 Contract Kernel 已完成验证但尚未提交，S2 / S3 尚未开始
+> 状态：用户已于 2026-09-01 确认；S1 已提交为 `1b91808`；S2 已完成实现、验证与独立 Review（PASS，无 P0–P3）；S3 尚未开始
 > PRD：`docs/prd/agent-runtime/P9-harness-contract-kernel.md`（文件名保留 P9 规划来源，正式阶段为 P10）
 > Design：`docs/design/agent-runtime/P9HarnessContractKernel实施Design.md`
 > Issue：[#113](https://github.com/wzhwwwzzzhhh/oper-mind/issues/113)
@@ -67,10 +67,10 @@ P10 只交付共同语言、测试适配边界和现状保护，不接管生产�
 
 ### S2：Adapter Contract Test Harness
 
-- [ ] 新增 `backend/src/application/runtime_contracts.py`、测试 support 与 reference fake contract suite。
-- [ ] 新增 `current_capability_profile.v1.json`，由独立 observed probe 与 reviewed expected profile 精确比较。
-- [ ] 分别验证当前 `DiagnosisExecutor` 和 `ToolGateway` 边界；不让二者实现同一职责，不修改生产 DI。
-- [ ] 不支持能力以结构化 expected gap 表达；新增未知 gap、声明失真、`skip` 或 `xfail` 必须失败。
+- [x] 新增 `backend/src/application/runtime_contracts.py`、测试 support 与 reference fake contract suite。
+- [x] 新增 `current_capability_profile.v1.json`，由独立 observed probe 与 reviewed expected profile 精确比较。
+- [x] 分别验证当前 `DiagnosisExecutor` 和 `ToolGateway` 边界；不让二者实现同一职责，不修改生产 DI。
+- [x] 不支持能力以结构化 expected gap 表达；新增未知 gap、声明失真、`skip` 或 `xfail` 必须失败。
 
 完成证明：PRD AC4–AC6、AC11–AC15 对应测试通过；生产 import graph 与受保护文件保持无 diff。
 
@@ -164,8 +164,8 @@ git status --porcelain=v1 --untracked-files=all
 - Design §7.1 的 `docs/workpack/harness-contract-kernel/plan.md` 是旧名；生成器按 §7.3、§8.1 与实际 active Workpack 使用精确路径 `docs/workpack/P10-harness-contract-kernel/plan.md`，Reviewer 判断不构成阻断。
 - 使用 base `643c2c0c6d5630705ba89251a9cea58c505bb4ce` 与上述 reviewed raw hash 执行唯一一次显式写模式，脚本内置复验与随后独立默认 verify 均为 `PASS`。
 - baseline SHA-256 为 `095b21121b58bc1ab2096fc268c6fc47ee1c0a7b1634f85f77850f915c732e65`；记录的 normalized OpenAPI SHA-256 为 `a47be238cb5e3652b382a73a6b48d99af23a26608ec7fcf07b02556bae7b15a3`，Alembic head 为 `20260815_14_merge_p8_heads`，既有 skip/xfail inventory 为 2 条。
-- S1 已新增 `backend/src/domain/harness_contracts.py`、`backend/tests/test_harness_contract_kernel.py` 与本 Workpack `evidence.md`；首轮 Review P2 修订后聚焦 `14 passed`、后端全量 `661 passed`，ruff、mypy、默认 zero-behavior 门禁与 `git diff --check` 均通过。
-- 当前尚未新增 S2 runtime contract、capability fixture 或 S3 回归候选；下一工程入口是 S2 Adapter Contract Test Harness，不得并行铺开 S3。
+- S1 已新增 `backend/src/domain/harness_contracts.py`、`backend/tests/test_harness_contract_kernel.py` 与本 Workpack `evidence.md`；首轮 Review P2 修订后聚焦 `14 passed`、后端全量 `661 passed`，ruff、mypy、默认 zero-behavior 门禁与 `git diff --check` 均通过；重建后提交为 `1b91808`。
+- S2 已新增未接入生产的 runtime contract、测试 support、版本化 capability fixture 与契约测试；三轮修订后最终独立 Review PASS、无 P0–P3，本次修复仍不进入 S3。
 
 ## 停止条件
 
@@ -187,6 +187,6 @@ git status --porcelain=v1 --untracked-files=all
 - [x] 用户已于 2026-09-01 确认本计划。
 - [x] 立项与计划文档已通过 PR #116 合入 `main`，独立实施 worktree 与受控环境已创建。
 - [x] 开始门状态同步已通过 PR #117 合入 `main`，实施 worktree 已快进并记录最终 base。
-- [x] S1 Contract Kernel 实现与验证完成，证据已记录；尚未提交。
-- [ ] S2 Adapter Contract Test Harness 实现与验证完成。
+- [x] S1 Contract Kernel 实现、验证与独立 Review 完成；重建后提交为 `1b91808`。
+- [x] S2 Adapter Contract Test Harness 已实现并完成本地验证；独立 Review 最终 PASS，无 P0–P3。
 - [ ] S3 Regression、最终独立 Review、提交与交付完成。
