@@ -1,6 +1,6 @@
 # P10 Harness Contract Kernel 与回归基线 · 工作包计划
 
-> 状态：用户已于 2026-09-01 确认，相关文档已通过 PR #116 合入 `main`；独立 worktree 与内容等价预检已完成，待本状态同步合入后快进并记录最终实施 base
+> 状态：用户已于 2026-09-01 确认；立项与计划已通过 PR #116、开始门状态同步已通过 PR #117 合入 `main`；bootstrap 与 S1 Contract Kernel 已完成验证但尚未提交，S2 / S3 尚未开始
 > PRD：`docs/prd/agent-runtime/P9-harness-contract-kernel.md`（文件名保留 P9 规划来源，正式阶段为 P10）
 > Design：`docs/design/agent-runtime/P9HarnessContractKernel实施Design.md`
 > Issue：[#113](https://github.com/wzhwwwzzzhhh/oper-mind/issues/113)
@@ -8,7 +8,9 @@
 > 立项与计划基线：`main` / `266a920`（PR #115）
 > 实施分支：`codex/p10-harness-contract-kernel-impl`
 > 实施 worktree：`D:/market-handsome/oper-mind/.tmp/worktrees/p10-harness-contract-kernel`
-> 最终实施 base：待本状态同步合入 `main` 后快进并记录；不得以状态同步前的 commit 代替
+> 最终实施 base：`main` / `643c2c0c6d5630705ba89251a9cea58c505bb4ce`（PR #119）
+
+状态分层：`docs/路线图.md` 只表示最后已合入 `main` 的阶段状态；本 plan、issue #113 与 evidence 表示当前独立 worktree 的实时实施状态。路线图不在 P10 zero-behavior allowlist 内，禁止为实时回写修改 generator/baseline 或扩大 allowlist；P10 合并后由独立文档收口同步。
 
 ## 目标
 
@@ -28,9 +30,9 @@ P10 只交付共同语言、测试适配边界和现状保护，不接管生产�
 - [x] 用户已于 2026-09-01 将首个候选独立立项为 P10。
 - [x] 用户已于 2026-09-01 确认本 Workpack 计划。
 - [x] 本立项与计划文档已通过 PR #116 Review、CI 并合入 `main`。
-- [x] 已创建独立实施分支/worktree；本状态同步合入后仍须快进并记录确定 base SHA。
+- [x] CI 前置 PR #119 已合入，独立实施分支/worktree 已从其 merge commit 重建，并记录最终 base SHA `643c2c0c6d5630705ba89251a9cea58c505bb4ce`。
 - [x] 根 `.venv` 使用项目支持的 Python 3.12.13；内容等价 tree 上聚焦 `79 passed`、全量 `647 passed`，ruff 与 mypy 通过。
-- [ ] `harness_zero_behavior.py` 单文件 bootstrap 经 Review 并记录 raw/canonical SHA-256，随后才允许写入 baseline。
+- [x] `harness_zero_behavior.py` 单文件 bootstrap 经独立子 Agent Review PASS；raw/canonical SHA-256 均为 `0a7a05ed86e139d5528deeae64653e1fc478dba4fbc1ff4afa4429e01d9df5b8`，随后才允许写入 baseline。
 
 开始门禁未全部满足时，不新增 contract module、Adapter fixture、回归测试或其他 P10 代码。
 
@@ -56,10 +58,10 @@ P10 只交付共同语言、测试适配边界和现状保护，不接管生产�
 
 ### S1：Baseline bootstrap 与 Contract Kernel
 
-- [ ] 仅先新增 `backend/tests/support/harness_zero_behavior.py`，完成 write/verify 逻辑 Review 与 SHA-256 记录。
-- [ ] 在确定 base、四集合 bootstrap allowlist 和无其他 P10 代码的条件下生成 `zero_behavior_baseline.v1.json`。
-- [ ] 新增 `backend/src/domain/harness_contracts.py` 与 `test_harness_contract_kernel.py`。
-- [ ] 验证七维 tag 不可串用，value objects 可稳定 round-trip 并拒绝非法值；确认不存在阶段 B 业务实体、ORM 或框架私有类型。
+- [x] 仅先新增 `backend/tests/support/harness_zero_behavior.py`，完成 write/verify 逻辑独立 Review 与 SHA-256 记录。
+- [x] 在确定 base、四集合 bootstrap allowlist 和无其他 P10 代码的条件下生成并默认复验 `zero_behavior_baseline.v1.json`。
+- [x] 新增 `backend/src/domain/harness_contracts.py` 与 `test_harness_contract_kernel.py`。
+- [x] 验证七维 tag 不可串用，value objects 可稳定 round-trip 并拒绝非法值；确认不存在阶段 B 业务实体、ORM 或框架私有类型。
 
 完成证明：PRD AC1–AC3、AC11–AC14 对应门禁通过；baseline 生成器 hash、base SHA 与 bootstrap dirty inventory 进入 evidence。
 
@@ -151,12 +153,19 @@ git status --porcelain=v1 --untracked-files=all
 ## 开始门预检证据
 
 - PR #116 merge commit：`45f6e934d89c4862b88fa762de920e7e7fc8e6fd`。
+- PR #119 merge commit / 最终实施 base：`643c2c0c6d5630705ba89251a9cea58c505bb4ce`；Backend、Frontend 与 Gitleaks CI 全部通过。
 - 预检 tree：`890a6d6c85a727b7b188d606e8b463bf6f900c1f`；`7ae80ef` 与 `45f6e93` 的 tree diff 为空。
 - 受控环境：Codex bundled Python 3.12.13 创建 worktree 根 `.venv`，满足项目 `requires-python >=3.11`；依赖严格来自 `backend/requirements.txt`，未升级 pip、未修改依赖文件。PR #116 GitHub CI 继续覆盖 Python 3.11。
 - 聚焦回归：计划列出的九个既有测试文件，`79 passed`。
 - 后端全量：`647 passed`；ruff `All checks passed`；mypy `Success: no issues found in 113 source files`。
 - worktree tracked/untracked 状态为空；`.venv` 为 Git ignored 环境产物。
-- 本轮没有生成 baseline、generator、contract module、fixture 或任何 P10 代码。最终 base 只能在本状态同步合入后重新快进并记录。
+- bootstrap generator 是最终 base 后唯一新增代码文件；独立子 Agent 在不修改文件的前提下完成安全、确定性、Git 四集合、Windows/CRLF、AST inventory、import boundary、profile ratchet 与 baseline immutability Review，最终结论 `PASS`。
+- Reviewer 复核对象的 raw/canonical SHA-256 均为 `0a7a05ed86e139d5528deeae64653e1fc478dba4fbc1ff4afa4429e01d9df5b8`；本地 `Get-FileHash -Algorithm SHA256` 结果一致。
+- Design §7.1 的 `docs/workpack/harness-contract-kernel/plan.md` 是旧名；生成器按 §7.3、§8.1 与实际 active Workpack 使用精确路径 `docs/workpack/P10-harness-contract-kernel/plan.md`，Reviewer 判断不构成阻断。
+- 使用 base `643c2c0c6d5630705ba89251a9cea58c505bb4ce` 与上述 reviewed raw hash 执行唯一一次显式写模式，脚本内置复验与随后独立默认 verify 均为 `PASS`。
+- baseline SHA-256 为 `095b21121b58bc1ab2096fc268c6fc47ee1c0a7b1634f85f77850f915c732e65`；记录的 normalized OpenAPI SHA-256 为 `a47be238cb5e3652b382a73a6b48d99af23a26608ec7fcf07b02556bae7b15a3`，Alembic head 为 `20260815_14_merge_p8_heads`，既有 skip/xfail inventory 为 2 条。
+- S1 已新增 `backend/src/domain/harness_contracts.py`、`backend/tests/test_harness_contract_kernel.py` 与本 Workpack `evidence.md`；首轮 Review P2 修订后聚焦 `14 passed`、后端全量 `661 passed`，ruff、mypy、默认 zero-behavior 门禁与 `git diff --check` 均通过。
+- 当前尚未新增 S2 runtime contract、capability fixture 或 S3 回归候选；下一工程入口是 S2 Adapter Contract Test Harness，不得并行铺开 S3。
 
 ## 停止条件
 
@@ -177,5 +186,7 @@ git status --porcelain=v1 --untracked-files=all
 - [x] Workpack 计划已起草。
 - [x] 用户已于 2026-09-01 确认本计划。
 - [x] 立项与计划文档已通过 PR #116 合入 `main`，独立实施 worktree 与受控环境已创建。
-- [ ] 本状态同步合入 `main`，实施 worktree 快进并记录最终 base。
-- [ ] S1–S3 实现、验证、独立 Review、提交与交付完成。
+- [x] 开始门状态同步已通过 PR #117 合入 `main`，实施 worktree 已快进并记录最终 base。
+- [x] S1 Contract Kernel 实现与验证完成，证据已记录；尚未提交。
+- [ ] S2 Adapter Contract Test Harness 实现与验证完成。
+- [ ] S3 Regression、最终独立 Review、提交与交付完成。

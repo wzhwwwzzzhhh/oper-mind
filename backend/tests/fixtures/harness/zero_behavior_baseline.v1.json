@@ -1,0 +1,111 @@
+{
+  "alembic_heads": [
+    "20260815_14_merge_p8_heads"
+  ],
+  "allowed_changes": {
+    "contract_modules": [
+      "backend/src/domain/harness_contracts.py",
+      "backend/src/application/runtime_contracts.py"
+    ],
+    "exact_paths": [
+      "backend/src/application/runtime_contracts.py",
+      "backend/src/domain/harness_contracts.py",
+      "backend/tests/fixtures/harness/current_capability_profile.v1.json",
+      "backend/tests/fixtures/harness/zero_behavior_baseline.v1.json",
+      "backend/tests/support/__init__.py",
+      "backend/tests/support/harness_contracts.py",
+      "backend/tests/support/harness_zero_behavior.py",
+      "backend/tests/test_harness_contract_kernel.py",
+      "backend/tests/test_harness_regression_baseline.py",
+      "backend/tests/test_harness_runtime_adapter_contract.py",
+      "backend/tests/test_harness_zero_behavior_gate.py",
+      "docs/design/agent-runtime/P9HarnessContractKernel实施Design.md",
+      "docs/prd/README.md",
+      "docs/prd/agent-runtime/P9-harness-contract-kernel.md",
+      "docs/prd/agent-runtime/README.md",
+      "docs/workpack/README.md"
+    ],
+    "harness_tests_and_support": [
+      "backend/tests/support/__init__.py",
+      "backend/tests/support/harness_contracts.py",
+      "backend/tests/support/harness_zero_behavior.py",
+      "backend/tests/test_harness_contract_kernel.py",
+      "backend/tests/test_harness_runtime_adapter_contract.py",
+      "backend/tests/test_harness_regression_baseline.py",
+      "backend/tests/test_harness_zero_behavior_gate.py"
+    ],
+    "prefixes": [
+      "docs/workpack/P10-harness-contract-kernel/",
+      "docs/workpack/归档/P10-harness-contract-kernel/"
+    ]
+  },
+  "base_commit_sha": "643c2c0c6d5630705ba89251a9cea58c505bb4ce",
+  "capability_profile_history": {},
+  "dependency_git_blob_sha256": {
+    "backend/pyproject.toml": "5347534c9e659f3e3d42277108682aba17d0e3dc3ac87a1f1ce6f0ba58b30c82",
+    "backend/requirements.txt": "8156292f373ef6caab2d2c91635d4fd54260f3fccb4cb548125e1968d9906cdc",
+    "frontend/package-lock.json": "087d9a6d82de3105be3f97990c6c90067031a00d3312b7f36a3eed1b4134b1ce",
+    "frontend/package.json": "86b50e1b2d6b589d45ca6c9dd28573a14b00ee30487042aa8c2b71992f494d01"
+  },
+  "generator": {
+    "bootstrap_dirty_inventory": {
+      "committed": [],
+      "staged": [],
+      "unstaged": [
+        "docs/workpack/P10-harness-contract-kernel/plan.md",
+        "docs/workpack/README.md"
+      ],
+      "untracked": [
+        "backend/tests/support/harness_zero_behavior.py"
+      ]
+    },
+    "canonical_utf8_lf_sha256": "0a7a05ed86e139d5528deeae64653e1fc478dba4fbc1ff4afa4429e01d9df5b8",
+    "path": "backend/tests/support/harness_zero_behavior.py",
+    "reviewed_raw_sha256": "0a7a05ed86e139d5528deeae64653e1fc478dba4fbc1ff4afa4429e01d9df5b8"
+  },
+  "openapi_normalized_sha256": "a47be238cb5e3652b382a73a6b48d99af23a26608ec7fcf07b02556bae7b15a3",
+  "protected_file_git_blob_sha256": {
+    "backend/src/api/v1/dependencies.py": "e3a54e4d56683ee9f01b72c87b81aea90dcd236f0a493b70216caf024af8b0dd",
+    "backend/src/app.py": "04faed7c977a3f95973a8b6add0359061faa78bed6836154b020c3e1021ee37e",
+    "backend/src/application/action_services.py": "ee58f3f2faac14f87c8df99083c8f41feed936b06cdaa218ac230d27dfd243ea",
+    "backend/src/application/contracts.py": "c8c6bdfbd2c90bc0d8c6a3639d03bb42e2c7ae55d2a095fc53dfa99e6916f84e",
+    "backend/src/application/services.py": "6a5cc0e1d231c1761e57c5d5f37023c6305999d4d98b86e4a1d08b0543ec7d99",
+    "backend/src/core/tool_gateway.py": "ab91a20b6a947880c20775da5ee25bb30efc986e72f93a596543c3192da3818a",
+    "backend/src/infrastructure/diagnosis/coordinator_executor.py": "f6689da5c57766ccf7e62894017843d779254b2f5ddd07e1dd73c3cd560919a6"
+  },
+  "protected_tree_aggregate_sha256": {
+    "backend/migrations/": {
+      "path_count": 20,
+      "sha256": "be5411ce8fd680b00a8ea472a1067238edfaaed489f5ed38c834e30f8a67ef25"
+    },
+    "backend/src/api/v1/": {
+      "path_count": 8,
+      "sha256": "e8cea691601f58923f301035cd7c6ab1b173f62a5a402122e6ccb7c94f4f2e41"
+    },
+    "frontend/": {
+      "path_count": 87,
+      "sha256": "a77a6f508017f715f4f8ff9b6567b639c827ee0b0f7b168d0656c0b13f7ee7ac"
+    }
+  },
+  "schema_version": 1,
+  "skip_xfail_inventory": [
+    {
+      "category": "pytest.skip",
+      "condition_sha256": "a54a87d0a544e063b0fad2fc2ee0fbbfcadd2d487b41633137d5a06cd6ce3b46",
+      "condition_summary": "f'<str>{exc}'",
+      "entry_kind": "call_or_marker",
+      "file": "backend/tests/test_knowledge_tool.py",
+      "line": 220,
+      "owner": "test_符号链接越界不进入检索范围"
+    },
+    {
+      "category": "pytest.skip",
+      "condition_sha256": "518c43ec51314a8101299d93e64c2b9f9fbc6d9d9646977eb57d429ebab2f90e",
+      "condition_summary": "'<str>'",
+      "entry_kind": "call_or_marker",
+      "file": "backend/tests/test_log_source.py",
+      "line": 141,
+      "owner": "TestExclusionAndEscape::test_symlink_outside_root_excluded"
+    }
+  ]
+}

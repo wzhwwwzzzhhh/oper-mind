@@ -20,7 +20,7 @@ docs/workpack/
 
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
-| P10 | harness-contract-kernel | 开始门准备中：内容等价预检通过，待最终 base | [plan.md](P10-harness-contract-kernel/plan.md) | — | — |
+| P10 | harness-contract-kernel | S1 已验证未提交；S2 / S3 未开始 | [plan.md](P10-harness-contract-kernel/plan.md) | [evidence.md](P10-harness-contract-kernel/evidence.md) | — |
 
 ## 已归档
 

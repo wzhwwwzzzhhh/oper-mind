@@ -4,6 +4,28 @@
 > 写作规范见 `项目根/.claude/skills/prd-writing/SKILL.md`。
 > 产品事实只以 `docs/产品定义.md`、`docs/路线图.md`、`docs/开发规范.md` 为准。
 
+## 需求立项顺序与角色边界
+
+新增阶段或能力统一从本目录的 PRD 开始：
+
+```text
+路线图候选
+→ PRD 草案
+→ 用户确认 PRD
+→ 创建唯一 GitHub Issue
+→ 实施 Design
+→ 独立 Review
+→ 用户确认实施 Design
+→ active Workpack / 独立 worktree
+→ 实现、测试、Review、PR 与归档
+```
+
+- 一个正式实施阶段默认只有一个 PRD、一个 Issue 和一个 active Workpack；Workpack 内的紧密切片不重复创建 PRD 或 Issue。
+- 研究阶段只产出学习记录、Gap、比较和候选，不创建实施 Workpack；候选被选中实施时使用新的正式阶段编号。
+- 需求 Agent 只维护路线图候选、PRD、Issue 和需求状态；实现 Agent 只维护代码、测试与 Workpack evidence；Reviewer 默认只读。三种角色不得在同一轮交接中相互代替。
+- 同一 worktree 同一时刻只允许一个写入者。存在未提交工件时，接手者必须使用原 worktree，并先核对 branch、base SHA、dirty-set、已完成切片和下一入口。
+- 已进入实现且受历史链接或机器 allowlist 约束的旧文件名不在中途强行重命名；以 PRD frontmatter `phase`、Issue 标题和路线图阶段为准，阶段收口后再处理命名债务。
+
 ## 域结构（域 + 阶段两级）
 
 | 域 | 文件夹 | 主题 |
@@ -55,7 +77,7 @@
 | P8 | Agent 运行真实性与评测基线 | `agent-runtime/P8-agent-runtime-truthfulness-evaluation.md` | 完成 |
 | 完善收口 | Judge Runtime 真实性与配置面收口 | `agent-runtime/judge-runtime-truthfulness.md` | 完成 |
 | 完善收口 | 结构化诊断结果真实性——事实来源与安全呈现 | `session/structured-diagnosis-result-truthfulness.md` | 已完成，待提交 |
-| P10 | Agent Harness 契约内核与回归基线 | `agent-runtime/P9-harness-contract-kernel.md` | 已立项，Workpack 计划已确认 |
+| P10 | Agent Harness 契约内核与回归基线 | `agent-runtime/P9-harness-contract-kernel.md` | 实施中，S1 已验证未提交；S2 未开始 |
 
 ## 执行 AI 如何使用
 - 拿到 PRD 后：只实现「范围」内能力，逐条过「验收标准」，达到「完成定义」。
