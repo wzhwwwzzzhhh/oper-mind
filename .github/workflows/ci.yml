@@ -15,6 +15,9 @@ jobs:
         working-directory: backend
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Harness zero-behavior gate 必须读取已确认的固定 base commit。
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
