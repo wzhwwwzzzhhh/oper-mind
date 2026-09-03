@@ -16,6 +16,8 @@ regexes = [
   '''sk-replacement-secret-5678''',
   # LLM 客户端单测的假 key（model-params-config 工作包），非真实凭据
   '''test-key-[a-z0-9]+''',
+  # P10 zero-behavior baseline 的公开 OpenAPI 指纹，非凭据
+  '''a47be238cb5e3652b382a73a6b48d99af23a26608ec7fcf07b02556bae7b15a3''',
   '''password=hunter2''',
   # 测试桩/文档中的占位连接串:凭据部分是明显占位词,不带真实凭据
   '''postgresql''',
