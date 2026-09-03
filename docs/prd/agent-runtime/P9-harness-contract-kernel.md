@@ -1,10 +1,10 @@
 ---
 title: P10：Agent Harness 契约内核与回归基线
-status: 实施中（S1 已验证，S2 未开始）
+status: 完成
 domain: agent-runtime
 phase: P10
 issue: 113
-updated: 2026-09-01
+updated: 2026-09-03
 ---
 
 # P10 Agent Harness 契约内核与回归基线 · PRD
@@ -13,12 +13,12 @@ updated: 2026-09-01
 
 OperMind 已具备正式会话、Run、SSE、`DiagnosisExecutor`、LangGraph 多 Agent 图、`ToolGateway`、安全 Trace、取消和固定动作链，但这些能力仍以现有实现的局部协议协作，缺少一套框架无关、可独立验证的 Harness 最小契约。继续增加 Agent、Tool、Connector 或恢复能力前，需要先固定共同语言与回归护栏，避免后续能力沿不同状态、错误和适配协议继续分叉。
 
-P9 研究与后续开发规划阶段已完成七个开源项目的证据对照、当前代码 Baseline Gap Map、十七组目标契约、综合设计矩阵和独立 Reader Review，并由用户确认收口。最终方向是“OperMind 自有业务控制面 + 可替换 Agent Runtime Adapter”，不整体迁移到任何开源框架。本 PRD 是 P9 产出的第一个零行为变化实施候选，用户已于 2026-09-01 将其正式立项为 P10，并确认对应 Workpack 计划；相关文档已通过 PR #116 合入 `main`，开始门状态通过 PR #117 合入 `main`，CI 前置通过 PR #119 合入 `main`。最终实施 base 已确定为 `643c2c0c6d5630705ba89251a9cea58c505bb4ce`，bootstrap generator 已完成独立 Review，zero-behavior baseline 已在无其他 P10 候选代码的状态下重新生成并复验；S1 Contract Kernel 随后完成聚焦、静态、全量与边界门禁验证，尚未提交，S2 / S3 尚未开始。文件名保留 `P9-` 前缀仅用于兼容已合入的历史链接与机器 allowlist，正式阶段编号以本文 `phase: P10` 为准。
+P9 研究与后续开发规划阶段已完成七个开源项目的证据对照、当前代码 Baseline Gap Map、十七组目标契约、综合设计矩阵和独立 Reader Review，并由用户确认收口。最终方向是“OperMind 自有业务控制面 + 可替换 Agent Runtime Adapter”，不整体迁移到任何开源框架。本 PRD 是 P9 产出的第一个零行为变化实施候选，用户已于 2026-09-01 将其正式立项为 P10；立项与 Workpack 计划、开始门状态、CI 前置及三个实施切片分别通过 PR #116、#117、#119、#118 合入 `main`。S1 Contract Kernel、S2 Adapter Contract Test Harness、S3 Regression Baseline 均已完成，AC1–AC16、独立 Review 与零行为变化边界门禁全部通过，Workpack 已归档。文件名保留 `P9-` 前缀仅用于兼容历史链接与机器 allowlist，正式阶段编号以本文 `phase: P10` 为准。
 
 关联依据：
 
 - `docs/产品定义.md`：OperMind 是会话式多 Agent DevOps Copilot；外部访问必须经过受控 Tool，公开 Trace 不展示 CoT、Prompt、原始 Tool 输出或凭据。
-- `docs/路线图.md`：已将本候选正式立项为 P10；只承诺本 PRD 的三个零行为变化切片，不承诺完整 A–E。
+- `docs/路线图.md`：已将本候选作为 P10 完成交付；只交付本 PRD 的三个零行为变化切片，不承诺完整 A–E。
 - `docs/开发规范.md`：跨层数据使用 Pydantic 或 TypedDict，Agent 与 Tool 复用约定接口，关键路径必须有确定性测试，编排语义变化必须 Design → Review → 用户确认。
 - [P9 Agent Harness 正式化 Design](../../design/agent-runtime/P9AgentHarness正式化Design.md)：给出完整目标架构与安全边界。
 - [P9 Agent Harness 综合设计矩阵](../../design/agent-runtime/P9AgentHarness综合设计矩阵.md)：给出七类正交维度、能力依赖和行为激活门。
@@ -150,21 +150,21 @@ P9 研究与后续开发规划阶段已完成七个开源项目的证据对照�
 
 ## 验收标准
 
-- [ ] AC1: 当同名值分别用于 lifecycle、result、external outcome、failure、resolution、dispatch 和 control 时，类型与运行时校验应阻止跨维度误用；不得新增万能 `status` 契约。
-- [ ] AC2: 当构造 identity、contract version、generation 或 fencing value object 时，合法值可稳定 round-trip，空值、非法格式、无效版本和禁止的比较会被明确拒绝。
-- [ ] AC3: 当检查 Contract Kernel 时，不存在 AgentTask、Attempt、ContextManifest、BindingSnapshot 或其他阶段 B 业务实体、状态机和持久化映射。
-- [ ] AC4: 当实现一个 reference / fake Runtime Adapter 时，完整 contract suite 应覆盖正常结果、typed failure、不支持能力、取消、超时和上下文传递并全部通过，且协议不导入具体 Agent 框架类型；同时应给出现有 `DiagnosisExecutor` 到目标 contract 的逐项映射，不得无证据创建职责重叠的第二套生产 port。
-- [ ] AC5: 当使用当前 `DiagnosisExecutor` 的离线兼容夹具运行 contract suite 时，已声明支持的最小子集必须通过，暂不支持项必须与版本化 expected gap 完全一致；新增未知 gap、已支持能力回归或 capability 声明失真必须失败，不得用 `skip`、`xfail` 或生产行为修改掩盖。
-- [ ] AC6: 当测试 `ToolGateway` 的允许、拒绝、参数无效和执行失败场景时，拒绝场景不得触发 Tool，安全结果不得包含原始参数、输出、异常或凭据。
-- [ ] AC7: 当运行代表性 Run 场景时，当前生命周期与终态保证应被确定性验证；测试不得把 LangGraph checkpoint 或私有 graph state 当业务完成证明。
-- [ ] AC8: 当运行取消场景时，现有取消请求、终态和迟到结果保护应保持当前语义；本包不得新增 cancellation barrier、持久化协调或恢复行为。
-- [ ] AC9: 当运行安全 Trace 场景时，公开投影只包含既有允许字段与脱敏摘要，不出现 CoT、Prompt、原始 Tool 输出、原始异常、SQL、路径或凭据。
-- [ ] AC10: 当运行当前固定动作代表性场景时，既有 Proposal、Decision、执行和 Verify 边界保持不变；不得签发新 Grant、增加动作或改变审批权限。
-- [ ] AC11: 当测试用例向门禁输入至少一个跨维度状态误用、ToolGateway 绕过或敏感 Trace 泄漏的负向样例时，违例输入必须被拒绝并指出契约类别，而承载该断言的测试用例本身必须通过；仓库中不得提交故意失败的测试。
-- [ ] AC12: 当相同确定性场景重复运行时，归一化 ID、时间和耗时后，关键契约结果一致；测试不访问真实模型、数据库、主机、日志系统或网络。
-- [ ] AC13: 当执行 Contract Kernel / Adapter / Regression 新增套件时应 100% 通过且无 `skip`、`xfail` / `xpass`；后端全量测试应按仓库既有基线通过，本包不得新增或扩大 skip / xfail，也不得放宽既有断言掩盖失败。
-- [ ] AC14: 当执行后续 Design 固定的边界门禁时，应机器确认：依赖清单与 lockfile 无变化；迁移、前端、API 路由 / schema、生产 DI、当前 Runtime / Run 服务 / ToolGateway 实现无 diff；规范化 OpenAPI 与迁移 head 不变；新增模块未被生产入口导入。只靠人工审查不能使本 AC 通过。
-- [ ] AC15: 当交付本候选包时，应形成版本化“当前行为基线与已知缺口”记录；新增未知 gap 必须失败，gap 变更必须有证据与 Review，并明确后续阶段仍需重新进入 PRD / Design / 用户确认流程。
+- [x] AC1: 当同名值分别用于 lifecycle、result、external outcome、failure、resolution、dispatch 和 control 时，类型与运行时校验应阻止跨维度误用；不得新增万能 `status` 契约。
+- [x] AC2: 当构造 identity、contract version、generation 或 fencing value object 时，合法值可稳定 round-trip，空值、非法格式、无效版本和禁止的比较会被明确拒绝。
+- [x] AC3: 当检查 Contract Kernel 时，不存在 AgentTask、Attempt、ContextManifest、BindingSnapshot 或其他阶段 B 业务实体、状态机和持久化映射。
+- [x] AC4: 当实现一个 reference / fake Runtime Adapter 时，完整 contract suite 应覆盖正常结果、typed failure、不支持能力、取消、超时和上下文传递并全部通过，且协议不导入具体 Agent 框架类型；同时应给出现有 `DiagnosisExecutor` 到目标 contract 的逐项映射，不得无证据创建职责重叠的第二套生产 port。
+- [x] AC5: 当使用当前 `DiagnosisExecutor` 的离线兼容夹具运行 contract suite 时，已声明支持的最小子集必须通过，暂不支持项必须与版本化 expected gap 完全一致；新增未知 gap、已支持能力回归或 capability 声明失真必须失败，不得用 `skip`、`xfail` 或生产行为修改掩盖。
+- [x] AC6: 当测试 `ToolGateway` 的允许、拒绝、参数无效和执行失败场景时，拒绝场景不得触发 Tool，安全结果不得包含原始参数、输出、异常或凭据。
+- [x] AC7: 当运行代表性 Run 场景时，当前生命周期与终态保证应被确定性验证；测试不得把 LangGraph checkpoint 或私有 graph state 当业务完成证明。
+- [x] AC8: 当运行取消场景时，现有取消请求、终态和迟到结果保护应保持当前语义；本包不得新增 cancellation barrier、持久化协调或恢复行为。
+- [x] AC9: 当运行安全 Trace 场景时，公开投影只包含既有允许字段与脱敏摘要，不出现 CoT、Prompt、原始 Tool 输出、原始异常、SQL、路径或凭据。
+- [x] AC10: 当运行当前固定动作代表性场景时，既有 Proposal、Decision、执行和 Verify 边界保持不变；不得签发新 Grant、增加动作或改变审批权限。
+- [x] AC11: 当测试用例向门禁输入至少一个跨维度状态误用、ToolGateway 绕过或敏感 Trace 泄漏的负向样例时，违例输入必须被拒绝并指出契约类别，而承载该断言的测试用例本身必须通过；仓库中不得提交故意失败的测试。
+- [x] AC12: 当相同确定性场景重复运行时，归一化 ID、时间和耗时后，关键契约结果一致；测试不访问真实模型、数据库、主机、日志系统或网络。
+- [x] AC13: 当执行 Contract Kernel / Adapter / Regression 新增套件时应 100% 通过且无 `skip`、`xfail` / `xpass`；后端全量测试应按仓库既有基线通过，本包不得新增或扩大 skip / xfail，也不得放宽既有断言掩盖失败。
+- [x] AC14: 当执行后续 Design 固定的边界门禁时，应机器确认：依赖清单与 lockfile 无变化；迁移、前端、API 路由 / schema、生产 DI、当前 Runtime / Run 服务 / ToolGateway 实现无 diff；规范化 OpenAPI 与迁移 head 不变；新增模块未被生产入口导入。只靠人工审查不能使本 AC 通过。
+- [x] AC15: 当交付本候选包时，应形成版本化“当前行为基线与已知缺口”记录；新增未知 gap 必须失败，gap 变更必须有证据与 Review，并明确后续阶段仍需重新进入 PRD / Design / 用户确认流程。
 - [x] AC16: 正式路线图已明确本 PRD 由 P9 规划产出并独立立项为 P10，只包含三个零行为变化切片，且不把 A–E 整体承诺为已批准阶段或 Workpack。
 
 ## 边界与约束
@@ -174,17 +174,17 @@ P9 研究与后续开发规划阶段已完成七个开源项目的证据对照�
 - **Tool 边界**：模型与 Runtime 不获得 Connector；Tool 执行继续只能经过现有 `ToolGateway`。
 - **行为边界**：本 PRD 只建独立类型、协议、测试辅助结构和文档，不把新协议接入生产调用链。
 - **扩范围处理**：任何迁移、API、生产接线、业务 identity、持久化、Recovery、权限或副作用语义需求必须停止当前包并单独决策，不能以“为未来预留”为由加入。
-- **工程闸门**：本 PRD、issue #113、实施 Design、独立 Review 与 Safe Trace 前置收口均已完成；P9 规划定位已通过 PR #115 合入 `main`，P10 立项与计划文档已通过 PR #116 合入 `main`，开始门状态已通过 PR #117 合入 `main`。独立实施 worktree、受控环境、最终 base、bootstrap 与 S1 Contract Kernel 验证均已完成；后续实现必须继续遵守既有 Design、Workpack allowlist 和 baseline 门禁，从 S2 Adapter Contract Test Harness 开始，不得重做 S1、并行铺开 S3或扩大本 PRD。
+- **工程闸门**：P10 的 PRD、实施 Design、开始门、S1–S3、独立 Review、回归与零行为变化边界门禁均已完成；实现通过 PR #118 合入 `main`，Workpack 已归档。后续能力不得沿用本 Workpack 扩项，必须重新进入 PRD → Design → Review → 用户确认。
 
 ## 完成定义（DoD）
 
-- [ ] 全部 AC（AC1–AC16）通过并在 Workpack evidence 中逐项给出可复验依据。
-- [ ] Contract Kernel、Adapter Contract Test Harness、Regression Baseline 三个切片均完成，未出现第四个隐含切片。
-- [ ] 相关聚焦测试和后端全量测试全部通过，无 skip、xfail / xpass；若未修改前端，则不为形式要求制造前端改动。
-- [ ] 至少一个负向输入被契约 / 安全门禁正确拒绝，承载拒绝断言的测试用例本身通过。
-- [ ] `git diff --check` 通过；后续 Design 固定的机器门禁证明依赖、迁移、OpenAPI、前端、生产接线与生产 import graph 未变化，并完成敏感字面量检查。
-- [ ] 无数据库迁移、公开 API / SSE / 前端、任何依赖清单或 lockfile 变化、真实外部访问、权限变化或用户可见行为变化。
-- [ ] “当前行为基线与已知缺口”记录完整区分现有保证、目标契约和未实现能力，不把 gap 描述为已交付。
+- [x] 全部 AC（AC1–AC16）通过并在 Workpack evidence 中逐项给出可复验依据。
+- [x] Contract Kernel、Adapter Contract Test Harness、Regression Baseline 三个切片均完成，未出现第四个隐含切片。
+- [x] 相关聚焦测试和后端全量测试全部通过，无 skip、xfail / xpass；未为形式要求制造前端改动。
+- [x] 至少一个负向输入被契约 / 安全门禁正确拒绝，承载拒绝断言的测试用例本身通过。
+- [x] `git diff --check` 通过；机器门禁证明依赖、迁移、OpenAPI、前端、生产接线与生产 import graph 未变化，并完成敏感字面量检查。
+- [x] 无数据库迁移、公开 API / SSE / 前端、任何依赖清单或 lockfile 变化、真实外部访问、权限变化或用户可见行为变化。
+- [x] “当前行为基线与已知缺口”记录完整区分现有保证、目标契约和未实现能力，不把 gap 描述为已交付。
 - [x] 实施 Design、独立 Review 与 P10 立项确认均已完成。
 - [x] P10 Workpack 计划已由用户确认并通过 PR #116 合入 `main`；最终实施 base、bootstrap generator 独立 Review 与 zero-behavior baseline 捕获/复验均已完成。
 
@@ -192,10 +192,10 @@ P9 研究与后续开发规划阶段已完成七个开源项目的证据对照�
 
 包路径、依赖方向、value objects、`DiagnosisExecutor` 复用边界、兼容夹具、versioned expected capability profile、回归套件和 baseline / evidence 放置方式均已由 `docs/design/agent-runtime/P9HarnessContractKernel实施Design.md` 定稿；任何改变这些决定或本 PRD 严格边界的需求都必须重新进入 Design。
 
-本候选已确定归属 P10，立项与 Workpack 计划确认决策已经关闭，相关文档已合入 `main`。最终实施 base、bootstrap 与 S1 验证已经完成，当前下一工程入口是 S2 Adapter Contract Test Harness；这些都不是 P9 未完成事项，也不授权把阶段 A 其余内容或 B–E 并入本 Workpack。
+本候选已作为 P10 完成交付并通过 PR #118 合入 `main`。P10 只完成本 PRD 的三个零行为变化切片，不授权把阶段 A 其余内容或 B–E 视为已立项；下一阶段尚未选择。
 
 ## GitHub Issue
 
-- issue：[#113](https://github.com/wzhwwwzzzhhh/oper-mind/issues/113)——P9 规划阶段创建，现作为 P10 Agent Harness 契约内核与回归基线的实施 issue 继续使用。
+- issue：[#113](https://github.com/wzhwwwzzzhhh/oper-mind/issues/113)——P9 规划阶段创建，作为 P10 Agent Harness 契约内核与回归基线的唯一实施 issue，随 PR #118 合并收口。
 - issue 只描述本 PRD 的三个切片和严格排除项，不把阶段 A 其余内容或 B–E 纳入同一 issue。
-- 状态同步：正式路线图当前保留 `main` 上最后已合并的“P10 已立项/代码尚未合入”状态；本 PRD、issue #113 与 active Workpack 跟踪独立 worktree 的实时实施状态。clean base、bootstrap 与 S1 Contract Kernel 验证已经完成但尚未提交；下一执行者只从 S2 Adapter Contract Test Harness 接手，S3 仍须等待 S2 完成。P10 合并后再以独立文档收口同步路线图，不能为实时回写绕过 zero-behavior allowlist。
+- 状态同步：S1–S3、独立 Review、验证证据和 Workpack 归档均已完成，PR #118 已合入 `main`；P10 正式收口，下一阶段尚未选择。
