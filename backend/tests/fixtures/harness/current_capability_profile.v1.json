@@ -1,0 +1,182 @@
+{
+  "capabilities": {
+    "adapter_cancellation": {
+      "evidence": {
+        "assertion": "取消由 Run service 外层协调，当前端口不接收 RuntimeControl",
+        "kind": "behavior_probe",
+        "locator": "DiagnosisExecutorCompatibilityProbe.adapter_cancellation"
+      },
+      "expected_status": "externalized",
+      "gap_id": "diagnosis_executor.cancellation_externalized"
+    },
+    "capability_declaration": {
+      "evidence": {
+        "assertion": "能力声明由 reviewed profile 与 compatibility probe 持有",
+        "kind": "signature_probe",
+        "locator": "DiagnosisExecutorCompatibilityProbe.capability_declaration"
+      },
+      "expected_status": "externalized",
+      "gap_id": "diagnosis_executor.capability_declaration_externalized"
+    },
+    "contract_version": {
+      "evidence": {
+        "assertion": "compatibility wrapper 在调用当前端口前精确校验 v1",
+        "kind": "contract_wrapper",
+        "locator": "DiagnosisExecutorCompatibilityProbe.contract_version"
+      },
+      "expected_status": "mapped",
+      "gap_id": null
+    },
+    "control": {
+      "evidence": {
+        "assertion": "当前端口签名不接收 RuntimeControl",
+        "kind": "signature_probe",
+        "locator": "DiagnosisExecutorCompatibilityProbe.control"
+      },
+      "expected_status": "externalized",
+      "gap_id": "diagnosis_executor.control_externalized"
+    },
+    "deadline": {
+      "evidence": {
+        "assertion": "当前端口签名不接收 deadline",
+        "kind": "signature_probe",
+        "locator": "DiagnosisExecutorCompatibilityProbe.deadline"
+      },
+      "expected_status": "unsupported",
+      "gap_id": "diagnosis_executor.deadline_unsupported"
+    },
+    "execution_id": {
+      "evidence": {
+        "assertion": "当前端口签名不接收 execution_id",
+        "kind": "signature_probe",
+        "locator": "DiagnosisExecutorCompatibilityProbe.execution_id"
+      },
+      "expected_status": "externalized",
+      "gap_id": "diagnosis_executor.execution_id_externalized"
+    },
+    "final_result": {
+      "evidence": {
+        "assertion": "当前 DiagnosisExecutionResult 只映射为兼容 result signal",
+        "kind": "behavior_probe",
+        "locator": "DiagnosisExecutorCompatibilityProbe.final_result"
+      },
+      "expected_status": "mapped",
+      "gap_id": null
+    },
+    "query": {
+      "evidence": {
+        "assertion": "当前端口收到原始 query",
+        "kind": "behavior_probe",
+        "locator": "DiagnosisExecutorCompatibilityProbe.query"
+      },
+      "expected_status": "supported",
+      "gap_id": null
+    },
+    "service_context": {
+      "evidence": {
+        "assertion": "可选 service_id 映射到当前端口第二参数",
+        "kind": "behavior_probe",
+        "locator": "DiagnosisExecutorCompatibilityProbe.service_context"
+      },
+      "expected_status": "mapped",
+      "gap_id": null
+    },
+    "stream_event_shape": {
+      "evidence": {
+        "assertion": "当前 DiagnosisExecutionEvent 映射为 typed event signal",
+        "kind": "behavior_probe",
+        "locator": "DiagnosisExecutorCompatibilityProbe.stream_event_shape"
+      },
+      "expected_status": "supported",
+      "gap_id": null
+    },
+    "terminal_cardinality": {
+      "evidence": {
+        "assertion": "当前端口允许零终止或多个 result",
+        "kind": "behavior_probe",
+        "locator": "DiagnosisExecutorCompatibilityProbe.terminal_cardinality"
+      },
+      "expected_status": "unsupported",
+      "gap_id": "diagnosis_executor.terminal_cardinality_unenforced"
+    },
+    "typed_failure": {
+      "evidence": {
+        "assertion": "当前 DiagnosisExecutionError 映射为安全 typed failure",
+        "kind": "behavior_probe",
+        "locator": "DiagnosisExecutorCompatibilityProbe.typed_failure"
+      },
+      "expected_status": "mapped",
+      "gap_id": null
+    },
+    "unexpected_exception": {
+      "evidence": {
+        "assertion": "非 DiagnosisExecutionError 仍会逸出当前端口",
+        "kind": "behavior_probe",
+        "locator": "DiagnosisExecutorCompatibilityProbe.unexpected_exception"
+      },
+      "expected_status": "unsupported",
+      "gap_id": "diagnosis_executor.unexpected_exception_untyped"
+    }
+  },
+  "tool_gateway_facts": {
+    "exception": {
+      "evidence": {
+        "assertion": "Tool 异常映射为不泄露原始异常的中性 error",
+        "kind": "behavior_probe",
+        "locator": "ToolGatewayCompatibilityProbe.exception"
+      },
+      "expected_status": "guaranteed",
+      "gap_id": null
+    },
+    "invalid_arguments": {
+      "evidence": {
+        "assertion": "非法 JSON、非对象、缺参数与类型错误均被拒绝且 Tool 未执行",
+        "kind": "behavior_probe",
+        "locator": "ToolGatewayCompatibilityProbe.invalid_arguments"
+      },
+      "expected_status": "guaranteed",
+      "gap_id": null
+    },
+    "sensitive_output": {
+      "evidence": {
+        "assertion": "敏感输出命中规则后被脱敏",
+        "kind": "behavior_probe",
+        "locator": "ToolGatewayCompatibilityProbe.sensitive_output"
+      },
+      "expected_status": "guaranteed",
+      "gap_id": null
+    },
+    "success": {
+      "evidence": {
+        "assertion": "允许请求只执行一次并返回脱敏 output 与完整安全 record",
+        "kind": "behavior_probe",
+        "locator": "ToolGatewayCompatibilityProbe.success"
+      },
+      "expected_status": "guaranteed",
+      "gap_id": null
+    },
+    "timeout": {
+      "evidence": {
+        "assertion": "网关返回 timeout 后同步 Tool 仍可继续并完成，故只保证等待超时",
+        "kind": "behavior_probe",
+        "locator": "ToolGatewayCompatibilityProbe.timeout"
+      },
+      "expected_status": "expected_gap",
+      "gap_id": "tool_gateway.timeout_does_not_cancel_execution"
+    },
+    "unregistered": {
+      "evidence": {
+        "assertion": "未注册 Tool 被拒绝且已注册 probe 未执行",
+        "kind": "behavior_probe",
+        "locator": "ToolGatewayCompatibilityProbe.unregistered"
+      },
+      "expected_status": "guaranteed",
+      "gap_id": null
+    }
+  },
+  "contract_version": {
+    "major": 1,
+    "minor": 0
+  },
+  "profile_version": 1
+}

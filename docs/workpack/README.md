@@ -20,12 +20,13 @@ docs/workpack/
 
 | 阶段 | 切片 | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|
-| P10 | harness-contract-kernel | 开始门准备中：内容等价预检通过，待最终 base | [plan.md](P10-harness-contract-kernel/plan.md) | — | — |
+| — | 暂无 | — | — | — | — |
 
 ## 已归档
 
 | 阶段 | 切片 | PR | 完成日期 |
 |---|---|---|---|
+| P10 | harness-contract-kernel（issue #113） | #118 | 2026-09-02 |
 | 完善 | stage-acceptance-closeout（issue #105） | #111 | 2026-08-27 |
 | 完善 | session-run-feedback（issue #102） | #110 | 2026-08-27 |
 | 完善 | structured-diagnosis-truthfulness（issue #101） | #109 | 2026-08-27 |
