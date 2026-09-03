@@ -1,6 +1,6 @@
 # P10 Harness Contract Kernel 与回归基线 · 工作包计划
 
-> 状态：用户已于 2026-09-01 确认；S1 已提交为 `1b91808`；S2 已完成实现、验证与独立 Review（PASS，无 P0–P3）；S3 尚未开始
+> 状态：用户已于 2026-09-01 确认；S1 已提交为 `1b91808`；S2 已提交为 `4ab5314`；S3 Regression 与最终边界门禁已实现、验证并通过独立 Review（PASS，无 P0–P3），尚未提交或归档
 > PRD：`docs/prd/agent-runtime/P9-harness-contract-kernel.md`（文件名保留 P9 规划来源，正式阶段为 P10）
 > Design：`docs/design/agent-runtime/P9HarnessContractKernel实施Design.md`
 > Issue：[#113](https://github.com/wzhwwwzzzhhh/oper-mind/issues/113)
@@ -76,11 +76,12 @@ P10 只交付共同语言、测试适配边界和现状保护，不接管生产�
 
 ### S3：Regression Baseline 与最终边界门禁
 
-- [ ] 新增 Run、Tool、安全 Trace、取消、固定动作和重复运行场景的稳定 oracle。
-- [ ] 归一化 ID、时间与耗时，不快照模型正文、原始 Tool 输出、异常或 LangGraph 私有 state。
-- [ ] 负向样例证明跨维度状态误用、ToolGateway 绕过和敏感 Trace 泄漏会被门禁拒绝，而测试用例本身通过。
-- [ ] 执行四集合 diff、依赖、OpenAPI、Alembic head、生产 import graph 与 skip/xfail inventory 棘轮。
-- [ ] 完成全量测试、独立 Review、AC evidence 与交付归档。
+- [x] 新增 Run、Tool、安全 Trace、取消、固定动作和重复运行场景的稳定 oracle。
+- [x] 归一化 ID、时间与耗时，不快照模型正文、原始 Tool 输出、异常或 LangGraph 私有 state。
+- [x] 负向样例证明跨维度状态误用、ToolGateway 绕过和敏感 Trace 泄漏会被门禁拒绝，而测试用例本身通过。
+- [x] 执行四集合 diff、依赖、OpenAPI、Alembic head、生产 import graph 与 skip/xfail inventory 棘轮。
+- [x] 完成全量测试、独立 Review 与 AC evidence。
+- [ ] 提交 S3 并完成交付归档。
 
 完成证明：PRD AC6–AC16 全部通过；无生产行为、API、迁移、前端、依赖或真实外部访问变化。
 
@@ -189,4 +190,4 @@ git status --porcelain=v1 --untracked-files=all
 - [x] 开始门状态同步已通过 PR #117 合入 `main`，实施 worktree 已快进并记录最终 base。
 - [x] S1 Contract Kernel 实现、验证与独立 Review 完成；重建后提交为 `1b91808`。
 - [x] S2 Adapter Contract Test Harness 已实现并完成本地验证；独立 Review 最终 PASS，无 P0–P3。
-- [ ] S3 Regression、最终独立 Review、提交与交付完成。
+- [ ] S3 Regression 与最终边界门禁已实现、验证并通过独立 Review（PASS，无 P0–P3）；尚未提交或归档。
