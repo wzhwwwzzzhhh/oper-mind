@@ -15,6 +15,12 @@ from tests.support import harness_zero_behavior as gate
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BASELINE_PATH = REPO_ROOT / gate.BASELINE_PATH
+POST_P10_PLANNING_PATHS = frozenset(
+    {
+        "docs/路线图.md",
+        "docs/prd/agent-runtime/P11-harness-real-runtime-safety-gate.md",
+    }
+)
 
 
 @pytest.fixture(scope="module")
@@ -81,12 +87,12 @@ def test_committed_staged_unstaged_untracked四集合精确受allowlist约束(
     base_sha = str(baseline["base_commit_sha"])
     inventory = gate._diff_inventory(REPO_ROOT, base_sha)
     closeout_inventory = {
-        name: [path for path in paths if path != "docs/路线图.md"]
+        name: [path for path in paths if path not in POST_P10_PLANNING_PATHS]
         for name, paths in inventory.items()
     }
 
     assert set(inventory) == {"committed", "staged", "unstaged", "untracked"}
-    assert "docs/路线图.md" in gate._inventory_union(inventory)
+    assert POST_P10_PLANNING_PATHS.issubset(gate._inventory_union(inventory))
     gate._assert_allowed_inventory(closeout_inventory, bootstrap=False)
     dirty = gate._inventory_union(inventory)
     assert not set(gate.PROTECTED_FILES) & dirty

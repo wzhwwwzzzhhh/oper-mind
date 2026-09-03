@@ -78,6 +78,7 @@
 | 完善收口 | Judge Runtime 真实性与配置面收口 | `agent-runtime/judge-runtime-truthfulness.md` | 完成 |
 | 完善收口 | 结构化诊断结果真实性——事实来源与安全呈现 | `session/structured-diagnosis-result-truthfulness.md` | 已完成，待提交 |
 | P10 | Agent Harness 契约内核与回归基线 | `agent-runtime/P9-harness-contract-kernel.md` | 完成（PR #118） |
+| P11 | Agent Harness 真实运行安全门 | `agent-runtime/P11-harness-real-runtime-safety-gate.md` | 已确认（issue #121） |
 
 ## 执行 AI 如何使用
 - 拿到 PRD 后：只实现「范围」内能力，逐条过「验收标准」，达到「完成定义」。
