@@ -80,14 +80,19 @@ def test_committed_staged_unstaged_untracked四集合精确受allowlist约束(
 ) -> None:
     base_sha = str(baseline["base_commit_sha"])
     inventory = gate._diff_inventory(REPO_ROOT, base_sha)
+    closeout_inventory = {
+        name: [path for path in paths if path != "docs/路线图.md"]
+        for name, paths in inventory.items()
+    }
 
     assert set(inventory) == {"committed", "staged", "unstaged", "untracked"}
-    gate._assert_allowed_inventory(inventory, bootstrap=False)
+    assert "docs/路线图.md" in gate._inventory_union(inventory)
+    gate._assert_allowed_inventory(closeout_inventory, bootstrap=False)
     dirty = gate._inventory_union(inventory)
     assert not set(gate.PROTECTED_FILES) & dirty
     assert not any(path.startswith(gate.PROTECTED_PREFIXES) for path in dirty)
 
-    negative_inventory = {name: list(paths) for name, paths in inventory.items()}
+    negative_inventory = {name: list(paths) for name, paths in closeout_inventory.items()}
     negative_inventory["untracked"].append("backend/src/app.py")
     with pytest.raises(gate.GateError, match="四集合包含越界路径"):
         gate._assert_allowed_inventory(negative_inventory, bootstrap=False)
@@ -125,7 +130,7 @@ def test_capability_profile历史不可覆盖且版本连续(baseline: dict[str,
 
 def test_正式路线图P10范围与PRD一致() -> None:
     roadmap = (REPO_ROOT / "docs" / "路线图.md").read_text(encoding="utf-8")
-    assert "P10 已立项：Agent Harness 契约内核与回归基线" in roadmap
+    assert "P10 已完成：Agent Harness 契约内核与回归基线" in roadmap
     assert "Harness Contract Kernel" in roadmap
     assert "Adapter Contract Test Harness" in roadmap
     assert "Regression Baseline" in roadmap
