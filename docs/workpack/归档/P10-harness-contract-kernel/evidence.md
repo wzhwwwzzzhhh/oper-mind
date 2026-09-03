@@ -1,7 +1,7 @@
 # P10 Harness Contract Kernel · 实施证据
 
 > 日期：2026-09-01
-> 当前范围：S1/S2 已提交；S3 Regression Baseline 与最终边界门禁已实现、验证并通过独立 Review（PASS，无 P0–P3），尚未提交或归档
+> 状态：S1/S2/S3 已提交；AC1–AC16 验证与独立 Review 均已完成；Workpack 已归档
 > 最终实施 base：`643c2c0c6d5630705ba89251a9cea58c505bb4ce`
 
 ## S1 · Contract Kernel
@@ -78,8 +78,8 @@ git diff --check
 
 - S1：完成并验证。
 - S2：完成实现、验证与独立 Review（PASS，无 P0–P3）。
-- S3：完成实现、验证与独立 Review（PASS，无 P0–P3），尚未提交或归档。
-- S1/S2 重建后分别提交为 `1b91808`、`4ab5314`；S3 尚未提交；未推送、未创建 PR。
+- S3：完成实现、验证与独立 Review（PASS，无 P0–P3），重建后提交为 `d0ae3c4`。
+- S1、S2、S3 重建后分别提交为 `1b91808`、`4ab5314`、`d0ae3c4`；Workpack 已归档；远端交付由 PR #118 跟踪。
 
 ## S2 · Adapter Contract Test Harness
 
@@ -192,7 +192,7 @@ AC7–AC10 的完整回归证明属于 S3，本轮未宣称完成。
 | AC15 | profile v1 保持版本化 Runtime/ToolGateway 当前事实；baseline 历史棘轮拒绝覆盖、跳号与 payload 版本失配 | PASS |
 | AC16 | 只读路线图门禁确认 P10 恰含三个零行为切片，并明确 A–E 并非已批准阶段或 Workpack | PASS |
 
-S1/S2 已分别证明 AC1–AC5；结合本节，AC1–AC16 的实现、本地机器验证与独立 Review 均已覆盖。S3 提交和 Workpack 归档尚未完成，因此当前不宣称 P10 最终交付完成。
+S1/S2 已分别证明 AC1–AC5；结合本节，AC1–AC16 的实现、本地机器验证与独立 Review 均已覆盖。S3 重建后提交为 `d0ae3c4`，Workpack 已完成归档，P10 本地交付完成；远端交付由 PR #118 跟踪。
 
 ### 验证记录
 
