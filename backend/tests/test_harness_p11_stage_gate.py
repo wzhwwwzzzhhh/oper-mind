@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import ast
-import hashlib
 import json
 import re
 from pathlib import Path
@@ -20,6 +19,7 @@ from tests.support.harness_p11_stage_gate import (
     assert_offline_blocker_source,
     assert_required_probe_inventory,
     assert_workpack_exclusive,
+    function_source_sha256,
     load_manifest,
     verify,
 )
@@ -125,16 +125,15 @@ def test_删除必备负向断言会失败(tmp_path: Path) -> None:
     relative = "tests/test_required_assertions.py"
     path = tmp_path / relative
     path.parent.mkdir(parents=True)
-    original = ast.parse(
+    original_source = (
         "def test_retained():\n"
         "    assert True\n"
         "    with pytest.raises(RuntimeError):\n"
         "        raise RuntimeError\n"
-    ).body[0]
+    )
+    original = ast.parse(original_source).body[0]
     assert isinstance(original, ast.FunctionDef)
-    original_sha = hashlib.sha256(
-        ast.dump(original, annotate_fields=True, include_attributes=False).encode("utf-8")
-    ).hexdigest()
+    original_sha = function_source_sha256(original_source, original)
     path.write_text("def test_retained():\n    assert True\n", encoding="utf-8")
 
     with pytest.raises(StageGateError, match="内容漂移"):

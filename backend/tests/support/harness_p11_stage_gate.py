@@ -102,15 +102,15 @@ REQUIRED_NEGATIVE_PROBES: Final = {
         "test_离线门DNS入口与生命周期约束不可削弱",
     ),
 }
-REQUIRED_PROBE_AST_SHA256: Final = {
+REQUIRED_PROBE_SOURCE_SHA256: Final = {
     (
         "backend/tests/test_harness_zero_behavior_gate.py",
         "test_P10历史交付diff精确受原allowlist约束且负向样例仍失败",
-    ): "9bbc7597bc10f9dafb14d858b66068407bf74c87d23896e540db87576896630b",
+    ): "c478a67da870099b1cef80012f1c123c7cf91d057a8fe36b872eb4098060514a",
     (
         "backend/tests/test_harness_zero_behavior_gate.py",
         "test_P10历史contract生产import_graph保持隔离且负向样例会失败",
-    ): "24f7ddedd571e11b42a6b5c05372852001162eafd1f2b4dcd517f8fca61337f9",
+    ): "e636392da13712a216f28963bc7ae74f2724fbf058a26fe782b2a1c6a681b0ce",
 }
 
 
@@ -120,6 +120,17 @@ class StageGateError(RuntimeError):
 
 def _sha256(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
+
+
+def function_source_sha256(source: str, node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
+    """对函数源码做跨 Python AST 版本稳定的精确指纹。"""
+
+    normalized = source.replace("\r\n", "\n").replace("\r", "\n")
+    lines = normalized.splitlines(keepends=True)
+    if node.end_lineno is None:
+        raise StageGateError("P11 无法确定必备负向探针源码边界")
+    segment = "".join(lines[node.lineno - 1 : node.end_lineno]).rstrip("\n") + "\n"
+    return _sha256(segment.encode("utf-8"))
 
 
 def load_manifest(root: Path) -> dict[str, Any]:
@@ -200,12 +211,13 @@ def assert_no_skip_xfail(root: Path, paths: tuple[str, ...] = P11_TEST_PATHS) ->
 def assert_required_probe_inventory(
     root: Path,
     required: Mapping[str, tuple[str, ...]] = REQUIRED_NEGATIVE_PROBES,
-    required_fingerprints: Mapping[tuple[str, str], str] = REQUIRED_PROBE_AST_SHA256,
+    required_fingerprints: Mapping[tuple[str, str], str] = REQUIRED_PROBE_SOURCE_SHA256,
 ) -> None:
     """必备负向行为探针不得被删除或藏入非顶层作用域。"""
 
     for relative, expected_names in required.items():
-        tree = ast.parse((root / relative).read_text(encoding="utf-8"), filename=relative)
+        source = (root / relative).read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=relative)
         definitions = {
             node.name: node
             for node in tree.body
@@ -227,13 +239,7 @@ def assert_required_probe_inventory(
                 raise StageGateError(f"P11 必备负向探针缺少断言：{relative}:{name}")
             expected_sha = required_fingerprints.get((relative, name))
             if expected_sha is not None:
-                actual_sha = _sha256(
-                    ast.dump(
-                        definitions[name],
-                        annotate_fields=True,
-                        include_attributes=False,
-                    ).encode("utf-8")
-                )
+                actual_sha = function_source_sha256(source, definitions[name])
                 if actual_sha != expected_sha:
                     raise StageGateError(f"P11 必备负向探针内容漂移：{relative}:{name}")
 

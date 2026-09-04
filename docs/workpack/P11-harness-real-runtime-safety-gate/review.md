@@ -19,6 +19,7 @@ Reviewer 全程只读，未修改文件，未访问真实外部资源。
 - 主 Agent 自审 P1：发现 legacy/name DNS API 仍可绕过 `getaddrinfo` blocker。已在 collection 前阻断 `gethostbyname/gethostbyname_ex/gethostbyaddr/getnameinfo`，并增加调用即失败探针。
 - 主 Agent 自审 P2：并发 `shutdown(cancel_futures=True)` 产生的 `CancelledError` 会落入通用异常并误报 completed。已单独映射为 `completed/closed/cancelled_before_start`，并用可观测执行器证明排队 Tool 调用数为零。
 - 主 Agent 自审 P3：`pytest_sessionfinish` 过早撤销 blocker。已取消 undo，改为 blocker 存活到进程退出，临时目录由 `atexit` 清理。
+- CI 兼容性修复 P1：阶段门原先对完整 `ast.dump` 取 SHA，Python 3.11 与 3.12 对同一源码的 AST 表示不同，导致 Ubuntu CI 误报内容漂移。已改为统一换行后的完整函数源码 SHA；删除或修改负向断言仍会失败，约束未弱化。
 
 ## 修复后复验
 
@@ -29,6 +30,7 @@ Reviewer 全程只读，未修改文件，未访问真实外部资源。
 - 自审修复后显式必选合并回归：`203 passed`。
 - 自审修复后后端全量：`775 passed`。
 - Ruff：`All checks passed!`。
+- CI 兼容性修复后：P10/P11 阶段门 `19 passed`，mypy `116 source files` 无问题，后端全量 `775 passed`。
 
 ## 终审
 
