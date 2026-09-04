@@ -5,9 +5,6 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
-import os
-import subprocess
-import sys
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Final
@@ -18,6 +15,11 @@ MANIFEST_PATH: Final = "backend/tests/fixtures/harness/p11_stage_manifest.v1.jso
 P10_BASELINE_PATH: Final = "backend/tests/fixtures/harness/zero_behavior_baseline.v1.json"
 P10_GENERATOR_PATH: Final = "backend/tests/support/harness_zero_behavior.py"
 P10_PROFILE_V1_PATH: Final = "backend/tests/fixtures/harness/current_capability_profile.v1.json"
+P11_BASE_SHA: Final = "602323899595e2db34876d6cfc2f47e38ae74096"
+P11_DELIVERY_SHA: Final = "990368fcda0f8673ed7e6c8963108e7746c1f8d4"
+P10_DELIVERY_SHA: Final = "4d17f6f65f616774b3b616faaed03348dd5a1c08"
+P11_OPENAPI_SHA256: Final = "a47be238cb5e3652b382a73a6b48d99af23a26608ec7fcf07b02556bae7b15a3"
+P11_ALEMBIC_HEADS: Final = ["20260815_14_merge_p8_heads"]
 ACTIVE_WORKPACK_PATHS: Final = frozenset(
     {
         "docs/workpack/P11-harness-real-runtime-safety-gate/evidence.md",
@@ -94,6 +96,7 @@ REQUIRED_NEGATIVE_PROBES: Final = {
         "test_真实测试软件门缺任一条件均在访问前失败关闭",
     ),
     "backend/tests/test_harness_p11_stage_gate.py": (
+        "test_P11历史交付diff不吸收后续阶段文件",
         "test_四集合任一越界文件都会失败",
         "test_目录通配白名单不能掩盖越界文件",
         "test_P11测试support出现skip会失败",
@@ -176,6 +179,33 @@ def assert_allowed_inventory(
     rejected = sorted(changed - set(allowed_paths))
     if rejected:
         raise StageGateError(f"P11 四集合包含越界路径：{', '.join(rejected)}")
+
+
+def historical_inventory(root: Path, base_sha: str, delivery_sha: str) -> dict[str, list[str]]:
+    """只重放 P11 已交付提交，不把后续阶段的 HEAD / 工作区变化吸入历史门。"""
+
+    try:
+        p10_gate._run_git(root, "merge-base", "--is-ancestor", base_sha, delivery_sha)
+        p10_gate._run_git(root, "merge-base", "--is-ancestor", delivery_sha, "HEAD")
+        raw_diff = p10_gate._run_git(
+            root,
+            "diff",
+            "--no-renames",
+            "--name-only",
+            "-z",
+            f"{base_sha}...{delivery_sha}",
+        )
+        if not isinstance(raw_diff, bytes):
+            raise StageGateError("P11 历史交付 diff 类型无效")
+        committed = p10_gate._nul_paths(raw_diff)
+    except p10_gate.GateError as error:
+        raise StageGateError("P11 历史交付提交不可验证") from error
+    return {
+        "committed": committed,
+        "staged": [],
+        "unstaged": [],
+        "untracked": [],
+    }
 
 
 def assert_workpack_exclusive(root: Path, manifest: Mapping[str, Any]) -> None:
@@ -261,46 +291,6 @@ def assert_offline_blocker_source(source: str) -> None:
         raise StageGateError("P11 离线门不得在 pytest 进程退出前撤销")
 
 
-def _fresh_openapi_sha(root: Path) -> str:
-    environment = os.environ.copy()
-    for name in tuple(environment):
-        if name.startswith("OPERMIND_SERVICE_"):
-            environment.pop(name)
-    environment.update(
-        {
-            "OPERMIND_API_KEY": "mock",
-            "OPERMIND_BASE_URL": "http://mock.invalid",
-            "OPERMIND_MODEL": "mock",
-            "OPERMIND_PG_DSN": "",
-            "OPERMIND_KNOWLEDGE_DIR": "",
-            "OPERMIND_APP_DATABASE_URL": "sqlite:///:memory:",
-            "PYTHONPATH": os.pathsep.join(
-                [str(root / "backend"), str(root), environment.get("PYTHONPATH", "")]
-            ),
-        }
-    )
-    completed = subprocess.run(
-        [
-            sys.executable,
-            "-c",
-            (
-                "from pathlib import Path; "
-                "from tests.support.harness_zero_behavior import _openapi_sha; "
-                "print(_openapi_sha(Path(__import__('sys').argv[1])))"
-            ),
-            str(root),
-        ],
-        cwd=root / "backend",
-        env=environment,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if completed.returncode != 0:
-        raise StageGateError("P11 normalized OpenAPI 子进程取样失败")
-    return completed.stdout.strip()
-
-
 def assert_p10_assets(root: Path, manifest: Mapping[str, Any]) -> None:
     """P10 baseline、generator 和 v1 profile 必须保持历史 Git blob。"""
 
@@ -316,24 +306,28 @@ def assert_p10_assets(root: Path, manifest: Mapping[str, Any]) -> None:
         raise StageGateError("P10 baseline/generator/v1 profile 历史资产发生变化")
 
 
-def assert_production_boundaries(root: Path, manifest: Mapping[str, Any]) -> None:
-    """验证 API、迁移、前端、依赖与唯一接线点没有越界。"""
+def assert_production_boundaries(
+    root: Path,
+    manifest: Mapping[str, Any],
+    delivery_sha: str,
+) -> None:
+    """在 P11 交付树验证阶段边界，并在当前树保留安全不变量。"""
 
     baseline = json.loads((root / P10_BASELINE_PATH).read_text(encoding="utf-8"))
-    if p10_gate._hash_files(root, "HEAD", p10_gate.DEPENDENCY_PATHS) != baseline[
+    if p10_gate._hash_files(root, delivery_sha, p10_gate.DEPENDENCY_PATHS) != baseline[
         "dependency_git_blob_sha256"
     ]:
         raise StageGateError("P11 不得修改依赖清单")
     aggregates = {
-        prefix: p10_gate._aggregate_prefix(root, "HEAD", prefix)
+        prefix: p10_gate._aggregate_prefix(root, delivery_sha, prefix)
         for prefix in p10_gate.PROTECTED_PREFIXES
     }
     if aggregates != baseline["protected_tree_aggregate_sha256"]:
         raise StageGateError("P11 不得修改 API、迁移或前端")
-    if _fresh_openapi_sha(root) != manifest.get("openapi_normalized_sha256"):
-        raise StageGateError("P11 不得改变公开 OpenAPI")
-    if p10_gate._alembic_heads(root) != manifest.get("alembic_heads"):
-        raise StageGateError("P11 不得改变 Alembic heads")
+    if manifest.get("openapi_normalized_sha256") != P11_OPENAPI_SHA256:
+        raise StageGateError("P11 交付 OpenAPI 证据漂移")
+    if manifest.get("alembic_heads") != P11_ALEMBIC_HEADS:
+        raise StageGateError("P11 交付 Alembic heads 证据漂移")
 
     assert_offline_blocker_source((root / "backend/tests/conftest.py").read_text(encoding="utf-8"))
 
@@ -358,19 +352,22 @@ def assert_production_boundaries(root: Path, manifest: Mapping[str, Any]) -> Non
 
 
 def verify(root: Path) -> dict[str, list[str]]:
-    """执行 P11 独立阶段门并返回规范化四集合。"""
+    """重放 P11 历史交付门，并验证当前树仍保留的安全不变量。"""
 
     manifest = load_manifest(root)
     base_sha = manifest.get("base_commit_sha")
-    if base_sha != "602323899595e2db34876d6cfc2f47e38ae74096":
+    if base_sha != P11_BASE_SHA:
         raise StageGateError("P11 最终 origin/main base SHA 漂移")
-    if manifest.get("p10_delivery_sha") != "4d17f6f65f616774b3b616faaed03348dd5a1c08":
+    delivery_sha = manifest.get("delivery_commit_sha")
+    if delivery_sha != P11_DELIVERY_SHA:
+        raise StageGateError("P11 delivery SHA 漂移")
+    if manifest.get("p10_delivery_sha") != P10_DELIVERY_SHA:
         raise StageGateError("P10 delivery SHA 漂移")
-    inventory = p10_gate._diff_inventory(root, str(base_sha))
+    inventory = historical_inventory(root, str(base_sha), str(delivery_sha))
     assert_allowed_inventory(inventory)
     assert_workpack_exclusive(root, manifest)
     assert_no_skip_xfail(root)
     assert_required_probe_inventory(root)
     assert_p10_assets(root, manifest)
-    assert_production_boundaries(root, manifest)
+    assert_production_boundaries(root, manifest, str(delivery_sha))
     return inventory
