@@ -8,7 +8,11 @@ from typing import cast
 from src.core.agent import BaseAgent
 from src.core.llm import LLMClient
 from src.core.tool_registry import ToolRegistry
-from src.domain.services import BoundServiceCapabilities
+from src.domain.services import (
+    SERVICE_HEALTH_PRESSURE_DEFAULT_QUERY,
+    SERVICE_HEALTH_PRESSURE_INTENT_ID,
+    BoundServiceCapabilities,
+)
 from src.scenarios.db_diagnosis import SYSTEM_PROMPT, TOOL_CALLING_EXAMPLE
 from src.tools.db_tools import (
     CheckConnectionPoolTool,
@@ -38,6 +42,11 @@ class DBAgent(BaseAgent):
     ):
         tools = ToolRegistry()
         timeout_by_tool: dict[str, float] = {}
+        self._postgres_health_tools: ToolRegistry | None = None
+        self.health_query_is_bound = (
+            binding is not None
+            and SERVICE_HEALTH_PRESSURE_INTENT_ID in binding.supported_investigations
+        )
         if binding is None:
             # 仅保留旧 CLI/确定性评测兼容入口；正式 v1 Run 总是注入 registry binding。
             tools.register(ExplainTool(service_id))
@@ -54,7 +63,8 @@ class DBAgent(BaseAgent):
             tools.register(ShowIndexTool(service_id, capability))
             tools.register(ShowCreateTableTool(service_id, capability))
             tools.register(CheckLockStatusTool(service_id, capability))
-            tools.register(PostgresHealthOverviewTool(binding.capability))
+            self._postgres_health_tools = ToolRegistry()
+            self._postgres_health_tools.register(PostgresHealthOverviewTool(binding.capability))
             timeout_by_tool["check_connection_pool"] = 15.0
             system_prompt = SYSTEM_PROMPT + "\n\n" + TOOL_CALLING_EXAMPLE
         elif binding.kind == "redis":
@@ -76,6 +86,21 @@ class DBAgent(BaseAgent):
             enable_long_term_memory=enable_long_term_memory,
             tool_timeout_by_name=timeout_by_tool,
         )
+
+    def _tool_registry_for_query(self, user_input: str) -> ToolRegistry:
+        """服务端 exact health query 只暴露健康 Tool，模型无法扩展菜单。"""
+        if (
+            self._postgres_health_tools is not None
+            and user_input.strip() == SERVICE_HEALTH_PRESSURE_DEFAULT_QUERY
+        ):
+            return self._postgres_health_tools
+        return super()._tool_registry_for_query(user_input)
+
+    def _tool_invocation_limit_for_query(self, user_input: str) -> int | None:
+        """三服务健康调查最多接纳一次 Tool 调用。"""
+        if self.health_query_is_bound and user_input.strip() == SERVICE_HEALTH_PRESSURE_DEFAULT_QUERY:
+            return 1
+        return super()._tool_invocation_limit_for_query(user_input)
 
 
 def _health_prompt(kind: str, tool_name: str) -> str:

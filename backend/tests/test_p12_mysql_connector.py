@@ -5,7 +5,8 @@ import json
 import pytest
 from sqlalchemy.exc import OperationalError
 
-from src.domain.services import ServiceAvailability
+from src.application.service_registration import ServiceRegistrationApplicationService
+from src.domain.services import ServiceAvailability, ServiceRegistry
 from src.infrastructure.services.mysql_connector import MySqlServiceConnector
 from src.tools.service_health_tools import MySqlHealthOverviewTool
 
@@ -143,14 +144,25 @@ def test_mysql_engine_has_fixed_timeouts_and_null_pool(monkeypatch: pytest.Monke
 
 
 def test_mysql_missing_required_scalar_fails_closed() -> None:
-    result = MySqlHealthOverviewTool(
-        MySqlServiceConnector(
-            "mysql+pymysql://readonly@example.invalid",
-            engine=_Engine(missing_uptime=True),
-        )
-    ).execute()
+    connector = MySqlServiceConnector(
+        "mysql+pymysql://readonly@example.invalid",
+        engine=_Engine(missing_uptime=True),
+    )
+    snapshot = connector.health_snapshot()
+    result = MySqlHealthOverviewTool(connector).execute()
+    assert snapshot.availability is ServiceAvailability.UNAVAILABLE
+    assert snapshot.failure_code == "malformed_fact"
     assert result.status == "unavailable"
     assert json.loads(result.output)["failure_code"] == "malformed_fact"
+
+    registration = ServiceRegistrationApplicationService(  # type: ignore[arg-type]
+        lambda: None,
+        ServiceRegistry((connector,)),
+        None,
+    )
+    connection = registration.test_connection("mysql-local")
+    assert connection.availability is ServiceAvailability.UNAVAILABLE
+    assert connection.error_code == "connection_failed"
 
 
 def test_mysql_cleanup_failure_is_honest_and_safe(monkeypatch: pytest.MonkeyPatch) -> None:

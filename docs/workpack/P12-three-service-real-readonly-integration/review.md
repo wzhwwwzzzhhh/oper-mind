@@ -1,6 +1,6 @@
 # P12 PostgreSQL、Redis 与 MySQL 真实只读接入 · 实现 Review
 
-> 状态：独立只读代码 Review PASS；P0/P1/P2/P3 均为 0
+> 状态：PR #126 审查返修已完成本地验证；等待外部 Reviewer 复审
 
 Reviewer 必须只读，不修改文件，不访问真实外部资源。所有 P0/P1/P2 必须修复并重新验证；P3 也应修复或明确为不阻塞遗留。
 
@@ -24,6 +24,16 @@ Reviewer 全程只读、未修改文件、未访问真实服务或模型。严�
 - 正式装配 E2E、迁移 previous→upgrade/unsafe downgrade/non-SQLite spy、前端 exact service_id/intent、stage mutation 和 timeout-map 负探针均补齐。
 - Reviewer 最终只读复验：相关 P12、P12 gate、P11 Runtime/ToolGateway `89 passed, 1 warning`；`git diff --check` 通过。
 
+## PR #126 外部审查返修
+
+外部审查发现 `P1=1、P2=2`，均按阻塞项处理，没有放宽 Design、门禁或断言：
+
+- **P1 PostgreSQL health Tool 菜单**：exact health default query 现在由服务端在 Graph 路由前固定为 `direct/db`；DBAgent 为该 query 构造独立 active Tool registry，只暴露 `check_connection_pool`，ToolGateway 也只持有该 registry；本次健康调查最多接纳一次 Tool 调用。负向 driver 同一响应请求两次时，底层只执行一次；普通 PostgreSQL 调查仍保留原受限 Tool 菜单。
+- **P2 MySQL 部分指标假健康**：Connector 要求 `Uptime/Threads_connected/Threads_running/Slow_queries/max_connections` 精确齐全；缺失时快照为 `unavailable/malformed_fact`，Agent Tool unavailable，`ServiceRegistrationApplicationService.test_connection()` 也返回 unavailable。
+- **P2 Runner 核心编排证据**：Runner 拆出可注入、默认仍延迟真实装配的 runtime loader。临时 SQLite + fake Redis connector 的离线测试已完整进入 Registry/origin、连接测试、服务 Session、Run、唯一 Tool/终态、Trace/Result 校验；另证明 origin mismatch 在连接测试前停止。
+
+返修聚焦与回归：`57 passed`、P12 全组 `88 passed`、P10/P11/P12 历史矩阵 `158 passed`；后端全量 `866 passed`，Ruff、Mypy 和 P12 exact-path gate 通过。外部 Reviewer 尚未复审，因此不把本节表述为新的独立 PASS。
+
 ## 最终结论
 
-实现 Review 已 PASS，可进入 deliver。Workpack 仍保持 active：AC14 的三个真实目标验收未获逐目标当次授权、未执行，因此 P12 不标记完成、不归档、不关闭 Issue。
+三项外部审查问题已完成返修与本地验证，等待 Reviewer 复审；PR 暂不合并。Workpack 仍保持 active：AC14 的三个真实目标验收未获逐目标当次授权、未执行，因此 P12 不标记完成、不归档、不关闭 Issue。

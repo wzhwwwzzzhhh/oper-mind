@@ -25,6 +25,7 @@ from src.core.mock_runtime import (
     resolve_mock_debate,
 )
 from src.core.reflection import ReflectionEngine
+from src.domain.services import SERVICE_HEALTH_PRESSURE_DEFAULT_QUERY
 
 # ===== 1. 状态定义 =====
 
@@ -151,6 +152,20 @@ def build_diagnosis_graph(
     def route_node(state: DiagnosisState) -> DiagnosisState:
         query = state["query"]
         trace = state.get("trace", [])
+
+        db_agent = agents.get("db")
+        if (
+            getattr(db_agent, "health_query_is_bound", False)
+            and query.strip() == SERVICE_HEALTH_PRESSURE_DEFAULT_QUERY
+        ):
+            return {
+                "strategy": "direct",
+                "target": "db",
+                "trace": [
+                    *trace,
+                    {"node": "route", "detail": "受控健康调查路由 → direct/db"},
+                ],
+            }
 
         strategy, target = None, None
         if not _is_mock(llm):

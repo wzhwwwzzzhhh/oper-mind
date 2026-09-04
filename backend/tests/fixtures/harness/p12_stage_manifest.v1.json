@@ -17,6 +17,7 @@
     "backend/src/application/service_registration.py",
     "backend/src/core/agent.py",
     "backend/src/core/bootstrap.py",
+    "backend/src/core/graph.py",
     "backend/src/core/tool_gateway.py",
     "backend/src/domain/services.py",
     "backend/src/infrastructure/persistence/models.py",

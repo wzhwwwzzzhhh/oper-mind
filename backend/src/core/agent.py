@@ -50,13 +50,21 @@ class BaseAgent:
 
         self.short_term.add_message({"role": "user", "content": enriched_input})
         messages = self.short_term.get_messages_for_llm()
-        tool_schemas = self.tools.get_schemas()
+        active_tools = self._tool_registry_for_query(user_input)
+        tool_schemas = active_tools.get_schemas()
+        active_timeouts = {
+            name: timeout
+            for name, timeout in self._tool_timeout_by_name.items()
+            if active_tools.get(name) is not None
+        }
 
         gateway = (
-            ToolGateway(self.tools, timeout_by_tool=self._tool_timeout_by_name)
-            if self._tool_timeout_by_name
-            else ToolGateway(self.tools)
+            ToolGateway(active_tools, timeout_by_tool=active_timeouts)
+            if active_timeouts
+            else ToolGateway(active_tools)
         )
+        invocation_limit = self._tool_invocation_limit_for_query(user_input)
+        invocation_count = 0
         try:
             for step in range(self.max_steps):
                 LOGGER.debug("ReAct 第 %d/%d 步", step + 1, self.max_steps)
@@ -73,11 +81,14 @@ class BaseAgent:
 
                 if tool_calls:
                     for tc in tool_calls:
+                        if invocation_limit is not None and invocation_count >= invocation_limit:
+                            return "本次只读调查已达到工具调用上限"
                         func = tc["function"]
                         # 只记工具名：arguments 可能含 SQL 或连接参数，不进日志。
                         LOGGER.debug("第 %d 步调用工具 %s", step + 1, func["name"])
 
                         gw_result = gateway.invoke(func["name"], func["arguments"])
+                        invocation_count += 1
                         result = gw_result.output
                         self._tool_invocations.append(gw_result.record)
                         self.thinking_log.append(
@@ -109,6 +120,16 @@ class BaseAgent:
             return f"Agent 超过最大步数（{self.max_steps}步），未得出最终结论"
         finally:
             gateway.shutdown()
+
+    def _tool_registry_for_query(self, user_input: str) -> ToolRegistry:
+        """返回本次 Run 的可信 Tool 菜单；默认保持既有完整注册表。"""
+        del user_input
+        return self.tools
+
+    def _tool_invocation_limit_for_query(self, user_input: str) -> int | None:
+        """返回本次查询允许的 Tool 调用总数；默认不改变历史行为。"""
+        del user_input
+        return None
 
     def _extract_tags(self, text: str) -> list[str]:
         """从诊断结果中提取用于检索的基础标签。"""

@@ -117,6 +117,15 @@ class MySqlServiceConnector:
                 status_rows = connection.execute(text(_STATUS_SQL)).mappings().all()
                 variable_rows = connection.execute(text(_VARIABLE_SQL)).mappings().all()
             values = self._rows_to_ints((*status_rows, *variable_rows))
+            required_metrics = {
+                "Uptime",
+                "Threads_connected",
+                "Threads_running",
+                "Slow_queries",
+                "max_connections",
+            }
+            if set(values) != required_metrics:
+                raise ValueError("MySQL 固定指标不完整")
             slow_queries = values.get("Slow_queries")
             result = ServiceSnapshotData(
                 observed_at=observed,

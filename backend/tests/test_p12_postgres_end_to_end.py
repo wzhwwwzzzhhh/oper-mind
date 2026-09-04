@@ -20,7 +20,11 @@ from src.core.bootstrap import build_coordinator
 from src.core.tool_gateway import ToolGateway
 from src.core.tool_registry import Tool, ToolRegistry
 from src.domain.diagnosis import RUN_TERMINAL_STATUSES, RunEventType, RunStatus
-from src.domain.services import BindingOrigin, BoundServiceCapabilities
+from src.domain.services import (
+    SERVICE_HEALTH_PRESSURE_DEFAULT_QUERY,
+    BindingOrigin,
+    BoundServiceCapabilities,
+)
 from src.infrastructure.persistence.database import Base, create_persistence_runtime
 from src.infrastructure.persistence.repositories import (
     SqlAlchemyDiagnosisResultRepository,
@@ -55,7 +59,7 @@ class _Capability:
         raise AssertionError("构造 Agent 不应访问服务")
 
 
-def test_bound_postgres_agent_uses_only_same_binding_health_capability() -> None:
+def test_bound_postgres_health_investigation_exposes_only_health_tool() -> None:
     capability = _Capability()
     agent = DBAgent(
         _Llm(),
@@ -69,12 +73,15 @@ def test_bound_postgres_agent_uses_only_same_binding_health_capability() -> None
         enable_long_term_memory=False,
     )
 
+    health_tools = agent._tool_registry_for_query(SERVICE_HEALTH_PRESSURE_DEFAULT_QUERY)
+    assert [item["function"]["name"] for item in health_tools.get_schemas()] == [
+        "check_connection_pool"
+    ]
     assert [item["function"]["name"] for item in agent.tools.get_schemas()] == [
         "explain_sql",
         "show_index",
         "show_create_table",
         "check_lock_status",
-        "check_connection_pool",
     ]
     assert agent._tool_timeout_by_name == {"check_connection_pool": 15.0}
 
@@ -183,6 +190,53 @@ class _Engine:
     def dispose(self):
         if self.cleanup_fail:
             raise RuntimeError("secret cleanup")
+
+
+class _RepeatHealthCallsDriver:
+    def chat(self, messages, tools=None, **kwargs):
+        del messages, tools, kwargs
+        return {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": "first",
+                    "type": "function",
+                    "function": {"name": "check_connection_pool", "arguments": "{}"},
+                },
+                {
+                    "id": "second",
+                    "type": "function",
+                    "function": {"name": "check_connection_pool", "arguments": "{}"},
+                },
+            ],
+        }
+
+
+def test_postgres_health_query_executes_at_most_one_tool_call() -> None:
+    engine = _Engine()
+    connector = PostgresServiceConnector(
+        "postgresql://placeholder",
+        engine=engine,  # type: ignore[arg-type]
+        instance_id="pg.dynamic",
+    )
+    agent = DBAgent(
+        _RepeatHealthCallsDriver(),  # type: ignore[arg-type]
+        service_id="pg.dynamic",
+        binding=BoundServiceCapabilities(
+            service_id="pg.dynamic",
+            kind="postgres",
+            supported_investigations=frozenset(
+                {"postgres_slow_query.v1", "service_health_pressure.v1"}
+            ),
+            capability=connector.agent_capability(),
+        ),
+        enable_long_term_memory=False,
+    )
+
+    assert agent.run(SERVICE_HEALTH_PRESSURE_DEFAULT_QUERY) == "本次只读调查已达到工具调用上限"
+    assert len(agent.get_tool_invocations()) == 1
+    assert len(engine.connection.statements) == 3
 
 
 def test_postgres_bound_health_executes_readonly_set_and_two_fixed_queries() -> None:
@@ -391,7 +445,7 @@ def test_dynamic_postgres_registration_to_run_uses_one_binding_and_one_terminal(
     accepted = services.run_service.accept_run(
         CreateRunCommand(
             session_id=session_data.id,
-            query="数据库连接压力指标",
+            query=SERVICE_HEALTH_PRESSURE_DEFAULT_QUERY,
             idempotency_key=uuid4(),
             service_id="pg.dynamic",
         )

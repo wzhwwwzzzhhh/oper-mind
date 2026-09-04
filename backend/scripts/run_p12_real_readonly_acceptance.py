@@ -11,7 +11,10 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 from scripts.check_p12_real_readonly_preflight import PreflightSafeStop, check_preflight
-from src.domain.services import BindingOrigin
+from src.domain.services import (
+    SERVICE_HEALTH_PRESSURE_DEFAULT_QUERY,
+    BindingOrigin,
+)
 
 
 class DeterministicLocalDriver:
@@ -88,7 +91,13 @@ class DeterministicLocalDriver:
         return {"role": "assistant", "content": f"只读健康事实：{safe_summary}"}
 
 
-def run_acceptance(environment=os.environ, *, stdin=sys.stdin, input_fn=input) -> dict[str, str]:
+def run_acceptance(
+    environment=os.environ,
+    *,
+    stdin=sys.stdin,
+    input_fn=input,
+    runtime_loader=None,
+) -> dict[str, str]:
     """执行单目标验收；返回值和输出均不含指标、异常、目标或 credential ref。"""
     preflight = check_preflight(environment)
     if not stdin.isatty():
@@ -97,46 +106,31 @@ def run_acceptance(environment=os.environ, *, stdin=sys.stdin, input_fn=input) -
     if not hmac.compare_digest(confirmed, preflight.service_id):
         raise PreflightSafeStop("P12_USER_CONFIRMATION_MISMATCH")
 
-    # 延迟导入：软件 preflight 和安全 import 都不会装载数据库/Redis/模型 client。
-    from src.api.v1.dependencies import build_v1_services_for_runtime
     from src.application.contracts import CreateRunCommand
     from src.application.service_center import CreateServiceSessionCommand
-    from src.config import load_persistence_settings
-    from src.core.bootstrap import build_coordinator
     from src.domain.diagnosis import RunEventType, RunStatus
-    from src.infrastructure.persistence.database import create_persistence_runtime
     from src.infrastructure.persistence.repositories import (
         SqlAlchemyDiagnosisResultRepository,
         SqlAlchemyRunEventRepository,
     )
-    from src.infrastructure.services.service_connector_factory import load_registered_services
-
-    runtime = create_persistence_runtime(load_persistence_settings().database_url)
 
     expected_tool = {
         "postgres": "check_connection_pool",
         "redis": "redis_health_overview",
         "mysql": "mysql_health_overview",
     }[preflight.kind]
-
-    def coordinator_factory(service_id, binding):
-        return build_coordinator(
-            DeterministicLocalDriver(expected_tool),
-            service_id=service_id,
-            binding=binding,
-        )
-
-    services = build_v1_services_for_runtime(
-        runtime,
-        coordinator_factory,
-        registry_loader=lambda: load_registered_services(runtime.session_factory),
-    )
+    loader = runtime_loader or _load_acceptance_runtime
+    runtime, services = loader(preflight, expected_tool)
     registry = services.service_registry
     registration = services.service_registration
     center = services.service_center
     if registry is None or registration is None or center is None:
         raise PreflightSafeStop("P12_RUNTIME_UNAVAILABLE")
-    binding = registry.resolve_binding(preflight.service_id, expected_kind=preflight.kind)
+    binding = registry.resolve_binding(
+        preflight.service_id,
+        expected_kind=preflight.kind,
+        investigation_id="service_health_pressure.v1",
+    )
     expected = BindingOrigin.from_reference(preflight.credential_ref).source_fingerprint
     if not hmac.compare_digest(binding.origin.source_fingerprint, expected):
         raise PreflightSafeStop("P12_BINDING_ORIGIN_MISMATCH")
@@ -148,7 +142,7 @@ def run_acceptance(environment=os.environ, *, stdin=sys.stdin, input_fn=input) -
     accepted = services.run_service.accept_run(
         CreateRunCommand(
             session_id=session.id,
-            query="数据库连接压力指标",
+            query=SERVICE_HEALTH_PRESSURE_DEFAULT_QUERY,
             idempotency_key=uuid4(),
             service_id=preflight.service_id,
         )
@@ -194,6 +188,32 @@ def run_acceptance(environment=os.environ, *, stdin=sys.stdin, input_fn=input) -
         "model_source": "deterministic_local_driver",
         "service_fact_source": "registry_binding",
     }
+
+
+def _load_acceptance_runtime(preflight, expected_tool):
+    """延迟装配真实 Runner；import 本身不装载或访问任何外部目标。"""
+    # 延迟导入：软件 preflight 和安全 import 都不会装载数据库/Redis/模型 client。
+    from src.api.v1.dependencies import build_v1_services_for_runtime
+    from src.config import load_persistence_settings
+    from src.core.bootstrap import build_coordinator
+    from src.infrastructure.persistence.database import create_persistence_runtime
+    from src.infrastructure.services.service_connector_factory import load_registered_services
+
+    runtime = create_persistence_runtime(load_persistence_settings().database_url)
+
+    def coordinator_factory(service_id, binding):
+        return build_coordinator(
+            DeterministicLocalDriver(expected_tool),
+            service_id=service_id,
+            binding=binding,
+        )
+
+    services = build_v1_services_for_runtime(
+        runtime,
+        coordinator_factory,
+        registry_loader=lambda: load_registered_services(runtime.session_factory),
+    )
+    return runtime, services
 
 
 def main() -> int:
