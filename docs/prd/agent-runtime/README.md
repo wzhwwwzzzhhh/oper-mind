@@ -8,4 +8,4 @@
 | [P8-agent-runtime-truthfulness-evaluation.md](P8-agent-runtime-truthfulness-evaluation.md) | Agent 运行真实性与评测基线 | 完成 |
 | [judge-runtime-truthfulness.md](judge-runtime-truthfulness.md) | Judge Runtime 真实性与配置面收口 | 完成 |
 | [P9-harness-contract-kernel.md](P9-harness-contract-kernel.md) | P10：Agent Harness 契约内核与回归基线 | 完成（PR #118） |
-| [P11-harness-real-runtime-safety-gate.md](P11-harness-real-runtime-safety-gate.md) | P11：Agent Harness 真实运行安全门 | 已确认（issue #121） |
+| [P11-harness-real-runtime-safety-gate.md](P11-harness-real-runtime-safety-gate.md) | P11：Agent Harness 真实运行安全门 | 完成（PR #123） |
