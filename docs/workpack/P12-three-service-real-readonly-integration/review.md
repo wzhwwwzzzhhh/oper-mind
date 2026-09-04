@@ -1,6 +1,6 @@
 # P12 PostgreSQL、Redis 与 MySQL 真实只读接入 · 实现 Review
 
-> 状态：PR #126 合并前自审 PASS；P0=0、P1=0、P2=0、P3=0；AC14 真实验收仍待执行
+> 状态：PR #126 已合并；合并后收口复核 PASS；P0=0、P1=0、P2=0、P3=0；AC14 真实验收仍待执行
 
 Reviewer 必须只读，不修改文件，不访问真实外部资源。所有 P0/P1/P2 必须修复并重新验证；P3 也应修复或明确为不阻塞遗留。
 
@@ -44,6 +44,14 @@ Reviewer 全程只读、未修改文件、未访问真实服务或模型。严�
 - 全量变更范围未触碰 `tests/conftest.py`、P10/P11 baseline、生成 OpenAPI 或 Design 禁止文件；未增加 skip/xfail/xpass，未发现凭据、目标或原始异常泄漏，也未扩大到任意 SQL、任意 Redis 命令、写能力或额外服务类型。
 
 自审结论：**PASS；P0=0、P1=0、P2=0、P3=0**。该结论只解除 PR 合并的软件门，不替代 AC14 的逐目标人工授权与真实验收。
+
+## 合并后收口复核
+
+PR #126 合并后从 ServiceCenter → Workbench → Run 的真实用户路径重新检查，发现 canonical health intent 虽已预填固定问题，但仍复用了普通可编辑 Composer。该路径既可能把固定问题作为普通 Message 发送，也可能在用户编辑后失去服务端 exact-query health profile，因而不能把既有 AC17 UI 证据视为完整闭环。
+
+收口修复将该 intent 改为显式固定动作：仅当当前单服务会话的权威服务投影声明 `service_health_pressure.v1` 时展示，并直接调用 Run 创建路径；前端不允许编辑 canonical query。直接伪造 intent URL、服务未声明 capability、服务列表加载失败或会话绑定不唯一时均不启动。若已有其他待恢复发送意图，页面要求先恢复或明确丢弃，不复用其问题或幂等键。成功受理并恢复服务端记录后，URL intent 被 replace 清除，回到普通会话录入。
+
+新增测试覆盖精确 Run payload、普通 Message 零调用、未声明 capability 失败关闭、旧发送意图冲突与未知 intent；聚焦 `4 passed`，前端全量 `22 files / 224 tests passed`，typecheck、production build、P12 gate 与 `git diff --check` 均通过。收口复核结论：**PASS；P0=0、P1=0、P2=0、P3=0**。
 
 ## 最终结论
 
