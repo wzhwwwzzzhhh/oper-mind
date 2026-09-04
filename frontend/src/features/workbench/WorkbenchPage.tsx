@@ -59,11 +59,13 @@ import {
   type SessionRunSendIntent,
 } from './send-intent'
 import {
+  read_array,
   read_items,
   read_page,
   read_record,
   resource_optional_string,
   resource_string,
+  resource_value,
 } from './resource-readers'
 import {
   UiAlert,
@@ -678,7 +680,15 @@ function ConversationTimeline({
   )
 }
 
-function SessionWorkspace({ session_id, prefilled_query }: { session_id: string; prefilled_query: string }): ReactElement {
+function SessionWorkspace({
+  fixed_health_investigation,
+  session_id,
+  prefilled_query,
+}: {
+  fixed_health_investigation: boolean
+  session_id: string
+  prefilled_query: string
+}): ReactElement {
   const navigate = useNavigate()
   const query_client = useQueryClient()
   const storage = session_storage()
@@ -787,6 +797,9 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
     set_send_intent(undefined)
     set_query('')
     set_pending_outgoing(undefined)
+    if (fixed_health_investigation) {
+      navigate(`/workbench/sessions/${encodeURIComponent(session_id)}`, { replace: true })
+    }
   }
 
   const create_run = useMutation({
@@ -1003,14 +1016,31 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
     : session_status === 'active' ? 'active' : 'archived'
   const session_title = resource_string(session, 'title', '未命名会话')
   const selected_session_service_ids = session_service_ids(session)
+  const service_resources = read_items(services_query.data?.data)
   const session_service_titles = selected_session_service_ids.map((service_id) => {
-    const service = read_items(services_query.data?.data).find((item) => resource_optional_string(item, 'id') === service_id)
+    const service = service_resources.find((item) => resource_optional_string(item, 'id') === service_id)
     return resource_optional_string(service, 'title') ?? service_id
   })
-  const services_by_id = new Map(read_items(services_query.data?.data).flatMap((service) => {
+  const services_by_id = new Map(service_resources.flatMap((service) => {
     const id = resource_optional_string(service, 'id')
     return id ? [[id, { kind: resource_optional_string(service, 'kind'), title: resource_optional_string(service, 'title') }] as const] : []
   }))
+  const fixed_health_capability_resolved = selected_session_service_ids.length !== 1
+    || services_query.isSuccess
+    || services_query.isError
+  const fixed_health_supported = selected_session_service_ids.length === 1
+    && service_resources.some((service) => (
+      resource_optional_string(service, 'id') === selected_session_service_ids[0]
+      && read_array(resource_value(service, 'supported_investigations')).some((investigation_value) => (
+        resource_optional_string(investigation_value, 'id') === 'service_health_pressure.v1'
+      ))
+    ))
+  const fixed_health_send_intent_conflict = fixed_health_investigation
+    && fixed_health_supported
+    && Boolean(send_intent && send_intent.query !== prefilled_query)
+  const fixed_health_investigation_active = fixed_health_investigation
+    && fixed_health_supported
+    && !fixed_health_send_intent_conflict
   const can_send = session_is_active
   const has_idempotency_key_conflict = is_idempotency_key_conflict(recovery_error)
   return (
@@ -1060,7 +1090,53 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
       {session_status === 'archived' && (
         <UiAlert className="archive-notice" description="会话已归档；历史、Run、提案与导出仍可查看，可使用“恢复会话”重新开启消息与调查录入。" showIcon title="已归档会话" type="info" />
       )}
-      {can_send && prefilled_query && !send_intent && !has_idempotency_key_conflict && (
+      {can_send && fixed_health_investigation_active && !has_idempotency_key_conflict && (
+        <UiAlert
+          action={(
+            <UiButton
+              disabled={Boolean(send_intent && !send_intent.runs.some((run) => run.phase === 'acceptance_unknown'))}
+              loading={create_run.isPending}
+              onClick={() => submit_investigation(prefilled_query)}
+              type="primary"
+            >
+              {send_intent?.runs.some((run) => run.phase === 'acceptance_unknown')
+                ? '使用原幂等键重试'
+                : send_intent
+                  ? '等待服务端确认'
+                  : '开始只读健康调查'}
+            </UiButton>
+          )}
+          className="investigation-send-notice"
+          description={`将提交固定问题“${prefilled_query}”。该入口不允许改写问题，确保服务端只开放健康 Tool。`}
+          showIcon
+          title="固定健康调查尚未开始"
+          type="info"
+        />
+      )}
+      {can_send && fixed_health_send_intent_conflict && (
+        <UiAlert
+          action={<UiButton onClick={discard_send_intent} type="link">丢弃旧发送意图</UiButton>}
+          className="investigation-send-notice"
+          description="当前会话仍有另一项调查等待恢复。为避免复用错误问题或幂等键，必须先恢复原调查，或明确丢弃后再发起固定健康调查。"
+          showIcon
+          title="存在待恢复的其他调查"
+          type="warning"
+        />
+      )}
+      {can_send && fixed_health_investigation && !fixed_health_capability_resolved && (
+        <LoadingBlock label="正在确认健康调查能力" />
+      )}
+      {can_send && fixed_health_investigation && fixed_health_capability_resolved && !fixed_health_supported && (
+        <UiAlert
+          action={<UiButton onClick={() => navigate('/services')} type="link">返回服务中心</UiButton>}
+          className="investigation-send-notice"
+          description="当前会话绑定的服务没有声明 service_health_pressure.v1；页面不会仅凭 URL 启动调查。"
+          showIcon
+          title="健康调查未启用"
+          type="warning"
+        />
+      )}
+      {can_send && prefilled_query && !fixed_health_investigation && !send_intent && !has_idempotency_key_conflict && (
         <UiAlert
           className="investigation-send-notice"
           description="此会话从服务中心进入，预填问题尚未提交。你可以修改问题；只有点击发送后才会创建 Message 和 Run。"
@@ -1097,7 +1173,7 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
           />
         </>
       )}
-      {can_send && (
+      {can_send && !fixed_health_investigation && (
         <Composer
           disabled={has_idempotency_key_conflict}
           loading={create_run.isPending || send_plain.isPending}
@@ -1109,7 +1185,7 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
           value={query}
         />
       )}
-      {can_send && send_intent?.runs.some((run) => run.phase === 'acceptance_unknown') && (
+      {can_send && !fixed_health_send_intent_conflict && send_intent?.runs.some((run) => run.phase === 'acceptance_unknown') && (
         <UiAlert
           className="investigation-send-notice"
           description="本次请求的受理结果尚未确认。请使用同一问题和同一幂等键重试，或刷新页面恢复；不要修改问题后盲目再次发送。"
@@ -1137,12 +1213,21 @@ export function WorkbenchPage(): ReactElement {
   const { session_id } = useParams<{ session_id: string }>()
   const [search_params] = useSearchParams()
   const intent = search_params.get('intent')
+  const fixed_health_investigation = intent === 'service_health_pressure.v1'
   const prefilled_query = intent === 'orders_slow_query.v1'
     ? '订单服务变慢，帮我排查慢查询。'
-    : intent === 'service_health_pressure.v1'
+    : fixed_health_investigation
       ? '请对当前服务执行只读健康与连接压力调查。'
       : ''
-  if (session_id) return <SessionWorkspace prefilled_query={prefilled_query} session_id={session_id} />
+  if (session_id) {
+    return (
+      <SessionWorkspace
+        fixed_health_investigation={fixed_health_investigation}
+        prefilled_query={prefilled_query}
+        session_id={session_id}
+      />
+    )
+  }
 
   return <ConversationHome />
 }

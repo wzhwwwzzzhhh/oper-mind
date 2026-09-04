@@ -56,6 +56,8 @@
 
 ## 最终验证日志
 
+- PR #126 合并后收口复核发现并修复健康 intent 的前端执行断点：入口不再落入普通消息发送，也不允许编辑 canonical query；只有当前单服务会话声明 `service_health_pressure.v1` 时才显示固定调查动作，点击后直接创建带精确 `service_id` 与 canonical query 的 Run。伪造 URL、未声明 capability，以及与既有待恢复调查冲突时均失败关闭；后者必须先明确丢弃旧发送意图，避免复用错误问题或幂等键。
+- 合并后收口前端聚焦：`4 passed`；前端全量：`22 files / 224 tests passed`；typecheck 与 production build 通过。P12 exact-path gate：`11 passed, 1 warning`；`git diff --check` 通过。
 - PR #126 审查返修聚焦矩阵：`57 passed`；P12 binding/PG/Redis/MySQL/migration/preflight/Runner/gate 全组：`88 passed, 3 warnings`。
 - 返修后 P10/P11 Contract Kernel、Runtime Adapter、ToolGateway、regression、P11/P12 gate、service/DB 回归：`158 passed, 4 warnings`。
 - P12 聚焦（binding/PG E2E/Redis/MySQL/migration/preflight/Runner/API/gate）：`117 passed`；最终 Review 定向复验另为 `89 passed`。
