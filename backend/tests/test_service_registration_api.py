@@ -25,6 +25,7 @@ MASTER_MATERIAL = "test-secret-key-0123456789abcdef0123456789abcdef"
 # 指向本地快速拒绝端口，探活立即 unavailable，避免 3s socket 超时拖慢测试。
 PG_DSN_PLAINTEXT = "postgresql://user:pass@127.0.0.1:1/orders"
 REDIS_DSN_PLAINTEXT = "redis://:redact@127.0.0.1:1/0"
+MYSQL_DSN_PLAINTEXT = "mysql+pymysql://readonly@127.0.0.1:1"
 
 
 def _coordinator_factory(_service_id: str | None = None):
@@ -132,8 +133,8 @@ def test_主密钥未配置时注册被拒绝(monkeypatch: pytest.MonkeyPatch, a
 
 
 def test_非法服务类型被拒绝(api_client: TestClient) -> None:
-    """类型白名单：MySQL 出现但如实拒绝。"""
-    response = api_client.post("/api/v1/services", json=_payload(kind="mysql"))
+    """类型白名单仍拒绝 P12 之外的服务。"""
+    response = api_client.post("/api/v1/services", json=_payload(kind="mongodb"))
 
     assert response.status_code == 422
 
@@ -208,11 +209,44 @@ def test_删除服务返回204且重复删除仍204(api_client: TestClient) -> N
 
 
 def test_注册redis服务(api_client: TestClient) -> None:
-    """Redis 类型可注册且无调查能力。"""
+    """Redis 类型可注册。"""
     service = _create_service(api_client, kind="redis", dsn=REDIS_DSN_PLAINTEXT)
 
     assert service["kind"] == "redis"
     assert service["dsn_masked_tail"] == REDIS_DSN_PLAINTEXT[-4:]
+
+
+def test_注册mysql服务并保持安全投影(api_client: TestClient) -> None:
+    """P12 AC7：MySQL 复用现有 CRUD，响应不回显 DSN。"""
+    service = _create_service(
+        api_client,
+        kind="mysql",
+        instance_id="mysql-local",
+        title="本地 MySQL",
+        dsn=MYSQL_DSN_PLAINTEXT,
+    )
+
+    assert service["kind"] == "mysql"
+    listed = api_client.get("/api/v1/services").json()["items"]
+    mysql_service = next(item for item in listed if item["id"] == "mysql-local")
+    assert [item["id"] for item in mysql_service["supported_investigations"]] == [
+        "service_health_pressure.v1"
+    ]
+    assert service["has_dsn"] is True
+    assert service["dsn_masked_tail"] == MYSQL_DSN_PLAINTEXT[-4:]
+    assert MYSQL_DSN_PLAINTEXT not in str(service)
+
+
+def test_mysql越界dsn在落库前失败关闭(api_client: TestClient) -> None:
+    """P12 AC8：database path 不允许，响应不回显 DSN。"""
+    invalid_dsn = "mysql+pymysql://readonly@127.0.0.1:1/business"
+    response = api_client.post(
+        "/api/v1/services",
+        json=_payload(kind="mysql", instance_id="mysql-invalid", dsn=invalid_dsn),
+    )
+
+    assert response.status_code == 409
+    assert invalid_dsn not in response.text
 
 
 def test_连接测试对不可达服务返回unavailable与安全原因(api_client: TestClient) -> None:

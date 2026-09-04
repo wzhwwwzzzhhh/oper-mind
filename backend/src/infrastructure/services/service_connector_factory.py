@@ -9,7 +9,7 @@ from collections.abc import Sequence
 
 from sqlalchemy.exc import SQLAlchemyError
 
-from src.domain.services import ServiceConnector, ServiceRegistrationData
+from src.domain.services import BindingOrigin, ServiceConnector, ServiceRegistrationData
 from src.infrastructure.persistence.database import SessionFactory
 from src.infrastructure.persistence.service_registry_repository import (
     SqlAlchemyServiceRegistryRepository,
@@ -24,6 +24,7 @@ def build_service_connector(
     instance_id: str,
     title: str,
     masked_tail: str | None = None,
+    binding_origin: BindingOrigin | None = None,
 ) -> ServiceConnector:
     """按服务类型派生受控只读 Connector（启动加载与动态注册共用）。"""
     if kind == "postgres":
@@ -32,6 +33,7 @@ def build_service_connector(
             instance_id=instance_id,
             title=title,
             dsn_masked_tail=masked_tail,
+            binding_origin=binding_origin,
         )
     if kind == "redis":
         return RedisServiceConnector(
@@ -39,6 +41,17 @@ def build_service_connector(
             instance_id=instance_id,
             title=title,
             dsn_masked_tail=masked_tail,
+            binding_origin=binding_origin,
+        )
+    if kind == "mysql":
+        from src.infrastructure.services.mysql_connector import MySqlServiceConnector
+
+        return MySqlServiceConnector(
+            dsn,
+            instance_id=instance_id,
+            title=title,
+            dsn_masked_tail=masked_tail,
+            binding_origin=binding_origin,
         )
     raise ValueError(f"暂不支持的服务类型：{kind}")
 

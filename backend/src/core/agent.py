@@ -1,6 +1,7 @@
 """Agent 基类 — 所有领域 Agent 继承此类"""
 
 import logging
+from collections.abc import Mapping
 
 from src.core.llm import LLMClient
 from src.core.tool_gateway import ToolGateway
@@ -22,6 +23,7 @@ class BaseAgent:
         max_steps: int = 10,
         memory_max_rounds: int = 5,
         enable_long_term_memory: bool = True,
+        tool_timeout_by_name: Mapping[str, float] | None = None,
     ) -> None:
         self.llm = llm
         self.tools = tools
@@ -34,6 +36,7 @@ class BaseAgent:
         self.current_query = ""
         self.thinking_log: list[str] = []
         self._tool_invocations: list = []   # 本次 run 的工具调用审计记录（供上层串入 Trace）
+        self._tool_timeout_by_name = dict(tool_timeout_by_name or {})
 
     def run(self, user_input: str) -> str:
         """执行 ReAct 循环并返回最终诊断结论。"""
@@ -49,7 +52,11 @@ class BaseAgent:
         messages = self.short_term.get_messages_for_llm()
         tool_schemas = self.tools.get_schemas()
 
-        gateway = ToolGateway(self.tools)
+        gateway = (
+            ToolGateway(self.tools, timeout_by_tool=self._tool_timeout_by_name)
+            if self._tool_timeout_by_name
+            else ToolGateway(self.tools)
+        )
         try:
             for step in range(self.max_steps):
                 LOGGER.debug("ReAct 第 %d/%d 步", step + 1, self.max_steps)

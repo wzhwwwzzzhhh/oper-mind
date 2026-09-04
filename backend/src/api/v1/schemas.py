@@ -9,6 +9,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_serializer, field_validator, model_validator
 
 from src.domain.model_provider import validate_provider_base_url
+from src.domain.services import SERVICE_KINDS, validate_service_instance_id
 from src.infrastructure.secrets import MIN_API_KEY_LENGTH
 
 
@@ -406,20 +407,15 @@ class CreateServiceRequest(ApiV1Model):
     def validate_kind(cls, value: str) -> str:
         """只接受有真实 Connector 的服务类型。"""
         normalized = value.strip().lower()
-        if normalized not in {"postgres", "redis"}:
-            raise ValueError("暂不支持该服务类型，仅支持 postgres / redis。")
+        if normalized not in SERVICE_KINDS:
+            raise ValueError("暂不支持该服务类型，仅支持 postgres / redis / mysql。")
         return normalized
 
     @field_validator("instance_id")
     @classmethod
     def validate_instance_id(cls, value: str) -> str:
         """实例 ID 只允许小写字母/数字/点/下划线/连字符。"""
-        import re
-
-        normalized = value.strip()
-        if not re.fullmatch(r"^[a-z0-9][a-z0-9._-]*$", normalized):
-            raise ValueError("实例 ID 只允许小写字母、数字、点、下划线或连字符。")
-        return normalized
+        return validate_service_instance_id(value)
 
     @field_validator("title")
     @classmethod

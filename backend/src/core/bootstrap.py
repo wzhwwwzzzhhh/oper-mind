@@ -18,12 +18,15 @@ from src.core.llm import LLMClient
 from src.core.reflection import ReflectionEngine
 from src.domain.model_params import ModelParams
 from src.domain.model_usage import UsageRecorder
+from src.domain.services import BoundServiceCapabilities
 
 
 def build_llm_from_config(
     config: dict,
     params: ModelParams | None = None,
     usage_recorder: UsageRecorder | None = None,
+    *,
+    manage_legacy_scenario: bool = True,
 ) -> LLMClient:
     """从生效模型配置构建 LLM 客户端；配置缺失时回退确定性 mock，永不 raise。
 
@@ -43,12 +46,13 @@ def build_llm_from_config(
         default_max_tokens=params.max_tokens if params is not None else None,
         usage_recorder=usage_recorder,
     )
-
-    # mock 模式激活确定性场景（默认 S1）；真实模式清除，工具走真实数据源（如 psutil）
-    if api_key == "mock":
-        set_active_scenario("S1")
-    else:
-        clear_active_scenario()
+    # 仅供旧 CLI/评测入口维持历史契约。正式 v1 Run 显式关闭，
+    # 服务事实只由 Registry binding 决定，模型模式不切换 service fact source。
+    if manage_legacy_scenario:
+        if api_key == "mock":
+            set_active_scenario("S1")
+        else:
+            clear_active_scenario()
     return llm
 
 
@@ -61,13 +65,23 @@ def build_llm() -> LLMClient:
     return build_llm_from_config(load_config())
 
 
-def build_coordinator(llm: LLMClient, service_id: str | None = None, enable_long_term_memory: bool = False) -> CoordinatorAgent:
+def build_coordinator(
+    llm: LLMClient,
+    service_id: str | None = None,
+    enable_long_term_memory: bool = False,
+    binding: BoundServiceCapabilities | None = None,
+) -> CoordinatorAgent:
     """用共享 LLM 现造一套内核（领域 Agent + 质量组件 + 协调器）。
 
     领域 Agent 持有 short_term/thinking 等实例级可变状态，因此必须每 Run 新造
     一套以隔离并发。默认关闭文件型长期记忆，避免多 Run 并发写同一 memory.json。
     """
-    db_agent = DBAgent(llm=llm, service_id=service_id, enable_long_term_memory=enable_long_term_memory)
+    db_agent = DBAgent(
+        llm=llm,
+        service_id=service_id,
+        binding=binding,
+        enable_long_term_memory=enable_long_term_memory,
+    )
     server_agent = ServerAgent(llm=llm, enable_long_term_memory=enable_long_term_memory)
     log_agent = LogAgent(llm=llm, service_id=service_id, enable_long_term_memory=enable_long_term_memory)
     knowledge_settings = load_knowledge_settings()

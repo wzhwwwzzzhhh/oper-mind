@@ -1136,9 +1136,12 @@ function SessionWorkspace({ session_id, prefilled_query }: { session_id: string;
 export function WorkbenchPage(): ReactElement {
   const { session_id } = useParams<{ session_id: string }>()
   const [search_params] = useSearchParams()
-  const prefilled_query = search_params.get('intent') === 'orders_slow_query.v1'
+  const intent = search_params.get('intent')
+  const prefilled_query = intent === 'orders_slow_query.v1'
     ? '订单服务变慢，帮我排查慢查询。'
-    : ''
+    : intent === 'service_health_pressure.v1'
+      ? '请对当前服务执行只读健康与连接压力调查。'
+      : ''
   if (session_id) return <SessionWorkspace prefilled_query={prefilled_query} session_id={session_id} />
 
   return <ConversationHome />

@@ -174,7 +174,9 @@ def test_definition包含静态服务信息且调查未启用() -> None:
     assert definition.id == "redis-production"
     assert definition.title
     assert definition.kind == "redis"
-    assert definition.supported_investigations == ()
+    assert tuple(item.id for item in definition.supported_investigations) == (
+        "service_health_pressure.v1",
+    )
     assert definition.action_boundary
     assert definition.session_title
 

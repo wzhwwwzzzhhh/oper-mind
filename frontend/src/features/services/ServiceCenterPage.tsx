@@ -272,7 +272,7 @@ export function ServiceCenterPage(): ReactElement {
 
         {services_query.isSuccess && services.length === 0 && (
           <div className="svc-empty">
-            当前还没有已接入的服务。点击「＋ 添加服务」接入 PostgreSQL / Redis 实例；
+            当前还没有已接入的服务。点击「＋ 添加服务」接入 PostgreSQL / Redis / MySQL 实例；
             页面不会用示例数据伪装真实服务。
           </div>
         )}
@@ -388,6 +388,7 @@ export function ServiceCenterPage(): ReactElement {
             <select aria-label="服务类型" value={form.kind} onChange={(event) => set_form_field('kind', event.target.value)} disabled={editing != null}>
               <option value="postgres">PostgreSQL</option>
               <option value="redis">Redis</option>
+              <option value="mysql">MySQL</option>
             </select>
           </label>
           <label>实例 ID<input aria-label="实例 ID" required value={form.instance_id} onChange={(event) => set_form_field('instance_id', event.target.value)} type="text" placeholder="如 postgres-orders" disabled={editing != null} /></label>

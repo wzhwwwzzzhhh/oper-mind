@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from inspect import signature
 
 from fastapi import Request
 
@@ -36,7 +37,12 @@ from src.config import (
 from src.core.bootstrap import build_coordinator, build_llm_from_config
 from src.core.coordinator import CoordinatorAgent
 from src.domain.model_params import ModelParams
-from src.domain.services import ServiceRegistrationData, ServiceRegistry
+from src.domain.services import (
+    BindingOrigin,
+    BoundServiceCapabilities,
+    ServiceRegistrationData,
+    ServiceRegistry,
+)
 from src.infrastructure.actions.postgres_target_executor import PostgresTargetActionExecutor
 from src.infrastructure.diagnosis.coordinator_executor import CoordinatorDiagnosisExecutor
 from src.infrastructure.diagnosis.postgres_missing_index import PostgresMissingIndexCollector
@@ -105,20 +111,24 @@ def build_v1_services() -> V1Services:
     )
 
 
-def _resolved_coordinator_factory(runtime: PersistenceRuntime) -> Callable[[str | None], CoordinatorAgent]:
+def _resolved_coordinator_factory(runtime: PersistenceRuntime) -> Callable[..., CoordinatorAgent]:
     """构造每 Run 解析生效模型配置、运行时模式、运行参数与用量采集的 Coordinator 工厂。"""
     secret_key = _load_secret_key_or_none()
     usage_recorder = SqlAlchemyUsageRecorder(runtime.session_factory)
 
-    def build(service_id: str | None) -> CoordinatorAgent:
+    def build(
+        service_id: str | None,
+        binding: BoundServiceCapabilities | None = None,
+    ) -> CoordinatorAgent:
         resolution = resolve_runtime_mode(runtime.session_factory, secret_key)
         params = resolve_model_params(SqlAlchemyAppSettingsStore(runtime.session_factory))
         llm = build_llm_from_config(
             resolution["config"],
             params=ModelParams(temperature=params["temperature"], max_tokens=params["max_tokens"]),
             usage_recorder=usage_recorder,
+            manage_legacy_scenario=False,
         )
-        return build_coordinator(llm, service_id=service_id)
+        return build_coordinator(llm, service_id=service_id, binding=binding)
 
     return build
 
@@ -133,7 +143,7 @@ def _load_secret_key_or_none() -> bytes | None:
 
 def build_v1_services_for_runtime(
     runtime: PersistenceRuntime,
-    coordinator_factory: Callable[[str | None], CoordinatorAgent],
+    coordinator_factory: Callable[..., CoordinatorAgent],
     registry_loader: Callable[[], Sequence[ServiceRegistrationData]] | None = None,
 ) -> V1Services:
     """用给定 Runtime 构造服务，供临时库测试安全替换。
@@ -169,6 +179,9 @@ def build_v1_services_for_runtime(
                 load_service_dsn(instance_id),
                 instance_id=instance_id,
                 title=title,
+                binding_origin=BindingOrigin.from_reference(
+                    f"env:OPERMIND_SERVICE_{instance_id.upper().replace('-', '_')}_DSN"
+                ),
             )
             for instance_id, title in postgres_instances
         )
@@ -177,6 +190,9 @@ def build_v1_services_for_runtime(
                 load_service_dsn(instance_id),
                 instance_id=instance_id,
                 title=title,
+                binding_origin=BindingOrigin.from_reference(
+                    f"env:OPERMIND_SERVICE_{instance_id.upper().replace('-', '_')}_DSN"
+                ),
             )
             for instance_id, title in redis_instances
         )
@@ -192,8 +208,10 @@ def build_v1_services_for_runtime(
                     item.instance_id,
                     item.title,
                     item.dsn_masked_tail,
+                    BindingOrigin.from_reference(f"registry:{item.instance_id}"),
                 )
             )
+    execution_coordinator_factory = _bind_coordinator_factory(coordinator_factory, registry)
     service_registration = ServiceRegistrationApplicationService(
         session_factory,
         registry,
@@ -206,7 +224,7 @@ def build_v1_services_for_runtime(
         run_service=RunApplicationService(
             session_factory,
             CoordinatorDiagnosisExecutor(
-                coordinator_factory,
+                execution_coordinator_factory,
                 missing_index_collector=PostgresMissingIndexCollector(load_service_dsn("postgres-target")),
             ),
             KernelReportResultAssembler(),
@@ -243,6 +261,23 @@ def build_v1_services_for_runtime(
             lambda: SqlAlchemySessionExportStore(session_factory())
         ),
     )
+
+
+def _bind_coordinator_factory(
+    coordinator_factory: Callable[..., CoordinatorAgent],
+    registry: ServiceRegistry,
+) -> Callable[[str | None], CoordinatorAgent]:
+    """在每个 Run 开始时从唯一 Registry entry 派生不可变 Agent binding。"""
+
+    accepts_binding = len(signature(coordinator_factory).parameters) >= 2
+
+    def build(service_id: str | None) -> CoordinatorAgent:
+        binding = registry.resolve_binding(service_id).for_agent() if service_id is not None else None
+        if accepts_binding:
+            return coordinator_factory(service_id, binding)
+        return coordinator_factory(service_id)
+
+    return build
 
 
 def _resolve_registered_dsn(item: ServiceRegistrationData, secret_key: bytes | None) -> str | None:

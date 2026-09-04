@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Literal
+from collections.abc import Callable
+from typing import Any, Literal, Protocol
 
 from data.scenarios import get_active_scenario
 from pydantic import BaseModel, Field
@@ -51,8 +52,25 @@ class ConnectionPoolStatus(BaseModel):
     health: Literal["正常", "接近上限", "已耗尽"] = Field(default="正常", description="健康程度")
 
 
-def _real_connection(service_id: str | None):
+class PostgresToolCapability(Protocol):
+    """现有 PostgreSQL Tool 所需的唯一连接 capability。"""
+
+    def explain_select(self, sql: str) -> str: ...
+
+    def show_indexes(self, table: str) -> str: ...
+
+    def show_create_table(self, table: str) -> str: ...
+
+    def check_locks(self) -> str: ...
+
+
+def _real_connection(
+    service_id: str | None,
+    resource_provider: Callable[[], tuple[Any, Any]] | None = None,
+):
     """按当前配置创建一次短生命周期只读连接；未配置时返回 None。"""
+    if resource_provider is not None:
+        return resource_provider()
     if not service_id:
         return None
     dsn = load_service_dsn(service_id)
@@ -147,8 +165,16 @@ def _explain_mock() -> str:
 class ExplainTool(Tool):
     """执行 EXPLAIN 分析 SQL。"""
 
-    def __init__(self, service_id: str | None = None) -> None:
+    def __init__(
+        self,
+        service_id: str | None = None,
+        capability: PostgresToolCapability | None = None,
+        *,
+        _resource_provider: Callable[[], tuple[Any, Any]] | None = None,
+    ) -> None:
         self._service_id = service_id
+        self._capability = capability
+        self._resource_provider = _resource_provider
         super().__init__(
             name="explain_sql",
             description="执行 EXPLAIN 分析 SQL 的执行计划，返回访问类型、扫描行数、索引使用情况",
@@ -161,7 +187,7 @@ class ExplainTool(Tool):
 
     def execute(self, sql: str) -> str:
         """按当前模式返回 mock 或真实 PostgreSQL 执行计划。"""
-        if get_active_scenario() is not None:
+        if self._capability is None and self._resource_provider is None and get_active_scenario() is not None:
             return _explain_mock()
         normalized_sql = sql.strip()
         statement_sql = normalized_sql.rstrip(";").rstrip()
@@ -170,8 +196,10 @@ class ExplainTool(Tool):
             or ";" in statement_sql
         ):
             return "只支持分析 SELECT 查询，已拒绝"
+        if self._capability is not None:
+            return self._capability.explain_select(sql)
         try:
-            resource = _real_connection(self._service_id)
+            resource = _real_connection(self._service_id, self._resource_provider)
             if resource is None:
                 return "数据库未选择目标服务" if self._service_id is None else "数据库未配置，无法查询"
             connection, engine = resource
@@ -188,8 +216,16 @@ class ExplainTool(Tool):
 class ShowIndexTool(Tool):
     """查询 PostgreSQL 表的索引信息。"""
 
-    def __init__(self, service_id: str | None = None) -> None:
+    def __init__(
+        self,
+        service_id: str | None = None,
+        capability: PostgresToolCapability | None = None,
+        *,
+        _resource_provider: Callable[[], tuple[Any, Any]] | None = None,
+    ) -> None:
         self._service_id = service_id
+        self._capability = capability
+        self._resource_provider = _resource_provider
         super().__init__(
             name="show_index",
             description="查询指定表的 PostgreSQL 索引名称与定义",
@@ -202,7 +238,7 @@ class ShowIndexTool(Tool):
 
     def execute(self, table: str) -> str:
         """返回 mock 或真实 PostgreSQL 索引信息。"""
-        if get_active_scenario() is not None:
+        if self._capability is None and self._resource_provider is None and get_active_scenario() is not None:
             scenario = get_active_scenario()
             fact = scenario.db.table if scenario is not None and scenario.db is not None else None
             if fact is None or fact.table != table:
@@ -211,8 +247,10 @@ class ShowIndexTool(Tool):
 
         if not _is_identifier(table):
             return "表名格式非法，已拒绝"
+        if self._capability is not None:
+            return self._capability.show_indexes(table)
         try:
-            resource = _real_connection(self._service_id)
+            resource = _real_connection(self._service_id, self._resource_provider)
             if resource is None:
                 return "数据库未选择目标服务" if self._service_id is None else "数据库未配置，无法查询"
             connection, engine = resource
@@ -241,8 +279,16 @@ class ShowIndexTool(Tool):
 class ShowCreateTableTool(Tool):
     """查询 PostgreSQL 表的建表语句。"""
 
-    def __init__(self, service_id: str | None = None) -> None:
+    def __init__(
+        self,
+        service_id: str | None = None,
+        capability: PostgresToolCapability | None = None,
+        *,
+        _resource_provider: Callable[[], tuple[Any, Any]] | None = None,
+    ) -> None:
         self._service_id = service_id
+        self._capability = capability
+        self._resource_provider = _resource_provider
         super().__init__(
             name="show_create_table",
             description="查看 PostgreSQL 表的建表语句，包含字段、约束与索引",
@@ -255,7 +301,7 @@ class ShowCreateTableTool(Tool):
 
     def execute(self, table: str) -> str:
         """返回 mock 或真实 PostgreSQL 建表语句。"""
-        if get_active_scenario() is not None:
+        if self._capability is None and self._resource_provider is None and get_active_scenario() is not None:
             scenario = get_active_scenario()
             fact = scenario.db.table if scenario is not None and scenario.db is not None else None
             if fact is None or fact.table != table:
@@ -264,8 +310,10 @@ class ShowCreateTableTool(Tool):
 
         if not _is_identifier(table):
             return "表名格式非法，已拒绝"
+        if self._capability is not None:
+            return self._capability.show_create_table(table)
         try:
-            resource = _real_connection(self._service_id)
+            resource = _real_connection(self._service_id, self._resource_provider)
             if resource is None:
                 return "数据库未选择目标服务" if self._service_id is None else "数据库未配置，无法查询"
             connection, engine = resource
@@ -389,18 +437,33 @@ def _format_connection_pool(status: ConnectionPoolStatus) -> str:
 class CheckLockStatusTool(Tool):
     """查询当前锁与锁等待，识别阻塞链（只读）。"""
 
-    def __init__(self, service_id: str | None = None) -> None:
+    def __init__(
+        self,
+        service_id: str | None = None,
+        capability: PostgresToolCapability | None = None,
+        *,
+        _resource_provider: Callable[[], tuple[Any, Any]] | None = None,
+    ) -> None:
         self._service_id = service_id
+        self._capability = capability
+        self._resource_provider = _resource_provider
         self._last_summary = "锁诊断未执行"
         super().__init__(
             name="check_lock_status",
             description="查看当前锁与锁等待，识别阻塞链（阻塞时长、锁类型/模式、相关对象）；默认当前连接数据库",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "database": {"type": "string", "description": "数据库名过滤（可选，默认当前连接数据库）"}
-                },
-            },
+            parameters=(
+                {"type": "object", "properties": {}, "additionalProperties": False}
+                if capability is not None
+                else {
+                    "type": "object",
+                    "properties": {
+                        "database": {
+                            "type": "string",
+                            "description": "数据库名过滤（可选，默认当前连接数据库）",
+                        }
+                    },
+                }
+            ),
         )
 
     def audit_summary(self) -> str:
@@ -409,13 +472,18 @@ class CheckLockStatusTool(Tool):
 
     def execute(self, database: str | None = None) -> str:
         """按当前模式返回 mock 或真实 PostgreSQL 锁诊断事实。"""
-        if get_active_scenario() is not None:
+        if self._capability is None and self._resource_provider is None and get_active_scenario() is not None:
             return self._mock_lock()
         if database is not None and not _is_identifier(database):
             self._last_summary = "锁诊断：数据库名非法，已拒绝"
             return "数据库名格式非法，已拒绝"
+        if self._capability is not None:
+            if database is not None:
+                self._last_summary = "绑定锁诊断拒绝数据库参数"
+                return "数据库参数不允许，已拒绝"
+            return self._capability.check_locks()
         try:
-            resource = _real_connection(self._service_id)
+            resource = _real_connection(self._service_id, self._resource_provider)
             if resource is None:
                 degraded = "数据库未选择目标服务" if self._service_id is None else "数据库未配置，无法查询"
                 self._last_summary = degraded
@@ -452,9 +520,11 @@ class CheckLockStatusTool(Tool):
             params["database"] = database
         elif self._service_id is not None:
             current = connection.execute(text("SELECT current_database() AS name")).mappings().all()
-            if current and current[0].get("name"):
-                scope_sql = " AND b.datname = :database"
-                params["database"] = str(current[0]["name"])
+            current_name = current[0].get("name") if len(current) == 1 else None
+            if not isinstance(current_name, str) or not 1 <= len(current_name.strip()) <= 63:
+                return LockWaitStatus(status="unavailable", message="锁诊断数据库范围不可用")
+            scope_sql = " AND b.datname = :database"
+            params["database"] = current_name
         rows = connection.execute(
             text(
                 "SELECT b.pid AS blocked_pid, "
@@ -513,8 +583,13 @@ class CheckLockStatusTool(Tool):
 class CheckConnectionPoolTool(Tool):
     """统计当前连接池占用与利用率（只读）。"""
 
-    def __init__(self, service_id: str | None = None) -> None:
+    def __init__(
+        self,
+        service_id: str | None = None,
+        capability: PostgresToolCapability | None = None,
+    ) -> None:
         self._service_id = service_id
+        self._capability = capability
         self._last_summary = "连接池诊断未执行"
         super().__init__(
             name="check_connection_pool",
@@ -528,7 +603,7 @@ class CheckConnectionPoolTool(Tool):
 
     def execute(self) -> str:
         """按当前模式返回 mock 或真实 PostgreSQL 连接池事实。"""
-        if get_active_scenario() is not None:
+        if self._capability is None and get_active_scenario() is not None:
             return self._mock_pool()
         try:
             resource = _real_connection(self._service_id)
