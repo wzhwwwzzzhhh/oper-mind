@@ -1,6 +1,6 @@
 # P11 Agent Harness 真实运行安全门 · 实施证据
 
-> 状态：active；S1/S2 实施、最终全量验证与独立只读 Review 均 PASS，待用户验收
+> 状态：S1/S2、最终全量验证与独立只读 Review 均 PASS；PR #123 已合入 `main`，Issue #121 已关闭，Workpack 已归档
 > 最终 base：`602323899595e2db34876d6cfc2f47e38ae74096`
 
 ## 前置证据

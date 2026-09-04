@@ -1,10 +1,10 @@
 ---
 title: P11：Agent Harness 真实运行安全门
-status: 已确认
+status: 完成
 domain: agent-runtime
 phase: P11
 issue: 121
-updated: 2026-09-03
+updated: 2026-09-04
 ---
 
 # P11 Agent Harness 真实运行安全门 · PRD
@@ -46,7 +46,7 @@ P10 已完成 Agent Harness 契约内核、当前 Runtime / ToolGateway 兼容�
 
 ### 做什么
 
-P11 是一个 PRD、一个 Issue、一个 active Workpack，最多包含以下两个紧密切片。
+P11 以一个 PRD、一个 Issue、一个 Workpack 交付，最多包含以下两个紧密切片；交付完成后 Workpack 归档。
 
 #### S1. Runtime 唯一终态与安全失败
 
@@ -153,25 +153,25 @@ P11 是一个 PRD、一个 Issue、一个 active Workpack，最多包含以下�
 
 ## 验收标准
 
-- [ ] AC1：当正常结束的有限 Runtime 流输出零到多个合法事件后输出唯一 result 时，Run 只写入一个 Result、一条成功助手消息、一个 `succeeded` 终态和一条成功终态事件。
-- [ ] AC2：当有限 Runtime 流正常结束且没有 result / failure 时，应映射为 typed failure；Run 不得成功，也不得写入 Result、成功助手消息或动作提案。
-- [ ] AC3：当有限 Runtime 流输出两个终止信号，或在 result / failure 后继续输出事件时，应按协议违例失败关闭；不得采用最后一个结果，也不得追加终止后的公开事件。永不结束的 iterator 不计为本 AC 已解决，继续记录为 deadline gap。
-- [ ] AC4：当 Runtime 在构造、迭代或转换期间抛出未预期异常时，应映射为封闭的 unexpected-exception failure；Run、事件、结果、日志和 API 响应不得包含原始异常、堆栈、路径、SQL、Prompt、Tool 输出或凭据。
-- [ ] AC5：当 Runtime 主动产生合法 typed failure 时，Runtime 边界应保留其内部受控类别用于测试与诊断；写入 Run、RunEvent 和 API 时仍映射为既有 `DIAGNOSIS_FAILED` 安全码与文案，并推动唯一失败终态，不得包装为成功或产生第二终态。
-- [ ] AC6：当取消与 Runtime 完成竞争，或 Run 已终态后到达迟到 result / failure 时，现有终态保持不变，终态事件总数为一，且无迟到 Result、Message 或 Proposal。
-- [ ] AC7：P10 capability profile 必须升级版本，并由行为探针证明 `terminal_cardinality` 与 `unexpected_exception` 的新状态；`deadline`、`control`、`adapter_cancellation` 等未实现项继续保留准确 gap。删除 gap 但探针未通过时测试必须失败。
-- [ ] AC8：当同步 Tool 超过 Gateway 等待上限时，Gateway 应在后续 Design 规定的确定性容差内返回唯一 timeout，且公开摘要不得声称未被证明的“底层已中止”。
-- [ ] AC9：当已经 timeout 的 Tool 随后返回敏感 output、抛出敏感异常或生成 audit summary 时，这些迟到内容不得进入 Agent memory、Runtime result、RunEvent、公开 Trace 或第二个 GatewayResult。
-- [ ] AC10：当 Tool 调用在前一个调用占用 worker 时排队，并在尚未开始执行前达到等待上限，排队 future 必须成功取消且对应 Tool 的执行次数保持为零；不得在 Gateway 已返回 timeout 后补执行该调用。
-- [ ] AC11：当 Connector 可证明资源级取消 / 超时时，内部记录可以表达已知结果；不能证明时必须表达停止状态未知。两种情况都不得把未知伪装成 cancelled 或 stopped。
-- [ ] AC12：PostgreSQL 确定性探针应证明连接和语句限时已配置、调查在只读事务内运行、非 SELECT / 非法标识符仍被拒绝，且异常或 DSN 不进入结果与 Trace。
-- [ ] AC13：Redis 确定性探针应证明连接和命令限时已配置、允许命令集合不扩大、连接失败与关闭失败安全收敛，且凭据不进入结果、日志与 Trace。
-- [ ] AC14：当普通单测、后端全量测试或 CI 运行时，即使进程环境意外存在服务 DSN，也不得发生真实 DNS、socket、数据库、Redis、模型或其他外部访问。
-- [ ] AC15：当真实测试入口缺少显式 opt-in、显式目标或凭据引用中的任一软件条件时，必须在访问前失败关闭并返回不含敏感信息的拒绝原因；本 AC 不把用户人工授权伪装成软件可自动证明的状态。
-- [ ] AC16：新增套件必须包含多终止、终止后事件、未预期异常、Gateway timeout、运行中迟到敏感结果、排队超时后不得执行、只改 capability 声明和真实测试缺少技术前置等负向样例；所有测试自身通过，无新增 `skip`、`xfail` / `xpass`。
-- [ ] AC17：P10 Runtime Adapter contract、ToolGateway contract、Run / 取消 / Trace / 固定动作回归和后端全量测试保持通过；合法 mock 行为的归一化双跑结果不变。
-- [ ] AC18：机器边界门禁确认无迁移、无公开 API / OpenAPI / SSE、无前端、无新服务类型 / Connector / Tool、无依赖清单或 lockfile、无真实网络访问和无权限扩大。
-- [ ] AC19：P10 zero-behavior baseline 的内容与生成器哈希保持不变；P11 使用独立、显式、最小的阶段变更声明替代 P10 固定禁改规则。重算 P10 baseline、删除其负向断言、使用全仓通配白名单或修改未经 P11 Design 批准的生产路径时，门禁必须失败。
+- [x] AC1：当正常结束的有限 Runtime 流输出零到多个合法事件后输出唯一 result 时，Run 只写入一个 Result、一条成功助手消息、一个 `succeeded` 终态和一条成功终态事件。
+- [x] AC2：当有限 Runtime 流正常结束且没有 result / failure 时，应映射为 typed failure；Run 不得成功，也不得写入 Result、成功助手消息或动作提案。
+- [x] AC3：当有限 Runtime 流输出两个终止信号，或在 result / failure 后继续输出事件时，应按协议违例失败关闭；不得采用最后一个结果，也不得追加终止后的公开事件。永不结束的 iterator 不计为本 AC 已解决，继续记录为 deadline gap。
+- [x] AC4：当 Runtime 在构造、迭代或转换期间抛出未预期异常时，应映射为封闭的 unexpected-exception failure；Run、事件、结果、日志和 API 响应不得包含原始异常、堆栈、路径、SQL、Prompt、Tool 输出或凭据。
+- [x] AC5：当 Runtime 主动产生合法 typed failure 时，Runtime 边界应保留其内部受控类别用于测试与诊断；写入 Run、RunEvent 和 API 时仍映射为既有 `DIAGNOSIS_FAILED` 安全码与文案，并推动唯一失败终态，不得包装为成功或产生第二终态。
+- [x] AC6：当取消与 Runtime 完成竞争，或 Run 已终态后到达迟到 result / failure 时，现有终态保持不变，终态事件总数为一，且无迟到 Result、Message 或 Proposal。
+- [x] AC7：P10 capability profile 必须升级版本，并由行为探针证明 `terminal_cardinality` 与 `unexpected_exception` 的新状态；`deadline`、`control`、`adapter_cancellation` 等未实现项继续保留准确 gap。删除 gap 但探针未通过时测试必须失败。
+- [x] AC8：当同步 Tool 超过 Gateway 等待上限时，Gateway 应在后续 Design 规定的确定性容差内返回唯一 timeout，且公开摘要不得声称未被证明的“底层已中止”。
+- [x] AC9：当已经 timeout 的 Tool 随后返回敏感 output、抛出敏感异常或生成 audit summary 时，这些迟到内容不得进入 Agent memory、Runtime result、RunEvent、公开 Trace 或第二个 GatewayResult。
+- [x] AC10：当 Tool 调用在前一个调用占用 worker 时排队，并在尚未开始执行前达到等待上限，排队 future 必须成功取消且对应 Tool 的执行次数保持为零；不得在 Gateway 已返回 timeout 后补执行该调用。
+- [x] AC11：当 Connector 可证明资源级取消 / 超时时，内部记录可以表达已知结果；不能证明时必须表达停止状态未知。两种情况都不得把未知伪装成 cancelled 或 stopped。
+- [x] AC12：PostgreSQL 确定性探针应证明连接和语句限时已配置、调查在只读事务内运行、非 SELECT / 非法标识符仍被拒绝，且异常或 DSN 不进入结果与 Trace。
+- [x] AC13：Redis 确定性探针应证明连接和命令限时已配置、允许命令集合不扩大、连接失败与关闭失败安全收敛，且凭据不进入结果、日志与 Trace。
+- [x] AC14：当普通单测、后端全量测试或 CI 运行时，即使进程环境意外存在服务 DSN，也不得发生真实 DNS、socket、数据库、Redis、模型或其他外部访问。
+- [x] AC15：当真实测试入口缺少显式 opt-in、显式目标或凭据引用中的任一软件条件时，必须在访问前失败关闭并返回不含敏感信息的拒绝原因；本 AC 不把用户人工授权伪装成软件可自动证明的状态。
+- [x] AC16：新增套件必须包含多终止、终止后事件、未预期异常、Gateway timeout、运行中迟到敏感结果、排队超时后不得执行、只改 capability 声明和真实测试缺少技术前置等负向样例；所有测试自身通过，无新增 `skip`、`xfail` / `xpass`。
+- [x] AC17：P10 Runtime Adapter contract、ToolGateway contract、Run / 取消 / Trace / 固定动作回归和后端全量测试保持通过；合法 mock 行为的归一化双跑结果不变。
+- [x] AC18：机器边界门禁确认无迁移、无公开 API / OpenAPI / SSE、无前端、无新服务类型 / Connector / Tool、无依赖清单或 lockfile、无真实网络访问和无权限扩大。
+- [x] AC19：P10 zero-behavior baseline 的内容与生成器哈希保持不变；P11 使用独立、显式、最小的阶段变更声明替代 P10 固定禁改规则。重算 P10 baseline、删除其负向断言、使用全仓通配白名单或修改未经 P11 Design 批准的生产路径时，门禁必须失败。
 
 ## 边界与约束
 
@@ -184,14 +184,14 @@ P11 是一个 PRD、一个 Issue、一个 active Workpack，最多包含以下�
 
 ## 完成定义（DoD）
 
-- [ ] 全部 AC（AC1–AC19）通过，并在 Workpack evidence 中给出可重复执行的命令与结果。
-- [ ] S1 Runtime 唯一终态与安全失败、S2 Tool / Connector 超时与真实验证前门禁全部完成，没有第三个隐含切片。
-- [ ] P10 capability profile 已按真实行为升级版本；已解决与仍保留的 gap 都有行为探针和 Review 证据。
-- [ ] 相关聚焦测试、P10 contract / regression 套件和后端全量测试全部通过，无新增 skip、xfail / xpass。
-- [ ] 至少一个负向样例证明：仅修改能力声明、移除 gap 或放宽断言不能让门禁通过。
-- [ ] `git diff --check`、敏感字面量扫描和范围门禁通过；无凭据、原始异常、SQL、Prompt、Tool 输出或真实目标数据进入 Git / 测试输出。
-- [ ] 无数据库迁移、公开 API / OpenAPI / SSE、前端、依赖清单或 lockfile 变化；无新增服务、Connector、Tool、权限和真实外部访问。
-- [ ] 实施 Design 已明确生产接线点、typed failure 映射、完整流校验方式、迟到 Tool 结果隔离、Connector 资源级超时证明和回退方案，并经独立 Review 与用户确认。
+- [x] 全部 AC（AC1–AC19）通过，并在 Workpack evidence 中给出可重复执行的命令与结果。
+- [x] S1 Runtime 唯一终态与安全失败、S2 Tool / Connector 超时与真实验证前门禁全部完成，没有第三个隐含切片。
+- [x] P10 capability profile 已按真实行为升级版本；已解决与仍保留的 gap 都有行为探针和 Review 证据。
+- [x] 相关聚焦测试、P10 contract / regression 套件和后端全量测试全部通过，无新增 skip、xfail / xpass。
+- [x] 至少一个负向样例证明：仅修改能力声明、移除 gap 或放宽断言不能让门禁通过。
+- [x] `git diff --check`、敏感字面量扫描和范围门禁通过；无凭据、原始异常、SQL、Prompt、Tool 输出或真实目标数据进入 Git / 测试输出。
+- [x] 无数据库迁移、公开 API / OpenAPI / SSE、前端、依赖清单或 lockfile 变化；无新增服务、Connector、Tool、权限和真实外部访问。
+- [x] 实施 Design 已明确生产接线点、typed failure 映射、完整流校验方式、迟到 Tool 结果隔离、Connector 资源级超时证明和回退方案，并经独立 Review 与用户确认。
 
 ## 开放问题
 
@@ -206,4 +206,4 @@ P11 是一个 PRD、一个 Issue、一个 active Workpack，最多包含以下�
 
 - issue：[#121](https://github.com/wzhwwwzzzhhh/oper-mind/issues/121)。
 - Issue 只覆盖本 PRD 的 S1–S2 与 AC1–AC19，不创建 P11 总 Issue 之外的重复子 Issue。
-- 状态：PRD 已确认，Issue 已创建；当前下一步是实施 Design → 独立 Review → 用户确认，尚未创建 Workpack 或授权生产代码实施。
+- 状态同步：S1–S2、独立 Review、验证证据和 Workpack 归档均已完成；PR #123 已合入 `main`，Issue #121 已关闭，P11 正式收口。保留 gap 继续如实记录，不自动开启 P12。

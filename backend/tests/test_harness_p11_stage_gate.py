@@ -36,6 +36,17 @@ def test_P11阶段门验证当前四集合与全部边界() -> None:
     assert "backend/tests/fixtures/harness/p11_stage_manifest.v1.json" in changed
 
 
+def test_P11历史交付diff不吸收后续阶段文件() -> None:
+    inventory = verify(REPO_ROOT)
+
+    assert inventory["staged"] == []
+    assert inventory["unstaged"] == []
+    assert inventory["untracked"] == []
+    assert "docs/prd/service-center/P12-three-service-real-readonly-integration.md" not in inventory[
+        "committed"
+    ]
+
+
 def test_manifest必须与代码内exact_path集合完全一致() -> None:
     manifest = load_manifest(REPO_ROOT)
 

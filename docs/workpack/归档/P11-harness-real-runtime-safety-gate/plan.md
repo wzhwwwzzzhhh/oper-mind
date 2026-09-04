@@ -1,6 +1,6 @@
 # P11 Agent Harness 真实运行安全门 · 工作包计划
 
-> 状态：active；S1/S2 已实施，全量验证与独立只读 Review 均 PASS，待用户验收
+> 状态：已交付并归档；S1/S2、全量验证与独立只读 Review 均 PASS，PR #123 已合入 `main`，Issue #121 已关闭
 > PRD：`docs/prd/agent-runtime/P11-harness-real-runtime-safety-gate.md`
 > Design：`docs/design/agent-runtime/P11AgentHarness真实运行安全门实施Design.md`
 > Issue：[#121](https://github.com/wzhwwwzzzhhh/oper-mind/issues/121)
