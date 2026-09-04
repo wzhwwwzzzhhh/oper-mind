@@ -18,7 +18,9 @@ docs/workpack/
 
 ## 活跃工作包
 
-当前无活跃工作包。
+| 阶段 | 工作包 | Issue | 状态 |
+|---|---|---|---|
+| P12 | `P12-three-service-real-readonly-integration` | #124 | 实施中；真实服务验收待逐目标授权 |
 
 ## 已归档
 

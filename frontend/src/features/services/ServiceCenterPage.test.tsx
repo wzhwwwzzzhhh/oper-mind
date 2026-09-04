@@ -11,6 +11,56 @@ function open_service_center(): void {
 }
 
 describe('ServiceCenterPage 服务注册（P8）', () => {
+  it.each([
+    ['redis', 'redis.dynamic', '动态 Redis'],
+    ['mysql', 'mysql.dynamic', '动态 MySQL'],
+  ])('P12 %s capability 使用精确 service_id 与 intent 发起调查', async (kind, service_id, title) => {
+    let requested_service_id = ''
+    const service = {
+      ...api_v1_contract_fixtures.redis_service,
+      id: service_id,
+      kind,
+      title,
+      supported_investigations: [{
+        id: 'service_health_pressure.v1',
+        title: `${kind} 健康与压力概览`,
+        description: '固定只读标量',
+        default_query: '请对当前服务执行只读健康与连接压力调查。',
+      }],
+    }
+    server.use(
+      http.get('/api/v1/services', () => HttpResponse.json({ items: [service], meta: { request_id: 'p12' } })),
+      http.post('/api/v1/services/:service_id/sessions', ({ params }) => {
+        requested_service_id = String(params.service_id)
+        return HttpResponse.json({
+          session: { id: `session-${kind}`, service_id },
+          meta: { request_id: 'p12-session' },
+        }, { status: 201 })
+      }),
+    )
+    open_service_center()
+    render(<App />)
+
+    expect(await screen.findByText(title)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '发起调查' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: '发起调查' }))
+    await waitFor(() => {
+      expect(requested_service_id).toBe(service_id)
+      expect(window.location.pathname).toBe(`/workbench/sessions/session-${kind}`)
+      expect(window.location.search).toBe('?intent=service_health_pressure.v1')
+    })
+  })
+
+  it('P12 添加服务表单公开唯一 MySQL kind', async () => {
+    server.use(http.get('/api/v1/services', () => HttpResponse.json({ items: [], meta: { request_id: 'p12' } })))
+    open_service_center()
+    render(<App />)
+
+    await screen.findByText('服务目录')
+    fireEvent.click(screen.getByText('＋ 添加服务'))
+    expect(screen.getByRole('option', { name: 'MySQL' })).toHaveValue('mysql')
+  })
+
   it('列表展示掩码尾号与已配置状态（AC1/AC4）', async () => {
     const service = {
       ...api_v1_contract_fixtures.order_service,

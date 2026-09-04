@@ -562,7 +562,7 @@ class ServiceRegistryRecord(Base):
     __tablename__ = "service_registry"
     __table_args__ = (
         CheckConstraint(
-            "kind IN ('postgres', 'redis')",
+            "kind IN ('postgres', 'redis', 'mysql')",
             name="service_registry_kind_valid",
         ),
         CheckConstraint(

@@ -31,6 +31,6 @@ psycopg[binary]==3.3.4  # PostgreSQL app DB driver; local tests still use SQLite
 cryptography==44.0.0  # P6 model Provider API Key AES-256-GCM encryption
 httpx==0.28.1       # P6 Provider connection verify HTTP client (also used by FastAPI TestClient)
 
-# ===== Real diagnosis data sources (enable when MySQL connects later) =====
-# pymysql>=1.1.0
+# ===== Real diagnosis data sources =====
+PyMySQL==1.2.0  # MySQL read-only service Connector (P12)
 redis==8.1.0  # Redis read-only service Connector (P6)

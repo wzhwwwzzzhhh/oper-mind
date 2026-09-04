@@ -10,8 +10,10 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import time
+from collections.abc import Mapping
 from concurrent.futures import CancelledError, ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
 from datetime import UTC, datetime
@@ -101,6 +103,10 @@ def _validate_arguments(schema: dict[str, Any], args: dict[str, Any]) -> str | N
     properties = schema.get("properties", {})
     if not isinstance(properties, dict):
         return None
+    if schema.get("additionalProperties") is False:
+        unexpected = sorted(set(args) - set(properties))
+        if unexpected:
+            return f"不允许额外参数：{unexpected[0]}"
 
     # JSON Schema 类型 → Python 类型的最小映射
     type_map: dict[str, type | tuple[type, ...]] = {
@@ -134,9 +140,27 @@ class ToolGateway:
     返回脱敏输出与结构化审计记录。网关不感知具体服务语义。
     """
 
-    def __init__(self, registry: ToolRegistry, timeout_seconds: float = 3.0) -> None:
+    def __init__(
+        self,
+        registry: ToolRegistry,
+        timeout_seconds: float = 3.0,
+        timeout_by_tool: Mapping[str, float] | None = None,
+    ) -> None:
         self._registry = registry
+        if not isinstance(timeout_seconds, (int, float)) or isinstance(timeout_seconds, bool):
+            raise ValueError("工具默认超时必须是有限正数")
+        if not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
+            raise ValueError("工具默认超时必须是有限正数")
         self._timeout_seconds = timeout_seconds
+        self._timeout_by_tool: dict[str, float] = {}
+        for name, budget in (timeout_by_tool or {}).items():
+            if registry.get(name) is None:
+                raise ValueError("工具专用超时引用了未注册工具")
+            if not isinstance(budget, (int, float)) or isinstance(budget, bool):
+                raise ValueError("工具专用超时必须是有限正数")
+            if not math.isfinite(budget) or budget <= 0:
+                raise ValueError("工具专用超时必须是有限正数")
+            self._timeout_by_tool[name] = float(budget)
         # 复用单线程池承载限时执行；工具执行为同步阻塞，交由 future 计时。
         self._executor = ThreadPoolExecutor(max_workers=1)
 
@@ -206,14 +230,15 @@ class ToolGateway:
             return _finish("error", json.dumps({"error": msg}, ensure_ascii=False), msg)
 
         try:
-            outcome, raw_result = future.result(timeout=self._timeout_seconds)
+            timeout_seconds = self._timeout_by_tool.get(name, self._timeout_seconds)
+            outcome, raw_result = future.result(timeout=timeout_seconds)
         except FutureTimeoutError:
             cancelled_before_start = future.cancel()
             if cancelled_before_start:
-                msg = f"工具等待超过 {self._timeout_seconds:g}s，结果接纳已关闭；排队执行已取消"
+                msg = f"工具等待超过 {timeout_seconds:g}s，结果接纳已关闭；排队执行已取消"
                 underlying_status: ToolUnderlyingExecutionStatus = "cancelled_before_start"
             else:
-                msg = f"工具等待超过 {self._timeout_seconds:g}s，结果接纳已关闭；底层停止状态未知"
+                msg = f"工具等待超过 {timeout_seconds:g}s，结果接纳已关闭；底层停止状态未知"
                 underlying_status = "stop_state_unknown"
             return _finish(
                 "timeout",

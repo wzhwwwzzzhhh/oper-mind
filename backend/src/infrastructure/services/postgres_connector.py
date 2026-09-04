@@ -9,6 +9,9 @@ from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 from src.domain.services import (
+    SERVICE_HEALTH_PRESSURE_DEFAULT_QUERY,
+    SERVICE_HEALTH_PRESSURE_INTENT_ID,
+    BindingOrigin,
     DatabaseSignal,
     PerformanceSignal,
     ServiceAvailability,
@@ -19,10 +22,47 @@ from src.domain.services import (
     ServiceServerMetricsData,
     ServiceSnapshotData,
     ServiceSourceStatus,
+    classify_service_operation_failure,
 )
 from src.infrastructure.services.postgres_engine import create_read_only_postgres_engine
 
 LOGGER = logging.getLogger(__name__)
+
+
+class _PostgresReadonlyCapability:
+    """Agent-facing 封闭 adapter；不暴露 Connector、connection 或通用 SQL。"""
+
+    def __init__(self, connector: PostgresServiceConnector) -> None:
+        self.__connector = connector
+
+    def capability_kind(self) -> str:
+        return "postgres"
+
+    def agent_health_snapshot(self) -> ServiceSnapshotData:
+        return self.__connector.agent_health_snapshot()
+
+    def explain_select(self, sql: str) -> str:
+        from src.tools.db_tools import ExplainTool
+
+        return ExplainTool(_resource_provider=self.__connector._open_readonly_connection).execute(sql)
+
+    def show_indexes(self, table: str) -> str:
+        from src.tools.db_tools import ShowIndexTool
+
+        return ShowIndexTool(_resource_provider=self.__connector._open_readonly_connection).execute(table)
+
+    def show_create_table(self, table: str) -> str:
+        from src.tools.db_tools import ShowCreateTableTool
+
+        return ShowCreateTableTool(_resource_provider=self.__connector._open_readonly_connection).execute(table)
+
+    def check_locks(self) -> str:
+        from src.tools.db_tools import CheckLockStatusTool
+
+        return CheckLockStatusTool(
+            self.__connector._instance_id,
+            _resource_provider=self.__connector._open_readonly_connection,
+        ).execute()
 
 
 class PostgresServiceConnector:
@@ -35,11 +75,14 @@ class PostgresServiceConnector:
         instance_id: str = "postgres-production",
         title: str = "生产 PostgreSQL 主库",
         dsn_masked_tail: str | None = None,
+        binding_origin: BindingOrigin | None = None,
     ) -> None:
         self._dsn = dsn
         self._instance_id = instance_id
         self._title = title
         self._dsn_masked_tail = dsn_masked_tail
+        self._binding_origin = binding_origin or BindingOrigin.from_reference(f"registry:{instance_id}")
+        self._agent_view = _PostgresReadonlyCapability(self)
         # engine 注入点：测试传假 engine；生产传 create_engine(dsn)。
         self._engine = engine
 
@@ -50,6 +93,12 @@ class PostgresServiceConnector:
             title=self._title,
             kind="postgres",
             supported_investigations=(
+                ServiceInvestigationData(
+                    id=SERVICE_HEALTH_PRESSURE_INTENT_ID,
+                    title="PostgreSQL 健康与连接压力概览",
+                    description="读取固定连接池压力标量。",
+                    default_query=SERVICE_HEALTH_PRESSURE_DEFAULT_QUERY,
+                ),
                 ServiceInvestigationData(
                     id="postgres_slow_query.v1",
                     title="PostgreSQL 慢查询调查",
@@ -73,17 +122,95 @@ class PostgresServiceConnector:
         owns_engine = engine is None
         try:
             engine = engine or self._create_engine()
-            return self._read_healthy(engine, observed)
+            result = self._read_healthy(engine, observed)
+        except Exception as error:
+            result = self._unavailable(observed, self._failure_code(error))
+        if owns_engine and engine is not None:
+            try:
+                engine.dispose()
+            except Exception:
+                LOGGER.warning("PostgreSQL 连接清理失败：instance_id=%s", self._instance_id)
+        return result
+
+    def agent_capability(self) -> _PostgresReadonlyCapability:
+        """复用同一 Connector entry 作为受控 PostgreSQL capability。"""
+        return self._agent_view
+
+    def capability_kind(self) -> str:
+        """返回封闭 capability 类型。"""
+        return "postgres"
+
+    def _open_readonly_connection(self) -> tuple[Any, Engine]:
+        """只供代码注册的 PostgreSQL Tool 获取短生命周期只读连接。"""
+        engine = self._engine or self._create_engine()
+        owns_engine = self._engine is None
+        try:
+            connection = engine.connect()
+            connection.execute(text("SET TRANSACTION READ ONLY"))
+            return connection, engine
         except Exception:
-            return self._unavailable(observed)
-        finally:
-            if owns_engine and engine is not None:
-                try:
-                    engine.dispose()
-                except Exception:
-                    # cleanup_error 不覆盖已形成的 healthy/unavailable 快照；
-                    # 异常正文可能带 DSN，只记录固定类别与实例标识。
-                    LOGGER.warning("PostgreSQL 连接清理失败：instance_id=%s", self._instance_id)
+            if owns_engine:
+                engine.dispose()
+            raise
+
+    def binding_origin(self) -> BindingOrigin:
+        """返回内部来源指纹，不暴露引用正文。"""
+        return self._binding_origin
+
+    def agent_health_snapshot(self) -> ServiceSnapshotData:
+        """DBAgent 固定连接压力读取：只执行只读 SET 与两个固定 SELECT。"""
+        observed = datetime.now(UTC)
+        if self._dsn is None:
+            return self._not_configured(observed)
+        engine = self._engine
+        owns_engine = engine is None
+        try:
+            engine = engine or self._create_engine()
+            with engine.connect() as connection:
+                connection.execute(text("SET TRANSACTION READ ONLY"))
+                row = connection.execute(
+                    text(
+                        "SELECT count(*) AS total, "
+                        "count(*) FILTER (WHERE state = 'active') AS active, "
+                        "count(*) FILTER (WHERE state = 'idle') AS idle, "
+                        "count(*) FILTER (WHERE wait_event_type IS NOT NULL AND state <> 'idle') AS waiting "
+                        "FROM pg_stat_activity"
+                    )
+                ).mappings().first()
+                maximum_row = connection.execute(
+                    text("SELECT setting::int AS max_connections FROM pg_settings WHERE name = 'max_connections'")
+                ).mappings().first()
+            result = ServiceSnapshotData(
+                observed_at=observed,
+                mode=ServiceMode.TARGET,
+                availability=ServiceAvailability.HEALTHY,
+                performance_signal=PerformanceSignal.NO_SLOW_QUERY_DETECTED,
+                server_metrics=ServiceServerMetricsData(
+                    source_status=ServiceSourceStatus.AVAILABLE,
+                    client_connections=self._metric_int(row, "total"),
+                    active_connections=self._metric_int(row, "active"),
+                    idle_connections=self._metric_int(row, "idle"),
+                    waiting_connections=self._metric_int(row, "waiting"),
+                    max_connections=self._metric_int(maximum_row, "max_connections"),
+                ),
+                database=ServiceDatabaseStateData(
+                    source_status=ServiceSourceStatus.AVAILABLE,
+                    signal=DatabaseSignal.NO_SLOW_QUERY_DETECTED,
+                ),
+            )
+            primary_failed = False
+        except Exception as error:
+            result = self._unavailable(observed, self._failure_code(error))
+            primary_failed = True
+        if owns_engine and engine is not None:
+            try:
+                engine.dispose()
+            except Exception:
+                LOGGER.warning("PostgreSQL Agent 连接清理失败：instance_id=%s", self._instance_id)
+                if primary_failed:
+                    return self._unavailable(observed, "cleanup_failed")
+                return result.model_copy(update={"cleanup_status": "unknown"})
+        return result
 
     def _create_engine(self) -> Engine:
         """创建强制使用 psycopg 驱动且带三秒超时的 PostgreSQL Engine。"""
@@ -201,7 +328,7 @@ class PostgresServiceConnector:
         )
 
     @staticmethod
-    def _unavailable(observed: datetime) -> ServiceSnapshotData:
+    def _unavailable(observed: datetime, failure_code: str = "unavailable") -> ServiceSnapshotData:
         """构造连接失败或读取超时时的固定快照。"""
         return ServiceSnapshotData(
             observed_at=observed,
@@ -215,4 +342,9 @@ class PostgresServiceConnector:
                 source_status=ServiceSourceStatus.UNAVAILABLE,
                 signal=DatabaseSignal.UNAVAILABLE,
             ),
+            failure_code=failure_code,
         )
+
+    @staticmethod
+    def _failure_code(error: Exception) -> str:
+        return classify_service_operation_failure(error)
