@@ -1,6 +1,6 @@
 # P12 PostgreSQL、Redis 与 MySQL 真实只读接入 · 实现 Review
 
-> 状态：PR #126 审查返修已完成本地验证；等待外部 Reviewer 复审
+> 状态：PR #126 合并前自审 PASS；P0=0、P1=0、P2=0、P3=0；AC14 真实验收仍待执行
 
 Reviewer 必须只读，不修改文件，不访问真实外部资源。所有 P0/P1/P2 必须修复并重新验证；P3 也应修复或明确为不阻塞遗留。
 
@@ -32,8 +32,19 @@ Reviewer 全程只读、未修改文件、未访问真实服务或模型。严�
 - **P2 MySQL 部分指标假健康**：Connector 要求 `Uptime/Threads_connected/Threads_running/Slow_queries/max_connections` 精确齐全；缺失时快照为 `unavailable/malformed_fact`，Agent Tool unavailable，`ServiceRegistrationApplicationService.test_connection()` 也返回 unavailable。
 - **P2 Runner 核心编排证据**：Runner 拆出可注入、默认仍延迟真实装配的 runtime loader。临时 SQLite + fake Redis connector 的离线测试已完整进入 Registry/origin、连接测试、服务 Session、Run、唯一 Tool/终态、Trace/Result 校验；另证明 origin mismatch 在连接测试前停止。
 
-返修聚焦与回归：`57 passed`、P12 全组 `88 passed`、P10/P11/P12 历史矩阵 `158 passed`；后端全量 `866 passed`，Ruff、Mypy 和 P12 exact-path gate 通过。外部 Reviewer 尚未复审，因此不把本节表述为新的独立 PASS。
+返修聚焦与回归：`57 passed`、P12 全组 `88 passed`、P10/P11/P12 历史矩阵 `158 passed`；后端全量 `866 passed`，Ruff、Mypy 和 P12 exact-path gate 通过。
+
+## 合并前自审
+
+在外部审查返修提交 `8b59cb6` 上重新从执行边界审查，不沿用返修前结论：
+
+- PostgreSQL canonical health query 在服务端 Graph 进入模型路由前固定为 `direct/db`；DBAgent 以同一个 domain constant 选择独立 health registry，模型 schema 与 ToolGateway 实际 registry 均只有 `check_connection_pool`，并在第二次 Tool 接纳前停止。前端 `intent` 仍只是 UX token，不成为授权参数；编辑后的普通文本不冒充 canonical health profile，目标与能力继续由 Session/Run `service_id` 和 typed binding 决定。
+- MySQL Connector 在构造 healthy snapshot 前要求五个固定指标集合精确相等；缺失、重复、非数值或额外指标均收敛为 typed unavailable。服务中心连接测试与 Agent Tool 都读取同一 snapshot 语义，不再出现“连接正常、Tool 拒绝”的矛盾状态。
+- 人工 Runner 的离线测试通过注入的 runtime loader 进入完整 `run_acceptance()` 编排，使用临时 SQLite 的正式 Registry、ServiceRegistration、ServiceCenter、Session/Run/Event/Result repositories 与 deterministic driver；覆盖 origin 匹配、连接测试、唯一 Tool/终态和安全 Result 校验，并证明 origin 不匹配时在服务访问前停止。默认 loader 仍是延迟生产装配，普通测试不会访问真实目标。
+- 全量变更范围未触碰 `tests/conftest.py`、P10/P11 baseline、生成 OpenAPI 或 Design 禁止文件；未增加 skip/xfail/xpass，未发现凭据、目标或原始异常泄漏，也未扩大到任意 SQL、任意 Redis 命令、写能力或额外服务类型。
+
+自审结论：**PASS；P0=0、P1=0、P2=0、P3=0**。该结论只解除 PR 合并的软件门，不替代 AC14 的逐目标人工授权与真实验收。
 
 ## 最终结论
 
-三项外部审查问题已完成返修与本地验证，等待 Reviewer 复审；PR 暂不合并。Workpack 仍保持 active：AC14 的三个真实目标验收未获逐目标当次授权、未执行，因此 P12 不标记完成、不归档、不关闭 Issue。
+三项外部审查问题已完成返修、回归与合并前自审，可以合并 PR。Workpack 仍保持 active：AC14 的三个真实目标验收未获逐目标当次授权、未执行，因此 P12 不标记完成、不归档、不关闭 Issue。
