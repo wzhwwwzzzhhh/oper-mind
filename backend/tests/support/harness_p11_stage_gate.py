@@ -302,17 +302,15 @@ def _fresh_openapi_sha(root: Path) -> str:
 
 
 def assert_p10_assets(root: Path, manifest: Mapping[str, Any]) -> None:
-    """P10 baseline、generator 和 v1 profile 必须保持原字节/规范哈希。"""
+    """P10 baseline、generator 和 v1 profile 必须保持历史 Git blob。"""
 
     assets = manifest.get("p10_assets")
     if not isinstance(assets, dict):
         raise StageGateError("P11 manifest 缺少 P10 资产声明")
     checks = {
-        "baseline_raw_sha256": _sha256((root / P10_BASELINE_PATH).read_bytes()),
-        "generator_canonical_sha256": _sha256(
-            p10_gate._canonical_generator_bytes((root / P10_GENERATOR_PATH).read_bytes())
-        ),
-        "profile_v1_raw_sha256": _sha256((root / P10_PROFILE_V1_PATH).read_bytes()),
+        "baseline_git_blob_sha256": p10_gate._git_blob_sha(root, "HEAD", P10_BASELINE_PATH),
+        "generator_git_blob_sha256": p10_gate._git_blob_sha(root, "HEAD", P10_GENERATOR_PATH),
+        "profile_v1_git_blob_sha256": p10_gate._git_blob_sha(root, "HEAD", P10_PROFILE_V1_PATH),
     }
     if checks != assets:
         raise StageGateError("P10 baseline/generator/v1 profile 历史资产发生变化")

@@ -35,7 +35,7 @@
 | AC16 | 新增所有要求的负向样例；P11 stage gate 用 P10 AST inventory 扫描直接、别名、decorator、module/param mark 形式的 skip/xfail，并用显式 required-probe inventory 拒绝删除必备负向样例。 |
 | AC17 | P10 Contract Kernel、Runtime Adapter、ToolGateway/AgentGateway、Run/取消/Trace/固定动作、Connector、regression baseline 与 P10/P11 gate 显式合并回归 `197 passed`；后端全量 `769 passed`。 |
 | AC18 | P11 stage gate 对 committed/staged/unstaged/untracked 四集合作 exact-path 校验，同时锁定依赖、API/OpenAPI/SSE、Alembic/迁移、前端、服务/Connector/Tool 注册集、网络客户端和权限边界。 |
-| AC19 | P10 baseline/generator/v1 profile 原字节 hash 保持，P10 改为从历史 delivery tree 复验；P10 全 7 项门禁用例纳入 inventory，其中两个关键负向函数由统一换行后的完整函数源码 SHA 锁定，避免 Python 3.11/3.12 AST 表示差异且不降低内容约束。P11 manifest 仅允许 Design exact paths，active/archive 是代码固定非空 3+3 互斥集合；通配、重算 baseline、清空 Workpack、删负向断言或越界均有拒绝探针。 |
+| AC19 | P10 baseline/generator/v1 profile 的历史 Git blob hash 保持，P10 改为从历史 delivery tree 复验；checkout 的 CRLF/LF 不再产生伪差异，任何 committed/staged/unstaged/untracked 内容修改仍由历史 blob 与四集合门禁拒绝。P10 全 7 项门禁用例纳入 inventory，其中两个关键负向函数由统一换行后的完整函数源码 SHA 锁定，避免 Python 3.11/3.12 AST 表示差异且不降低内容约束。P11 manifest 仅允许 Design exact paths，active/archive 是代码固定非空 3+3 互斥集合；通配、重算 baseline、清空 Workpack、删负向断言或越界均有拒绝探针。 |
 
 ## 验证日志
 
@@ -50,6 +50,8 @@
 - Ruff 全量：`All checks passed!`（门禁别名 skip 识别补强后已复跑）。
 - `git diff --check`：通过；文档纳入后再跑 P10/P11 阶段门：`15 passed, 2 warnings in 26.36s`。
 - PR #123 首轮 CI 在 Ubuntu Python 3.11 暴露 `ast.dump` 跨版本差异；阶段门已改为统一换行后的完整函数源码 SHA，仍对删改负向断言 fail-closed。修复后 P10/P11 聚焦门：`19 passed, 2 warnings in 69.96s`；Ruff、mypy 均通过；后端全量：`775 passed, 4 warnings in 296.48s`。
+- PR #123 第二轮 CI 进一步暴露 Windows CRLF checkout 与 Linux LF checkout 的原始字节差异；P11 资产锁已改为复用 P10 的 Git blob 历史事实源，未修改或重生成任何 P10 baseline、generator 或 v1 profile。
+- Git blob 修复后：P10/P11 阶段门 `19 passed, 2 warnings in 49.78s`；Ruff、mypy 均通过；后端全量 `775 passed, 4 warnings in 348.74s`。
 
 上述测试均在默认离线 blocker 下运行，未读取真实 DSN 的值，未连接、探测、读写或清理任何真实外部资源。
 

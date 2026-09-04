@@ -5,9 +5,9 @@
   "base_commit_sha": "602323899595e2db34876d6cfc2f47e38ae74096",
   "p10_delivery_sha": "4d17f6f65f616774b3b616faaed03348dd5a1c08",
   "p10_assets": {
-    "baseline_raw_sha256": "98f6a8cb221461c8cf68b50e4c9af30c71560844e0f940236279b66b71dcbecd",
-    "generator_canonical_sha256": "0a7a05ed86e139d5528deeae64653e1fc478dba4fbc1ff4afa4429e01d9df5b8",
-    "profile_v1_raw_sha256": "ced10deadf1c46ed98d4e5db7d4641b784c7bc81b768c4a1317fc97b2d3a576f"
+    "baseline_git_blob_sha256": "095b21121b58bc1ab2096fc268c6fc47ee1c0a7b1634f85f77850f915c732e65",
+    "generator_git_blob_sha256": "0a7a05ed86e139d5528deeae64653e1fc478dba4fbc1ff4afa4429e01d9df5b8",
+    "profile_v1_git_blob_sha256": "102976897cd3e622d8f7a0f751bbfc84adfca30169d2492ec23a306f1bc146f5"
   },
   "openapi_normalized_sha256": "a47be238cb5e3652b382a73a6b48d99af23a26608ec7fcf07b02556bae7b15a3",
   "alembic_heads": [

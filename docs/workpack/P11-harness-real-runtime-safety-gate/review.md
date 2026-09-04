@@ -20,6 +20,7 @@ Reviewer 全程只读，未修改文件，未访问真实外部资源。
 - 主 Agent 自审 P2：并发 `shutdown(cancel_futures=True)` 产生的 `CancelledError` 会落入通用异常并误报 completed。已单独映射为 `completed/closed/cancelled_before_start`，并用可观测执行器证明排队 Tool 调用数为零。
 - 主 Agent 自审 P3：`pytest_sessionfinish` 过早撤销 blocker。已取消 undo，改为 blocker 存活到进程退出，临时目录由 `atexit` 清理。
 - CI 兼容性修复 P1：阶段门原先对完整 `ast.dump` 取 SHA，Python 3.11 与 3.12 对同一源码的 AST 表示不同，导致 Ubuntu CI 误报内容漂移。已改为统一换行后的完整函数源码 SHA；删除或修改负向断言仍会失败，约束未弱化。
+- CI 兼容性修复 P1：P11 manifest 原先记录 Windows checkout 的 baseline/profile CRLF 原始字节，Linux CI 的 LF checkout 因此误报 P10 资产漂移。已改为复用 P10 历史 Git blob SHA；P10 三项资产没有被改写，四集合与历史 blob 双重约束仍拒绝真实内容漂移。
 
 ## 修复后复验
 
@@ -31,6 +32,7 @@ Reviewer 全程只读，未修改文件，未访问真实外部资源。
 - 自审修复后后端全量：`775 passed`。
 - Ruff：`All checks passed!`。
 - CI 兼容性修复后：P10/P11 阶段门 `19 passed`，mypy `116 source files` 无问题，后端全量 `775 passed`。
+- Git blob 修复后再次复验：P10/P11 阶段门 `19 passed`，Ruff/mypy 通过，后端全量 `775 passed`。
 
 ## 终审
 
