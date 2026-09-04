@@ -1,6 +1,7 @@
 """静态注册的 PostgreSQL 只读 Connector。"""
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from typing import Any
 
@@ -20,6 +21,8 @@ from src.domain.services import (
     ServiceSourceStatus,
 )
 from src.infrastructure.services.postgres_engine import create_read_only_postgres_engine
+
+LOGGER = logging.getLogger(__name__)
 
 
 class PostgresServiceConnector:
@@ -75,7 +78,12 @@ class PostgresServiceConnector:
             return self._unavailable(observed)
         finally:
             if owns_engine and engine is not None:
-                engine.dispose()
+                try:
+                    engine.dispose()
+                except Exception:
+                    # cleanup_error 不覆盖已形成的 healthy/unavailable 快照；
+                    # 异常正文可能带 DSN，只记录固定类别与实例标识。
+                    LOGGER.warning("PostgreSQL 连接清理失败：instance_id=%s", self._instance_id)
 
     def _create_engine(self) -> Engine:
         """创建强制使用 psycopg 驱动且带三秒超时的 PostgreSQL Engine。"""

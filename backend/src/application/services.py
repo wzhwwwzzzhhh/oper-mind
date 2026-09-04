@@ -38,6 +38,12 @@ from src.application.errors import (
     SessionNotFoundError,
 )
 from src.application.message_routing import requires_database_context
+from src.application.runtime_contracts import (
+    RuntimeEventSignal,
+    RuntimeFailureSignal,
+    RuntimeResultSignal,
+)
+from src.application.runtime_safety import guard_runtime_stream
 from src.domain.actions import ActionMode
 from src.domain.diagnosis import MessageRole, RunEventType, RunStatus, SessionStatus
 from src.domain.records import (
@@ -214,27 +220,34 @@ class RunApplicationService:
             if not claimed:
                 return running
 
-            execution_result: DiagnosisExecutionResult | None = None
             current_run = self._load_run(run_id)
             registered_ids = (
                 self._registry.service_ids() if self._registry is not None else REGISTERED_SERVICE_IDS
             )
-            for item in _stream_with_context(self._executor, query or "", current_run.service_id):
-                if isinstance(item, DiagnosisExecutionEvent):
+            def stream_factory() -> Iterator[object]:
+                return _stream_with_context(
+                    self._executor,
+                    query or "",
+                    current_run.service_id,
+                )
+
+            for signal in guard_runtime_stream(stream_factory):
+                if isinstance(signal, RuntimeEventSignal):
                     # 协作式取消检查点：cancel 端点已把 Run 置为 cancelled 时停止后续事件写入。
                     if self._is_cancelled(run_id):
                         return self._load_run(run_id)
                     self._append_event(
                         run_id,
-                        item.type,
-                        item.occurred_at,
-                        _safe_event_data(item, registered_ids),
+                        signal.event.type,
+                        signal.event.occurred_at,
+                        _safe_event_data(signal.event, registered_ids),
                     )
-                else:
-                    execution_result = item
-            if execution_result is None:
-                raise DiagnosisExecutionError()
-            return self._complete_success(run_id, execution_result)
+                    continue
+                if isinstance(signal, RuntimeFailureSignal):
+                    return self._complete_failure(run_id, *_safe_failure())
+                if isinstance(signal, RuntimeResultSignal):
+                    return self._complete_success(run_id, signal.result)
+            raise DiagnosisExecutionError()
         except RunNotFoundError:
             raise
         except Exception:
