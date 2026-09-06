@@ -70,33 +70,36 @@ def build_coordinator(
     service_id: str | None = None,
     enable_long_term_memory: bool = False,
     binding: BoundServiceCapabilities | None = None,
+    role_llms: dict[str, LLMClient] | None = None,
 ) -> CoordinatorAgent:
-    """用共享 LLM 现造一套内核（领域 Agent + 质量组件 + 协调器）。
+    """用共享 LLM（默认）现造一套内核；``role_llms`` 可为各 Agent 角色指定专属 LLM，缺省回退共享 llm。
 
     领域 Agent 持有 short_term/thinking 等实例级可变状态，因此必须每 Run 新造
     一套以隔离并发。默认关闭文件型长期记忆，避免多 Run 并发写同一 memory.json。
     """
+    role_llms = role_llms or {}
+    coordinator_llm = role_llms.get("coordinator", llm)
     db_agent = DBAgent(
-        llm=llm,
+        llm=role_llms.get("db", llm),
         service_id=service_id,
         binding=binding,
         enable_long_term_memory=enable_long_term_memory,
     )
-    server_agent = ServerAgent(llm=llm, enable_long_term_memory=enable_long_term_memory)
-    log_agent = LogAgent(llm=llm, service_id=service_id, enable_long_term_memory=enable_long_term_memory)
+    server_agent = ServerAgent(llm=role_llms.get("server", llm), enable_long_term_memory=enable_long_term_memory)
+    log_agent = LogAgent(llm=role_llms.get("log", llm), service_id=service_id, enable_long_term_memory=enable_long_term_memory)
     knowledge_settings = load_knowledge_settings()
     knowledge_agent = KnowledgeAgent(
-        llm=llm,
+        llm=role_llms.get("knowledge", llm),
         knowledge_dir=knowledge_settings.directory,
         enable_long_term_memory=enable_long_term_memory,
     )
 
-    debate = DebateArena(llm=llm)
-    reflection = ReflectionEngine(llm=llm)
+    debate = DebateArena(llm=role_llms.get("debate", llm))
+    reflection = ReflectionEngine(llm=role_llms.get("reflection", llm))
     report = ReportAgent()
 
     coordinator = CoordinatorAgent(
-        llm=llm,
+        llm=coordinator_llm,
         debate=debate,
         reflection=reflection,
         report=report,

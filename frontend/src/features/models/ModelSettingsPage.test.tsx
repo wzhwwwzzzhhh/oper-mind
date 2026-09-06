@@ -24,17 +24,30 @@ describe('ModelSettingsPage', () => {
 
     expect((await screen.findAllByText('diagnostic-model')).length).toBeGreaterThan(0)
     expect(screen.getByRole('button', { name: '＋ 添加模型服务' })).toBeEnabled()
-    expect(await screen.findByText('DeepSeek 生产')).toBeInTheDocument()
+    expect((await screen.findAllByText('DeepSeek 生产')).length).toBeGreaterThan(0)
     expect(screen.getByText(/Key 已配置/)).toBeInTheDocument()
     expect(screen.getByText(/末 1234/)).toBeInTheDocument()
     expect(screen.queryByText(/sk-test/)).not.toBeInTheDocument()
+  })
+
+  it('Provider 为空但有本地配置模型时，展示只读本地配置卡片而非空态', async () => {
+    server.use(
+      http.get('/api/v1/model/providers', () => HttpResponse.json({ items: [], meta: { request_id: 'p-empty' } })),
+    )
+    open_models()
+    render(<App />)
+
+    expect((await screen.findAllByText('diagnostic-model')).length).toBeGreaterThan(1)
+    expect(screen.getByText('本地配置 · 只读')).toBeInTheDocument()
+    expect(screen.getByText('不在本页编辑')).toBeInTheDocument()
+    expect(screen.queryByText(/尚未配置 Provider/)).not.toBeInTheDocument()
   })
 
   it('不展示裁判误导：无裁判模型卡片、无设为裁判操作，并如实说明质量节点由主诊断模型承担', async () => {
     open_models()
     render(<App />)
 
-    expect(await screen.findByText('DeepSeek 生产')).toBeInTheDocument()
+    expect((await screen.findAllByText('DeepSeek 生产')).length).toBeGreaterThan(0)
     expect(screen.queryByText('裁判模型')).not.toBeInTheDocument()
     expect(screen.queryByText('裁判生效')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '设为裁判' })).not.toBeInTheDocument()
@@ -164,7 +177,7 @@ describe('ModelSettingsPage', () => {
     expect(await screen.findByText(/鉴权失败，请检查 API Key/)).toBeInTheDocument()
   })
 
-  it('新建态刷新按钮禁用并提示先保存', async () => {
+  it('新建态刷新按钮禁用并提示填写凭据', async () => {
     open_models()
     render(<App />)
 
@@ -172,7 +185,26 @@ describe('ModelSettingsPage', () => {
     expect(await screen.findByLabelText('Provider 名称')).toBeInTheDocument()
 
     expect(screen.getByRole('button', { name: '刷新模型列表' })).toBeDisabled()
-    expect(screen.getByText(/保存 Provider 后可刷新模型列表/)).toBeInTheDocument()
+    expect(screen.getByText(/填写 Base URL 与 API Key 后即可刷新模型列表/)).toBeInTheDocument()
+  })
+
+  it('新建态填写 Base URL 与 API Key 后即可刷新模型列表', async () => {
+    open_models()
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: '＋ 添加模型服务' }))
+    await screen.findByLabelText('Provider 名称')
+    fireEvent.change(screen.getByLabelText('Provider 名称'), { target: { value: 'DeepSeek' } })
+    fireEvent.change(screen.getByLabelText('Base URL'), { target: { value: 'https://api.deepseek.com/v1' } })
+    fireEvent.change(screen.getByLabelText('API Key'), { target: { value: 'sk-test-provider-secret-1234' } })
+
+    const refresh = screen.getByRole('button', { name: '刷新模型列表' })
+    expect(refresh).not.toBeDisabled()
+    fireEvent.click(refresh)
+
+    const select = await screen.findByLabelText('选择模型')
+    fireEvent.change(select, { target: { value: 'deepseek-chat' } })
+    expect(screen.getByLabelText('模型')).toHaveValue('deepseek-chat')
   })
 
   it('未配置参数时展示默认值标注', async () => {
@@ -195,6 +227,39 @@ describe('ModelSettingsPage', () => {
     expect(await screen.findByText('运行参数已保存。')).toBeInTheDocument()
     expect(await screen.findByText('已配置：0.5')).toBeInTheDocument()
     expect(screen.getByText('已配置：4096')).toBeInTheDocument()
+  })
+
+  it('未装配的角色如实显示默认诊断模型', async () => {
+    open_models()
+    render(<App />)
+
+    expect((await screen.findAllByText('默认（诊断模型）')).length).toBeGreaterThan(0)
+    expect(screen.getByText(/确定性组装，不消费模型/)).toBeInTheDocument()
+  })
+
+  it('为 Agent 角色装配模型后展示生效状态', async () => {
+    open_models()
+    render(<App />)
+
+    const db_select = await screen.findByLabelText('数据库 Agent Provider')
+    fireEvent.change(db_select, { target: { value: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' } })
+    fireEvent.change(screen.getByLabelText('数据库 Agent 模型'), { target: { value: 'deepseek-reasoner' } })
+    fireEvent.click(screen.getByRole('button', { name: '装配 数据库 Agent' }))
+
+    expect(await screen.findByText('DeepSeek 生产 · deepseek-reasoner')).toBeInTheDocument()
+  })
+
+  it('无 Provider 时角色装配区提示先添加，不展示空下拉', async () => {
+    server.use(
+      http.get('/api/v1/model/providers', () =>
+        HttpResponse.json({ items: [], meta: { request_id: 'r' } }, { status: 200, headers: { 'X-Request-Id': 'r' } }),
+      ),
+    )
+    open_models()
+    render(<App />)
+
+    expect((await screen.findAllByText('先添加 Provider 再装配')).length).toBe(7)
+    expect(screen.queryByRole('button', { name: '装配 协调器' })).not.toBeInTheDocument()
   })
 
   it('mock 模式标注参数仅 real 生效', async () => {

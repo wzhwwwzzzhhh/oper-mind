@@ -556,6 +556,31 @@ class ModelProviderIdempotencyKeyRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
 
 
+class ModelRoleAssignmentRecord(Base):
+    """P14 角色→Provider 模型装配；Provider 删除时级联清理（角色回退默认模型）。"""
+
+    __tablename__ = "model_role_assignments"
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('coordinator', 'db', 'server', 'log', 'knowledge', 'debate', 'reflection')",
+            name="model_role_assignment_role_valid",
+        ),
+        Index("ix_model_role_assignments_provider_id", "provider_id"),
+    )
+
+    role: Mapped[str] = mapped_column(String(32), primary_key=True)
+    provider_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("model_providers.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    model: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now
+    )
+
+
 class ServiceRegistryRecord(Base):
     """P8 动态注册服务；DSN 仅存密文，绝不存明文。"""
 

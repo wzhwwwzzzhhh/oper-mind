@@ -9,6 +9,7 @@ from __future__ import annotations
 import ipaddress
 from datetime import UTC, datetime
 from enum import Enum
+from typing import Literal
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -56,6 +57,20 @@ class ProviderEndpoint(str, Enum):
 
     DIAGNOSTIC = "diagnostic"
     JUDGE = "judge"
+
+
+# 会消费 LLM 的 Agent 角色（有序，供 UI 展示）。Report 是确定性模板组装，不在此列。
+MODEL_ROLES: tuple[tuple[str, str], ...] = (
+    ("coordinator", "协调器"),
+    ("db", "数据库 Agent"),
+    ("server", "服务器 Agent"),
+    ("log", "日志 Agent"),
+    ("knowledge", "知识库 Agent"),
+    ("debate", "辩论"),
+    ("reflection", "复核"),
+)
+MODEL_ROLE_KEYS = frozenset(key for key, _ in MODEL_ROLES)
+MODEL_ROLE_LABELS: dict[str, str] = dict(MODEL_ROLES)
 
 
 class VerifyStatus(str, Enum):
@@ -111,3 +126,25 @@ class ModelProviderModelsData(ModelProviderDomainModel):
     status: VerifyStatus
     models: list[str] | None = None
     error_code: str | None = None
+
+
+class ModelRoleAssignmentData(ModelProviderDomainModel):
+    """角色→Provider 的模型装配；model 为 None 时使用 Provider 自身模型。"""
+
+    role: str = Field(min_length=1, max_length=32)
+    provider_id: UUID
+    model: str | None = Field(default=None, max_length=120)
+    created_at: datetime
+    updated_at: datetime
+
+
+class ModelRoleViewData(ModelProviderDomainModel):
+    """单个 Agent 角色的模型装配安全视图；source=default 表示回退诊断模型。"""
+
+    role: str
+    label: str
+    source: Literal["default", "assigned"]
+    provider_id: UUID | None = None
+    provider_name: str | None = None
+    # 生效模型名：装配覆盖优先，否则为 Provider 自身模型；default 来源时为 None。
+    model: str | None = None

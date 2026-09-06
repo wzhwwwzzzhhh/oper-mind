@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import builtins
 from datetime import UTC, datetime, timedelta
 from typing import TypeVar
 from uuid import UUID
@@ -19,13 +20,18 @@ from src.application.errors import (
     ProviderIdempotencyReusedError,
     ProviderNotFoundError,
     SecretKeyNotConfiguredError,
+    UnknownModelRoleError,
 )
 from src.application.transaction import in_transaction
 from src.config import load_config
 from src.domain.model_provider import (
+    MODEL_ROLE_KEYS,
+    MODEL_ROLES,
     ModelProviderData,
     ModelProviderIdempotencyKeyData,
     ModelProviderModelsData,
+    ModelRoleAssignmentData,
+    ModelRoleViewData,
     ProviderEndpoint,
     VerifyStatus,
     validate_provider_base_url,
@@ -40,6 +46,9 @@ from src.infrastructure.persistence.database import SessionFactory
 from src.infrastructure.persistence.model_provider_repository import (
     SqlAlchemyModelProviderIdempotencyRepository,
     SqlAlchemyModelProviderRepository,
+)
+from src.infrastructure.persistence.model_role_assignment_repository import (
+    SqlAlchemyModelRoleAssignmentRepository,
 )
 from src.infrastructure.secrets import MIN_API_KEY_LENGTH, decrypt_api_key, encrypt_api_key
 
@@ -270,6 +279,17 @@ class ModelProviderApplicationService:
             error_code=outcome.error_code,
         )
 
+    def enumerate_models_adhoc(self, base_url: str, api_key: str | None) -> ModelProviderModelsData:
+        """用未保存的临时凭据枚举模型（添加弹窗内即填即列）；受控只读、不落库。
+
+        与 ``list_models`` 走同一条 SSRF 校验 / 限时 / 脱敏链路，仅凭据来源不同：
+        Key 来自请求体瞬态传参，不读库、不加密、不落任何存储；空 Key 诚实返回 NO_API_KEY。
+        """
+        if api_key is None or api_key == "":
+            return ModelProviderModelsData(provider_id=None, status=VerifyStatus.FAILED, models=None, error_code="NO_API_KEY")
+        outcome = fetch_provider_models(base_url, api_key)
+        return ModelProviderModelsData(provider_id=None, status=outcome.status, models=outcome.models, error_code=outcome.error_code)
+
     def _provider_plaintext_or_error(self, data: ModelProviderData) -> tuple[str | None, str | None]:
         """解密 Provider 的 API Key：(明文, None) 或 (None, 脱敏错误码)。"""
         if not data.has_api_key or data.api_key_encrypted is None or data.api_key_nonce is None:
@@ -295,13 +315,87 @@ class ModelProviderApplicationService:
             return ProviderModelsOutcome(status=VerifyStatus.FAILED, models=None, error_code=error_code)
         return fetch_provider_models(data.base_url, plaintext)
 
+    def list_role_assignments(self) -> dict[str, ModelRoleAssignmentData]:
+        """读取全部角色→Provider 装配（原样，不解析）。"""
+        session = self._session_factory()
+        try:
+            return SqlAlchemyModelRoleAssignmentRepository(session).list_all()
+        finally:
+            session.close()
+
+    def list_role_views(self) -> builtins.list[ModelRoleViewData]:
+        """返回全部 Agent 角色的模型装配安全视图（含 Provider 名与生效模型名）。"""
+        session = self._session_factory()
+        try:
+            assignments = SqlAlchemyModelRoleAssignmentRepository(session).list_all()
+            providers = {
+                provider.id: provider
+                for provider in SqlAlchemyModelProviderRepository(session).list()
+            }
+        finally:
+            session.close()
+        views: list[ModelRoleViewData] = []
+        for role, label in MODEL_ROLES:
+            assignment = assignments.get(role)
+            if assignment is None:
+                views.append(
+                    ModelRoleViewData(role=role, label=label, source="default")
+                )
+                continue
+            provider = providers.get(assignment.provider_id)
+            views.append(
+                ModelRoleViewData(
+                    role=role,
+                    label=label,
+                    source="assigned",
+                    provider_id=assignment.provider_id,
+                    provider_name=provider.name if provider is not None else None,
+                    model=assignment.model or (provider.model if provider is not None else None),
+                )
+            )
+        return views
+
+    def assign_role(self, role: str, provider_id: UUID, model: str | None) -> ModelRoleAssignmentData:
+        """为角色装配 Provider 与可选模型覆盖；角色不合法或 Provider 不存在时拒绝。"""
+        if role not in MODEL_ROLE_KEYS:
+            raise UnknownModelRoleError()
+        normalized_model = model.strip() if isinstance(model, str) and model.strip() else None
+
+        def operation(session: Session) -> ModelRoleAssignmentData:
+            provider = SqlAlchemyModelProviderRepository(session).get_by_id(provider_id)
+            if provider is None:
+                raise ProviderNotFoundError()
+            now = _utc_now()
+            return SqlAlchemyModelRoleAssignmentRepository(session).upsert(
+                ModelRoleAssignmentData(
+                    role=role,
+                    provider_id=provider_id,
+                    model=normalized_model,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+
+        return in_transaction(self._session_factory, operation)
+
+    def unassign_role(self, role: str) -> None:
+        """清除角色装配，角色回退默认模型；无装配也视为成功（幂等）。"""
+        if role not in MODEL_ROLE_KEYS:
+            raise UnknownModelRoleError()
+
+        def operation(session: Session) -> None:
+            SqlAlchemyModelRoleAssignmentRepository(session).delete(role)
+
+        in_transaction(self._session_factory, operation)
+
     def delete(self, provider_id: UUID) -> None:
-        """删除 Provider；不存在时抛 ProviderNotFoundError。"""
+        """删除 Provider 及其角色装配；不存在时抛 ProviderNotFoundError。"""
 
         def operation(session: Session) -> None:
             deleted = SqlAlchemyModelProviderRepository(session).delete(provider_id)
             if not deleted:
                 raise ProviderNotFoundError()
+            SqlAlchemyModelRoleAssignmentRepository(session).delete_for_provider(provider_id)
 
         in_transaction(self._session_factory, operation)
 
@@ -379,6 +473,49 @@ def _resolved_provider_config(
     except (InvalidTag, ValueError):
         return None
     return {"api_key": plaintext, "base_url": provider.base_url, "model": provider.model}
+
+
+def resolve_role_llm_configs(
+    session_factory: SessionFactory,
+    secret_key: bytes | None,
+) -> dict[str, dict[str, str]]:
+    """为每个 LLM 角色解析专属模型配置（明文 Key 只在本函数内部解密消费）。
+
+    装配存在且 Provider 可用（有 Key、能解密）才返回该角色配置；否则省略，
+    由调用方对缺失角色回退默认（诊断）模型。mock 模式由调用方跳过本函数。
+    返回的配置 dict 只在本函数内部流转，不入日志 / Trace / 接口响应。
+    """
+    result: dict[str, dict[str, str]] = {}
+    try:
+        session = session_factory()
+        try:
+            assignments = SqlAlchemyModelRoleAssignmentRepository(session).list_all()
+            providers = {provider.id: provider for provider in SqlAlchemyModelProviderRepository(session).list()}
+        finally:
+            session.close()
+    except SQLAlchemyError:
+        return result
+    for role, assignment in assignments.items():
+        provider = providers.get(assignment.provider_id)
+        if (
+            provider is None
+            or not provider.has_api_key
+            or provider.api_key_encrypted is None
+            or provider.api_key_nonce is None
+        ):
+            continue
+        if secret_key is None:
+            continue
+        try:
+            plaintext = decrypt_api_key(provider.api_key_encrypted, provider.api_key_nonce, secret_key)
+        except (InvalidTag, ValueError):
+            continue
+        result[role] = {
+            "api_key": plaintext,
+            "base_url": provider.base_url,
+            "model": assignment.model or provider.model,
+        }
+    return result
 
 
 def _with_mask(data: ModelProviderData, secret_key: bytes | None) -> ModelProviderData:

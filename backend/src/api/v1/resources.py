@@ -264,6 +264,7 @@ def service_resource(value: ServiceViewData) -> ServiceResource:
             for item in definition.supported_investigations
         ],
         action_boundary=definition.action_boundary,
+        source=value.source,
         snapshot=ServiceSnapshotResource(
             observed_at=snapshot.observed_at,
             mode=snapshot.mode.value,

@@ -41,7 +41,7 @@ describe('KnowledgePage', () => {
     render(<App />)
 
     expect((await screen.findAllByText('文档知识库')).length).toBeGreaterThan(0)
-    expect(screen.getAllByText('受管知识目录 · 只读').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('知识目录 · 只读').length).toBeGreaterThan(0)
     expect(await screen.findByText('kill 慢查询 SOP')).toBeInTheDocument()
     expect(screen.getByText('索引优化手册')).toBeInTheDocument()
     expect(screen.getByText('sop/kill-slow-query.md')).toBeInTheDocument()
@@ -53,7 +53,7 @@ describe('KnowledgePage', () => {
 
     fireEvent.click(await screen.findByText('kill 慢查询 SOP'))
     expect(await screen.findByText(/执行 kill 慢查询前先确认会话/)).toBeInTheDocument()
-    expect(screen.getByText(/只读受管知识目录/)).toBeInTheDocument()
+    expect(screen.getAllByText(/知识目录 · 只读/).length).toBeGreaterThan(0)
 
     fireEvent.click(screen.getByRole('button', { name: /返回文档列表/ }))
     expect(await screen.findByText('全部文档')).toBeInTheDocument()

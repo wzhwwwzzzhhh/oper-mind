@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent, ReactElement } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 
 import { API_V1_KNOWLEDGE_PAGE_SIZE, api_v1_client } from '../../api/v1/client'
@@ -43,14 +44,14 @@ function to_search_hits(payload: unknown): KnowledgeSearchHitItem[] {
 }
 
 function list_empty_text(status: unknown): string | null {
-  if (status === 'not_configured') return '知识库未配置：请配置 OPERMIND_KNOWLEDGE_DIR 后使用。'
-  if (status === 'empty') return '暂无文档：受管知识目录内还没有 Markdown 文档。'
+  if (status === 'not_configured') return '知识库未配置：需要先指定一个本地 Markdown 文档目录才能使用。'
+  if (status === 'empty') return '暂无文档：本地知识目录内还没有 Markdown 文档。'
   return null
 }
 
 function search_empty_text(status: unknown): string | null {
-  if (status === 'not_configured') return '知识库未配置：请配置 OPERMIND_KNOWLEDGE_DIR 后使用。'
-  if (status === 'empty') return '暂无文档：受管知识目录内还没有 Markdown 文档。'
+  if (status === 'not_configured') return '知识库未配置：需要先指定一个本地 Markdown 文档目录才能使用。'
+  if (status === 'empty') return '暂无文档：本地知识目录内还没有 Markdown 文档。'
   if (status === 'no_match') return '无匹配文档：请尝试更换检索词。'
   return null
 }
@@ -71,6 +72,7 @@ function BackToList({ on_click }: BackToListProps): ReactElement {
 
 /** 文档知识库页：受管知识目录的列表浏览 / 页面内检索 / 文档详情三视图，全程只读。 */
 export function KnowledgePage(): ReactElement {
+  const navigate = useNavigate()
   const [search_params, set_search_params] = useSearchParams()
   const opened_path = search_params.get('doc')
   const [query, set_query] = useState('')
@@ -148,10 +150,12 @@ export function KnowledgePage(): ReactElement {
       <div className="knowledge-page">
         <div className="knowledge-breadcrumb"><BackToList on_click={close_document} /><span>/</span><strong>{title}</strong></div>
         <section className="knowledge-detail-head">
-          <div><div className="knowledge-eyebrow">受管知识目录 · 只读</div><h1>{title}</h1><p>{resource_optional_string(document, 'relative_path') ?? ''}</p></div>
+          <div><div className="knowledge-eyebrow">知识目录 · 只读</div><h1>{title}</h1><p>{resource_optional_string(document, 'relative_path') ?? ''}</p></div>
         </section>
         <section className="knowledge-detail-body">
-          <pre>{content}</pre>
+          {content !== ''
+            ? <pre>{content}</pre>
+            : <div className="knowledge-empty">此文档暂无正文。</div>}
         </section>
       </div>
     )
@@ -159,11 +163,11 @@ export function KnowledgePage(): ReactElement {
 
   return (
     <div className="knowledge-page">
-      <div className="knowledge-breadcrumb"><button onClick={() => { window.history.replaceState({}, '', '/knowledge') }} type="button">会话工作台</button><span>/</span><strong>文档知识库</strong></div>
+      <div className="knowledge-breadcrumb"><button onClick={() => navigate('/workbench')} type="button">会话工作台</button><span>/</span><strong>文档知识库</strong></div>
 
       <section className="knowledge-page-head">
-        <div><div className="knowledge-eyebrow">知识库</div><h1>文档知识库</h1><p>浏览受管知识目录内的运维文档 / SOP / 排障记录，并在页面内直接检索。</p></div>
-        <div className="knowledge-source-badge">受管知识目录 · 只读</div>
+        <div><div className="knowledge-eyebrow">知识库</div><h1>文档知识库</h1><p>浏览运维文档 / SOP / 排障记录并直接检索。文档来自部署方指定的本地 Markdown 目录，只读浏览、确定性匹配，不调用模型。</p></div>
+        <div className="knowledge-source-badge">知识目录 · 只读</div>
       </section>
 
       <form className="knowledge-search" onSubmit={submit_search}>
@@ -192,8 +196,8 @@ export function KnowledgePage(): ReactElement {
 
       {search_query.isEnabled && search_query.isSuccess && (
         <section className="knowledge-section">
-          <div className="knowledge-section-head"><div><h2>检索结果</h2><p>来源：受管知识目录 · 确定性检索</p></div></div>
-          {hits.length === 0 && <div className="knowledge-empty">{search_empty_text(search_query.data?.data?.status)}</div>}
+          <div className="knowledge-section-head"><div><h2>检索结果</h2><p>来源：知识目录 · 确定性匹配，最多显示前 5 条</p></div></div>
+          {hits.length === 0 && <div className="knowledge-empty">{search_empty_text(search_query.data?.data?.status) ?? '无匹配文档。'}</div>}
           <div className="knowledge-doc-list">{hits.map((hit) => (
             <button className="knowledge-doc" key={hit.relative_path} onClick={() => open_document(hit.relative_path)} type="button">
               <strong>{hit.title}</strong>
@@ -205,7 +209,7 @@ export function KnowledgePage(): ReactElement {
       )}
 
       <section className="knowledge-section">
-        <div className="knowledge-section-head"><div><h2>全部文档</h2><p>来源：受管知识目录 · 只读</p></div></div>
+        <div className="knowledge-section-head"><div><h2>全部文档</h2><p>来源：知识目录 · 只读浏览</p></div></div>
         {list_query.isSuccess && items.length === 0 && <div className="knowledge-empty">{list_empty_text(list_status) ?? '知识库为空。'}</div>}
         <div className="knowledge-doc-list">{items.map((item) => (
           <button className="knowledge-doc" key={item.relative_path} onClick={() => open_document(item.relative_path)} type="button">

@@ -133,6 +133,76 @@ def test_枚举成功解析模型名列表() -> None:
     assert outcome.error_code is None
 
 
+def test_不带v1的baseUrl优先尝试v1models() -> None:
+    """base_url 未带 /v1 时，应优先请求 {base}/v1/models。"""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/v1/models"
+        assert request.headers["Authorization"] == "Bearer sk-test-12345678"
+        return httpx.Response(200, json={"data": [{"id": "deepseek-chat"}]})
+
+    outcome = fetch_provider_models("https://1.1.1.1", "sk-test-12345678", client=_client(handler))
+
+    assert outcome.status == VerifyStatus.OK
+    assert outcome.models == ["deepseek-chat"]
+
+
+def test_v1models返回网页时回退裸models() -> None:
+    """根路径 /models 返回官网网页（200 HTML）时，应继续尝试 {base}/v1/models。"""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/models":
+            assert request.headers["Authorization"] == "Bearer sk-test-12345678"
+            return httpx.Response(200, content="<!doctype html><title>中转平台</title>".encode())
+        assert request.url.path == "/v1/models"
+        return httpx.Response(200, json={"data": [{"id": "deepseek-chat"}]})
+
+    outcome = fetch_provider_models("https://1.1.1.1", "sk-test-12345678", client=_client(handler))
+
+    assert outcome.status == VerifyStatus.OK
+    assert outcome.models == ["deepseek-chat"]
+
+
+def test_带v1的baseUrl只请求models() -> None:
+    """base_url 已含 /v1 时，只请求 {base}/models，不重复拼 /v1。"""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/v1/models"
+        return httpx.Response(200, json={"data": []})
+
+    outcome = fetch_provider_models("https://1.1.1.1/v1", "sk-test-12345678", client=_client(handler))
+
+    assert outcome.status == VerifyStatus.OK
+    assert outcome.models == []
+
+
+def test_鉴权错误优先于无法解析() -> None:
+    """/v1/models 返回 401、根 /models 返回网页时，应如实报鉴权失败而非"无法解析"。"""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/models":
+            return httpx.Response(401, json={"code": "API_KEY_REQUIRED", "message": "缺少 API Key"})
+        assert request.url.path == "/models"
+        return httpx.Response(200, content=b"<!doctype html>")
+
+    outcome = fetch_provider_models("https://1.1.1.1", "sk-test-12345678", client=_client(handler))
+
+    assert outcome.status == VerifyStatus.FAILED
+    assert outcome.error_code == "HTTP_401"
+
+
+def test_两个候选都返回网页时如实报无法解析() -> None:
+    """两个候选都不可解析时，返回 MODELS_PARSE_FAILED 而非伪造成功。"""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b"<!doctype html>")
+
+    outcome = fetch_provider_models("https://1.1.1.1", "sk-test-12345678", client=_client(handler))
+
+    assert outcome.status == VerifyStatus.FAILED
+    assert outcome.error_code == "MODELS_PARSE_FAILED"
+
+
 def test_枚举去重保序() -> None:
     """重复模型名应去重且保持首次出现顺序。"""
 

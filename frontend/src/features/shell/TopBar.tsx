@@ -18,19 +18,19 @@ function EffectiveModelLabel(): ReactElement {
 
   let label: string
   if (model_config_query.isPending) {
-    label = '生效模型读取中…'
+    label = '当前模型读取中…'
   } else if (model_config_query.isError || config === undefined) {
-    label = '生效模型暂不可读'
+    label = '当前模型暂不可读'
   } else {
-    const mode = config.mode === 'mock' ? 'Mock' : '真实'
-    // real 已保存但无可用 Key 时后端实际回退确定性调用，如实标注"暂不可用"。
-    const unavailable = config.mode === 'real' && !config.mode_available ? '（暂不可用）' : ''
+    const mode = config.mode === 'mock' ? '演示' : '真实'
+    // real 已保存但无可用 Key 时后端实际回退确定性调用，如实标注"当前不可用"。
+    const unavailable = config.mode === 'real' && !config.mode_available ? '（当前不可用）' : ''
     const model = config.diagnostic_model.status === 'configured' ? config.diagnostic_model.model : '未配置'
-    label = `生效模型 ${model} · ${mode}${unavailable}`
+    label = `当前模型 ${model} · ${mode}${unavailable}`
   }
 
   return (
-    <span aria-label="生效模型" className="effective-model" title="当前会话链路的真实生效模型（来自后端配置）">
+    <span aria-label="当前模型" className="effective-model" title="当前会话链路实际使用的模型（来自后端配置）；演示模式返回确定性样例，不出网">
       <Icon name="spark" size={13} />
       {label}
     </span>

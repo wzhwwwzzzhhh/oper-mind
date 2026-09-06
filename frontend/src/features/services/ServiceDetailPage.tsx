@@ -98,6 +98,22 @@ function activity_state(value: unknown): string {
   return '—'
 }
 
+/** 活动状态 → 语义色：成功绿、失败琥珀、进行/排队用强调色、取消用中性。 */
+function activity_status_class(value: unknown): string {
+  if (value === 'succeeded') return 'ok'
+  if (value === 'failed') return 'warn'
+  if (value === 'running' || value === 'queued') return 'active'
+  if (value === 'cancelled') return 'muted'
+  return ''
+}
+
+/** 快照模式枚举 → 中文；不让用户看到 mock/target 原文。 */
+function snapshot_mode_label(mode: string): string {
+  if (mode === 'mock') return '演示快照'
+  if (mode === 'target') return '目标快照'
+  return '未知快照'
+}
+
 function monitor_status_label(value: unknown): string {
   if (value === 'available') return '有历史样本'
   if (value === 'not_configured') return '未配置'
@@ -396,7 +412,7 @@ export function ServiceDetailPage(): ReactElement {
           <div>
             <div className="svc-detail-eyebrow">{kind.label} 服务 <span className={`svc-detail-badge ${status_class(availability)}`}>{status_label(availability)}</span></div>
             <h1>{title}</h1>
-            <p>{resource_string(service, 'id', id)} · {snapshot_mode === 'mock' ? '演示快照' : snapshot_mode === 'target' ? '目标快照' : '受控访问'}</p>
+            <p>{resource_string(service, 'id', id)} · {snapshot_mode_label(snapshot_mode)}</p>
           </div>
         </div>
         <div className="svc-detail-actions">
@@ -407,10 +423,10 @@ export function ServiceDetailPage(): ReactElement {
 
       <div className="svc-detail-meta">
         <span>服务状态 <b className={`text-${status_class(availability)}`}>{status_label(availability)}</b></span>
-        <span>最近检查 <b>{display_time(resource_value(snapshot, 'observed_at'))}</b></span>
+        <span>最近观测 <b>{display_time(resource_value(snapshot, 'observed_at'))}</b></span>
         <span>数据来源 <b>{source_label(snapshot_source)}</b></span>
         <span>权限边界 <b>只读</b></span>
-        <span>快照模式 <b>{snapshot_mode}</b></span>
+        <span>快照模式 <b>{snapshot_mode_label(snapshot_mode)}</b></span>
       </div>
 
       {notice && (
@@ -425,7 +441,7 @@ export function ServiceDetailPage(): ReactElement {
           <Icon name={notice_mark_icon(availability)} size={13} />
         </div>
         <div><strong>{availability === 'healthy' ? '服务运行正常' : availability ? `服务状态：${status_label(availability)}` : '暂无服务快照'}</strong><p>{snapshot ? `性能信号：${signal_label(resource_value(snapshot, 'performance_signal'))}` : '后端没有返回当前快照，页面不展示示例指标。'}</p></div>
-        <span>{snapshot ? `观测于 ${display_time(resource_value(snapshot, 'observed_at'))}` : '等待真实数据'}</span>
+        <span>{snapshot ? `最近观测 ${display_time(resource_value(snapshot, 'observed_at'))}` : '等待真实数据'}</span>
       </div>
 
       <section className="svc-detail-section">
@@ -434,14 +450,14 @@ export function ServiceDetailPage(): ReactElement {
           <article className="svc-detail-metric"><span>服务可用性</span><strong>{status_label(availability)}</strong><small>{snapshot ? `来源：${source_label(resource_value(snapshot, 'availability'))}` : '暂无快照'}</small></article>
           {is_redis ? (
             <>
-              <article className="svc-detail-metric"><span>内存占用</span><strong>{display_bytes(resource_value(server_metrics, 'memory_bytes'))}</strong><small>used_memory</small></article>
-              <article className="svc-detail-metric"><span>客户端连接</span><strong>{display_number(resource_value(server_metrics, 'client_connections'), ' 个')}</strong><small>CLIENT LIST</small></article>
-              <article className="svc-detail-metric"><span>慢日志</span><strong>{display_number(resource_value(server_metrics, 'slowlog_count'), ' 条')}</strong><small>SLOWLOG LEN</small></article>
+              <article className="svc-detail-metric"><span>内存占用</span><strong>{display_bytes(resource_value(server_metrics, 'memory_bytes'))}</strong><small>内存占用字节数</small></article>
+              <article className="svc-detail-metric"><span>客户端连接</span><strong>{display_number(resource_value(server_metrics, 'client_connections'), ' 个')}</strong><small>活跃客户端连接数</small></article>
+              <article className="svc-detail-metric"><span>慢日志</span><strong>{display_number(resource_value(server_metrics, 'slowlog_count'), ' 条')}</strong><small>慢日志条数</small></article>
             </>
           ) : (
             <>
-              <article className="svc-detail-metric"><span>P50 延迟</span><strong>{display_number(resource_value(server_metrics, 'p50_ms'), ' ms')}</strong><small>最近观测窗口</small></article>
-              <article className="svc-detail-metric"><span>P95 延迟</span><strong>{display_number(resource_value(server_metrics, 'p95_ms'), ' ms')}</strong><small>最近观测窗口</small></article>
+              <article className="svc-detail-metric"><span>P50 延迟</span><strong>{display_number(resource_value(server_metrics, 'p50_ms'), ' ms')}</strong><small>50 分位响应耗时</small></article>
+              <article className="svc-detail-metric"><span>P95 延迟</span><strong>{display_number(resource_value(server_metrics, 'p95_ms'), ' ms')}</strong><small>95 分位响应耗时</small></article>
               <article className="svc-detail-metric"><span>慢查询</span><strong>{display_number(resource_value(server_metrics, 'slow_query_count'), ' 条')}</strong><small>超时 {display_number(resource_value(server_metrics, 'timeout_count'), ' 次')}</small></article>
             </>
           )}
@@ -459,7 +475,7 @@ export function ServiceDetailPage(): ReactElement {
           const host_mode = resource_string(host_metrics, 'mode', 'target')
           const host_source_label = host_mode === 'mock' ? '演示场景' : '真实采集'
           if (host_status === 'unavailable') {
-            return <div className="svc-detail-inline-empty"><strong>主机指标不可用</strong><p>psutil 采集不可用，页面不伪造数值。</p></div>
+            return <div className="svc-detail-inline-empty"><strong>主机指标不可用</strong><p>主机指标采集不可用，页面不伪造数值。</p></div>
           }
           const processes = read_array(resource_value(host_metrics, 'abnormal_processes'))
           return (
@@ -469,7 +485,7 @@ export function ServiceDetailPage(): ReactElement {
                 <article className="svc-detail-metric"><span>内存使用率</span><strong>{display_number(resource_value(host_metrics, 'memory_percent'), ' %')}</strong><small>{display_bytes(resource_value(host_metrics, 'memory_used_bytes'))} / {display_bytes(resource_value(host_metrics, 'memory_total_bytes'))}</small></article>
                 <article className="svc-detail-metric"><span>磁盘使用率</span><strong>{display_number(resource_value(host_metrics, 'disk_used_percent'), ' %')}</strong><small>跨分区最大使用率</small></article>
                 <article className="svc-detail-metric"><span>网络连接</span><strong>{display_number(resource_value(host_metrics, 'network_connections'), ' 个')}</strong><small>ESTABLISHED {display_number(resource_value(host_metrics, 'network_established'))} · TIME_WAIT {display_number(resource_value(host_metrics, 'network_time_wait'))}</small></article>
-                <article className="svc-detail-metric"><span>Load 1m</span><strong>{display_number(resource_value(host_metrics, 'load_avg_1m'))}</strong><small>主机负载</small></article>
+                <article className="svc-detail-metric"><span>1 分钟负载</span><strong>{display_number(resource_value(host_metrics, 'load_avg_1m'))}</strong><small>主机负载</small></article>
               </div>
               {processes.length > 0 && (
                 <div className="svc-detail-attention"><span className="attention-dot attention" /><div><strong>异常进程（{processes.length} 个）</strong><p>{processes.map((item) => { const proc = read_record(item); return `${resource_string(proc, 'name', '未知')} (PID=${resource_value(proc, 'pid')}) CPU ${display_number(resource_value(proc, 'cpu_percent'), '%')} · 内存 ${display_number(resource_value(proc, 'memory_percent'), '%')}` }).join('；')}</p></div></div>
@@ -523,7 +539,7 @@ export function ServiceDetailPage(): ReactElement {
           {activities_query.isPending && <div className="svc-detail-inline-empty">正在读取活动…</div>}
           {activities_query.isError && <div className="svc-detail-inline-empty">暂时无法读取活动记录。</div>}
           {activities_query.isSuccess && activities.length === 0 && <div className="svc-detail-inline-empty">当前没有服务活动记录。</div>}
-          {activities.map((item, index) => { const activity = read_record(item); return <div className="svc-detail-event" key={resource_string(activity, 'run_id', String(index))}><time>{display_time(resource_value(activity, 'created_at'))}</time><div><strong>{resource_string(activity, 'session_title', '未命名调查')}</strong><p>{resource_string(activity, 'summary', '暂无活动摘要。')}</p></div><b className={resource_value(activity, 'run_status') === 'failed' ? 'warn' : ''}>{activity_state(resource_value(activity, 'run_status'))}</b></div> })}
+          {activities.map((item, index) => { const activity = read_record(item); return <div className="svc-detail-event" key={resource_string(activity, 'run_id', String(index))}><time>{display_time(resource_value(activity, 'created_at'))}</time><div><strong>{resource_string(activity, 'session_title', '未命名调查')}</strong><p>{resource_string(activity, 'summary', '暂无活动摘要。')}</p></div><b className={activity_status_class(resource_value(activity, 'run_status'))}>{activity_state(resource_value(activity, 'run_status'))}</b></div> })}
         </div>
       </section>
 
@@ -532,7 +548,7 @@ export function ServiceDetailPage(): ReactElement {
         <div className="svc-detail-facts">
           <div><small>服务 ID</small><b>{resource_string(service, 'id', id)}</b></div>
           <div><small>服务类型</small><b>{kind.label}</b></div>
-          <div><small>快照模式</small><b>{snapshot_mode}</b></div>
+          <div><small>快照模式</small><b>{snapshot_mode_label(snapshot_mode)}</b></div>
           <div><small>最近观测</small><b>{display_time(resource_value(snapshot, 'observed_at'))}</b></div>
           <div><small>数据库信号</small><b>{signal_label(resource_value(database, 'signal'))}</b></div>
           <div><small>动作边界</small><b>{action_boundary}</b></div>

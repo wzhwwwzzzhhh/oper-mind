@@ -86,29 +86,49 @@ def _request_provider_models(
     client: httpx.Client | None,
     timeout_seconds: float,
 ) -> _ProviderRequestResult:
-    """对 Provider 发起受控只读 ``GET /models``；先校验主机，失败返回脱敏分类。"""
+    """对 Provider 发起受控只读 ``GET /models``；先校验主机，失败返回脱敏分类。
+
+    尝试候选路径：base 已含 ``/v1`` 时只请求 ``{base}/models``；否则先 ``{base}/v1/models``
+    再 ``{base}/models``（部分中转的根路径返回官网网页而非接口）。接受第一个可解析为
+    模型列表的响应；全部失败时优先返回真实 HTTP 错误码（比"无法解析"更可解释）。
+    """
     host = (urlparse(base_url).hostname or "").rstrip(".").lower()
     host_error = _check_host_allowed(host)
     if host_error is not None:
         return _ProviderRequestResult(status=VerifyStatus.FAILED, response=None, error_code=host_error)
 
-    url = f"{base_url.rstrip('/')}/models"
+    base = base_url.rstrip("/")
+    candidates = (f"{base}/models",) if base.endswith("/v1") else (f"{base}/v1/models", f"{base}/models")
+
     headers = {"Authorization": f"Bearer {api_key}"}
     owns_client = client is None
     request_client = client if client is not None else httpx.Client(timeout=timeout_seconds)
+    failures: list[_ProviderRequestResult] = []
     try:
-        response = request_client.get(url, headers=headers)
-    except httpx.TimeoutException:
-        return _ProviderRequestResult(status=VerifyStatus.TIMEOUT, response=None, error_code="TIMEOUT")
-    except httpx.HTTPError:
-        return _ProviderRequestResult(status=VerifyStatus.FAILED, response=None, error_code="CONNECTION_FAILED")
+        for candidate in candidates:
+            try:
+                response = request_client.get(candidate, headers=headers)
+            except httpx.TimeoutException:
+                return _ProviderRequestResult(status=VerifyStatus.TIMEOUT, response=None, error_code="TIMEOUT")
+            except httpx.HTTPError:
+                failures.append(_ProviderRequestResult(status=VerifyStatus.FAILED, response=None, error_code="CONNECTION_FAILED"))
+                continue
+            if response.status_code == 200 and _parse_model_names(response) is not None:
+                return _ProviderRequestResult(status=VerifyStatus.OK, response=response, error_code=None)
+            if response.status_code == 200:
+                failures.append(_ProviderRequestResult(status=VerifyStatus.FAILED, response=None, error_code="MODELS_PARSE_FAILED"))
+            else:
+                failures.append(_ProviderRequestResult(status=VerifyStatus.FAILED, response=None, error_code=f"HTTP_{response.status_code}"))
     finally:
         if owns_client:
             request_client.close()
 
-    if response.status_code == 200:
-        return _ProviderRequestResult(status=VerifyStatus.OK, response=response, error_code=None)
-    return _ProviderRequestResult(status=VerifyStatus.FAILED, response=None, error_code=f"HTTP_{response.status_code}")
+    # 全部候选失败：优先真实 HTTP 错误码，其次连接失败，最后才是"无法解析"。
+    for prefix in ("HTTP_", "CONNECTION_FAILED", "MODELS_PARSE_FAILED"):
+        for failure in failures:
+            if failure.error_code is not None and failure.error_code.startswith(prefix):
+                return failure
+    return failures[0] if failures else _ProviderRequestResult(status=VerifyStatus.FAILED, response=None, error_code="MODELS_PARSE_FAILED")
 
 
 def _parse_model_names(response: httpx.Response) -> list[str] | None:

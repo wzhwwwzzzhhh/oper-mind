@@ -6,18 +6,20 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   api_v1_query_keys,
   activate_model_provider_mutation,
+  assign_model_role_mutation,
   create_model_provider_mutation,
   delete_model_provider_mutation,
   get_model_config_query,
   get_model_usage_query,
   list_model_providers_query,
-  list_provider_models_mutation,
+  list_model_roles_query,
+  unassign_model_role_mutation,
   update_model_mode_mutation,
   update_model_params_mutation,
   update_model_provider_mutation,
   verify_model_provider_mutation,
 } from '../../api/v1/queries'
-import type { ModelProviderResource } from '../../api/v1/client'
+import { api_v1_client, type ModelProviderResource, type ModelRoleResource } from '../../api/v1/client'
 import { Icon } from '../shell/Icon'
 
 interface ProviderFormState {
@@ -33,6 +35,11 @@ interface ModelParamsFormState {
 }
 
 type ModelsStatus = 'idle' | 'loading' | 'ok' | 'failed'
+
+/** 模型枚举目标：已保存 Provider（用库中加密 Key）或弹窗内临时凭据（不落库）。 */
+type ModelsEnumerateTarget =
+  | { kind: 'saved'; provider_id: string }
+  | { kind: 'adhoc'; base_url: string; api_key: string }
 
 type UsageWindowDays = 7 | 30 | 90
 
@@ -82,10 +89,10 @@ function models_error_message(error_code: string | null): string {
     case 'HTTP_401':
     case 'HTTP_403': return '鉴权失败，请检查 API Key'
     case 'HTTP_404': return '服务未返回模型列表，请检查 Base URL'
-    case 'NO_API_KEY': return '未配置 API Key，保存 API Key 后再枚举'
+    case 'NO_API_KEY': return '未配置 API Key，填写 API Key 后再枚举'
     case 'SECRET_KEY_NOT_CONFIGURED': return '加密主密钥未配置'
     case 'KEY_DECRYPT_FAILED': return '无法解密已保存的 API Key'
-    case 'MODELS_PARSE_FAILED': return '服务返回了无法解析的响应'
+    case 'MODELS_PARSE_FAILED': return '服务返回的不是模型列表格式，请检查 Base URL（可能需带 /v1）'
     case 'INVALID_URL':
     case 'DNS_RESOLUTION_FAILED':
     case 'PRIVATE_ADDRESS_REJECTED': return '地址校验失败'
@@ -178,7 +185,10 @@ export function ModelSettingsPage(): ReactElement {
   })
 
   const models_mutation = useMutation({
-    ...list_provider_models_mutation(),
+    mutationFn: (target: ModelsEnumerateTarget) =>
+      target.kind === 'saved'
+        ? api_v1_client.list_model_provider_models(target.provider_id)
+        : api_v1_client.enumerate_provider_models({ base_url: target.base_url, api_key: target.api_key }),
     onMutate: () => set_models_status('loading'),
     onSuccess: (response) => {
       const result = response.data
@@ -199,11 +209,64 @@ export function ModelSettingsPage(): ReactElement {
     },
   })
 
+  // 弹窗内临时凭据齐备，或编辑的 Provider 已有保存的 Key，即可枚举模型。
+  const can_enumerate_models = form.base_url.trim() !== ''
+    && (form.api_key.trim() !== '' || (editing != null && editing.has_api_key && !clear_key))
+
   const refresh_models = (): void => {
-    if (editing != null) {
-      models_mutation.mutate(editing.id)
+    const typed_key = form.api_key.trim()
+    if (typed_key !== '') {
+      models_mutation.mutate({ kind: 'adhoc', base_url: form.base_url.trim(), api_key: typed_key })
+    } else if (editing != null && editing.has_api_key && !clear_key) {
+      models_mutation.mutate({ kind: 'saved', provider_id: editing.id })
+    } else {
+      set_models_status('failed')
+      set_model_options([])
+      set_models_error(models_error_message('NO_API_KEY'))
     }
   }
+
+  // ---- Agent 角色模型装配：每个角色可选配专属 Provider + 模型覆盖，未装配回退诊断模型 ----
+  const roles_query = useQuery({ ...list_model_roles_query() })
+  const [role_drafts, set_role_drafts] = useState<Record<string, { provider_id: string; model: string }>>({})
+
+  const set_role_draft = (role: string, field: 'provider_id' | 'model', value: string): void => {
+    set_role_drafts((current) => ({
+      ...current,
+      [role]: {
+        provider_id: current[role]?.provider_id ?? '',
+        model: current[role]?.model ?? '',
+        [field]: value,
+      },
+    }))
+  }
+
+  const role_mutation = useMutation({
+    ...assign_model_role_mutation(),
+    onSuccess: () => {
+      void query_client.invalidateQueries({ queryKey: api_v1_query_keys.model_roles() })
+      show_toast('角色模型已装配。')
+    },
+    onError: (error) => show_toast(error instanceof Error ? error.message : '装配角色模型失败。'),
+  })
+
+  const unassign_role_mutation = useMutation({
+    ...unassign_model_role_mutation(),
+    onSuccess: () => {
+      void query_client.invalidateQueries({ queryKey: api_v1_query_keys.model_roles() })
+      show_toast('角色已恢复默认模型。')
+    },
+    onError: (error) => show_toast(error instanceof Error ? error.message : '恢复默认失败。'),
+  })
+
+  const assign_role = (role: ModelRoleResource): void => {
+    const draft = role_drafts[role.role]
+    const provider_id = draft?.provider_id?.trim()
+    if (!provider_id) return
+    role_mutation.mutate({ role: role.role, provider_id, model: draft.model.trim() || null })
+  }
+
+  const restore_role = (role: string): void => unassign_role_mutation.mutate(role)
 
   const delete_mutation = useMutation({
     ...delete_model_provider_mutation(),
@@ -289,6 +352,8 @@ export function ModelSettingsPage(): ReactElement {
   const config = model_config_query.data?.data.config
   const diagnostic = config?.diagnostic_model
   const providers = providers_query.data?.data.items ?? []
+  // 没有注册 Provider 却存在生效诊断模型 ⇒ 模型必然来自本地配置（config.local.yaml / 环境变量）。
+  const diagnostic_from_config = diagnostic != null && providers.length === 0
   const saving = create_mutation.isPending || update_mutation.isPending
 
   useEffect(() => {
@@ -317,10 +382,15 @@ export function ModelSettingsPage(): ReactElement {
       {providers_query.isError && <div className="model-inline-state error">暂时无法读取 Provider 列表，请稍后重试。</div>}
 
       <section className="model-summary">
-        <article><small>诊断模型</small><strong>{diagnostic?.model ?? '未配置'}</strong><span>{diagnostic ? diagnostic.provider : '后端未返回配置'}</span></article>
-        <article><small>运行模式</small><strong>{config == null ? '未知' : config.mode === 'mock' ? 'Mock' : '真实调用'}</strong><span>{config == null ? '后端未返回配置' : config.mode === 'mock' ? '返回确定性样例，不出网' : '按生效 Provider 真实调用'}</span></article>
+        <article><small>诊断模型</small><strong>{diagnostic?.model ?? '未配置'}</strong><span>{diagnostic == null ? '后端未返回配置' : diagnostic_from_config ? '来自本地配置，不在此页管理' : diagnostic.provider}</span></article>
+        <article><small>运行模式</small><strong>{config == null ? '未知' : config.mode === 'mock' ? 'Mock' : '真实调用'}</strong><span>{config == null ? '后端未返回配置' : config.mode === 'mock' ? '返回确定性样例，不出网' : diagnostic_from_config ? '使用本地配置的模型' : '按生效 Provider 真实调用'}</span></article>
         <article><small>已配置 Provider</small><strong>{providers_query.isSuccess ? providers.length : '—'} <em>个</em></strong><span>{providers_query.isSuccess ? '来自后端安全视图' : '尚未读取到列表'}</span></article>
       </section>
+      {diagnostic_from_config && (
+        <div className="model-inline-state model-source-note">
+          当前诊断模型由<strong>本地配置</strong>提供（config.local.yaml 或环境变量），在此页之外管理。要在这里接管模型配置，请添加并激活一个 Provider。
+        </div>
+      )}
 
       <section className="model-section" id="mode">
         <div className="model-section-head"><div><h2>运行模式</h2><p>切换 mock / real 模式并保存，保存后下一次会话立即生效，无需重启。模式选择持久化在后端，重启后保持。</p></div></div>
@@ -420,7 +490,7 @@ export function ModelSettingsPage(): ReactElement {
       <section className="model-section" id="providers">
         <div className="model-section-head"><div><h2>已配置 Provider</h2><p>来自后端安全视图；API Key 掩码展示，可验证连接、切换为生效配置或删除。</p></div></div>
         {providers_query.isPending && <div className="model-inline-state">正在读取 Provider 列表…</div>}
-        {providers_query.isSuccess && providers.length === 0 && <div className="model-inline-state">尚未配置 Provider。点击「＋ 添加模型服务」接入你的大模型服务。</div>}
+        {providers_query.isSuccess && (
         <div className="model-provider-list">{providers.map((provider) => (
           <article className="model-provider" key={provider.id}>
             <div className="provider-logo provider-gateway">{provider.name.slice(0, 1).toUpperCase()}</div>
@@ -444,7 +514,88 @@ export function ModelSettingsPage(): ReactElement {
               <button className="model-link" onClick={() => set_deleting(provider)} type="button">删除</button>
             </div>
           </article>
-        ))}</div>
+        ))}
+          {providers.length === 0 && diagnostic != null && (
+            <article className="model-provider config-provider">
+              <div className="provider-logo">本</div>
+              <div className="provider-main">
+                <strong>{diagnostic.model}</strong>
+                <span>{diagnostic.provider} · 本地配置</span>
+                <div className="provider-tags">
+                  <i>Key 已配置（config.local.yaml / 环境变量）</i>
+                  <i>本地配置 · 只读</i>
+                </div>
+              </div>
+              <div className="provider-meta">
+                <small>来源</small>
+                <b className="provider-state muted">本地配置</b>
+                <span>在此页之外管理；添加 Provider 后可在此接管</span>
+              </div>
+              <div className="provider-actions">
+                <span className="config-provider-hint">不在本页编辑</span>
+              </div>
+            </article>
+          )}
+          {providers.length === 0 && diagnostic == null && (
+            <div className="model-inline-state">尚未配置 Provider。点击「＋ 添加模型服务」接入你的大模型服务。</div>
+          )}
+        </div>
+        )}
+      </section>
+
+      <section className="model-section" id="roles">
+        <div className="model-section-head"><div><h2>Agent 角色模型装配</h2><p>给不同 Agent 角色分配专属模型；未装配的角色使用默认诊断模型，装配在下一次调查立即生效。报告（Report）为确定性组装，不消费模型。</p></div></div>
+        <div className="model-card boundary-card">
+          {roles_query.isPending && <div className="model-inline-state">正在读取角色装配…</div>}
+          {roles_query.isError && <div className="model-inline-state error">暂时无法读取角色装配，请稍后重试。</div>}
+          {roles_query.isSuccess && (
+            <div className="model-role-list">
+              {roles_query.data.data.roles.map((role) => {
+                const draft = role_drafts[role.role]
+                const provider_id = draft?.provider_id ?? role.provider_id ?? ''
+                const model = draft?.model ?? role.model ?? ''
+                return (
+                  <div className="model-role-row" key={role.role}>
+                    <div className="model-role-copy">
+                      <strong>{role.label}</strong>
+                      <span className={role.source === 'assigned' ? '' : 'model-role-default'}>
+                        {role.source === 'assigned'
+                          ? `${role.provider_name ?? '未知 Provider'} · ${role.model ?? 'Provider 默认模型'}`
+                          : '默认（诊断模型）'}
+                      </span>
+                    </div>
+                    {providers.length === 0 ? (
+                      <span className="model-role-empty-hint">先添加 Provider 再装配</span>
+                    ) : (
+                      <>
+                    <select
+                      aria-label={`${role.label} Provider`}
+                      className="model-models-select"
+                      value={provider_id}
+                      onChange={(event) => set_role_draft(role.role, 'provider_id', event.target.value)}
+                    >
+                      <option value="">默认（诊断模型）</option>
+                      {providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}
+                    </select>
+                    <input
+                      aria-label={`${role.label} 模型`}
+                      className="model-role-model-input"
+                      placeholder="模型覆盖（留空用 Provider 的）"
+                      value={model}
+                      onChange={(event) => set_role_draft(role.role, 'model', event.target.value)}
+                    />
+                    <div className="provider-actions">
+                      <button aria-label={`装配 ${role.label}`} className="model-link" disabled={!provider_id || role_mutation.isPending} onClick={() => assign_role(role)} type="button">装配</button>
+                      {role.source === 'assigned' && <button aria-label={`恢复默认 ${role.label}`} className="model-link" disabled={unassign_role_mutation.isPending} onClick={() => restore_role(role.role)} type="button">恢复默认</button>}
+                    </div>
+                      </>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
       </section>
 
       <section className="model-section" id="security">
@@ -463,16 +614,23 @@ export function ModelSettingsPage(): ReactElement {
       </section>
 
       {form_open && <div className="model-modal" role="dialog" aria-modal="true" aria-labelledby="model-modal-title"><div className="model-dialog">
-        <div className="model-dialog-head"><div><strong id="model-modal-title">{editing != null ? `编辑 ${editing.name}` : '添加模型服务'}</strong><p>{editing != null ? '修改名称、Base URL、模型；API Key 留空保持不变，空串清除。' : '填写 OpenAI-compatible Provider 信息，保存时加密存储 API Key。'}</p></div><button aria-label="关闭" className="icon-btn" onClick={() => { set_form_open(false); set_editing(null); }} type="button"><Icon name="x" size={14} /></button></div>
+        <div className="model-dialog-head"><div><strong id="model-modal-title">{editing != null ? `编辑 ${editing.name}` : '添加模型服务'}</strong><p>{editing != null ? '修改名称、Base URL、模型；API Key 留空保持不变，空串清除。' : '填写 OpenAI-compatible Provider 信息，保存时加密存储 API Key。'}</p></div><button aria-label="关闭" className="icon-btn" onClick={() => { set_form_open(false); set_editing(null); set_form(empty_form); set_clear_key(false); }} type="button"><Icon name="x" size={14} /></button></div>
         <form className="provider-form" onSubmit={submit_form}>
           <label>名称<input aria-label="Provider 名称" required value={form.name} onChange={(event) => set_form_field('name', event.target.value)} type="text" placeholder="如 DeepSeek 生产" /></label>
           <label>Base URL<input aria-label="Base URL" required value={form.base_url} onChange={(event) => set_form_field('base_url', event.target.value)} type="url" placeholder="https://api.deepseek.com/v1" /></label>
           <label>模型
             <div className="model-field-row">
               <input aria-label="模型" required value={form.model} onChange={(event) => set_form_field('model', event.target.value)} type="text" placeholder="deepseek-chat" />
-              <button className="model-button" type="button" onClick={refresh_models} disabled={editing == null || models_mutation.isPending}>刷新模型列表</button>
+              <button className="model-button" type="button" onClick={refresh_models} disabled={!can_enumerate_models || models_mutation.isPending}>刷新模型列表</button>
             </div>
-            {editing == null && <small className="model-inline-state">保存 Provider 后可刷新模型列表。</small>}
+            {!can_enumerate_models && (
+              <small className="model-inline-state">
+                {editing != null && editing.has_api_key && !clear_key
+                  ? '可直接刷新模型列表；或填写新 API Key 后用新 Key 刷新。'
+                  : '填写 Base URL 与 API Key 后即可刷新模型列表。'}
+              </small>
+            )}
+            {models_status === 'loading' && <small className="model-inline-state">正在枚举模型列表…</small>}
             {models_status === 'ok' && model_options.length > 0 && (
               <select aria-label="选择模型" className="model-models-select" value={form.model} onChange={(event) => set_form_field('model', event.target.value)}>
                 {editing != null && form.model !== '' && !model_options.includes(form.model) && (
@@ -486,7 +644,7 @@ export function ModelSettingsPage(): ReactElement {
           </label>
           <label>API Key<input aria-label="API Key" value={form.api_key} onChange={(event) => set_form_field('api_key', event.target.value)} type="password" autoComplete="off" placeholder={editing != null ? '留空保持不变' : '可选，未配置时仅保存元数据'} /></label>
           {editing != null && editing.has_api_key && <label className="provider-clear-key"><input aria-label="清除已保存的 API Key" type="checkbox" checked={clear_key} onChange={(event) => set_clear_key(event.target.checked)} /> 清除已保存的 API Key</label>}
-          <div className="model-dialog-footer"><button className="model-button" type="button" onClick={() => { set_form_open(false); set_editing(null); }}>取消</button><button className="model-button primary" type="submit" disabled={saving}>{editing != null ? '保存修改' : '保存 Provider'}</button></div>
+          <div className="model-dialog-footer"><button className="model-button" type="button" onClick={() => { set_form_open(false); set_editing(null); set_form(empty_form); set_clear_key(false); }}>取消</button><button className="model-button primary" type="submit" disabled={saving}>{editing != null ? '保存修改' : '保存 Provider'}</button></div>
         </form>
       </div></div>}
 

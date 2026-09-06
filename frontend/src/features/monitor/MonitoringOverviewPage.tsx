@@ -18,7 +18,7 @@ function connection_label(status: string): string {
   if (status === 'available') return '可用'
   if (status === 'unavailable') return '不可用'
   if (status === 'not_configured') return '未配置'
-  return '暂无历史采样'
+  return '未知'
 }
 
 function connection_class(status: string): 'ok' | 'attention' | 'muted' {
@@ -119,7 +119,7 @@ export function MonitoringOverviewPage(): ReactElement {
 
         {overview_query.isSuccess && items.length === 0 && (
           <div className="svc-empty">
-            当前还没有已接入服务，暂无监控概览。服务接入能力将在后续工作包提供。
+            当前还没有已接入服务，暂无监控概览。到「服务中心」添加 PostgreSQL / Redis / MySQL 实例后，这里会展示它们的定时采样概览。
           </div>
         )}
 
@@ -129,10 +129,10 @@ export function MonitoringOverviewPage(): ReactElement {
               <span>服务</span>
               <span>类型 / 采样信号</span>
               <span>连接状态</span>
-              <span>最新延迟</span>
-              <span>慢查询 / 超时</span>
+              <span>最新指标</span>
+              <span>慢查询 / 慢日志</span>
               <span>异常标记</span>
-              <span>主机指标摘要</span>
+              <span>后端主机</span>
               {/* 末列表头留空：下面每行是"查看详情"提示，表头再写一遍是重复。 */}
               <span />
             </div>
@@ -152,7 +152,6 @@ export function MonitoringOverviewPage(): ReactElement {
                     <div className={`service-logo ${info.short.toLowerCase()}`}>{info.short}</div>
                     <div className="service-name">
                       <strong>{item.title}</strong>
-                      <span>{item.service_id}</span>
                     </div>
                   </div>
                   <div className="type">
@@ -163,19 +162,21 @@ export function MonitoringOverviewPage(): ReactElement {
                     <span className={`state ${connection_class(item.connection_status)}`}>
                       {connection_label(item.connection_status)}
                     </span>
-                    <small>{availability_text(item.availability)}</small>
+                    {availability_text(item.availability) !== connection_label(item.connection_status) && (
+                      <small>{availability_text(item.availability)}</small>
+                    )}
                   </div>
                   <div className="fact">
                     <strong>{is_redis_service
                       ? display_bytes(latest?.memory_bytes)
                       : display_number(latest?.p95_ms, ' ms')}</strong>
-                    <span>{is_redis_service ? '内存' : `P95 · ${display_time(latest?.observed_at)}`}</span>
+                    <span>{is_redis_service ? '内存占用' : `P95 响应耗时 · ${display_time(latest?.observed_at)}`}</span>
                   </div>
                   <div className="fact">
                     <strong>{is_redis_service
                       ? display_number(latest?.slowlog_count, ' 条')
                       : `${display_number(latest?.slow_query_count, ' 条')} · ${display_number(latest?.timeout_count, ' 次')}`}</strong>
-                    <span>{is_redis_service ? 'SLOWLOG' : '慢查询 · 超时'}</span>
+                    <span>{is_redis_service ? '慢日志' : '慢查询 · 超时'}</span>
                   </div>
                   <div>
                     {anomaly
@@ -185,7 +186,7 @@ export function MonitoringOverviewPage(): ReactElement {
                   </div>
                   <div className="fact">
                     <strong>{display_number(latest?.host_cpu_percent, '%')} / {display_number(latest?.host_memory_percent, '%')} / {display_number(latest?.host_disk_used_percent, '%')}</strong>
-                    <span>后端所在主机 · 单主机采集 · {display_time(latest?.observed_at)}</span>
+                    <span>后端所在主机 · 非数据库实例</span>
                   </div>
                   <span className="monitor-detail-cue">
                     查看详情

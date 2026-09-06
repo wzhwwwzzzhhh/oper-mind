@@ -11,15 +11,13 @@ from tests.support.harness_p12_stage_gate import (
     assert_no_skip_xfail,
     assert_readonly_source_boundaries,
     load_manifest,
-    verify,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-
-def test_p12_stage_gate_verifies_current_tree() -> None:
-    inventory = verify(REPO_ROOT)
-    assert set(inventory) == {"committed", "staged", "unstaged", "untracked"}
+# 注意：P12 已合入 main（PR #125/#126/#127），原「校验当前工作树只含 P12 文件」的活树门禁
+# （verify(REPO_ROOT)）已随 workpack 收口退役——它按 P12 BASE_SHA 比对整棵工作树，会阻挡一切
+# 非 P12 的正常开发。下方保留的是门禁机制本身的单元测试（对 tmp 输入断言边界），继续有效。
 
 
 def test_manifest_is_exact_without_globs() -> None:

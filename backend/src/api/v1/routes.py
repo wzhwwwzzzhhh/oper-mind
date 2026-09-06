@@ -56,6 +56,7 @@ from src.api.v1.schemas import (
     ActionProposalListResponse,
     ActionProposalResponse,
     ActivateModelProviderRequest,
+    AssignModelRoleRequest,
     AuditActivityListResponse,
     ConnectionTestResponse,
     CreateModelProviderRequest,
@@ -66,6 +67,8 @@ from src.api.v1.schemas import (
     DiagnosisRunListResponse,
     DiagnosisRunResource,
     EditMessageRequest,
+    EnumerateProviderModelsRequest,
+    EnumerateProviderModelsResponse,
     GlobalRunListResponse,
     KnowledgeDocumentDetailResource,
     KnowledgeDocumentResponse,
@@ -81,6 +84,9 @@ from src.api.v1.schemas import (
     ModelProviderListResponse,
     ModelProviderModelsResponse,
     ModelProviderResponse,
+    ModelRoleListResponse,
+    ModelRoleResource,
+    ModelRoleResponse,
     ModelUsageResponse,
     MonitorHistoryResponse,
     MonitorOverviewResponse,
@@ -153,7 +159,7 @@ from src.domain.audit import AuditActivityType, AuditOutcome
 from src.domain.audit_export import EXPORT_MAX_ITEMS, AuditExportFormat
 from src.domain.diagnosis import RunStatus, SessionStatus
 from src.domain.model_params import ModelParams
-from src.domain.model_provider import ProviderEndpoint
+from src.domain.model_provider import ModelRoleViewData, ProviderEndpoint
 from src.domain.monitoring import MonitorThresholdConfig
 from src.domain.records import DiagnosisRunData, RunEventData, SessionData
 from src.infrastructure.persistence.app_settings_repository import SqlAlchemyAppSettingsStore
@@ -215,6 +221,7 @@ APPLICATION_ERROR_STATUS = {
     "PROVIDER_NOT_FOUND": 404,
     "SECRET_KEY_NOT_CONFIGURED": 409,
     "PROVIDER_IDEMPOTENCY_REUSED": 409,
+    "UNKNOWN_MODEL_ROLE": 422,
     "MODEL_MODE_PERSISTENCE_FAILED": 500,
     "MODEL_PARAMS_PERSISTENCE_FAILED": 500,
     "KNOWLEDGE_TIMEOUT": 503,
@@ -764,6 +771,95 @@ def delete_model_provider(
         raise_application_error(error)
     meta = response_meta(request)
     return Response(status_code=204, headers={"X-Request-Id": str(meta.request_id)})
+
+
+@router.post("/model/providers/enumerate-models", response_model=EnumerateProviderModelsResponse)
+def enumerate_provider_models(
+    payload: EnumerateProviderModelsRequest,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> EnumerateProviderModelsResponse:
+    """用弹窗内未保存的临时凭据枚举模型；受控只读、限时、脱敏，不落库、无副作用。
+
+    API Key 只在请求体内瞬态出现，不经日志 / Trace / 任何存储；与已保存 Provider
+    的枚举走同一条 SSRF 主机校验链路（非 localhost 必须解析到公网地址）。
+    """
+    try:
+        result = _model_provider_service(services).enumerate_models_adhoc(payload.base_url, payload.api_key)
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return EnumerateProviderModelsResponse(
+        status=cast(Literal["ok", "failed", "timeout", "unsupported"], result.status.value),
+        models=result.models,
+        error_code=result.error_code,
+        meta=meta,
+    )
+
+
+@router.get("/model/roles", response_model=ModelRoleListResponse)
+def list_model_roles(
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> ModelRoleListResponse:
+    """列出全部 Agent 角色的模型装配（装配原样 + 生效模型，回退默认者如实标注）。"""
+    views = _model_provider_service(services).list_role_views()
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return ModelRoleListResponse(
+        roles=[_model_role_resource(view) for view in views],
+        meta=meta,
+    )
+
+
+@router.put("/model/roles/{role}", response_model=ModelRoleResponse)
+def assign_model_role(
+    role: str,
+    payload: AssignModelRoleRequest,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> ModelRoleResponse:
+    """为 Agent 角色装配 Provider（与可选模型覆盖）；角色不合法 422，Provider 不存在 404。"""
+    try:
+        _model_provider_service(services).assign_role(role, payload.provider_id, payload.model)
+        view = next(view for view in _model_provider_service(services).list_role_views() if view.role == role)
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    apply_headers(response, meta)
+    return ModelRoleResponse(role=_model_role_resource(view), meta=meta)
+
+
+@router.delete("/model/roles/{role}", status_code=204)
+def unassign_model_role(
+    role: str,
+    request: Request,
+    response: Response,
+    services: V1Services = Depends(get_v1_services),
+) -> Response:
+    """清除角色装配，角色回退默认模型；无装配也视为成功。"""
+    try:
+        _model_provider_service(services).unassign_role(role)
+    except ApplicationError as error:
+        raise_application_error(error)
+    meta = response_meta(request)
+    return Response(status_code=204, headers={"X-Request-Id": str(meta.request_id)})
+
+
+def _model_role_resource(view: ModelRoleViewData) -> ModelRoleResource:
+    """把角色视图收敛为对外资源。"""
+    return ModelRoleResource(
+        role=view.role,
+        label=view.label,
+        source=view.source,
+        provider_id=view.provider_id,
+        provider_name=view.provider_name,
+        model=view.model,
+    )
 
 
 @router.get("/model/usage", response_model=ModelUsageResponse)

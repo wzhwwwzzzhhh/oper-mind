@@ -88,7 +88,7 @@
   font-weight: 650;
 }
 
-.model-button:hover {
+.model-button:hover:not(:disabled) {
   border-color: var(--accent);
   color: var(--text);
 }
@@ -100,15 +100,21 @@
   background: var(--accent);
 }
 
-.model-button.primary:hover {
+.model-button.primary:hover:not(:disabled) {
   border-color: var(--accent-hover);
   background: var(--accent-hover);
+}
+
+/* 禁用/进行中：如实变灰，不假装可点。 */
+.model-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 /* 概览四联：全部来自后端配置接口，没有本地偏好混入。 */
 .model-summary {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   margin-top: 18px;
 }
@@ -201,6 +207,43 @@
   background: var(--surface-soft);
   font-size: 12px;
   line-height: 1.6;
+}
+
+/* 摘要下方"模型来自本地配置"的提示：强调色左边条，说明来源而不当作报错。 */
+.model-source-note {
+  margin-top: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--accent-line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  background: var(--accent-soft);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.model-source-note strong {
+  color: var(--text);
+}
+
+/* 本地配置模型卡片：虚线边 + 未知色 logo，示意"来自 config/env、非本页管理的 Provider"。 */
+.config-provider {
+  border: 1px dashed var(--border-strong);
+  background: var(--surface-soft);
+}
+
+.config-provider:hover {
+  border-color: var(--border-strong);
+}
+
+.config-provider .provider-logo {
+  background: var(--unknown);
+}
+
+.config-provider-hint {
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .model-inline-state.error {
@@ -409,13 +452,13 @@
 .params-field span {
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--text);
 }
 
 .params-field span em {
   font-style: normal;
   font-weight: 400;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
 }
 
 .params-field input {
@@ -424,7 +467,7 @@
   border-radius: var(--radius-sm);
   background: var(--surface);
   font-size: 13px;
-  color: var(--text-primary);
+  color: var(--text);
 }
 
 .params-field input:focus {
@@ -434,7 +477,7 @@
 
 .params-field small {
   font-size: 11px;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
 }
 
 .params-save {
@@ -689,26 +732,26 @@
   }
 }
 
-/* ---- P8 ����ͳ�� ---- */
+/* ---- P8 模型用量统计 ---- */
 .usage-window-options {
   display: flex;
   gap: 6px;
 }
 
 .usage-window-option {
-  border: 1px solid var(--border-color, #d0d7de);
+  border: 1px solid var(--border);
   border-radius: 6px;
   background: transparent;
-  color: var(--text-secondary, #57606a);
+  color: var(--text-secondary);
   padding: 4px 10px;
   font-size: 12px;
   cursor: pointer;
 }
 
 .usage-window-option.selected {
-  background: var(--accent, #2563eb);
-  border-color: var(--accent, #2563eb);
-  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-on);
 }
 
 .usage-table {
@@ -720,12 +763,12 @@
 .usage-table th,
 .usage-table td {
   padding: 8px 10px;
-  border-bottom: 1px solid var(--border-color, #eaeef2);
+  border-bottom: 1px solid var(--border);
   text-align: left;
 }
 
 .usage-table th {
-  color: var(--text-secondary, #57606a);
+  color: var(--text-secondary);
   font-weight: 500;
   font-size: 12px;
 }
@@ -737,12 +780,98 @@
 
 .usage-table td em {
   font-style: normal;
-  color: var(--text-tertiary, #8b949e);
+  color: var(--text-muted);
   font-size: 11px;
 }
 
 .usage-price-detail {
   display: block;
-  color: var(--text-tertiary, #8b949e);
+  color: var(--text-muted);
   font-size: 11px;
+}
+
+/* ---- P14 Agent 角色模型装配 ---- */
+.model-role-list {
+  display: grid;
+  gap: 8px;
+  padding: 16px 18px;
+}
+
+.model-role-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.1fr) minmax(150px, 1fr) minmax(140px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.model-role-copy {
+  min-width: 0;
+}
+
+.model-role-copy strong {
+  display: block;
+  font-size: 12px;
+}
+
+.model-role-copy span {
+  display: block;
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.model-role-copy span.model-role-default {
+  color: var(--text-muted);
+}
+
+.model-role-empty-hint {
+  grid-column: 2 / -1;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.model-role-row .model-models-select {
+  width: 100%;
+  padding: 7px 9px;
+  font-size: 12px;
+}
+
+.model-role-model-input {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.model-role-model-input:focus {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+@media (max-width: 900px) {
+  .model-role-row {
+    grid-template-columns: minmax(140px, 1fr) minmax(130px, 1fr) auto;
+  }
+
+  .model-role-model-input {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 560px) {
+  .model-role-row {
+    grid-template-columns: 1fr;
+  }
 }

@@ -102,7 +102,7 @@ describe('会话导出入口', () => {
   it('空会话提示无可导出内容且不发起导出请求', async () => {
     render_workbench(`/workbench/sessions/${service_session_id}`)
     // 等待消息与 Run 列表加载完成（空会话显示诚实空态提示）。
-    await screen.findByText('该会话还没有可恢复的对话内容')
+    await screen.findByText('还没有对话内容。输入一个问题开始一次只读调查。')
 
     request_paths = []
     fireEvent.click(screen.getByRole('button', { name: '导出' }))

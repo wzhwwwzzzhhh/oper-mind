@@ -2,7 +2,7 @@
    每一列都必须是后端真实返回的差异化事实；每行都一样的常量说明不放进表格。 */
 
 .svc-page {
-  width: min(100%, 1060px);
+  width: min(100%, 1180px);
   margin: 0 auto;
   padding: 0 30px 52px;
 }
@@ -13,7 +13,7 @@
   align-items: center;
   gap: 8px;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .breadcrumb strong {
@@ -70,7 +70,7 @@
   border-radius: 6px;
   color: var(--text-secondary);
   background: var(--surface);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 650;
 }
 
@@ -191,7 +191,7 @@
   min-height: 78px;
   padding: 0 15px;
   border-top: 1px solid var(--border);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .service-row:hover {
@@ -242,7 +242,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .service-name span {
@@ -323,7 +323,7 @@
   border: 0;
   color: var(--accent);
   background: transparent;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 650;
 }
 
@@ -341,13 +341,26 @@
   color: var(--signal);
 }
 
+/* 环境变量声明的内置实例：不可编辑/移除，用等宽标签如实标注来源。 */
+.svc-static-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 7px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
 .svc-empty {
   padding: 30px;
   text-align: center;
   border: 1px dashed var(--border-strong);
   border-radius: 8px;
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.7;
 }
 
@@ -362,7 +375,7 @@
   border-radius: 8px;
   background: var(--surface-soft);
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.6;
 }
 
@@ -402,7 +415,7 @@
   background: transparent;
   color: inherit;
   text-align: left;
-  font-size: 11px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
 }
@@ -533,7 +546,7 @@
   background: transparent;
   color: inherit;
   text-align: left;
-  font-size: 11px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -589,4 +602,91 @@
 .audit-row-button:hover .audit-detail-cue,
 .audit-row-button:focus-visible .audit-detail-cue {
   color: var(--accent);
+}
+
+/* ---------- 接入服务引导式连接表单（B4） ---------- */
+
+/* 比通用 provider 弹窗略宽，给两列连接字段留空间。 */
+.svc-dialog {
+  width: min(560px, 100%);
+}
+
+/* 类型选择：三分段切换，品牌色圆点标识类型，选中态浮起。 */
+.svc-kind-switch {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+}
+
+.svc-kind-opt {
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 0;
+  border-radius: calc(var(--radius) - 3px);
+  color: var(--text-secondary);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.svc-kind-opt:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--surface);
+}
+
+.svc-kind-opt.selected {
+  color: var(--accent);
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.svc-kind-opt:disabled {
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+.svc-kind-mark {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+
+/* 四种已知类型走各自品牌色（与目录 logo 同色），未知类型落结构色。 */
+.svc-kind-mark.pg { background: #3d7198; }
+.svc-kind-mark.mysql { background: #b47838; }
+.svc-kind-mark.redis { background: #a75052; }
+
+/* 连接字段：两列网格，整行字段跨两列。 */
+.svc-field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.svc-field-grid .svc-span2 {
+  grid-column: span 2;
+}
+
+.svc-connect-hint {
+  margin: -2px 0 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+/* 字段下方的解释性说明：把系统概念讲成人话。 */
+.svc-field-hint {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.5;
 }

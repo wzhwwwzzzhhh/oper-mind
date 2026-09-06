@@ -132,7 +132,7 @@ describe('App', () => {
     render(<App />)
 
     // 来自 MSW /api/v1/model/config 的真实返回：diagnostic-model · mock
-    expect(await screen.findByText(/生效模型 diagnostic-model · Mock/)).toBeInTheDocument()
+    expect(await screen.findByText(/当前模型 diagnostic-model · 演示/)).toBeInTheDocument()
     expect(screen.queryByText(/OperMind-Reasoner/)).not.toBeInTheDocument()
   })
 
@@ -158,7 +158,7 @@ describe('App', () => {
     )
     render(<App />)
 
-    expect(await screen.findByText(/生效模型 diagnostic-model · 真实（暂不可用）/)).toBeInTheDocument()
+    expect(await screen.findByText(/当前模型 diagnostic-model · 真实（当前不可用）/)).toBeInTheDocument()
   })
 
   it('欢迎页服务数如实展示"已接入"口径，不再写"在线"', async () => {
@@ -371,7 +371,7 @@ describe('App', () => {
     fireEvent.change(input, { target: { value: '请排查首次连接池问题。' } })
     fireEvent.click(screen.getByRole('button', { name: '发送' }))
 
-    expect(await screen.findByText('IDEMPOTENCY_KEY_REUSED：幂等键已用于不同问题。')).toBeInTheDocument()
+    expect(await screen.findByText('已用同一标识处理过该问题')).toBeInTheDocument()
     expect(input).toBeDisabled()
     expect(post_attempts).toBe(1)
     fireEvent.click(screen.getByRole('button', { name: '丢弃当前发送意图' }))
@@ -441,7 +441,7 @@ describe('App', () => {
     const input = await screen.findByRole('textbox', { name: '调查问题' })
     fireEvent.change(input, { target: { value: submitted_query } })
     fireEvent.click(screen.getByRole('button', { name: '发送' }))
-    expect(await screen.findByText('NETWORK_ERROR：无法连接到服务。')).toBeInTheDocument()
+    expect(await screen.findByText('无法连接到服务。')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '发送' }))
 
     expect(await screen.findByLabelText('用户问题')).toHaveTextContent(submitted_query)
@@ -483,7 +483,7 @@ describe('App', () => {
     render(<App />)
 
     expect(await screen.findByLabelText('助手答复')).toHaveTextContent('初步判断是上游连接池已经耗尽。')
-    expect(screen.getByText('RESULT_PROTOCOL_ERROR')).toBeInTheDocument()
+    expect(screen.getByText('结果数据异常')).toBeInTheDocument()
     expect(screen.queryByText('展开结论、证据与建议')).not.toBeInTheDocument()
   })
 
@@ -492,7 +492,7 @@ describe('App', () => {
     open_path(`/workbench/sessions/${api_v1_contract_fixtures.session_id}`)
     render(<App />)
 
-    expect(await screen.findByText('ANSWER_RECOVERY_PENDING')).toBeInTheDocument()
+    expect(await screen.findByText('回答正在恢复中')).toBeInTheDocument()
     expect(screen.queryByLabelText('助手答复')).not.toBeInTheDocument()
   })
 
@@ -505,7 +505,7 @@ describe('App', () => {
     open_path(`/workbench/sessions/${api_v1_contract_fixtures.session_id}`)
     const failed_view = render(<App />)
 
-    expect(await screen.findByText('TOOL_TIMEOUT')).toBeInTheDocument()
+    expect(await screen.findByText('调查未完成')).toBeInTheDocument()
     expect(screen.queryByLabelText('助手答复')).not.toBeInTheDocument()
     failed_view.unmount()
 
@@ -804,7 +804,7 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: '设为当前偏好' })).not.toBeInTheDocument()
 
     expect(screen.getByRole('button', { name: '＋ 添加模型服务' })).toBeEnabled()
-    expect(await screen.findByText('DeepSeek 生产')).toBeInTheDocument()
+    expect((await screen.findAllByText('DeepSeek 生产')).length).toBeGreaterThan(0)
   })
 
   it('模型配置接口失败时显示错误且不回退静态 Provider', async () => {
@@ -1174,8 +1174,8 @@ describe('App', () => {
     await waitFor(() => expect(request_paths.filter((path) => path === `/api/v1/sessions/${session_id}/runs`).length).toBeGreaterThanOrEqual(2))
     await waitFor(() => expect(request_paths.filter((path) => path === `/api/v1/sessions/${session_id}/messages`).length).toBeGreaterThanOrEqual(2))
     // 重跑请求发出后 invalidate 会话列表：新 Run 展示「重跑自原 Run」，原 Run 展示「已被重跑」。
-    expect(await screen.findByText(/重跑自 Run 33333333/, undefined, { timeout: 3000 })).toBeInTheDocument()
-    expect(await screen.findByText(/已被重跑为 Run aaaaaaaa/)).toBeInTheDocument()
+    expect(await screen.findByText(/由另一次调查重跑生成/, undefined, { timeout: 3000 })).toBeInTheDocument()
+    expect(await screen.findByText(/已被重跑，另有更新结果/)).toBeInTheDocument()
     // 新 Run 是 queued：不提供再次重跑按钮。
     expect(screen.getAllByRole('button', { name: '重新生成' })).toHaveLength(1)
   })
@@ -1309,7 +1309,7 @@ describe('App', () => {
     fireEvent.click(within(dialog!).getByRole('button', { name: '确认删除' }))
 
     // 失败态诚实展示：错误提示出现，消息仍保留（未用本地数据伪造删除成功）。
-    expect(await screen.findByText('MESSAGE_NOT_DELETABLE：只有用户消息可以删除。')).toBeInTheDocument()
+    expect(await screen.findByText('只有用户消息可以删除。')).toBeInTheDocument()
     expect(screen.getByLabelText('用户问题')).toBeInTheDocument()
   })
 

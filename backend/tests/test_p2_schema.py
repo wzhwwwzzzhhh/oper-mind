@@ -40,6 +40,7 @@ BUSINESS_TABLES = {
     "service_monitor_thresholds",
     "model_providers",
     "model_provider_idempotency_keys",
+    "model_role_assignments",
     "service_registry",
     "app_settings",
     "model_usage_records",

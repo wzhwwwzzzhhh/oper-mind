@@ -117,11 +117,11 @@ function ActivityRow({
     <>
       <div className="audit-type">
         <UiTag color={item.kind === 'action' ? 'blue' : 'cyan'}>{TYPE_TEXT[item.type] ?? item.type}</UiTag>
-        <small>{item.kind === 'action' ? '受控动作' : '调查 Run'}</small>
+        <small>{item.kind === 'action' ? '受控动作' : '调查'}</small>
       </div>
       <div className="audit-outcome">
         <UiTag color={OUTCOME_COLORS[item.outcome] ?? 'gold'}>{OUTCOME_TEXT[item.outcome] ?? item.outcome}</UiTag>
-        {item.approval_actor !== null && <small>审批人：{item.approval_actor}</small>}
+        {item.approval_actor !== null && <small>审批人：{item.approval_actor === 'local_operator' ? '本地操作者' : item.approval_actor}</small>}
       </div>
       <div className="audit-service">
         <strong>{service_title}</strong>
@@ -262,16 +262,16 @@ export function AuditPage(): ReactElement {
   return (
     <div className="svc-page">
       <div className="breadcrumb">
-        <span>服务中心</span>
+        <button onClick={() => navigate('/services')} type="button">服务中心</button>
         <span>/</span>
         <strong>审计操作记录</strong>
       </div>
 
       <section className="page-head">
         <div>
-          <div className="eyebrow">Audit trail</div>
+          <div className="eyebrow">审计活动</div>
           <h1>审计操作记录</h1>
-          <p>跨服务跨会话的活动留痕：调查 Run 与受控动作（提案 / 审批 / 执行 / 验证）的安全摘要。</p>
+          <p>跨服务跨会话的活动留痕：调查与受控动作（提案 / 审批 / 执行 / 验证）的安全摘要。</p>
         </div>
         <div className="head-actions">
           <UiButton

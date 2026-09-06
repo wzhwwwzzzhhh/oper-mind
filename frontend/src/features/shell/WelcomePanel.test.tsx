@@ -38,7 +38,7 @@ describe('WelcomePanel', () => {
 
   it('服务列表加载中/失败时如实展示，不冒充 0 个服务', () => {
     const { rerender } = render(<WelcomePanel on_prompt={vi.fn()} services_loading />)
-    expect(screen.getByText('正在读取已接入服务… · 默认只读调查')).toBeInTheDocument()
+    expect(screen.getByText('正在读取服务列表… · 默认只读调查')).toBeInTheDocument()
     expect(screen.queryByText(/个服务已接入/)).not.toBeInTheDocument()
 
     rerender(<WelcomePanel on_prompt={vi.fn()} services_error />)

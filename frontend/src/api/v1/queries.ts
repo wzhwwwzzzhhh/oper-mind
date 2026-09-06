@@ -29,6 +29,7 @@ import {
 export const api_v1_query_keys = {
   model_config: () => ['api-v1', 'model-config'] as const,
   model_providers: () => ['api-v1', 'model-providers'] as const,
+  model_roles: () => ['api-v1', 'model-roles'] as const,
   model_usage: (query: GetModelUsageQuery = {}) => ['api-v1', 'model-usage', query] as const,
   services: () => ['api-v1', 'services'] as const,
   service: (service_id: string) => ['api-v1', 'service', service_id] as const,
@@ -421,6 +422,32 @@ export function verify_model_provider_mutation() {
 export function list_provider_models_mutation() {
   return mutationOptions({
     mutationFn: (provider_id: string) => api_v1_client.list_model_provider_models(provider_id),
+  })
+}
+
+export function list_model_roles_query() {
+  return queryOptions({
+    queryKey: api_v1_query_keys.model_roles(),
+    queryFn: ({ signal }) => api_v1_client.list_model_roles({ signal }),
+  })
+}
+
+export interface AssignModelRoleMutationVariables {
+  role: string
+  provider_id: string
+  model: string | null
+}
+
+export function assign_model_role_mutation() {
+  return mutationOptions({
+    mutationFn: ({ role, provider_id, model }: AssignModelRoleMutationVariables) =>
+      api_v1_client.assign_model_role(role, { provider_id, model }),
+  })
+}
+
+export function unassign_model_role_mutation() {
+  return mutationOptions({
+    mutationFn: (role: string) => api_v1_client.unassign_model_role(role),
   })
 }
 

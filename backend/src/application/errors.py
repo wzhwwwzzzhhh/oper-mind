@@ -155,6 +155,13 @@ class ProviderNotFoundError(ApplicationError):
     message = "模型 Provider 不存在。"
 
 
+class UnknownModelRoleError(ApplicationError):
+    """指定了不存在的 Agent 模型角色。"""
+
+    code = "UNKNOWN_MODEL_ROLE"
+    message = "模型角色不存在。"
+
+
 class SecretKeyNotConfiguredError(ApplicationError):
     """加密主密钥未配置，禁止保存 API Key。"""
 

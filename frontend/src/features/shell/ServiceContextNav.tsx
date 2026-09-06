@@ -27,7 +27,7 @@ export function ServiceContextNav(): ReactElement {
           <div className="svc-context-mark"><Icon name="book" size={15} /></div>
           <div>
             <strong>文档知识库</strong>
-            <span>受管知识目录</span>
+            <span>本地知识目录</span>
           </div>
         </div>
         <p className="svc-label">知识库</p>
@@ -40,13 +40,13 @@ export function ServiceContextNav(): ReactElement {
         <div className="svc-divider" />
         <div className="context-card">
           <small>数据来源</small>
-          <strong>受管知识目录 · 只读</strong>
-          <span>目录由 OPERMIND_KNOWLEDGE_DIR 配置；未配置时如实显示未启用。</span>
+          <strong>知识目录 · 只读</strong>
+          <span>目录由部署方在本地配置；未配置时如实显示未启用。</span>
           <b>只读浏览</b>
         </div>
         <div className="svc-bottom">
           <strong>当前访问边界</strong>
-          只读受管目录 · 凭据文件排除
+          只读浏览目录 · 凭据文件排除
         </div>
       </aside>
     )
