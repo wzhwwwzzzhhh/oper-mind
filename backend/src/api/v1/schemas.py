@@ -143,6 +143,69 @@ class ModelProviderModelsResponse(ApiV1Model):
     meta: ResponseMeta
 
 
+class ModelRoleResource(ApiV1Model):
+    """单个 Agent 角色的模型装配安全视图；source=default 表示回退诊断模型。"""
+
+    role: str
+    label: str
+    source: Literal["default", "assigned"]
+    provider_id: UUID | None = None
+    provider_name: str | None = None
+    # 生效模型名：装配覆盖优先，否则为 Provider 自身模型；default 来源时为 None。
+    model: str | None = None
+
+
+class ModelRoleListResponse(ApiV1Model):
+    """Agent 角色模型装配列表。"""
+
+    roles: list[ModelRoleResource]
+    meta: ResponseMeta
+
+
+class ModelRoleResponse(ApiV1Model):
+    """单个 Agent 角色模型装配响应。"""
+
+    role: ModelRoleResource
+    meta: ResponseMeta
+
+
+class AssignModelRoleRequest(ApiV1Model):
+    """为 Agent 角色装配 Provider；model 留空/空串表示使用 Provider 自身模型。"""
+
+    provider_id: UUID
+    model: str | None = Field(default=None, max_length=120)
+
+
+class EnumerateProviderModelsRequest(ApiV1Model):
+    """用弹窗内未保存的临时凭据枚举模型；API Key 仅在请求体内瞬态出现，不落库。"""
+
+    base_url: str = Field(min_length=1, max_length=500)
+    api_key: str | None = Field(default=None, max_length=1000)
+
+    @field_validator("base_url")
+    @classmethod
+    def validate_base_url(cls, value: str) -> str:
+        """拒绝协议或主机不合法的 Base URL。"""
+        return validate_provider_base_url(value)
+
+    @field_validator("api_key")
+    @classmethod
+    def validate_api_key_length(cls, value: str | None) -> str | None:
+        """非空 API Key 必须达到最小长度，避免把残缺 Key 发往外部 Provider。"""
+        if value is not None and value != "" and len(value) < MIN_API_KEY_LENGTH:
+            raise ValueError(f"API Key 长度至少需要 {MIN_API_KEY_LENGTH} 字符。")
+        return value
+
+
+class EnumerateProviderModelsResponse(ApiV1Model):
+    """临时凭据模型枚举响应；只含模型名与脱敏状态，无凭据/响应体。"""
+
+    status: Literal["ok", "failed", "timeout", "unsupported"]
+    models: list[str] | None = None
+    error_code: str | None = None
+    meta: ResponseMeta
+
+
 class CreateModelProviderRequest(ApiV1Model):
     """新增 Provider 请求。"""
 
@@ -360,6 +423,7 @@ class ServiceResource(ApiV1Model):
     kind: str = Field(min_length=1, max_length=80)
     supported_investigations: list[ServiceInvestigationResource]
     action_boundary: str
+    source: Literal["registry", "env"]
     snapshot: ServiceSnapshotResource
     host_metrics: HostMetricsResource
     has_dsn: bool = False

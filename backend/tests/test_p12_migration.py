@@ -115,7 +115,7 @@ def test_downgrade_with_mysql_row_fails_without_data_loss(tmp_path: Path) -> Non
 def test_alembic_has_one_head() -> None:
     config = Config(str(ALEMBIC_INI))
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == ["20260904_15_p12_mysql_kind"]
+    assert script.get_heads() == ["20260905_16_p14_role_models"]
     assert len(script.get_heads()[0]) <= 32
 
 

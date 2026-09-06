@@ -50,17 +50,20 @@ class ServiceCenterApplicationService:
                 definition=connector.definition(),
                 snapshot=connector.health_snapshot(),
                 host_metrics=host_metrics,
+                source="registry" if registry.is_registered(connector.definition().id) else "env",
             )
             for connector in registry.list_connectors()
         ]
 
     def get_service(self, service_id: str) -> ServiceViewData:
         """读取一个静态服务的身份、当前有限快照与共享主机指标。"""
+        registry = self._required_registry()
         connector = self._get_connector(service_id)
         return ServiceViewData(
             definition=connector.definition(),
             snapshot=connector.health_snapshot(),
             host_metrics=self._host_metrics(),
+            source="registry" if registry.is_registered(service_id) else "env",
         )
 
     def _host_metrics(self) -> HostMetricsData:

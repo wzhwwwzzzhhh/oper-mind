@@ -7,9 +7,12 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from inspect import signature
+from uuid import UUID
 
 from fastapi import Request
 
@@ -20,8 +23,13 @@ from src.application.knowledge import KnowledgeReaderService
 from src.application.message_editing import MessageEditingApplicationService
 from src.application.model_mode import resolve_runtime_mode
 from src.application.model_params import resolve_model_params
+from src.application.model_providers import resolve_role_llm_configs
 from src.application.model_usage import ModelUsageApplicationService
-from src.application.plain_messages import PlainMessageApplicationService
+from src.application.plain_messages import (
+    PLAIN_CHAT_SYSTEM_PROMPT,
+    PLAIN_REPLY_TEMPLATE,
+    PlainMessageApplicationService,
+)
 from src.application.service_center import ServiceCenterApplicationService
 from src.application.service_registration import ServiceRegistrationApplicationService
 from src.application.services import RunApplicationService, SessionApplicationService
@@ -59,7 +67,10 @@ from src.infrastructure.persistence.model_usage_repository import (
     SqlAlchemyUsageRecorder,
 )
 from src.infrastructure.persistence.plain_message_writer import SqlAlchemyPlainMessageWriter
-from src.infrastructure.persistence.repositories import SqlAlchemySessionExportStore
+from src.infrastructure.persistence.repositories import (
+    SqlAlchemyMessageRepository,
+    SqlAlchemySessionExportStore,
+)
 from src.infrastructure.secrets import (
     SecretKeyNotConfiguredError,
     SecretKeyTooShortError,
@@ -72,6 +83,8 @@ from src.infrastructure.services.service_connector_factory import (
     build_service_connector,
     load_registered_services,
 )
+
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -122,15 +135,91 @@ def _resolved_coordinator_factory(runtime: PersistenceRuntime) -> Callable[..., 
     ) -> CoordinatorAgent:
         resolution = resolve_runtime_mode(runtime.session_factory, secret_key)
         params = resolve_model_params(SqlAlchemyAppSettingsStore(runtime.session_factory))
+        model_params = ModelParams(temperature=params["temperature"], max_tokens=params["max_tokens"])
         llm = build_llm_from_config(
             resolution["config"],
-            params=ModelParams(temperature=params["temperature"], max_tokens=params["max_tokens"]),
+            params=model_params,
             usage_recorder=usage_recorder,
             manage_legacy_scenario=False,
         )
-        return build_coordinator(llm, service_id=service_id, binding=binding)
+        if resolution["mode"] == "mock":
+            return build_coordinator(llm, service_id=service_id, binding=binding)
+        # real 模式：为已装配的 Agent 角色解析专属 LLM，其余角色回退默认（诊断）模型。
+        role_llms = {
+            role: build_llm_from_config(
+                {"llm": config},
+                params=model_params,
+                usage_recorder=usage_recorder,
+                manage_legacy_scenario=False,
+            )
+            for role, config in resolve_role_llm_configs(runtime.session_factory, secret_key).items()
+        }
+        return build_coordinator(llm, role_llms=role_llms, service_id=service_id, binding=binding)
 
     return build
+
+
+def _plain_chat_system_prompt() -> str:
+    """把服务器本地日期时间注入普通对话系统提示，避免模型编造/答错日期。"""
+    now = datetime.now(UTC).astimezone()
+    return (
+        f"今天是 {now.year}年{now.month}月{now.day}日，当前时间 {now.strftime('%H:%M')}（服务器本地时间）。"
+        + PLAIN_CHAT_SYSTEM_PROMPT
+    )
+
+
+# 普通对话多轮上下文：最多携带的最近消息条数（含历史 user/assistant，不含系统消息）。
+PLAIN_HISTORY_LIMIT = 8
+
+
+def make_plain_reply_generator(
+    session_factory: SessionFactory,
+    secret_key: bytes | None,
+) -> Callable[[UUID, str], str]:
+    """构造普通消息的真实对话回复生成器。
+
+    mock / 无可用 Key 时返回确定性样例（如实标注未访问外部）；real 时按当前生效
+    模型配置现造 LLM，携带该会话最近几轮普通对话生成简洁中文回复，不注入任何 Tool；
+    调用失败或空响应回退样例。
+    """
+    usage_recorder = SqlAlchemyUsageRecorder(session_factory)
+
+    def generate(session_id: UUID, user_content: str) -> str:
+        try:
+            resolution = resolve_runtime_mode(session_factory, secret_key)
+            config = resolution["config"]
+            if resolution["mode"] == "mock":
+                return PLAIN_REPLY_TEMPLATE
+            api_key = config.get("llm", {}).get("api_key")
+            if not api_key or api_key == "mock":
+                return PLAIN_REPLY_TEMPLATE
+            params = resolve_model_params(SqlAlchemyAppSettingsStore(session_factory))
+            llm = build_llm_from_config(
+                config,
+                params=ModelParams(temperature=params["temperature"], max_tokens=params["max_tokens"]),
+                usage_recorder=usage_recorder,
+                manage_legacy_scenario=False,
+            )
+            session = session_factory()
+            try:
+                history = SqlAlchemyMessageRepository(session).list_latest_by_session(session_id, PLAIN_HISTORY_LIMIT)
+            finally:
+                session.close()
+            messages: list[dict[str, str]] = [{"role": "system", "content": _plain_chat_system_prompt()}]
+            for message in history:
+                if message.role.value in {"user", "assistant"} and message.archived_at is None:
+                    messages.append({"role": message.role.value, "content": message.content})
+            messages.append({"role": "user", "content": user_content})
+            response = llm.chat(messages)
+            content = response.get("content")
+            if isinstance(content, str) and content.strip():
+                return content.strip()
+        except Exception as error:
+            # 模型调用失败不阻塞对话落库：回退确定性样例，如实说明未访问外部。
+            LOGGER.warning("普通消息真实对话回复失败，回退样例：%s", type(error).__name__)
+        return PLAIN_REPLY_TEMPLATE
+
+    return generate
 
 
 def _load_secret_key_or_none() -> bytes | None:
@@ -232,7 +321,10 @@ def build_v1_services_for_runtime(
             action_mode=action_mode,
             registry=registry,
         ),
-        plain_message_service=PlainMessageApplicationService(SqlAlchemyPlainMessageWriter(session_factory)),
+        plain_message_service=PlainMessageApplicationService(
+            SqlAlchemyPlainMessageWriter(session_factory),
+            reply_generator=make_plain_reply_generator(session_factory, secret_key),
+        ),
         message_editing_service=MessageEditingApplicationService(SqlAlchemyMessageEditingWriter(session_factory)),
         action_service=action_service,
         service_center=ServiceCenterApplicationService(

@@ -542,6 +542,153 @@ def test_枚举为无副作用只读探测(api_client: TestClient, monkeypatch: 
     assert listed["last_verified_at"] is None
 
 
+def test_临时凭据枚举成功返回模型列表(api_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """添加弹窗内填好 Base URL + API Key 即可枚举模型，无需先保存 Provider。"""
+    _stub_list_models(monkeypatch, "ok", models=["deepseek-chat", "deepseek-reasoner"])
+
+    response = api_client.post(
+        "/api/v1/model/providers/enumerate-models",
+        json={"base_url": "https://api.deepseek.com/v1", "api_key": PLAINTEXT_VALUE},
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["models"] == ["deepseek-chat", "deepseek-reasoner"]
+    assert body["error_code"] is None
+    assert PLAINTEXT_VALUE not in response.text
+
+
+def test_临时凭据枚举失败返回脱敏状态(api_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """临时凭据枚举失败只返回脱敏分类码，不暴露响应体或凭据。"""
+    _stub_list_models(monkeypatch, "failed", error_code="HTTP_401")
+
+    response = api_client.post(
+        "/api/v1/model/providers/enumerate-models",
+        json={"base_url": "https://api.deepseek.com/v1", "api_key": PLAINTEXT_VALUE},
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] == "failed"
+    assert body["models"] is None
+    assert body["error_code"] == "HTTP_401"
+    assert PLAINTEXT_VALUE not in response.text
+
+
+def test_临时凭据枚举空Key诚实失败(api_client: TestClient) -> None:
+    """未提供 API Key 时不发起任何外部请求，诚实标记 NO_API_KEY。"""
+    response = api_client.post(
+        "/api/v1/model/providers/enumerate-models",
+        json={"base_url": "https://api.deepseek.com/v1", "api_key": ""},
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] == "failed"
+    assert body["error_code"] == "NO_API_KEY"
+
+
+def test_临时凭据枚举非法BaseURL拒绝(api_client: TestClient) -> None:
+    """Base URL 协议/主机不合法应被 422 拒绝，不发起请求。"""
+    response = api_client.post(
+        "/api/v1/model/providers/enumerate-models",
+        json={"base_url": "not-a-url", "api_key": PLAINTEXT_VALUE},
+    )
+    assert response.status_code == 422, response.text
+
+
+def test_临时凭据枚举残缺Key拒绝(api_client: TestClient) -> None:
+    """残缺 API Key 应被 422 拒绝，不把残缺 Key 发往外部 Provider。"""
+    response = api_client.post(
+        "/api/v1/model/providers/enumerate-models",
+        json={"base_url": "https://api.deepseek.com/v1", "api_key": "short"},
+    )
+    assert response.status_code == 422, response.text
+
+
+def test_角色装配初始全为默认(api_client: TestClient) -> None:
+    """未装配任何角色时，全部 Agent 角色都应回退默认模型。"""
+    response = api_client.get("/api/v1/model/roles")
+    assert response.status_code == 200, response.text
+    roles = response.json()["roles"]
+    assert len(roles) == 7
+    assert all(role["source"] == "default" for role in roles)
+
+
+def test_装配角色后视图反映生效模型(api_client: TestClient) -> None:
+    """为角色装配 Provider 与模型覆盖，视图应如实反映生效模型与 Provider 名。"""
+    provider = _create_provider(api_client, api_key=PLAINTEXT_VALUE)
+
+    response = api_client.put(
+        "/api/v1/model/roles/db",
+        json={"provider_id": provider["id"], "model": "deepseek-reasoner"},
+    )
+    assert response.status_code == 200, response.text
+    role = response.json()["role"]
+    assert role["role"] == "db"
+    assert role["source"] == "assigned"
+    assert role["provider_id"] == provider["id"]
+    assert role["provider_name"] == "DeepSeek"
+    assert role["model"] == "deepseek-reasoner"
+
+    db_role = next(r for r in api_client.get("/api/v1/model/roles").json()["roles"] if r["role"] == "db")
+    assert db_role["source"] == "assigned"
+    assert db_role["model"] == "deepseek-reasoner"
+
+
+def test_装配不存在的角色返回422(api_client: TestClient) -> None:
+    provider = _create_provider(api_client, api_key=PLAINTEXT_VALUE)
+    response = api_client.put("/api/v1/model/roles/not-a-role", json={"provider_id": provider["id"]})
+    assert response.status_code == 422, response.text
+
+
+def test_装配不存在的Provider返回404(api_client: TestClient) -> None:
+    response = api_client.put("/api/v1/model/roles/db", json={"provider_id": str(uuid4())})
+    assert response.status_code == 404, response.text
+
+
+def test_取消装配角色回退默认(api_client: TestClient) -> None:
+    provider = _create_provider(api_client, api_key=PLAINTEXT_VALUE)
+    api_client.put("/api/v1/model/roles/log", json={"provider_id": provider["id"]})
+
+    response = api_client.delete("/api/v1/model/roles/log")
+    assert response.status_code == 204
+
+    log_role = next(r for r in api_client.get("/api/v1/model/roles").json()["roles"] if r["role"] == "log")
+    assert log_role["source"] == "default"
+
+
+def test_角色配置解析解密为生效llm配置(api_client: TestClient) -> None:
+    """装配角色的 LLM 配置应按 Provider 解析；明文 Key 只在本函数内解密，未装配角色不返回。"""
+    from src.application.model_providers import resolve_role_llm_configs
+    from src.infrastructure.secrets import load_secret_key
+
+    provider = _create_provider(api_client, api_key=PLAINTEXT_VALUE)
+    api_client.put("/api/v1/model/roles/server", json={"provider_id": provider["id"], "model": "server-model-x"})
+
+    configs = resolve_role_llm_configs(api_client.app.state.v1_services.session_factory, load_secret_key())
+    assert "server" in configs
+    assert configs["server"]["model"] == "server-model-x"
+    assert configs["server"]["base_url"] == "https://api.deepseek.com/v1"
+    assert configs["server"]["api_key"] == PLAINTEXT_VALUE
+    assert "db" not in configs
+
+
+def test_删除Provider清理角色装配(api_client: TestClient) -> None:
+    """删除 Provider 应级联清理其角色装配，相关角色回退默认。"""
+    provider = _create_provider(api_client, api_key=PLAINTEXT_VALUE)
+    api_client.put("/api/v1/model/roles/reflection", json={"provider_id": provider["id"]})
+
+    deleted = api_client.delete(f"/api/v1/model/providers/{provider['id']}")
+    assert deleted.status_code == 204
+
+    reflection_role = next(
+        r for r in api_client.get("/api/v1/model/roles").json()["roles"] if r["role"] == "reflection"
+    )
+    assert reflection_role["source"] == "default"
+
+
 def test_存量judge激活Provider公开投影为未启用() -> None:
     """存量 judge 激活行保留，但公开投影值收口为 null（issue #104，Design D7）。"""
     from src.api.v1.resources import provider_resource

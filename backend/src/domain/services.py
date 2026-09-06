@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from enum import Enum
 from hashlib import sha256
 from threading import Lock, RLock
-from typing import Protocol, runtime_checkable
+from typing import Literal, Protocol, runtime_checkable
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -171,6 +171,7 @@ class ServiceViewData(ServiceDomainModel):
     definition: ServiceDefinitionData
     snapshot: ServiceSnapshotData
     host_metrics: HostMetricsData
+    source: Literal["registry", "env"]
 
 
 class ServiceActivityData(ServiceDomainModel):
@@ -387,6 +388,7 @@ class ServiceRegistry:
             self._validate_connector(connector)
         self._connectors = {connector.definition().id: connector for connector in connectors}
         self._poisoned_service_ids: frozenset[str] = frozenset()
+        self._registered_ids: frozenset[str] = frozenset()
         self._mutation_locks: dict[str, RLock] = {}
         self._mutation_locks_guard = Lock()
         self._mutation_epoch = RLock()
@@ -445,6 +447,11 @@ class ServiceRegistry:
         with self._mutation_epoch:
             return frozenset(self._connectors) - self._poisoned_service_ids
 
+    def is_registered(self, service_id: str) -> bool:
+        """该实例是否为运行时动态注册（registry），而非静态 env 声明。"""
+        with self._mutation_epoch:
+            return service_id in self._registered_ids
+
     def register(self, connector: ServiceConnector) -> None:
         """运行时注册一个 Connector；实例 ID 冲突时抛 ValueError。"""
         definition, _, _ = self._validate_connector(connector)
@@ -455,6 +462,7 @@ class ServiceRegistry:
             next_table = dict(current)
             next_table[definition.id] = connector
             self._connectors = next_table
+            self._registered_ids = self._registered_ids | {definition.id}
 
     def replace(self, connector: ServiceConnector, expected: ServiceConnector | None = None) -> bool:
         """运行时替换一个已注册 Connector；不存在时注册并返回 False。"""
@@ -478,6 +486,7 @@ class ServiceRegistry:
             next_table = dict(current)
             del next_table[service_id]
             self._connectors = next_table
+            self._registered_ids = self._registered_ids - {service_id}
             return True
 
     def poison(self, service_id: str) -> None:

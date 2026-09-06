@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Protocol
 from uuid import UUID
 
@@ -24,6 +25,18 @@ PLAIN_REPLY_TEMPLATE = (
     "这是普通对话回复：本次未启动调查，也未访问任何外部服务。"
     "如果你想排查慢查询、连接池、索引等问题，可以直接描述，我会发起只读调查。"
 )
+
+# 真实对话模式下普通消息的系统提示：不注入任何 Tool，不声称执行过调查/外部访问。
+PLAIN_CHAT_SYSTEM_PROMPT = (
+    "你是 OperMind 运维助手。当前是一轮普通对话：不涉及任何服务调查、数据库访问或外部调用。"
+    "请用简洁的中文回复。如果用户描述的是具体运维问题（慢查询、连接池、锁、日志、报错、超时等），"
+    "引导他们直接描述问题，系统会发起只读调查。不要声称你执行过任何查询、调查或外部访问。"
+)
+
+
+def _template_reply_generator(session_id: UUID, user_content: str) -> str:
+    del session_id, user_content
+    return PLAIN_REPLY_TEMPLATE
 
 
 class SendPlainMessageCommand(ApplicationCommand):
@@ -66,21 +79,27 @@ class PlainMessageApplicationService:
     user + assistant 两条消息，assistant 时间戳严格晚于 user，保证顺序稳定。
     """
 
-    def __init__(self, writer: PlainMessageWriter) -> None:
+    def __init__(
+        self,
+        writer: PlainMessageWriter,
+        reply_generator: Callable[[UUID, str], str] | None = None,
+    ) -> None:
         self._writer = writer
+        self._reply_generator = reply_generator or _template_reply_generator
 
     def send_plain_message(
         self,
         session_id: UUID,
         command: SendPlainMessageCommand,
     ) -> PlainMessageResult:
-        """校验意图并落库普通消息对，返回两条消息。"""
+        """校验意图，生成回复并落库普通消息对，返回两条消息。"""
         content = command.content.strip()
         if requires_database_context(content):
             raise InvestigationRequiredError()
+        reply_content = self._reply_generator(session_id, content)
         user_message, assistant_message = self._writer.send_plain_message(
             session_id,
             content,
-            PLAIN_REPLY_TEMPLATE,
+            reply_content,
         )
         return PlainMessageResult(user_message=user_message, assistant_message=assistant_message)
