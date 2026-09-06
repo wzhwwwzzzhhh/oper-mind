@@ -58,7 +58,10 @@ describe('ServiceCenterPage 服务注册（P8）', () => {
 
     await screen.findByText('服务目录')
     fireEvent.click(screen.getByText('＋ 添加服务'))
-    expect(screen.getByRole('option', { name: 'MySQL' })).toHaveValue('mysql')
+    const mysql_kind = screen.getByRole('radio', { name: 'MySQL' })
+    expect(mysql_kind).toBeInTheDocument()
+    fireEvent.click(mysql_kind)
+    expect(mysql_kind).toHaveAttribute('aria-checked', 'true')
   })
 
   it('列表展示掩码尾号与已配置状态（AC1/AC4）', async () => {
@@ -100,8 +103,12 @@ describe('ServiceCenterPage 服务注册（P8）', () => {
     fireEvent.click(screen.getByText('＋ 添加服务'))
 
     fireEvent.change(screen.getByLabelText('实例 ID'), { target: { value: 'postgres-orders' } })
-    fireEvent.change(screen.getByLabelText('标题'), { target: { value: '订单 PostgreSQL' } })
-    fireEvent.change(screen.getByLabelText('DSN'), { target: { value: 'postgresql://u:p@127.0.0.1:5432/orders' } })
+    fireEvent.change(screen.getByLabelText('显示名称'), { target: { value: '订单 PostgreSQL' } })
+    fireEvent.change(screen.getByLabelText('主机'), { target: { value: '127.0.0.1' } })
+    fireEvent.change(screen.getByLabelText('端口'), { target: { value: '5432' } })
+    fireEvent.change(screen.getByLabelText('数据库名'), { target: { value: 'orders' } })
+    fireEvent.change(screen.getByLabelText('用户名'), { target: { value: 'u' } })
+    fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'p' } })
     fireEvent.click(screen.getByRole('button', { name: '接入服务' }))
 
     await waitFor(() => {
@@ -141,12 +148,24 @@ describe('ServiceCenterPage 服务注册（P8）', () => {
     await screen.findByText('订单服务靶场')
     fireEvent.click(screen.getByText('编辑'))
 
-    fireEvent.change(screen.getByLabelText('标题'), { target: { value: '订单库已换' } })
+    fireEvent.change(screen.getByLabelText('显示名称'), { target: { value: '订单库已换' } })
     fireEvent.click(screen.getByText('保存修改'))
 
     await waitFor(() => {
       expect(screen.getByText('服务已更新。')).toBeInTheDocument()
     })
+  })
+
+  it('env 声明的内置实例隐藏编辑/移除并标注来源', async () => {
+    server.use(http.get('/api/v1/services', () => HttpResponse.json({ items: [api_v1_contract_fixtures.env_service], meta: { request_id: 'env1' } })))
+    open_service_center()
+    render(<App />)
+
+    expect(await screen.findByText('预发布 PostgreSQL 主库')).toBeInTheDocument()
+    expect(screen.getByText('环境变量声明')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '移除' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '编辑' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '测试连接' })).toBeInTheDocument()
   })
 
   it('移除服务确认后从列表消失（AC6）', async () => {

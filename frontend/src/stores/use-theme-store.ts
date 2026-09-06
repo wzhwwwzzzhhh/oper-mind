@@ -3,8 +3,8 @@ import { create } from 'zustand'
 /** 三套主题，与 design-tokens.css 的 :root / html[data-theme=...] 对应。
  *  差异是对比度策略而不是色相轮换：亮场值守、夜间值守、高对比。 */
 export const THEMES = [
-  { key: 'vellum', name: '蓝图亮色', desc: '冷调亮场，适合白天与共享屏幕' },
-  { key: 'petrol', name: '深油青', desc: '低照度夜间值守，长时间盯屏更省眼' },
+  { key: 'vellum', name: '日光纸白', desc: '冷调亮场，适合白天与共享屏幕' },
+  { key: 'petrol', name: '深靛夜色', desc: '低照度夜间值守，长时间盯屏更省眼' },
   { key: 'carbon', name: '高对比暗色', desc: '更强的文字与描边对比' },
 ] as const
 

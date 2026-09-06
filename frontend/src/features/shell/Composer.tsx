@@ -77,7 +77,7 @@ export function Composer({
             </button>
           </div>
         </div>
-        <div className="disclaimer">OperMind 可能会犯错，请核验关键事实。所有外部服务访问均需经过受控连接器。</div>
+        <div className="disclaimer">OperMind 可能会犯错，请核验关键事实。所有外部服务访问均受控且默认只读。</div>
       </div>
     </div>
   )

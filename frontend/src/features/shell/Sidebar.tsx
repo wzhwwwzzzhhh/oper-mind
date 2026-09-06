@@ -213,14 +213,16 @@ export function Sidebar({ collapsed, on_collapse }: SidebarProps): ReactElement 
           </div>
         )}
       </nav>
-      <button className="approvals-entry" onClick={() => navigate('/workbench/runs')} type="button">
-        <Icon className="icon" name="clock" size={15} />
-        <span>最近调查</span>
-      </button>
-      <button className="approvals-entry" onClick={() => navigate('/workbench/approvals')} type="button">
-        <Icon className="icon" name="stack" size={15} />
-        <span>待审批</span>
-      </button>
+      <div className="chat-bottom-actions">
+        <button className="approvals-entry" onClick={() => navigate('/workbench/runs')} type="button">
+          <Icon className="icon" name="clock" size={15} />
+          <span>最近调查</span>
+        </button>
+        <button className="approvals-entry" onClick={() => navigate('/workbench/approvals')} type="button">
+          <Icon className="icon" name="stack" size={15} />
+          <span>待审批</span>
+        </button>
+      </div>
     </aside>
   )
 }

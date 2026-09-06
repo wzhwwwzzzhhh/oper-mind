@@ -18,6 +18,7 @@ const order_service = {
   id: 'postgres-production',
   title: '订单服务靶场',
   kind: 'postgres_orders_demo',
+  source: 'registry',
   supported_investigations: [{
     id: 'orders_slow_query.v1',
     title: '调查订单慢查询',
@@ -63,6 +64,57 @@ const order_service = {
       { name: 'java', pid: 5678, cpu_percent: null, memory_percent: 45 },
     ],
   },
+}
+
+const env_service = {
+  id: 'postgres-staging',
+  title: '预发布 PostgreSQL 主库',
+  kind: 'postgres',
+  source: 'env',
+  supported_investigations: [{
+    id: 'service_health_pressure.v1',
+    title: 'PostgreSQL 健康与连接压力概览',
+    description: '固定只读标量',
+    default_query: '请对当前服务执行只读健康与连接压力调查。',
+  }],
+  action_boundary: '只读调查，不执行任何写入或结构变更。',
+  snapshot: {
+    observed_at: '2026-09-05T00:00:00.000Z',
+    mode: 'disabled',
+    availability: 'not_configured',
+    performance_signal: 'not_configured',
+    server_metrics: {
+      source_status: 'not_configured',
+      window_size: null,
+      p50_ms: null,
+      p95_ms: null,
+      slow_query_count: null,
+      timeout_count: null,
+      memory_bytes: null,
+      client_connections: null,
+      slowlog_count: null,
+    },
+    database: { source_status: 'not_configured', signal: 'not_configured' },
+  },
+  host_metrics: {
+    mode: 'target',
+    source_status: 'available',
+    observed_at: '2026-09-05T00:00:00.000Z',
+    cpu_percent: 8,
+    cpu_count: 8,
+    load_avg_1m: 0.2,
+    memory_total_bytes: 17179869184,
+    memory_used_bytes: 8000000000,
+    memory_percent: 46,
+    disk_used_percent: 60,
+    disk_top_partitions: [],
+    network_connections: 0,
+    network_established: 0,
+    network_time_wait: 0,
+    abnormal_processes: [],
+  },
+  has_dsn: false,
+  dsn_masked_tail: null,
 }
 
 const service_session = {
@@ -220,6 +272,7 @@ const redis_service = {
   id: 'redis-production',
   title: '生产 Redis 缓存',
   kind: 'redis',
+  source: 'registry',
   supported_investigations: [],
   action_boundary: '只读监控，不执行任何写入、配置变更或键空间访问。',
   snapshot: {
@@ -612,6 +665,19 @@ const provider_fixture = {
   updated_at: '2026-08-06T03:00:00.000Z',
 }
 
+const MODEL_ROLE_DEFS = [
+  { role: 'coordinator', label: '协调器' },
+  { role: 'db', label: '数据库 Agent' },
+  { role: 'server', label: '服务器 Agent' },
+  { role: 'log', label: '日志 Agent' },
+  { role: 'knowledge', label: '知识库 Agent' },
+  { role: 'debate', label: '辩论' },
+  { role: 'reflection', label: '复核' },
+]
+
+/** P14 角色→Provider 装配的测试内存存储。 */
+const stored_model_roles = new Map<string, { provider_id: string; model: string | null }>()
+
 const usage_items = [
   {
     model: 'deepseek-chat',
@@ -822,6 +888,49 @@ export const api_v1_handlers = [
       error_code: null,
     }),
   ),
+  http.post('/api/v1/model/providers/enumerate-models', async ({ request }) => {
+    const payload = await request.json() as { api_key?: string }
+    if (!payload.api_key) {
+      return response(request, { status: 'failed', models: null, error_code: 'NO_API_KEY' })
+    }
+    return response(request, { status: 'ok', models: ['deepseek-chat', 'deepseek-reasoner'], error_code: null })
+  }),
+  http.get('/api/v1/model/roles', ({ request }) => {
+    const roles = MODEL_ROLE_DEFS.map((def) => {
+      const assignment = stored_model_roles.get(def.role)
+      if (!assignment) {
+        return { ...def, source: 'default', provider_id: null, provider_name: null, model: null }
+      }
+      return {
+        ...def,
+        source: 'assigned',
+        provider_id: assignment.provider_id,
+        provider_name: assignment.provider_id === provider_fixture.id ? provider_fixture.name : null,
+        model: assignment.model ?? provider_fixture.model,
+      }
+    })
+    return response(request, { roles })
+  }),
+  http.put('/api/v1/model/roles/:role', async ({ request, params }) => {
+    const role = String(params.role)
+    const body = await request.json() as { provider_id?: string; model?: string | null }
+    stored_model_roles.set(role, { provider_id: body.provider_id ?? '', model: body.model?.trim() ? body.model : null })
+    const def = MODEL_ROLE_DEFS.find((d) => d.role === role)
+    return response(request, {
+      role: {
+        role,
+        label: def?.label ?? role,
+        source: 'assigned',
+        provider_id: body.provider_id ?? null,
+        provider_name: body.provider_id === provider_fixture.id ? provider_fixture.name : null,
+        model: body.model?.trim() ? body.model : provider_fixture.model,
+      },
+    })
+  }),
+  http.delete('/api/v1/model/roles/:role', ({ params }) => {
+    stored_model_roles.delete(String(params.role))
+    return HttpResponse.json(null, { status: 204 })
+  }),
   http.delete('/api/v1/model/providers/:provider_id', () =>
     HttpResponse.json(null, { status: 204 }),
   ),
@@ -1130,4 +1239,4 @@ export const api_v1_contract_scenarios = {
   network_interruption: http.get(/\/api\/v1\/sessions$/, () => HttpResponse.error()),
 }
 
-export const api_v1_contract_fixtures = { accepted_run_id, archived_session_id, audit_activities, cancelled_run_id, default_monitor_thresholds, empty_result_run_id, failed_run_id, order_service, protocol_error_run_id, provider_fixture, redis_monitor_history, redis_service, run_events, run_id, service_activity, service_monitor_history, service_monitor_overview, service_run_id, service_session, service_session_id, session_id, trace_id }
+export const api_v1_contract_fixtures = { accepted_run_id, archived_session_id, audit_activities, cancelled_run_id, default_monitor_thresholds, empty_result_run_id, env_service, failed_run_id, order_service, protocol_error_run_id, provider_fixture, redis_monitor_history, redis_service, run_events, run_id, service_activity, service_monitor_history, service_monitor_overview, service_run_id, service_session, service_session_id, session_id, trace_id }

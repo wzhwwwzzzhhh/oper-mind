@@ -47,7 +47,7 @@ export function WelcomePanel({
 }: WelcomePanelProps): ReactElement {
   // 服务数是"已接入（注册）"口径，不是在线数；加载/失败时不冒充 0 个服务。
   const service_count_text = services_loading
-    ? '正在读取已接入服务…'
+    ? '正在读取服务列表…'
     : services_error
       ? '服务列表暂不可读'
       : `${service_count} 个服务已接入`

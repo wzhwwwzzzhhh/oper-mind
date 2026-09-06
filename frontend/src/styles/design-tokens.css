@@ -1,8 +1,9 @@
 /* OperMind 设计系统 —— 主题 token 与基础样式
    设计命题：这是一台工程记录仪，不是营销仪表盘。
-   颜色编码"认知状态"而不是装饰：翡翠=已核实事实，琥珀=需关注，砖红=严重，
+   颜色编码"认知状态"而不是装饰：绿=已核实正常，琥珀=需关注，砖红=严重，
    未知/不可用不给色相，改用斜纹填充（--hatch），让"服务端没返回"这件事本身可见。
-   主题只切换视觉 token，不改变页面结构与语义。 */
+   结构色走群青蓝家族（画布冷纸白、图标轨深靛），与状态色（绿/琥珀/红）彻底分离，
+   不再出现"整屏同色相"的浑浊感。主题只切换视觉 token，不改变页面结构与语义。 */
 
 :root {
   color-scheme: light;
@@ -11,52 +12,53 @@
   --font-body: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
   --font-mono: 'JetBrains Mono', 'SFMono-Regular', 'SF Mono', ui-monospace, 'Cascadia Mono', Consolas, 'Liberation Mono', monospace;
   --tracking-label: 0.09em;
-  --tracking-kicker: 0.14em;
+  --tracking-kicker: 0.1em;
 
-  /* 面：冷蓝图米白打底，内容面浮在上层，明度差本身就是结构。 */
-  --canvas: #e8edec;
-  --surface: #fbfcfc;
-  --surface-soft: #f1f5f4;
-  --surface-muted: #e2e9e8;
-  --surface-rail: #f4f7f6;
-  --border: #d2dbd9;
-  --border-strong: #b6c4c1;
+  /* 面：冷纸白画布——白偏一点冷蓝灰，内容面纯白，靠明度差画出结构。 */
+  --canvas: #f4f6f9;
+  --surface: #ffffff;
+  --surface-soft: #f5f7fa;
+  --surface-muted: #e8ecf2;
+  --surface-rail: #f7f9fc;
+  --border: #dbe1ea;
+  --border-strong: #bcc6d4;
 
-  /* 墨：深油青黑，不是中性灰黑。 */
-  --text: #14201f;
-  --text-secondary: #566865;
-  --text-muted: #7f8e8a;
+  /* 墨：靛黑正文，次级与弱化保持清晰分层，不漂成灰。 */
+  --text: #191d27;
+  --text-secondary: #4a5261;
+  --text-muted: #68727f;
 
-  /* 结构色：深油青。--accent-on 是压在 accent 实心块上的字色，
-     暗色主题里 accent 变浅，必须换成深字，不能一律用白。 */
-  --accent: #0f5c63;
-  --accent-hover: #0a464c;
-  --accent-soft: #dfebeb;
-  --accent-line: #7fa9ac;
+  /* 结构色：群青钴蓝——比默认 SaaS 蓝更深更沉着，与成功绿彻底分离。 */
+  --accent: #2d4fd7;
+  --accent-hover: #2440b8;
+  --accent-soft: #e8ecfc;
+  --accent-line: #9aa8e8;
   --accent-on: #ffffff;
 
   /* 认知状态语义色。 */
-  --success: #1f6b52;
-  --success-soft: #ddece5;
-  --warning: #9c5d15;
-  --warning-soft: #f9e9d2;
-  --danger: #a3423c;
-  --danger-soft: #f6e2df;
-  --unknown: #6f7e7a;
-  --unknown-soft: #e9edec;
+  --success: #217a53;
+  --success-soft: #dceede;
+  --warning: #95590d;
+  --warning-soft: #f9e8c9;
+  --danger: #bb4639;
+  --danger-soft: #f8e3de;
+  --unknown: #6d7684;
+  --unknown-soft: #e9ecf1;
 
-  /* 钠灯琥珀：全局唯一高亮信号，只给"需关注"与每屏唯一主操作。 */
-  --signal: #e0912c;
+  /* 琥珀信号：全局唯一高亮信号，只给"需关注"与每屏唯一主操作。 */
+  --signal: #e8940f;
 
-  /* 深色图标轨 chrome：整个应用的视觉锚点。 */
-  --rail-bg: #0e2a2b;
-  --rail-line: #1d413f;
-  --rail-text: #8aa7a3;
-  --rail-text-active: #f2f6f5;
-  --rail-active: rgba(224, 145, 44, 0.16);
+  /* 深靛图标轨 chrome：整个应用的视觉锚点。
+     激活态走浅钢蓝（与 accent 同族），琥珀 --signal 只留给"需关注"语义。 */
+  --rail-bg: #171d32;
+  --rail-line: #2a3252;
+  --rail-text: #8d97b8;
+  --rail-text-active: #f1f4fb;
+  --rail-active: rgba(143, 165, 240, 0.15);
+  --rail-active-color: #9fb1f2;
 
   /* 未知状态的斜纹填充：把"缺失"画出来，而不是留白或编造。 */
-  --hatch: repeating-linear-gradient(135deg, transparent 0 5px, rgba(111, 126, 122, 0.15) 5px 6px);
+  --hatch: repeating-linear-gradient(135deg, transparent 0 5px, rgba(109, 118, 132, 0.15) 5px 6px);
 
   --radius-sm: 4px;
   --radius: 7px;
@@ -69,10 +71,11 @@
   /* 输入区比正文阅读宽度更宽：正文要控制行长便于阅读，
      输入区要装得下多行问题和工具条，两者不共用一个宽度。 */
   --composer-max-width: 900px;
-  --shadow-float: 0 14px 40px rgba(15, 40, 42, 0.16);
+  --shadow-subtle: 0 1px 2px rgba(18, 24, 48, 0.08);
+  --shadow-float: 0 14px 40px rgba(18, 24, 48, 0.16);
 
-  /* 弹窗遮罩：亮色下压深油青，暗色主题各自加浓。 */
-  --scrim: rgba(12, 31, 32, 0.38);
+  /* 弹窗遮罩：亮色下压深靛，暗色主题各自加浓。 */
+  --scrim: rgba(14, 20, 42, 0.38);
 }
 
 * {
@@ -128,39 +131,41 @@ button {
   }
 }
 
-/* 深油青暗色：夜间与低照度值守。 */
+/* 深靛夜色：夜间与低照度值守，与亮色同一台仪器、同一色相家族。 */
 html[data-theme='petrol'] {
   color-scheme: dark;
-  --canvas: #0c1f20;
-  --surface: #14302f;
-  --surface-soft: #1a3a38;
-  --surface-muted: #102827;
-  --surface-rail: #132c2c;
-  --border: #224846;
-  --border-strong: #326460;
-  --text: #e6efed;
-  --text-secondary: #a3bbb7;
-  --text-muted: #7b9591;
-  --accent: #58b0b2;
-  --accent-hover: #7ac6c7;
-  --accent-soft: #17403f;
-  --accent-line: #3d7d7d;
-  --accent-on: #062021;
-  --success: #62bd97;
-  --success-soft: #17402f;
-  --warning: #dfa257;
-  --warning-soft: #43301a;
-  --danger: #d9827c;
-  --danger-soft: #452627;
-  --unknown: #86a09b;
-  --unknown-soft: #17302f;
+  --canvas: #0e1220;
+  --surface: #151b2e;
+  --surface-soft: #1b2238;
+  --surface-muted: #121830;
+  --surface-rail: #141a2c;
+  --border: #273052;
+  --border-strong: #3a4670;
+  --text: #e5e9f4;
+  --text-secondary: #a3abca;
+  --text-muted: #7b84a6;
+  --accent: #7f95e8;
+  --accent-hover: #9aabf0;
+  --accent-soft: #1d2a52;
+  --accent-line: #3d4e8c;
+  --accent-on: #0b1226;
+  --success: #5fc08e;
+  --success-soft: #16352a;
+  --warning: #e0a24f;
+  --warning-soft: #40301a;
+  --danger: #e08278;
+  --danger-soft: #442626;
+  --unknown: #8790ab;
+  --unknown-soft: #1a2033;
   --signal: #e8a446;
-  --rail-bg: #081617;
-  --rail-line: #16332f;
-  --rail-text: #7b9591;
-  --rail-text-active: #f2f6f5;
-  --rail-active: rgba(232, 164, 70, 0.18);
-  --hatch: repeating-linear-gradient(135deg, transparent 0 5px, rgba(134, 160, 155, 0.2) 5px 6px);
+  --rail-bg: #080b16;
+  --rail-line: #1a2038;
+  --rail-text: #7b84a6;
+  --rail-text-active: #f1f4fb;
+  --rail-active: rgba(143, 165, 240, 0.16);
+  --rail-active-color: #9fb1f2;
+  --hatch: repeating-linear-gradient(135deg, transparent 0 5px, rgba(135, 144, 171, 0.2) 5px 6px);
+  --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.5);
   --shadow-float: 0 16px 44px rgba(0, 0, 0, 0.44);
   --scrim: rgba(0, 0, 0, 0.58);
 }
@@ -168,36 +173,38 @@ html[data-theme='petrol'] {
 /* 高对比暗色：为对比度敏感场景提供更强的文字与描边对比。 */
 html[data-theme='carbon'] {
   color-scheme: dark;
-  --canvas: #101212;
-  --surface: #1b1f1f;
-  --surface-soft: #242929;
-  --surface-muted: #161a1a;
-  --surface-rail: #191d1d;
-  --border: #353d3d;
-  --border-strong: #55605f;
-  --text: #f4f7f6;
-  --text-secondary: #bfc9c7;
-  --text-muted: #97a3a1;
-  --accent: #7fd3d3;
-  --accent-hover: #a3e4e4;
-  --accent-soft: #1f3535;
-  --accent-line: #4e8484;
-  --accent-on: #06181a;
-  --success: #79d3a7;
-  --success-soft: #17372a;
+  --canvas: #0d0f13;
+  --surface: #1a1e26;
+  --surface-soft: #232833;
+  --surface-muted: #171b23;
+  --surface-rail: #1b1f28;
+  --border: #383f4d;
+  --border-strong: #5a6376;
+  --text: #f3f5f9;
+  --text-secondary: #c2c9d6;
+  --text-muted: #9aa3b2;
+  --accent: #8fa5f0;
+  --accent-hover: #adbcf5;
+  --accent-soft: #202a44;
+  --accent-line: #4a5a94;
+  --accent-on: #0a0f1e;
+  --success: #74d09c;
+  --success-soft: #15372a;
   --warning: #f0b268;
-  --warning-soft: #3d2d18;
-  --danger: #ef958e;
-  --danger-soft: #432624;
-  --unknown: #9aa6a4;
-  --unknown-soft: #232828;
+  --warning-soft: #3c2d18;
+  --danger: #f09088;
+  --danger-soft: #42241f;
+  --unknown: #a0a9b8;
+  --unknown-soft: #22262e;
   --signal: #f5b45c;
   --rail-bg: #000000;
-  --rail-line: #2b3231;
-  --rail-text: #97a3a1;
+  --rail-line: #2b3140;
+  --rail-text: #9aa3b2;
   --rail-text-active: #ffffff;
-  --rail-active: rgba(245, 180, 92, 0.2);
-  --hatch: repeating-linear-gradient(135deg, transparent 0 5px, rgba(154, 166, 164, 0.24) 5px 6px);
+  --rail-active: rgba(173, 188, 245, 0.2);
+  --rail-active-color: #b3c0f5;
+  --hatch: repeating-linear-gradient(135deg, transparent 0 5px, rgba(160, 169, 184, 0.24) 5px 6px);
+  --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.6);
   --shadow-float: 0 16px 44px rgba(0, 0, 0, 0.6);
   --scrim: rgba(0, 0, 0, 0.68);
 }

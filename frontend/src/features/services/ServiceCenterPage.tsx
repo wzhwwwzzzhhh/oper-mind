@@ -25,10 +25,88 @@ interface ServiceFormState {
   kind: string
   instance_id: string
   title: string
-  dsn: string
+  host: string
+  port: string
+  database: string
+  username: string
+  password: string
+  redis_db: string
 }
 
-const empty_form: ServiceFormState = { kind: 'postgres', instance_id: '', title: '', dsn: '' }
+const KIND_DEFAULTS: Record<string, { port: string; label: string }> = {
+  postgres: { port: '5432', label: 'PostgreSQL' },
+  redis: { port: '6379', label: 'Redis' },
+  mysql: { port: '3306', label: 'MySQL' },
+}
+
+const empty_form: ServiceFormState = {
+  kind: 'postgres',
+  instance_id: '',
+  title: '',
+  host: '',
+  port: '',
+  database: '',
+  username: '',
+  password: '',
+  redis_db: '',
+}
+
+/** 历史/兼容 kind 归一到三种已知类型；未识别按 PostgreSQL 兜底。 */
+function known_kind(kind: string): string {
+  const text = kind.toLowerCase()
+  if (text.includes('redis')) return 'redis'
+  if (text.includes('mysql')) return 'mysql'
+  if (KIND_DEFAULTS[kind] != null) return kind
+  return 'postgres'
+}
+
+/** 新建表单：按类型预填默认端口；切换类型时用该类型重置连接字段。 */
+function fresh_connection_form(kind: string): ServiceFormState {
+  const resolved = known_kind(kind)
+  return { ...empty_form, kind: resolved, port: KIND_DEFAULTS[resolved].port }
+}
+
+/** 编辑表单：连接字段全部留空，由 connection_filled 判断是否整体替换。 */
+function empty_connection_form(kind: string): ServiceFormState {
+  const resolved = known_kind(kind)
+  return { ...empty_form, kind: resolved, port: '' }
+}
+
+function encode_component(value: string): string {
+  return encodeURIComponent(value)
+}
+
+/** 按服务类型把连接字段组装成受控 DSN；缺必填字段或端口/库号非法返回 null。 */
+function assemble_dsn(form: ServiceFormState): string | null {
+  const host = form.host.trim()
+  const port = form.port.trim() || KIND_DEFAULTS[form.kind]?.port || ''
+  const username = form.username.trim()
+  const password = form.password
+  if (!host || !/^[0-9]+$/.test(port)) return null
+  if (form.kind === 'postgres') {
+    const db = form.database.trim()
+    if (!username || !db) return null
+    return `postgresql://${encode_component(username)}:${encode_component(password)}@${host}:${port}/${db}`
+  }
+  if (form.kind === 'redis') {
+    const db = form.redis_db.trim() || '0'
+    if (!/^[0-9]+$/.test(db)) return null
+    return password
+      ? `redis://:${encode_component(password)}@${host}:${port}/${db}`
+      : `redis://${host}:${port}/${db}`
+  }
+  if (form.kind === 'mysql') {
+    if (!username) return null
+    return `mysql+pymysql://${encode_component(username)}:${encode_component(password)}@${host}:${port}`
+  }
+  return null
+}
+
+/** 编辑模式下判断用户是否填了任一连接字段（填了就用整条信息替换连接）。 */
+function connection_filled(form: ServiceFormState): boolean {
+  return [form.host, form.port, form.database, form.username, form.password, form.redis_db]
+    .some((value) => value.trim() !== '')
+}
 
 function service_kind_label(kind: unknown): { short: string; label: string } {
   const text = String(kind ?? '').toLowerCase()
@@ -105,7 +183,7 @@ export function ServiceCenterPage(): ReactElement {
     ...create_service_mutation(),
     onSuccess: () => {
       set_form_open(false)
-      set_form(empty_form)
+      set_form(fresh_connection_form('postgres'))
       refresh()
       show_toast('服务已接入。')
     },
@@ -117,7 +195,7 @@ export function ServiceCenterPage(): ReactElement {
     onSuccess: () => {
       set_form_open(false)
       set_editing(null)
-      set_form(empty_form)
+      set_form(fresh_connection_form('postgres'))
       refresh()
       show_toast('服务已更新。')
     },
@@ -175,14 +253,19 @@ export function ServiceCenterPage(): ReactElement {
 
   const open_create = (): void => {
     set_editing(null)
-    set_form(empty_form)
+    set_form(fresh_connection_form('postgres'))
     set_form_open(true)
   }
 
   const open_edit = (service: { id: string; title: string; kind: string }): void => {
     set_editing(service)
-    set_form({ kind: service.kind, instance_id: service.id, title: service.title, dsn: '' })
+    set_form(empty_connection_form(service.kind))
+    set_form((current) => ({ ...current, instance_id: service.id, title: service.title }))
     set_form_open(true)
+  }
+
+  const set_kind = (kind: string): void => {
+    set_form(fresh_connection_form(kind))
   }
 
   const set_form_field = (field: keyof ServiceFormState, value: string): void => {
@@ -194,10 +277,20 @@ export function ServiceCenterPage(): ReactElement {
     const kind = form.kind.trim()
     const instance_id = form.instance_id.trim()
     const title = form.title.trim()
-    const dsn = form.dsn.trim()
     if (editing != null) {
-      update_mutation.mutate({ service_id: editing.id, title, dsn: dsn === '' ? undefined : dsn })
+      const replacing = connection_filled(form)
+      const dsn = replacing ? assemble_dsn(form) : undefined
+      if (replacing && dsn === null) {
+        show_toast('连接信息不完整，请填写全部字段或全部留空。')
+        return
+      }
+      update_mutation.mutate({ service_id: editing.id, title, dsn })
     } else {
+      const dsn = assemble_dsn(form)
+      if (dsn === null) {
+        show_toast('请填写完整的主机、端口与账号信息。')
+        return
+      }
       create_mutation.mutate({ kind, instance_id, title, dsn })
     }
   }
@@ -297,6 +390,7 @@ export function ServiceCenterPage(): ReactElement {
               const state = availability_state(availability)
               const has_dsn = resource_value(service, 'has_dsn')
               const masked_tail = resource_optional_string(service, 'dsn_masked_tail')
+              const source = resource_optional_string(service, 'source')
               const investigations = read_array(resource_value(service, 'supported_investigations'))
               const first_investigation = read_record(investigations[0])
               const intent = resource_optional_string(first_investigation, 'id') ?? null
@@ -344,18 +438,24 @@ export function ServiceCenterPage(): ReactElement {
                         >
                           测试连接
                         </button>
-                        <button
-                          onClick={() => open_edit({ id: service_id, title, kind: kind ?? '' })}
-                          type="button"
-                        >
-                          编辑
-                        </button>
-                        <button
-                          onClick={() => set_deleting({ id: service_id, title })}
-                          type="button"
-                        >
-                          移除
-                        </button>
+                        {source === 'env' ? (
+                          <span className="svc-static-tag" title="由环境变量声明的内置实例，不能在这里编辑或移除">环境变量声明</span>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => open_edit({ id: service_id, title, kind: kind ?? '' })}
+                              type="button"
+                            >
+                              编辑
+                            </button>
+                            <button
+                              onClick={() => set_deleting({ id: service_id, title })}
+                              type="button"
+                            >
+                              移除
+                            </button>
+                          </>
+                        )}
                         <button
                           className="investigate"
                           disabled={create_investigation.isPending || intent === null}
@@ -375,25 +475,62 @@ export function ServiceCenterPage(): ReactElement {
         )}
       </section>
 
-      {form_open && <div className="model-modal" role="dialog" aria-modal="true" aria-labelledby="svc-modal-title"><div className="model-dialog">
+      {form_open && <div className="model-modal" role="dialog" aria-modal="true" aria-labelledby="svc-modal-title"><div className="model-dialog svc-dialog">
         <div className="model-dialog-head">
           <div>
             <strong id="svc-modal-title">{editing != null ? `编辑 ${editing.title}` : '接入服务'}</strong>
-            <p>{editing != null ? '修改标题或 DSN。DSN 留空保持不变；能力声明由服务类型决定。' : '填写服务类型、实例 ID、标题与 DSN。DSN 加密保存、绝不回显明文。'}</p>
+            <p>{editing != null
+              ? '修改标题；如需更换连接信息，请完整填写下方连接字段（全部留空则保持现有连接）。'
+              : '填写服务类型与连接信息。连接串由系统按字段生成，凭据加密保存、绝不回显明文。'}</p>
           </div>
           <button aria-label="关闭" className="icon-btn" onClick={() => { set_form_open(false); set_editing(null); }} type="button"><Icon name="x" size={14} /></button>
         </div>
-        <form className="provider-form" onSubmit={submit_form}>
-          <label>服务类型
-            <select aria-label="服务类型" value={form.kind} onChange={(event) => set_form_field('kind', event.target.value)} disabled={editing != null}>
-              <option value="postgres">PostgreSQL</option>
-              <option value="redis">Redis</option>
-              <option value="mysql">MySQL</option>
-            </select>
-          </label>
-          <label>实例 ID<input aria-label="实例 ID" required value={form.instance_id} onChange={(event) => set_form_field('instance_id', event.target.value)} type="text" placeholder="如 postgres-orders" disabled={editing != null} /></label>
-          <label>标题<input aria-label="标题" required value={form.title} onChange={(event) => set_form_field('title', event.target.value)} type="text" placeholder="订单 PostgreSQL" /></label>
-          <label>DSN<input aria-label="DSN" required={editing == null} value={form.dsn} onChange={(event) => set_form_field('dsn', event.target.value)} type="text" autoComplete="off" placeholder={editing != null ? '留空保持不变' : 'postgresql://user:pass@host:5432/db'} /></label>
+        <form className="provider-form svc-connect-form" onSubmit={submit_form}>
+          <div className="svc-kind-switch" role="radiogroup" aria-label="服务类型">
+            {Object.keys(KIND_DEFAULTS).map((kind) => (
+              <button
+                aria-checked={form.kind === kind}
+                className={`svc-kind-opt ${form.kind === kind ? 'selected' : ''}`}
+                disabled={editing != null}
+                key={kind}
+                onClick={() => set_kind(kind)}
+                role="radio"
+                type="button"
+              >
+                <span aria-hidden="true" className={`svc-kind-mark ${logo_class(kind)}`} />
+                {KIND_DEFAULTS[kind].label}
+              </button>
+            ))}
+          </div>
+
+          <div className="svc-field-grid">
+            <label className="svc-span2">实例 ID<input aria-label="实例 ID" disabled={editing != null} required value={form.instance_id} onChange={(event) => set_form_field('instance_id', event.target.value)} type="text" placeholder="如 postgres-orders" />
+              <small className="svc-field-hint">系统内唯一标识，用于链接、调查与审计留痕；小写字母 / 数字，可含点、下划线、连字符</small>
+            </label>
+            <label className="svc-span2">显示名称<input aria-label="显示名称" required value={form.title} onChange={(event) => set_form_field('title', event.target.value)} type="text" placeholder="如 订单 PostgreSQL" />
+              <small className="svc-field-hint">在服务列表与调查里给人看的名字，可随时修改</small>
+            </label>
+
+            <label>主机<input aria-label="主机" autoComplete="off" required={editing == null} value={form.host} onChange={(event) => set_form_field('host', event.target.value)} type="text" placeholder="127.0.0.1" /></label>
+            <label>端口<input aria-label="端口" inputMode="numeric" value={form.port} onChange={(event) => set_form_field('port', event.target.value)} type="text" placeholder={KIND_DEFAULTS[form.kind]?.port ?? '5432'} /></label>
+
+            {form.kind === 'postgres' && (
+              <label className="svc-span2">数据库名<input aria-label="数据库名" autoComplete="off" required={editing == null} value={form.database} onChange={(event) => set_form_field('database', event.target.value)} type="text" placeholder="orders" /></label>
+            )}
+
+            {form.kind !== 'redis' && (
+              <label>用户名<input aria-label="用户名" autoComplete="off" required={editing == null} value={form.username} onChange={(event) => set_form_field('username', event.target.value)} type="text" placeholder="readonly" /></label>
+            )}
+            <label>密码{form.kind === 'redis' && '（可选）'}<input aria-label="密码" autoComplete="new-password" value={form.password} onChange={(event) => set_form_field('password', event.target.value)} type="password" placeholder={editing != null ? '留空保持不变' : '••••••••'} /></label>
+            {form.kind === 'redis' && (
+              <label>库号<input aria-label="库号" inputMode="numeric" value={form.redis_db} onChange={(event) => set_form_field('redis_db', event.target.value)} type="text" placeholder="0" /></label>
+            )}
+          </div>
+
+          {editing != null && (
+            <p className="svc-connect-hint">连接字段全部留空则保持现有连接不变；填写任意字段将用下方信息整体替换连接。</p>
+          )}
+
           <div className="model-dialog-footer"><button className="model-button" type="button" onClick={() => { set_form_open(false); set_editing(null); }}>取消</button><button className="model-button primary" type="submit" disabled={saving}>{editing != null ? '保存修改' : '接入服务'}</button></div>
         </form>
       </div></div>}

@@ -190,6 +190,43 @@ export interface ModelProviderModelsResponse {
   meta: components['schemas']['ResponseMeta']
 }
 
+export interface EnumerateProviderModelsRequest {
+  base_url: string
+  api_key: string | null
+}
+
+export interface EnumerateProviderModelsResponse {
+  status: 'ok' | 'failed' | 'timeout' | 'unsupported'
+  models: string[] | null
+  error_code: string | null
+  meta: components['schemas']['ResponseMeta']
+}
+
+export interface ModelRoleResource {
+  role: string
+  label: string
+  source: 'default' | 'assigned'
+  provider_id: string | null
+  provider_name: string | null
+  /** 生效模型名：装配覆盖优先，否则为 Provider 自身模型；default 来源时为 null。 */
+  model: string | null
+}
+
+export interface ModelRoleListResponse {
+  roles: ModelRoleResource[]
+  meta: components['schemas']['ResponseMeta']
+}
+
+export interface ModelRoleResponse {
+  role: ModelRoleResource
+  meta: components['schemas']['ResponseMeta']
+}
+
+export interface AssignModelRoleRequest {
+  provider_id: string
+  model: string | null
+}
+
 export interface ModelUsageItemResource {
   model: string
   input_tokens: number
@@ -392,6 +429,17 @@ export interface ApiV1Client {
     provider_id: string,
     options?: ApiRequestOptions,
   ): Promise<ApiResponse<ModelProviderModelsResponse>>
+  enumerate_provider_models(
+    payload: EnumerateProviderModelsRequest,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<EnumerateProviderModelsResponse>>
+  list_model_roles(options?: ApiRequestOptions): Promise<ApiResponse<ModelRoleListResponse>>
+  assign_model_role(
+    role: string,
+    payload: AssignModelRoleRequest,
+    options?: ApiRequestOptions,
+  ): Promise<ApiResponse<ModelRoleResponse>>
+  unassign_model_role(role: string, options?: ApiRequestOptions): Promise<ApiResponse<void>>
   get_model_usage(
     query?: GetModelUsageQuery,
     options?: ApiRequestOptions,
@@ -924,6 +972,41 @@ export function create_api_v1_client(options: ApiClientOptions = {}): ApiV1Clien
         `/api/v1/model/providers/${encodeURIComponent(provider_id)}/models`,
         request_options,
         { method: 'GET' },
+      ),
+    enumerate_provider_models: (payload, request_options) =>
+      request_json<EnumerateProviderModelsResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        '/api/v1/model/providers/enumerate-models',
+        request_options,
+        { body: payload, method: 'POST' },
+      ),
+    list_model_roles: (request_options) =>
+      request_json<ModelRoleListResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        '/api/v1/model/roles',
+        request_options,
+      ),
+    assign_model_role: (role, payload, request_options) =>
+      request_json<ModelRoleResponse>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        `/api/v1/model/roles/${encodeURIComponent(role)}`,
+        request_options,
+        { body: payload, method: 'PUT' },
+      ),
+    unassign_model_role: (role, request_options) =>
+      request_json<void>(
+        fetch_impl ?? globalThis.fetch,
+        request_id_factory,
+        base_url,
+        `/api/v1/model/roles/${encodeURIComponent(role)}`,
+        request_options,
+        { method: 'DELETE' },
       ),
     get_model_usage: (query = {}, request_options) =>
       request_json<ModelUsageResponse>(

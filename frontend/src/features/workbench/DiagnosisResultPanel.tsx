@@ -21,6 +21,15 @@ const SEVERITY_CLASSES: Record<DiagnosisResultProjection['severity'], string> = 
   medium: 'medium',
 }
 
+/** 严重度 → 中文标签；不让用户看到英文等级原文。 */
+const SEVERITY_LABELS: Record<DiagnosisResultProjection['severity'], string> = {
+  critical: '严重',
+  high: '高',
+  medium: '中',
+  low: '低',
+  info: '提示',
+}
+
 /** 建议优先级 → 视觉等级：P0/P1 用告警色抢注意力，P2/P3 收敛为中性。 */
 const PRIORITY_CLASSES: Record<RecommendationPriority, string> = {
   p0: 'danger',
@@ -213,7 +222,7 @@ export function DiagnosisResultPanel({ result }: { result: DiagnosisResultProjec
       <header className="diagnosis-result-panel__header">
         <h3 className="diagnosis-result-panel__title">结构化诊断结果</h3>
         <div className="diagnosis-result-panel__meta">
-          <span className={`diagnosis-result-panel__badge diagnosis-result-panel__badge--${SEVERITY_CLASSES[result.severity]}`}>严重度 {result.severity}</span>
+          <span className={`diagnosis-result-panel__badge diagnosis-result-panel__badge--${SEVERITY_CLASSES[result.severity]}`}>严重度 {SEVERITY_LABELS[result.severity]}</span>
           <span className="diagnosis-result-panel__badge diagnosis-result-panel__badge--info">置信度 {(result.confidence * 100).toFixed(0)}%</span>
           <span className="diagnosis-result-panel__badge">结果时间 {result.created_at}</span>
         </div>
@@ -269,19 +278,19 @@ export function DiagnosisResultPanel({ result }: { result: DiagnosisResultProjec
         <ul className="diagnosis-result-panel__list">{result.risks.map((risk) => <RiskItem key={risk.id} risk={risk} />)}</ul>
       </section>}
 
-      <section aria-labelledby="result-relations-heading" className="diagnosis-result-panel__relations">
-        <h4 className="diagnosis-result-panel__section-title" id="result-relations-heading">结果关联</h4>
+      <details className="diagnosis-result-panel__relations">
+        <summary className="diagnosis-result-panel__section-title">关联记录（排障用）</summary>
         <dl className="diagnosis-result-panel__relation-grid">
           <div className="diagnosis-result-panel__relation">
-            <dt>结果 ID</dt>
+            <dt>结果标识</dt>
             <dd>{result.id}</dd>
           </div>
           <div className="diagnosis-result-panel__relation">
-            <dt>Run ID</dt>
+            <dt>调查标识</dt>
             <dd>{result.run_id}</dd>
           </div>
         </dl>
-      </section>
+      </details>
     </article>
   )
 }

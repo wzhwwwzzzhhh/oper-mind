@@ -79,12 +79,34 @@ import {
   UiTitle,
 } from './ui'
 
+/** 内部错误码 → 用户能看懂的标题；未识别的返回 null（调用方回退到后端 message）。 */
+function human_error_code(code: string | undefined): string | null {
+  if (code == null) return null
+  const table: Record<string, string> = {
+    ANSWER_RECOVERY_PENDING: '回答正在恢复中',
+    RESULT_PROTOCOL_ERROR: '结果数据异常',
+    ACCEPTED_TURN_NOT_FOUND: '会话状态已更新，请重新发送',
+    SEND_INTENT_MISSING: '发送意图已失效，请重试',
+    ACCEPT_RESPONSE_PROTOCOL_ERROR: '回复数据异常',
+    IDEMPOTENCY_KEY_REUSED: '已用同一标识处理过该问题',
+    VALIDATION_ERROR: '请求参数不合法',
+  }
+  return table[code] ?? null
+}
+
+function display_time(value: string | null | undefined): string {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString('zh-CN', { hour12: false })
+}
+
 function safe_error(error: unknown): { title: string; detail: ReactNode } {
   if (error instanceof ApiClientError) {
     const request_id = error.diagnostics.meta_request_id ?? error.diagnostics.response_request_id
     const trace_id = error.diagnostics.meta_trace_id ?? error.diagnostics.response_trace_id
     return {
-      title: `${error.code}：${error.message}`,
+      title: human_error_code(error.code) ?? error.message,
       detail: (
         <UiSpace size="small" wrap>
           {request_id && <UiTag>请求 {request_id}</UiTag>}
@@ -220,9 +242,9 @@ function RerunControls({
   return (
     <UiSpace wrap className="investigation-process-actions">
       {investigation.rerun_of_run_id && (
-        <UiText className="muted-note">重跑自 Run {investigation.rerun_of_run_id.slice(0, 8)}</UiText>
+        <UiText className="muted-note">由另一次调查重跑生成</UiText>
       )}
-      {rerun_by_latest && <UiText className="muted-note">已被重跑为 Run {rerun_by_latest.slice(0, 8)}</UiText>}
+      {rerun_by_latest && <UiText className="muted-note">已被重跑，另有更新结果</UiText>}
       {terminal && (
         <UiButton loading={rerun_mutation.isPending} onClick={rerun} type="primary">重新生成</UiButton>
       )}
@@ -309,7 +331,7 @@ function AssistantReply({
         <div className="assistant-meta">
           <span className="meta-pill readonly"><span className="mini-dot" />只读调查</span>
           <span className="meta-pill blue">工具调用</span>
-          {output && <span>{output.created_at}</span>}
+          {output && <span>{display_time(output.created_at)}</span>}
         </div>
         <InvestigationProcess investigation={investigation} session_id={session_id} />
         {output && <SafeMarkdown className="bubble" content={output.content} />}
@@ -317,7 +339,7 @@ function AssistantReply({
           <UiAlert
             description="服务端已标记调查成功，但尚未恢复关联的助手答复。页面不会根据 Result 伪造一条已保存消息。"
             showIcon
-            title="ANSWER_RECOVERY_PENDING"
+            title="回答正在恢复中"
             type="warning"
           />
         )}
@@ -332,9 +354,9 @@ function AssistantReply({
           />
         ) : (
           <UiAlert
-            description={result_read.issues[0] ? `${result_read.issues[0].field}：${result_read.issues[0].message}` : '结构化结果不符合公开契约。'}
+            description={result_read.issues[0] ? result_read.issues[0].message : '结构化结果不符合公开契约。'}
             showIcon
-            title="RESULT_PROTOCOL_ERROR"
+            title="结果数据异常"
             type="warning"
           />
         )}
@@ -353,7 +375,7 @@ function AssistantReply({
         <UiAlert
           description={code && message ? message : '服务端未返回可安全展示的调查错误。'}
           showIcon
-          title={code ?? '调查未完成'}
+          title={human_error_code(code) ?? '调查未完成'}
           type="error"
         />
         <InvestigationProcess investigation={investigation} session_id={session_id} />
@@ -445,8 +467,8 @@ function PendingConversationFeedback({ pending }: { pending: PendingOutgoingMess
 function service_result_title(service_id: string | undefined, services_by_id: Map<string, { kind?: string; title?: string }>): string {
   if (!service_id) return '未关联服务'
   const service = services_by_id.get(service_id)
-  if (!service) return service_id
-  return service.kind ? `${service.title ?? service_id} · ${service.kind}` : service.title ?? service_id
+  if (!service) return '该服务'
+  return service.kind ? `${service.title ?? '该服务'} · ${service.kind}` : service.title ?? '该服务'
 }
 
 function ConversationTurnCard({
@@ -638,7 +660,11 @@ function ConversationTimeline({
         <UiAlert className="conversation-protocol-notice" description={issue} key={`${issue}-${index}`} showIcon title="会话关联异常" type="warning" />
       ))}
       {timeline.length === 0 && (
-        <UiText className="muted-note">该会话还没有可恢复的对话内容</UiText>
+        <UiText className="muted-note">
+          {pending_outgoing != null && !pending_is_recovered
+            ? '正在提交你的问题…'
+            : '还没有对话内容。输入一个问题开始一次只读调查。'}
+        </UiText>
       )}
       {timeline.map((item) => {
         if (item.kind === 'system') {
@@ -648,7 +674,7 @@ function ConversationTimeline({
               description={item.message.content}
               key={item.message.id}
               showIcon
-              title={`系统提醒 · ${item.message.created_at}`}
+              title={`系统提醒 · ${display_time(item.message.created_at)}`}
               type="info"
             />
           )
@@ -790,7 +816,7 @@ function SessionWorkspace({
         && resource_optional_string(message, 'session_id') === session_id
         && resource_string(message, 'role') === 'user'))
     if (!all_accepted_found) {
-      throw new Error('ACCEPTED_TURN_NOT_FOUND：调查已受理，但尚未恢复对应的已保存问题或调查记录。')
+      throw new Error('调查已受理，但尚未恢复对应的已保存问题或调查记录。')
     }
 
     if (storage) clear_session_run_send_intent(storage, session_id)
@@ -811,11 +837,11 @@ function SessionWorkspace({
       const input_message_id = resource_optional_string(accepted_run, 'input_message_id')
       const current_intent = storage ? load_session_run_send_intent(storage, session_id) : undefined
       if (!current_intent || !current_intent.runs.some((run) => run.idempotency_key === variables.idempotency_key)) {
-        set_recovery_error(new Error('SEND_INTENT_MISSING：无法确认当前受理响应对应的发送意图。'))
+        set_recovery_error(new Error('无法确认当前受理响应对应的发送意图。'))
         return
       }
       if (accepted_session_id !== session_id || !accepted_run_id || !input_message_id) {
-        set_recovery_error(new Error('ACCEPT_RESPONSE_PROTOCOL_ERROR：服务端受理响应未返回当前会话的合法 Run。'))
+        set_recovery_error(new Error('服务端受理响应未返回当前会话的合法调查。'))
         return
       }
 
@@ -909,7 +935,7 @@ function SessionWorkspace({
           return
         }
         const failed_services = errors.map(({ service_id }) => service_id ?? '未关联服务').join('、')
-        set_recovery_error(new Error(`以下服务的调查未能提交：${failed_services}。其他服务仍会继续提交；可使用原幂等键重试未受理服务。`))
+        set_recovery_error(new Error(`以下服务的调查未能提交：${failed_services}。其他服务仍会继续提交；未受理的服务可稍后单独重试。`))
       }
     }
     void submit_next().catch(() => undefined)
@@ -1100,14 +1126,14 @@ function SessionWorkspace({
               type="primary"
             >
               {send_intent?.runs.some((run) => run.phase === 'acceptance_unknown')
-                ? '使用原幂等键重试'
+                ? '重试未确认的调查'
                 : send_intent
                   ? '等待服务端确认'
                   : '开始只读健康调查'}
             </UiButton>
           )}
           className="investigation-send-notice"
-          description={`将提交固定问题“${prefilled_query}”。该入口不允许改写问题，确保服务端只开放健康 Tool。`}
+          description={`将提交固定问题“${prefilled_query}”。该入口不允许改写问题，只执行固定的健康与连接压力调查。`}
           showIcon
           title="固定健康调查尚未开始"
           type="info"
@@ -1117,7 +1143,7 @@ function SessionWorkspace({
         <UiAlert
           action={<UiButton onClick={discard_send_intent} type="link">丢弃旧发送意图</UiButton>}
           className="investigation-send-notice"
-          description="当前会话仍有另一项调查等待恢复。为避免复用错误问题或幂等键，必须先恢复原调查，或明确丢弃后再发起固定健康调查。"
+          description="当前会话仍有另一项调查等待恢复。为避免混淆，必须先恢复原调查，或明确丢弃后再发起固定健康调查。"
           showIcon
           title="存在待恢复的其他调查"
           type="warning"
@@ -1130,7 +1156,7 @@ function SessionWorkspace({
         <UiAlert
           action={<UiButton onClick={() => navigate('/services')} type="link">返回服务中心</UiButton>}
           className="investigation-send-notice"
-          description="当前会话绑定的服务没有声明 service_health_pressure.v1；页面不会仅凭 URL 启动调查。"
+          description="当前会话绑定的服务没有启用健康调查能力；页面不会仅凭 URL 启动调查。"
           showIcon
           title="健康调查未启用"
           type="warning"
@@ -1160,16 +1186,13 @@ function SessionWorkspace({
             session_id={session_id}
           />
           <LoadMoreButton
-            has_more={Boolean(runs_query.hasNextPage)}
-            is_fetching={runs_query.isFetchingNextPage}
-            label="加载更多关联调查"
-            on_click={() => void runs_query.fetchNextPage()}
-          />
-          <LoadMoreButton
-            has_more={Boolean(messages_query.hasNextPage)}
-            is_fetching={messages_query.isFetchingNextPage}
-            label="加载更多已保存消息"
-            on_click={() => void messages_query.fetchNextPage()}
+            has_more={Boolean(runs_query.hasNextPage || messages_query.hasNextPage)}
+            is_fetching={runs_query.isFetchingNextPage || messages_query.isFetchingNextPage}
+            label="加载更多历史"
+            on_click={() => {
+              if (runs_query.hasNextPage) void runs_query.fetchNextPage()
+              if (messages_query.hasNextPage) void messages_query.fetchNextPage()
+            }}
           />
         </>
       )}
@@ -1188,7 +1211,7 @@ function SessionWorkspace({
       {can_send && !fixed_health_send_intent_conflict && send_intent?.runs.some((run) => run.phase === 'acceptance_unknown') && (
         <UiAlert
           className="investigation-send-notice"
-          description="本次请求的受理结果尚未确认。请使用同一问题和同一幂等键重试，或刷新页面恢复；不要修改问题后盲目再次发送。"
+          description="本次请求的受理结果尚未确认。请用同一个问题重试，或刷新页面恢复；不要修改问题后盲目再次发送。"
           showIcon
           title="等待确认调查是否已受理"
           type="warning"
@@ -1198,7 +1221,7 @@ function SessionWorkspace({
         <UiAlert
           action={<UiButton onClick={discard_send_intent} type="link">丢弃当前发送意图</UiButton>}
           className="investigation-send-notice"
-          description="幂等键已用于不同问题。请丢弃当前发送意图后重新提问。"
+          description="已用同一标识提交过不同问题。请放弃当前发送后重新提问。"
           showIcon
           title="发送冲突"
           type="warning"

@@ -103,11 +103,11 @@
 }
 
 .global-item.active {
-  color: var(--signal);
+  color: var(--rail-active-color);
   background: var(--rail-active);
 }
 
-/* 琥珀色激活竖条 */
+/* 浅钢蓝激活竖条 */
 .global-item.active::before {
   content: '';
   position: absolute;
@@ -115,7 +115,7 @@
   width: 3px;
   height: 18px;
   border-radius: 0 3px 3px 0;
-  background: var(--signal);
+  background: var(--rail-active-color);
 }
 
 .global-bottom {
@@ -361,10 +361,10 @@
 .session-lifecycle-notice {
   margin: 8px 2px 0;
   padding: 7px 9px;
-  border: 1px solid var(--success-border, #b8dac7);
+  border: 1px solid var(--success-soft);
   border-radius: 6px;
-  color: var(--success, #246a43);
-  background: var(--success-soft, #edf8f1);
+  color: var(--success);
+  background: var(--success-soft);
   font-size: 12px;
 }
 
@@ -507,7 +507,7 @@
   justify-content: space-between;
   gap: 8px;
   padding: 6px 9px;
-  color: var(--danger, #a13d32);
+  color: var(--danger);
   font-size: 11px;
 }
 
@@ -544,7 +544,7 @@
 
 .session-actions__menu-item.danger:hover,
 .session-actions__menu-item.danger:focus-visible {
-  color: var(--danger, #a13d32);
+  color: var(--danger);
 }
 
 .session-actions__notice {
@@ -852,7 +852,7 @@
   align-items: center;
   justify-content: center;
   padding: 20px;
-  background: rgba(15, 40, 42, 0.25);
+  background: var(--scrim);
 }
 
 .theme-modal.open {
@@ -926,7 +926,7 @@
   overflow: hidden;
   border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 6px;
-  background: #e8edec;
+  background: var(--canvas);
 }
 
 /* 深色侧栏条 */
@@ -964,32 +964,32 @@
   background: var(--preview-success);
 }
 
-/* 蓝图亮色（默认） */
+/* 日光纸白（默认） */
 .theme-preview.vellum {
-  --preview-rail: #0e2a2b;
-  --preview-accent: #0f5c63;
-  --preview-soft: #dfebeb;
-  --preview-success: #1f6b52;
-  background: #e8edec;
+  --preview-rail: #171d32;
+  --preview-accent: #2d4fd7;
+  --preview-soft: #e8ecfc;
+  --preview-success: #217a53;
+  background: #f4f6f9;
 }
 
-/* 深油青暗色 */
+/* 深靛夜色 */
 .theme-preview.petrol {
-  --preview-rail: #081617;
-  --preview-accent: #58b0b2;
-  --preview-soft: #17403f;
-  --preview-success: #62bd97;
-  background: #0c1f20;
+  --preview-rail: #080b16;
+  --preview-accent: #7f95e8;
+  --preview-soft: #1d2a52;
+  --preview-success: #5fc08e;
+  background: #0e1220;
   border-color: rgba(255, 255, 255, 0.08);
 }
 
 /* 高对比暗色 */
 .theme-preview.carbon {
   --preview-rail: #000000;
-  --preview-accent: #7fd3d3;
-  --preview-soft: #1f3535;
-  --preview-success: #79d3a7;
-  background: #101212;
+  --preview-accent: #8fa5f0;
+  --preview-soft: #202a44;
+  --preview-success: #74d09c;
+  background: #0d0f13;
   border-color: rgba(255, 255, 255, 0.08);
 }
 
@@ -1065,7 +1065,7 @@
     left: var(--global);
     width: var(--sidebar) !important;
     transform: translateX(-110%);
-    box-shadow: 18px 0 44px rgba(15, 40, 42, 0.18);
+    box-shadow: 18px 0 44px rgba(18, 24, 48, 0.18);
     transition: transform 0.2s ease;
   }
 
@@ -1083,14 +1083,22 @@
   }
 }
 
-/* P8：会话侧栏「待审批」入口（审批属会话工作台模块，放在会话模式第二栏底部）。 */
+/* P8：会话侧栏底部「最近调查 / 待审批」入口组（审批属会话工作台模块）。
+   整组靠底，组顶分隔线把固定动作区和可滚动会话列表分开，两按钮间留间距。 */
+.chat-bottom-actions {
+  display: grid;
+  gap: 7px;
+  margin-top: auto;
+  padding-top: 11px;
+  border-top: 1px solid var(--border);
+}
+
 .approvals-entry {
   display: flex;
   align-items: center;
   gap: 9px;
   width: 100%;
   min-height: 38px;
-  margin-top: auto;
   padding: 7px 10px;
   border: 1px solid var(--border);
   border-radius: 7px;
@@ -1108,6 +1116,10 @@
   color: var(--accent);
 }
 
+.second.collapsed .chat-bottom-actions {
+  border-top: 0;
+  padding-top: 0;
+}
 .second.collapsed .approvals-entry {
   justify-content: center;
   padding-left: 0;
