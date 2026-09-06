@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import builtins
 from datetime import UTC, datetime, timedelta
 from typing import TypeVar
 from uuid import UUID
@@ -322,7 +323,7 @@ class ModelProviderApplicationService:
         finally:
             session.close()
 
-    def list_role_views(self) -> list[ModelRoleViewData]:
+    def list_role_views(self) -> builtins.list[ModelRoleViewData]:
         """返回全部 Agent 角色的模型装配安全视图（含 Provider 名与生效模型名）。"""
         session = self._session_factory()
         try:
