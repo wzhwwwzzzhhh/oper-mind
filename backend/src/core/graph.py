@@ -1,9 +1,8 @@
 """LangGraph 编排图 —— 多智能体协作诊断的主编排层。
 
 把"路由 → 领域 Agent(并发) → Debate → Report → Reflection"这条协作链
-表达成一张状态图。领域 Agent 内部仍是手搓 ReAct(BaseAgent.run),这里只负责编排。
-
-设计要点见 docs/初始开发/11-质量保障pipeline接通与LangGraph编排.md。
+表达成一张状态图。领域 Agent 内部由 LangGraph ReAct 子图驱动
+（src.core.react_graph），本图只负责跨 Agent 的编排。
 """
 
 import json

@@ -1,15 +1,18 @@
-"""Agent 基类 — 所有领域 Agent 继承此类"""
+"""Agent 基类 — 所有领域 Agent 继承此类。
 
-import logging
+ReAct 循环由 LangGraph 子图（src.core.react_graph）编排：模型节点调用
+LLM，工具节点经 ToolGateway 受控执行；本类只保留记忆、思考摘要与
+工具审计收集等实例状态，不再手写循环控制流。
+"""
+
 from collections.abc import Mapping
 
 from src.core.llm import LLMClient
+from src.core.react_graph import build_react_graph
 from src.core.tool_gateway import ToolGateway
 from src.core.tool_registry import ToolRegistry
 from src.memory.long_term import LongTermMemory
 from src.memory.short_term import ShortTermMemory
-
-LOGGER = logging.getLogger(__name__)
 
 
 class BaseAgent:
@@ -39,7 +42,7 @@ class BaseAgent:
         self._tool_timeout_by_name = dict(tool_timeout_by_name or {})
 
     def run(self, user_input: str) -> str:
-        """执行 ReAct 循环并返回最终诊断结论。"""
+        """驱动 LangGraph ReAct 子图并返回最终诊断结论。"""
         self.current_query = user_input
         self.thinking_log = []
         self._tool_invocations = []
@@ -64,62 +67,23 @@ class BaseAgent:
             else ToolGateway(active_tools)
         )
         invocation_limit = self._tool_invocation_limit_for_query(user_input)
-        invocation_count = 0
-        try:
-            for step in range(self.max_steps):
-                LOGGER.debug("ReAct 第 %d/%d 步", step + 1, self.max_steps)
-                response = self.llm.chat(messages, tools=tool_schemas)
-
-                if "error" in response:
-                    return "LLM 调用失败：服务暂不可用"
-
-                self.short_term.add_message(response)
-                messages = self.short_term.get_messages_for_llm()
-
-                tool_calls = response.get("tool_calls")
-                content = response.get("content")
-
-                if tool_calls:
-                    for tc in tool_calls:
-                        if invocation_limit is not None and invocation_count >= invocation_limit:
-                            return "本次只读调查已达到工具调用上限"
-                        func = tc["function"]
-                        # 只记工具名：arguments 可能含 SQL 或连接参数，不进日志。
-                        LOGGER.debug("第 %d 步调用工具 %s", step + 1, func["name"])
-
-                        gw_result = gateway.invoke(func["name"], func["arguments"])
-                        invocation_count += 1
-                        result = gw_result.output
-                        self._tool_invocations.append(gw_result.record)
-                        self.thinking_log.append(
-                            f"Step {step + 1}: 工具 {func['name']} 状态={gw_result.record.status}"
-                        )
-
-                        self.short_term.add_message(
-                            {
-                                "role": "tool",
-                                "tool_call_id": tc["id"],
-                                "content": result,
-                            }
-                        )
-                        messages = self.short_term.get_messages_for_llm()
-                    continue
-
-                if content:
-                    if self.long_term:
-                        self.long_term.add_record(
-                            query=self.current_query,
-                            diagnosis=content[:200],
-                            tags=self._extract_tags(content),
-                        )
-                    self.thinking_log.append("最终回答已生成")
-                    return content
-
-                return "Agent 没有生成有效响应"
-
+        if self.max_steps <= 0:
+            # 与旧循环语义一致：步数预算为空时直接视为耗尽，不做任何模型调用。
             return f"Agent 超过最大步数（{self.max_steps}步），未得出最终结论"
+        graph = build_react_graph(self, tool_schemas, gateway, invocation_limit)
+        try:
+            # 模型↔工具每对消耗 2 个图步，放宽 recursion_limit 以支持任意 max_steps。
+            final_state = graph.invoke(
+                {"messages": messages, "step": 1},
+                config={"recursion_limit": self.max_steps * 2 + 8},
+            )
         finally:
             gateway.shutdown()
+
+        outcome = str(final_state.get("outcome", ""))
+        if outcome:
+            return outcome
+        return "Agent 没有生成有效响应"
 
     def _tool_registry_for_query(self, user_input: str) -> ToolRegistry:
         """返回本次 Run 的可信 Tool 菜单；默认保持既有完整注册表。"""

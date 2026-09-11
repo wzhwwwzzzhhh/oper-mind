@@ -26,6 +26,7 @@ docs/workpack/
 
 | 阶段 | 切片 | PR | 完成日期 |
 |---|---|---|---|
+| 重构 | langgraph-react-subgraph（ReAct 内核换 LangGraph 子图，直给模式） | 待建 PR | 2026-09-11 |
 | P11 | harness-real-runtime-safety-gate（issue #121） | #123 | 2026-09-04 |
 | P10 | harness-contract-kernel（issue #113） | #118 | 2026-09-02 |
 | 完善 | stage-acceptance-closeout（issue #105） | #111 | 2026-08-27 |
