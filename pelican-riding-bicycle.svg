@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800" role="img" aria-labelledby="title desc">
+  <title id="title">Pelican riding a bicycle</title>
+  <desc id="desc">A cheerful pelican pedals a blue bicycle beside the sea under a sunny sky.</desc>
+
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9fe6ff"/>
+      <stop offset="1" stop-color="#eefcff"/>
+    </linearGradient>
+    <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#31b8d2"/>
+      <stop offset="1" stop-color="#0d789f"/>
+    </linearGradient>
+    <linearGradient id="beak" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffbf4d"/>
+      <stop offset="1" stop-color="#f07f3c"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="9"/>
+    </filter>
+    <style>
+      .ink { stroke: #183a4a; stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; }
+      .thin { stroke: #183a4a; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
+      .spoke { stroke: #8aa2aa; stroke-width: 3; }
+    </style>
+  </defs>
+
+  <!-- Sky and sea -->
+  <rect width="1200" height="800" fill="url(#sky)"/>
+  <circle cx="1015" cy="132" r="65" fill="#ffd95d" opacity=".95"/>
+  <g fill="none" stroke="#fff" stroke-width="15" stroke-linecap="round" opacity=".85">
+    <path d="M130 148c24-29 55-29 79 0 24-29 55-29 79 0"/>
+    <path d="M426 93c18-21 40-21 58 0 18-21 41-21 59 0"/>
+  </g>
+  <path d="M0 348 Q150 322 300 348 T600 348 T900 348 T1200 348 V585 H0Z" fill="url(#sea)"/>
+  <g fill="none" stroke="#c8f7ff" stroke-width="7" stroke-linecap="round" opacity=".75">
+    <path d="M55 405q42-16 84 0t84 0m75 52q47-17 94 0t94 0m195-58q52-18 104 0t104 0m79 70q46-16 92 0t92 0"/>
+  </g>
+
+  <!-- Sand and road -->
+  <path d="M0 525 Q220 495 455 535 T850 522 T1200 530 V800 H0Z" fill="#f3d38d"/>
+  <path d="M0 650 Q260 620 530 650 T1200 642 V800 H0Z" fill="#e7b768"/>
+  <path d="M0 708 Q300 674 600 708 T1200 702 V800 H0Z" fill="#d69a55" opacity=".55"/>
+  <ellipse cx="617" cy="716" rx="430" ry="38" fill="#8b633d" opacity=".18" filter="url(#shadow)"/>
+
+  <!-- Bicycle wheels -->
+  <g>
+    <circle cx="335" cy="615" r="145" fill="#f8fdff" stroke="#183a4a" stroke-width="15"/>
+    <circle cx="335" cy="615" r="127" fill="none" stroke="#6b858f" stroke-width="5"/>
+    <circle cx="845" cy="615" r="145" fill="#f8fdff" stroke="#183a4a" stroke-width="15"/>
+    <circle cx="845" cy="615" r="127" fill="none" stroke="#6b858f" stroke-width="5"/>
+    <g class="spoke">
+      <path d="M335 488v254M208 615h254M245 525l180 180M245 705l180-180M284 499l102 232M219 564l232 102M219 666l232-102M284 731l102-232"/>
+      <path d="M845 488v254M718 615h254M755 525l180 180M755 705l180-180M794 499l102 232M729 564l232 102M729 666l232-102M794 731l102-232"/>
+    </g>
+    <circle cx="335" cy="615" r="15" fill="#183a4a"/>
+    <circle cx="845" cy="615" r="15" fill="#183a4a"/>
+  </g>
+
+  <!-- Bicycle frame -->
+  <g fill="none" class="ink">
+    <path d="M335 615 500 600 615 435 705 615 500 600 600 615 845 615" stroke="#197fa5" stroke-width="20"/>
+    <path d="M615 435 705 615" stroke="#197fa5" stroke-width="20"/>
+    <path d="M597 425h78"/>
+    <path d="M817 403l28 212"/>
+    <path d="M797 402h73"/>
+  </g>
+  <g>
+    <circle cx="600" cy="615" r="34" fill="#f5b83e" class="thin"/>
+    <path d="M600 615l-54 42m54-42 53-43" fill="none" class="thin"/>
+    <path d="M525 662h46m60-95h46" class="thin"/>
+  </g>
+
+  <!-- Pelican body and far wing -->
+  <path d="M574 344c-104 15-146 112-91 181 38 48 132 38 171-5 45-49 38-136-17-167-18-10-41-13-63-9Z" fill="#dce8e9" class="ink"/>
+  <path d="M514 380c-62 33-89 105-60 148 32 48 101 9 129-44 25-48 10-104-30-114-13-4-27 0-39 10Z" fill="#91aeb6" class="ink"/>
+  <path d="M485 471c29 17 54 13 76-3" fill="none" class="thin" opacity=".55"/>
+
+  <!-- Neck and head -->
+  <path d="M608 405c38-54 19-103 15-146-5-58 39-109 104-104 74 5 101 64 78 119-16 38-60 55-108 42-5 48-15 98-59 126Z" fill="#f7f4e8" class="ink"/>
+  <path d="M681 226c11-34 56-45 83-21 21 18 17 55-5 71-23 17-60 5-75-17" fill="#fffdf4" opacity=".65"/>
+
+  <!-- Beak and pouch -->
+  <path d="M778 220c76 2 165 30 239 64-71 15-161 19-242 3-28-6-29-60 3-67Z" fill="url(#beak)" class="ink"/>
+  <path d="M771 282c75 18 158 13 246 2-42 49-139 75-208 43-24-11-37-26-38-45Z" fill="#f59b62" class="ink"/>
+  <path d="M1009 283l-25 9" fill="none" class="thin"/>
+
+  <!-- Face -->
+  <circle cx="765" cy="210" r="22" fill="#fff" class="thin"/>
+  <circle cx="771" cy="213" r="9" fill="#183a4a"/>
+  <path d="M738 180q28-18 50 1" fill="none" class="thin"/>
+
+  <!-- Near wing holding handlebars -->
+  <path d="M620 381c51 8 107 39 147 82 18 19 52 8 64-33l10-28" fill="none" stroke="#f7f4e8" stroke-width="48" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M620 381c51 8 107 39 147 82 18 19 52 8 64-33l10-28" fill="none" class="ink"/>
+  <path d="M823 423c7 6 17 9 26 7" fill="none" class="thin"/>
+
+  <!-- Legs and feet on pedals -->
+  <g fill="none" stroke="#e98744" stroke-width="22" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M545 512c-13 48-8 91 2 145"/>
+    <path d="M625 516c16 31 24 43 28 56"/>
+  </g>
+  <g fill="none" stroke="#e98744" stroke-width="17" stroke-linecap="round">
+    <path d="M546 657l-28 17m29-17 3 28m2-28 28 11"/>
+    <path d="M653 572l-17-25m17 25 30-2m-30 2 12 26"/>
+  </g>
+
+  <!-- Tail feathers -->
+  <path d="M494 494c-35 7-70 26-91 59 42 1 84-13 110-36" fill="#eef4f3" class="ink"/>
+  <path d="M495 507c-26 19-39 38-46 59 35-7 62-23 79-43" fill="#c7dadd" class="thin"/>
+
+  <!-- Motion marks and foreground details -->
+  <g fill="none" stroke="#183a4a" stroke-width="8" stroke-linecap="round" opacity=".55">
+    <path d="M126 568h92M95 608h77M982 580h110"/>
+  </g>
+  <g fill="#fff2be" opacity=".9">
+    <circle cx="118" cy="740" r="8"/><circle cx="164" cy="684" r="6"/><circle cx="1075" cy="734" r="9"/><circle cx="1117" cy="684" r="5"/>
+  </g>
+</svg>
