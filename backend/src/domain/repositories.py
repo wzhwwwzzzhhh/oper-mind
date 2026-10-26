@@ -7,6 +7,7 @@ from typing import Protocol
 from uuid import UUID
 
 from src.domain.diagnosis import RunStatus, SessionStatus
+from src.domain.main_agent import MainDeliveryV1, MainInputSnapshotV1
 from src.domain.records import (
     DiagnosisResultData,
     DiagnosisRunCursor,
@@ -98,6 +99,9 @@ class DiagnosisRunRepository(Protocol):
     def reserve_event_sequence(self, run_id: UUID) -> int | None:
         """原子预留下一事件 sequence，返回预留值，不提交。"""
 
+    def reserve_running_event_sequence(self, run_id: UUID) -> int | None:
+        """仅当 Run 仍 running 时原子预留普通事件序号，未更新任何行返回 None。"""
+
     def list_by_session(
         self,
         session_id: UUID,
@@ -130,6 +134,26 @@ class DiagnosisResultRepository(Protocol):
 
     def get_by_run_id(self, run_id: UUID) -> DiagnosisResultData | None:
         """按 Run 唯一关联读取结果。"""
+
+
+class RunInputRepository(Protocol):
+    """MainAgent 冻结输入 1:1 持久化端口。"""
+
+    def add(self, run_id: UUID, snapshot: MainInputSnapshotV1) -> None:
+        """将输入快照加入调用方事务，不提交。"""
+
+    def get_by_run_id(self, run_id: UUID) -> MainInputSnapshotV1 | None:
+        """读取并严格解析冻结输入；未知版本或损坏内容安全失败。"""
+
+
+class RunDeliveryRepository(Protocol):
+    """MainAgent typed 交付 1:1 持久化端口。"""
+
+    def add(self, run_id: UUID, delivery: MainDeliveryV1) -> None:
+        """将交付加入调用方事务，不提交。"""
+
+    def get_by_run_id(self, run_id: UUID) -> MainDeliveryV1 | None:
+        """读取并严格解析交付；未知版本或损坏内容安全失败。"""
 
 
 class RunIdempotencyKeyRepository(Protocol):

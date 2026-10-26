@@ -25,6 +25,17 @@ export type RunResponse = components['schemas']['RunResponse']
 export type RunEventResource = components['schemas']['RunEventResource']
 export type RunEventListResponse = components['schemas']['RunEventListResponse']
 export type CreateRunRequest = components['schemas']['CreateRunRequest']
+/** V2 主 Agent 受理请求：判别字段必填，且不携带 service_id。 */
+export type CreateMainAgentRunRequest = components['schemas']['CreateMainAgentRunRequest']
+/**
+ * Run 受理请求联合。
+ *
+ * 后端把 `runtime_kind` 设为带默认值的常量字段，生成类型会要求显式传；这里放开为可选，
+ * 保持「省略即 legacy 诊断」的既有调用点语义，V2 调用则必须显式写 `main_agent`。
+ */
+export type CreateRunPayload =
+  | (Omit<CreateRunRequest, 'runtime_kind'> & { runtime_kind?: 'diagnosis' })
+  | CreateMainAgentRunRequest
 export type SendPlainMessageRequest = components['schemas']['SendPlainMessageRequest']
 export type PlainMessageResponse = components['schemas']['PlainMessageResponse']
 export type ActionProposalStatus = components['schemas']['ActionProposalStatus']
@@ -558,7 +569,7 @@ export interface ApiV1Client {
   ): Promise<ApiResponse<RunEventListResponse>>
   create_run(
     session_id: string,
-    payload: CreateRunRequest,
+    payload: CreateRunPayload,
     options: CreateRunOptions,
   ): Promise<ApiResponse<RunResponse>>
   rerun_run(run_id: string, options: CreateRunOptions): Promise<ApiResponse<RunResponse>>

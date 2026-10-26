@@ -20,8 +20,9 @@ from pydantic import BaseModel, JsonValue
 from sqlalchemy.exc import SQLAlchemyError
 
 from src.application.errors import SessionExportUnavailableError, SessionNotFoundError
+from src.application.run_execution import RunFailureCode
 from src.core.tool_gateway import desensitize
-from src.domain.diagnosis import MessageRole, RunStatus
+from src.domain.diagnosis import MessageRole, RunRuntimeKind, RunStatus
 from src.domain.records import (
     DiagnosisResultData,
     DiagnosisRunData,
@@ -42,13 +43,19 @@ _CONNECTION_STRING_PATTERN = re.compile(
 )
 _CONNECTION_STRING_REDACTED = "[已脱敏:连接串]"
 
-# 失败 Run 的安全错误（与 resources._safe_run_error 白名单同口径；如有扩充需同步）。
-_EXPORT_SAFE_ERROR = "诊断执行失败，请稍后重试"
-
-
-def _safe_export_run_error(_code: str | None, _message: str | None) -> str:
+# 失败 Run 的安全错误只允许封闭枚举文案（与 resources._safe_run_error 同一枚举来源）。
+def _safe_export_run_error(runtime_kind: RunRuntimeKind, code: str | None, _message: str | None) -> str:
     """把失败 Run 的错误收敛为白名单安全文案，绝不透传原始错误文本。"""
-    return _EXPORT_SAFE_ERROR
+    fallback = (
+        RunFailureCode.MAIN_AGENT_FAILED
+        if runtime_kind is RunRuntimeKind.MAIN_AGENT
+        else RunFailureCode.DIAGNOSIS_FAILED
+    )
+    try:
+        failure = RunFailureCode(code) if code is not None else fallback
+    except ValueError:
+        failure = fallback
+    return failure.safe_message
 
 
 def _role_label(role: MessageRole, run_id: UUID | None) -> str:
@@ -78,6 +85,8 @@ def _run_summary_block(
     messages_by_id: dict[UUID, MessageData],
 ) -> list[str]:
     """把一个 Run 收敛为调查摘要区的一组 Markdown 行。"""
+    if run.runtime_kind is RunRuntimeKind.MAIN_AGENT:
+        return _main_run_summary_block(index, run, messages_by_id)
     lines = [f"### 第 {index} 次调查（{run.created_at.isoformat()}）"]
     input_message = messages_by_id.get(run.input_message_id)
     if input_message is not None:
@@ -85,7 +94,7 @@ def _run_summary_block(
     lines.append(f"**状态**：{run.status.value}")
     lines.append(f"**目标服务**：{run.service_id if run.service_id else '未关联服务'}")
     if run.status == RunStatus.FAILED:
-        lines.append(f"**错误**：{_safe_export_run_error(run.error_code, run.error_message)}")
+        lines.append(f"**错误**：{_safe_export_run_error(run.runtime_kind, run.error_code, run.error_message)}")
     if result is not None:
         lines.append(f"**严重度**：{result.severity.value}")
         lines.append(f"**置信度**：{result.confidence}")
@@ -100,6 +109,23 @@ def _run_summary_block(
             lines.extend(_evidence_line(item) for item in shown)
             if len(evidence) > EVIDENCE_PER_RUN_CAP:
                 lines.append(f"…等 {len(evidence)} 条证据")
+    return lines
+
+
+def _main_run_summary_block(
+    index: int,
+    run: DiagnosisRunData,
+    messages_by_id: dict[UUID, MessageData],
+) -> list[str]:
+    """V2 主 Agent Run 的中性摘要：不含材料正文、差异引文或诊断字段。"""
+    lines = [f"### 第 {index} 次主 Agent 对话（{run.created_at.isoformat()}）"]
+    input_message = messages_by_id.get(run.input_message_id)
+    if input_message is not None:
+        lines.append(f"**目标**：{desensitize(input_message.content)}")
+    lines.append(f"**状态**：{run.status.value}")
+    lines.append("**运行时**：主 Agent")
+    if run.status == RunStatus.FAILED:
+        lines.append(f"**错误**：{_safe_export_run_error(run.runtime_kind, run.error_code, run.error_message)}")
     return lines
 
 

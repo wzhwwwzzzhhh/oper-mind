@@ -8,7 +8,14 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationInfo, field_validator
 
-from src.domain.diagnosis import DiagnosisSeverity, MessageRole, RunEventType, RunStatus, SessionStatus
+from src.domain.diagnosis import (
+    DiagnosisSeverity,
+    MessageRole,
+    RunEventType,
+    RunRuntimeKind,
+    RunStatus,
+    SessionStatus,
+)
 
 RecordT = TypeVar("RecordT", bound=BaseModel)
 CursorT = TypeVar("CursorT", bound=BaseModel)
@@ -79,6 +86,7 @@ class DiagnosisRunData(TimestampedRecord):
     trace_id: UUID = Field(default_factory=uuid4)
     input_message_id: UUID
     service_id: str | None = Field(default=None, max_length=64)
+    runtime_kind: RunRuntimeKind = RunRuntimeKind.DIAGNOSIS
     status: RunStatus = RunStatus.QUEUED
     next_event_sequence: int = Field(default=1, ge=1)
     error_code: str | None = None
@@ -96,6 +104,7 @@ class GlobalRunData(TimestampedRecord):
     session_id: UUID
     session_title: str = Field(min_length=1, max_length=200)
     service_id: str | None = Field(default=None, max_length=64)
+    runtime_kind: RunRuntimeKind = RunRuntimeKind.DIAGNOSIS
     status: RunStatus
     created_at: datetime
     error_code: str | None = None

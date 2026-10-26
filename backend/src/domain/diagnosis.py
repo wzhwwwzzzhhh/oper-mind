@@ -30,6 +30,13 @@ class RunStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class RunRuntimeKind(str, Enum):
+    """同一 Run 主脊上的运行时判别值；不是新的产品控制面。"""
+
+    DIAGNOSIS = "diagnosis"
+    MAIN_AGENT = "main_agent"
+
+
 class DiagnosisSeverity(str, Enum):
     """结构化诊断结果的严重性。"""
 

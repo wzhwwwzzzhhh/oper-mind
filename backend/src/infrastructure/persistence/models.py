@@ -114,6 +114,10 @@ class DiagnosisRunRecord(Base):
             name="diagnosis_run_status_valid",
         ),
         CheckConstraint("next_event_sequence >= 1", name="diagnosis_run_next_sequence_positive"),
+        CheckConstraint(
+            "runtime_kind IN ('diagnosis', 'main_agent')",
+            name="diagnosis_run_runtime_kind_valid",
+        ),
         UniqueConstraint("input_message_id", name="diagnosis_run_input_message_unique"),
         Index("ix_diagnosis_runs_session_created_at_id", "session_id", "created_at", "id"),
         Index("ix_diagnosis_runs_service_created_at_id", "service_id", "created_at", "id"),
@@ -134,6 +138,12 @@ class DiagnosisRunRecord(Base):
         nullable=False,
     )
     service_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    runtime_kind: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="diagnosis",
+        server_default="diagnosis",
+    )
     status: Mapped[str] = mapped_column(String(20), nullable=False, default=RunStatus.QUEUED.value)
     next_event_sequence: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     error_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -146,6 +156,47 @@ class DiagnosisRunRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class RunInputRecord(Base):
+    """MainAgent Run 的冻结输入；每 Run 至多一条，受理后不可覆盖。"""
+
+    __tablename__ = "run_inputs"
+    __table_args__ = (
+        CheckConstraint("schema_version >= 1", name="run_input_schema_version_positive"),
+    )
+
+    run_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("diagnosis_runs.id", ondelete="RESTRICT"),
+        primary_key=True,
+    )
+    schema_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+
+class RunDeliveryRecord(Base):
+    """MainAgent Run 的 typed 交付；仅在成功事务写一次。"""
+
+    __tablename__ = "run_deliveries"
+    __table_args__ = (
+        CheckConstraint("schema_version >= 1", name="run_delivery_schema_version_positive"),
+        CheckConstraint(
+            "kind IN ('answer', 'needs_input', 'comparison')",
+            name="run_delivery_kind_valid",
+        ),
+    )
+
+    run_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("diagnosis_runs.id", ondelete="RESTRICT"),
+        primary_key=True,
+    )
+    schema_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    kind: Mapped[str] = mapped_column(String(24), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
 
 
 class RunEventRecord(Base):

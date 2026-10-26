@@ -4,6 +4,8 @@ import { Icon } from './Icon'
 
 interface ComposerProps {
   disabled?: boolean
+  /** 输入框可访问名称；V2 主 Agent 入口用它区分"请求"与"调查问题"。 */
+  label?: string
   loading?: boolean
   loading_label?: string
   onSubmit: (value: string) => void
@@ -18,6 +20,7 @@ const MAX_TEXTAREA_HEIGHT = 320
 
 export function Composer({
   disabled,
+  label = '调查问题',
   loading = false,
   loading_label = '正在发送',
   onSubmit,
@@ -50,7 +53,7 @@ export function Composer({
       <div className="composer-area">
         <div className="composer">
           <textarea
-            aria-label="调查问题"
+            aria-label={label}
             disabled={interaction_disabled}
             onChange={(event) => onChange?.(event.target.value)}
             onKeyDown={(event) => {

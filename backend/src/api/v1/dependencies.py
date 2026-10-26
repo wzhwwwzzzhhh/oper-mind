@@ -34,16 +34,21 @@ from src.application.service_center import ServiceCenterApplicationService
 from src.application.service_registration import ServiceRegistrationApplicationService
 from src.application.services import RunApplicationService, SessionApplicationService
 from src.application.session_export import SessionExportApplicationService
+from src.capabilities import CapabilityRegistry
+from src.capabilities.text_compare import TEXT_COMPARE_CAPABILITY
 from src.config import (
     load_action_mode,
     load_host_metrics_settings,
     load_knowledge_settings,
+    load_main_agent_mock_scenario_name,
     load_monitor_settings,
     load_persistence_settings,
     load_service_dsn,
 )
 from src.core.bootstrap import build_coordinator, build_llm_from_config
 from src.core.coordinator import CoordinatorAgent
+from src.core.llm import LLMClient
+from src.core.main_agent_model import parse_main_mock_scenario
 from src.domain.model_params import ModelParams
 from src.domain.services import (
     BindingOrigin,
@@ -52,6 +57,7 @@ from src.domain.services import (
     ServiceRegistry,
 )
 from src.infrastructure.actions.postgres_target_executor import PostgresTargetActionExecutor
+from src.infrastructure.agent_runtime.run_executor import MainAgentRunExecutor
 from src.infrastructure.diagnosis.coordinator_executor import CoordinatorDiagnosisExecutor
 from src.infrastructure.diagnosis.postgres_missing_index import PostgresMissingIndexCollector
 from src.infrastructure.diagnosis.result_assembler import KernelReportResultAssembler
@@ -85,6 +91,10 @@ from src.infrastructure.services.service_connector_factory import (
 )
 
 LOGGER = logging.getLogger(__name__)
+
+# V2 主 Agent 模型调用的有界预算：单次调用 30 秒超时、SDK 不做任何重试。
+MAIN_AGENT_MODEL_TIMEOUT_SECONDS = 30.0
+MAIN_AGENT_MODEL_MAX_RETRIES = 0
 
 
 @dataclass(frozen=True)
@@ -157,6 +167,37 @@ def _resolved_coordinator_factory(runtime: PersistenceRuntime) -> Callable[..., 
         return build_coordinator(llm, role_llms=role_llms, service_id=service_id, binding=binding)
 
     return build
+
+
+def _main_agent_run_executor(
+    session_factory: SessionFactory,
+    secret_key: bytes | None,
+) -> MainAgentRunExecutor:
+    """装配 V2 主 Agent 执行器：每 Run 现造模型客户端，能力只显式注册首闭环一项。
+
+    超时 30 秒、SDK 重试 0 次，配合「一次决策 + 至多一次 Tool」的有界预算；mock 场景
+    只来自 `OPERMIND_MAIN_AGENT_MOCK_SCENARIO` 显式声明，未声明即按真实模型配置执行，
+    绝不从 query 词汇推断。
+    """
+    usage_recorder = SqlAlchemyUsageRecorder(session_factory)
+
+    def client_factory() -> LLMClient:
+        resolution = resolve_runtime_mode(session_factory, secret_key)
+        params = resolve_model_params(SqlAlchemyAppSettingsStore(session_factory))
+        return build_llm_from_config(
+            resolution["config"],
+            params=ModelParams(temperature=params["temperature"], max_tokens=params["max_tokens"]),
+            usage_recorder=usage_recorder,
+            manage_legacy_scenario=False,
+            request_timeout=MAIN_AGENT_MODEL_TIMEOUT_SECONDS,
+            max_retries=MAIN_AGENT_MODEL_MAX_RETRIES,
+        )
+
+    return MainAgentRunExecutor(
+        client_factory=client_factory,
+        capabilities=CapabilityRegistry([TEXT_COMPARE_CAPABILITY]),
+        mock_scenario=parse_main_mock_scenario(load_main_agent_mock_scenario_name()),
+    )
 
 
 def _plain_chat_system_prompt() -> str:
@@ -320,6 +361,7 @@ def build_v1_services_for_runtime(
             action_service=action_service,
             action_mode=action_mode,
             registry=registry,
+            run_executor=_main_agent_run_executor(session_factory, secret_key),
         ),
         plain_message_service=PlainMessageApplicationService(
             SqlAlchemyPlainMessageWriter(session_factory),

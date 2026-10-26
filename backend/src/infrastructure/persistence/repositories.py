@@ -7,10 +7,22 @@ from datetime import UTC, datetime, timedelta
 from typing import overload
 from uuid import UUID
 
+from pydantic import ValidationError
 from sqlalchemy import RowMapping, Select, and_, case, or_, select, update
 from sqlalchemy.orm import Session
 
-from src.domain.diagnosis import DiagnosisSeverity, MessageRole, RunEventType, RunStatus, SessionStatus
+from src.domain.diagnosis import (
+    DiagnosisSeverity,
+    MessageRole,
+    RunEventType,
+    RunRuntimeKind,
+    RunStatus,
+    SessionStatus,
+)
+from src.domain.main_agent import (
+    MainAgentInputUnavailableError,
+    MainInputSnapshotV1,
+)
 from src.domain.records import (
     CursorT,
     DiagnosisResultData,
@@ -33,6 +45,7 @@ from src.infrastructure.persistence.models import (
     MessageRecord,
     RunEventRecord,
     RunIdempotencyKeyRecord,
+    RunInputRecord,
     SessionRecord,
     SessionServiceRecord,
 )
@@ -268,6 +281,17 @@ class SqlAlchemyMessageRepository:
         )
         return _rowcount(result) == 1
 
+    def list_by_run(self, run_id: UUID) -> list[MessageData]:
+        """读取关联某 Run 的消息，按创建时间与 ID 稳定正序。"""
+        records = list(
+            self._session.scalars(
+                select(MessageRecord)
+                .where(MessageRecord.run_id == run_id)
+                .order_by(MessageRecord.created_at.asc(), MessageRecord.id.asc())
+            )
+        )
+        return [_message_data(record) for record in records]
+
     def list_latest_by_session(self, session_id: UUID, limit: int) -> list[MessageData]:
         """读取会话最近 limit 条消息，按创建时间正序返回（供导出等尾部场景）。
 
@@ -335,6 +359,7 @@ class SqlAlchemyDiagnosisRunRepository:
                 trace_id=run.trace_id,
                 input_message_id=run.input_message_id,
                 service_id=run.service_id,
+                runtime_kind=run.runtime_kind.value,
                 status=run.status.value,
                 next_event_sequence=run.next_event_sequence,
                 error_code=run.error_code,
@@ -413,6 +438,19 @@ class SqlAlchemyDiagnosisRunRepository:
         )
         return int(next_sequence) - 1 if next_sequence is not None else None
 
+    def reserve_running_event_sequence(self, run_id: UUID) -> int | None:
+        """仅当 Run 仍 running 时原子预留普通事件序号；未更新任何行返回 None。"""
+        next_sequence = self._session.scalar(
+            update(DiagnosisRunRecord)
+            .where(
+                DiagnosisRunRecord.id == run_id,
+                DiagnosisRunRecord.status == RunStatus.RUNNING.value,
+            )
+            .values(next_event_sequence=DiagnosisRunRecord.next_event_sequence + 1)
+            .returning(DiagnosisRunRecord.next_event_sequence)
+        )
+        return int(next_sequence) - 1 if next_sequence is not None else None
+
     def is_cancelled(self, run_id: UUID) -> bool:
         """按主键读取 Run 是否已取消（只查状态列，供执行循环协作式取消检查）。"""
         status = self._session.scalar(
@@ -470,6 +508,7 @@ class SqlAlchemyDiagnosisRunRepository:
                 DiagnosisRunRecord.session_id,
                 SessionRecord.title.label("session_title"),
                 DiagnosisRunRecord.service_id,
+                DiagnosisRunRecord.runtime_kind,
                 DiagnosisRunRecord.status,
                 DiagnosisRunRecord.created_at,
                 DiagnosisRunRecord.error_code,
@@ -579,6 +618,38 @@ class SqlAlchemyDiagnosisResultRepository:
         return _diagnosis_result_data(record) if record is not None else None
 
 
+class SqlAlchemyRunInputRepository:
+    """MainAgent 冻结输入的 1:1 读写实现；未知版本或损坏 JSON 安全失败。"""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def add(self, run_id: UUID, snapshot: MainInputSnapshotV1) -> None:
+        """将输入快照加入调用方事务，不提交；数据库主键保证每 Run 至多一条。"""
+        self._session.add(
+            RunInputRecord(
+                run_id=run_id,
+                schema_version=snapshot.schema_version,
+                payload=snapshot.model_dump(mode="json"),
+            )
+        )
+
+    def get_by_run_id(self, run_id: UUID) -> MainInputSnapshotV1 | None:
+        """读取并严格解析冻结输入；版本未知或内容损坏时安全失败。"""
+        record = self._session.get(RunInputRecord, run_id)
+        if record is None:
+            return None
+        if record.schema_version != 1:
+            raise MainAgentInputUnavailableError()
+        try:
+            snapshot = MainInputSnapshotV1.model_validate(record.payload)
+        except ValidationError:
+            raise MainAgentInputUnavailableError() from None
+        if snapshot.schema_version != record.schema_version:
+            raise MainAgentInputUnavailableError()
+        return snapshot
+
+
 class SqlAlchemyRunIdempotencyKeyRepository:
     """基于 SQLAlchemy 的 Run 幂等记录 Repository。"""
 
@@ -655,6 +726,7 @@ def _diagnosis_run_data(record: DiagnosisRunRecord) -> DiagnosisRunData:
         trace_id=record.trace_id,
         input_message_id=record.input_message_id,
         service_id=record.service_id,
+        runtime_kind=RunRuntimeKind(record.runtime_kind),
         status=RunStatus(record.status),
         next_event_sequence=record.next_event_sequence,
         error_code=record.error_code,
@@ -734,11 +806,15 @@ def _global_run_data(row: RowMapping) -> GlobalRunData:
     created_at = values["created_at"]
     if not isinstance(created_at, datetime):
         raise ValueError("全局 Run 创建时间无效。")
+    raw_kind = values.get("runtime_kind")
+    if raw_kind is not None and not isinstance(raw_kind, str):
+        raise ValueError("全局 Run 运行时判别值无效。")
     return GlobalRunData(
         id=run_id,
         session_id=session_id,
         session_title=title,
         service_id=service_id,
+        runtime_kind=RunRuntimeKind(raw_kind) if raw_kind is not None else RunRuntimeKind.DIAGNOSIS,
         status=RunStatus(raw_status),
         created_at=_as_utc(created_at),
         error_code=values["error_code"] if isinstance(values.get("error_code"), str) else None,

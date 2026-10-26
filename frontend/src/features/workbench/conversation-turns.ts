@@ -6,6 +6,8 @@ import {
 
 export type ConversationMessageRole = 'assistant' | 'system' | 'user'
 export type InvestigationStatus = 'cancelled' | 'failed' | 'queued' | 'running' | 'succeeded'
+/** Run 运行时轨道：`main_agent` 走 V2 交付，缺省或 `diagnosis` 走 V1 只读调查。 */
+export type ConversationRuntimeKind = 'diagnosis' | 'main_agent'
 
 export interface ConversationMessage {
   content: string
@@ -18,15 +20,24 @@ export interface ConversationMessage {
 }
 
 export interface ConversationInvestigation {
+  created_at: string
+  /** V2 交付资源；诊断轨道恒为 null。 */
+  delivery: unknown
   error: unknown
   id: string
+  /** V2 冻结输入；诊断轨道与会话 Run 摘要列表恒为 null，仅 Run 详情返回 A/B 原文。 */
+  input_snapshot: unknown
+  /** V2 交付读取状态；损坏或未知版本时为 unavailable。 */
+  main_delivery_status?: 'available' | 'unavailable' | 'absent'
+  /** V2 冻结输入读取状态；仅 Run 详情返回。 */
+  main_input_status?: 'available' | 'unavailable' | 'absent'
   input_message_id: string
   result: unknown
   rerun_of_run_id?: string
+  runtime_kind: ConversationRuntimeKind
   service_id?: string
   status: InvestigationStatus
   trace_id?: string
-  created_at: string
 }
 
 export interface ConversationTurn {
@@ -111,18 +122,43 @@ function read_investigation(value: unknown, session_id: string, issues: string[]
     issues.push(`RUN_PROTOCOL_ERROR：调查 ${id} 缺少结果或安全错误字段。`)
     return undefined
   }
+  const raw_kind = resource_optional_string(value, 'runtime_kind')
+  if (raw_kind !== undefined && raw_kind !== 'diagnosis' && raw_kind !== 'main_agent') {
+    issues.push(`RUN_PROTOCOL_ERROR：调查 ${id} 的运行时类型不受支持。`)
+    return undefined
+  }
+  const delivery_status = read_main_read_status(value, 'main_delivery_status')
+  const input_status = read_main_read_status(value, 'main_input_status')
 
   return {
+    created_at,
+    delivery: resource_value(value, 'delivery'),
     error: resource_value(value, 'error'),
     id,
+    input_snapshot: resource_value(value, 'input_snapshot'),
+    main_delivery_status: delivery_status,
+    main_input_status: input_status,
     input_message_id,
     result: resource_value(value, 'result'),
     rerun_of_run_id,
+    runtime_kind: raw_kind === 'main_agent' ? 'main_agent' : 'diagnosis',
     service_id,
     status: status as InvestigationStatus,
     trace_id,
-    created_at,
   }
+}
+
+const MAIN_READ_STATUSES: ReadonlySet<string> = new Set(['available', 'unavailable', 'absent'])
+
+/** 读取 V2 交付状态；未知值按缺失处理，不伪造可用。 */
+function read_main_read_status(
+  value: unknown,
+  field: 'main_delivery_status' | 'main_input_status',
+): 'available' | 'unavailable' | 'absent' | undefined {
+  const raw = resource_optional_string(value, field)
+  return raw !== undefined && MAIN_READ_STATUSES.has(raw)
+    ? (raw as 'available' | 'unavailable' | 'absent')
+    : undefined
 }
 
 /**

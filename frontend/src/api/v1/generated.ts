@@ -284,6 +284,73 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/model/providers/enumerate-models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enumerate Provider Models
+         * @description 用弹窗内未保存的临时凭据枚举模型；受控只读、限时、脱敏，不落库、无副作用。
+         *
+         *     API Key 只在请求体内瞬态出现，不经日志 / Trace / 任何存储；与已保存 Provider
+         *     的枚举走同一条 SSRF 主机校验链路（非 localhost 必须解析到公网地址）。
+         */
+        post: operations["enumerate_provider_models_api_v1_model_providers_enumerate_models_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/model/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Model Roles
+         * @description 列出全部 Agent 角色的模型装配（装配原样 + 生效模型，回退默认者如实标注）。
+         */
+        get: operations["list_model_roles_api_v1_model_roles_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/model/roles/{role}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Assign Model Role
+         * @description 为 Agent 角色装配 Provider（与可选模型覆盖）；角色不合法 422，Provider 不存在 404。
+         */
+        put: operations["assign_model_role_api_v1_model_roles__role__put"];
+        post?: never;
+        /**
+         * Unassign Model Role
+         * @description 清除角色装配，角色回退默认模型；无装配也视为成功。
+         */
+        delete: operations["unassign_model_role_api_v1_model_roles__role__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/model/usage": {
         parameters: {
             query?: never;
@@ -1155,6 +1222,19 @@ export interface components {
             duration_ms?: unknown;
         };
         /**
+         * AssignModelRoleRequest
+         * @description 为 Agent 角色装配 Provider；model 留空/空串表示使用 Provider 自身模型。
+         */
+        AssignModelRoleRequest: {
+            /**
+             * Provider Id
+             * Format: uuid
+             */
+            provider_id: string;
+            /** Model */
+            model?: string | null;
+        };
+        /**
          * AuditActivityListResponse
          * @description 跨服务跨会话审计活动 cursor 分页响应。
          */
@@ -1238,6 +1318,23 @@ export interface components {
             meta: unknown;
         };
         /**
+         * CreateMainAgentRunRequest
+         * @description 受理主 Agent Run 的显式请求：不继承会话服务，材料缺失与显式空可区分。
+         */
+        CreateMainAgentRunRequest: {
+            /**
+             * Runtime Kind
+             * @constant
+             */
+            runtime_kind: "main_agent";
+            /** Query */
+            query: string;
+            /** Text A */
+            text_a?: string | null;
+            /** Text B */
+            text_b?: string | null;
+        };
+        /**
          * CreateModelProviderRequest
          * @description 新增 Provider 请求。
          */
@@ -1253,9 +1350,15 @@ export interface components {
         };
         /**
          * CreateRunRequest
-         * @description 受理诊断 Run 的请求。
+         * @description 受理诊断 Run 的请求；未显式提供 runtime_kind 时按本类型处理。
          */
         CreateRunRequest: {
+            /**
+             * Runtime Kind
+             * @default diagnosis
+             * @constant
+             */
+            runtime_kind: "diagnosis";
             /** Query */
             query: string;
             /** Service Id */
@@ -1346,7 +1449,7 @@ export interface components {
         };
         /**
          * DiagnosisRunResource
-         * @description 诊断 Run 资源。
+         * @description 诊断 Run 资源；V2 主 Agent 交付与诊断结果互斥投影。
          */
         DiagnosisRunResource: {
             /** Id */
@@ -1359,9 +1462,18 @@ export interface components {
             input_message_id: unknown;
             /** Service Id */
             service_id?: unknown;
+            /** Runtime Kind */
+            runtime_kind?: unknown;
             /** Status */
             status: unknown;
             result?: unknown;
+            /** Delivery */
+            delivery?: unknown;
+            input_snapshot?: unknown;
+            /** Main Delivery Status */
+            main_delivery_status?: unknown;
+            /** Main Input Status */
+            main_input_status?: unknown;
             error?: unknown;
             /** Rerun Of Run Id */
             rerun_of_run_id?: unknown;
@@ -1379,6 +1491,29 @@ export interface components {
         EditMessageRequest: {
             /** Content */
             content: string;
+        };
+        /**
+         * EnumerateProviderModelsRequest
+         * @description 用弹窗内未保存的临时凭据枚举模型；API Key 仅在请求体内瞬态出现，不落库。
+         */
+        EnumerateProviderModelsRequest: {
+            /** Base Url */
+            base_url: string;
+            /** Api Key */
+            api_key?: string | null;
+        };
+        /**
+         * EnumerateProviderModelsResponse
+         * @description 临时凭据模型枚举响应；只含模型名与脱敏状态，无凭据/响应体。
+         */
+        EnumerateProviderModelsResponse: {
+            /** Status */
+            status: unknown;
+            /** Models */
+            models?: unknown;
+            /** Error Code */
+            error_code?: unknown;
+            meta: unknown;
         };
         /**
          * EvidenceResource
@@ -1584,6 +1719,74 @@ export interface components {
             meta: unknown;
         };
         /**
+         * MainAnswerDeliveryResource
+         * @description 普通回答交付：用户可见正文，但不是已校验的文本比较。
+         */
+        MainAnswerDeliveryResource: {
+            /** Kind */
+            kind: unknown;
+            /** Text */
+            text: unknown;
+        };
+        /**
+         * MainComparisonDeliveryResource
+         * @description 已校验文本比较交付。
+         */
+        MainComparisonDeliveryResource: {
+            /** Kind */
+            kind: unknown;
+            /** Capability Id */
+            capability_id: unknown;
+            /** Capability Version */
+            capability_version: unknown;
+            /** Rule Version */
+            rule_version: unknown;
+            /** Status */
+            status: unknown;
+            /** A Material Id */
+            a_material_id: unknown;
+            /** B Material Id */
+            b_material_id: unknown;
+            /** Blocks */
+            blocks: unknown;
+        };
+        /**
+         * MainInputSnapshotResource
+         * @description 主 Agent Run 的冻结输入摘要。
+         */
+        MainInputSnapshotResource: {
+            /** Query */
+            query: unknown;
+            /** Rule Version */
+            rule_version: unknown;
+            text_a?: unknown;
+            text_b?: unknown;
+        };
+        /**
+         * MainMaterialResource
+         * @description 本次 Run 冻结的单侧材料（仅详情接口返回，用于输入展示区）。
+         */
+        MainMaterialResource: {
+            /** Material Id */
+            material_id: unknown;
+            /** Original Text */
+            original_text: unknown;
+            /** Content Sha256 */
+            content_sha256: unknown;
+        };
+        /**
+         * MainNeedsInputDeliveryResource
+         * @description 材料追问交付：只说明缺失侧，不制造比较结果。
+         */
+        MainNeedsInputDeliveryResource: {
+            /** Kind */
+            kind: unknown;
+            /** Missing */
+            missing: unknown;
+            /** Prompt */
+            prompt: unknown;
+        };
+        /**
          * MessageListResponse
          * @description 会话消息列表响应。
          */
@@ -1759,6 +1962,41 @@ export interface components {
          */
         ModelProviderResponse: {
             provider: unknown;
+            meta: unknown;
+        };
+        /**
+         * ModelRoleListResponse
+         * @description Agent 角色模型装配列表。
+         */
+        ModelRoleListResponse: {
+            /** Roles */
+            roles: unknown;
+            meta: unknown;
+        };
+        /**
+         * ModelRoleResource
+         * @description 单个 Agent 角色的模型装配安全视图；source=default 表示回退诊断模型。
+         */
+        ModelRoleResource: {
+            /** Role */
+            role: unknown;
+            /** Label */
+            label: unknown;
+            /** Source */
+            source: unknown;
+            /** Provider Id */
+            provider_id?: unknown;
+            /** Provider Name */
+            provider_name?: unknown;
+            /** Model */
+            model?: unknown;
+        };
+        /**
+         * ModelRoleResponse
+         * @description 单个 Agent 角色模型装配响应。
+         */
+        ModelRoleResponse: {
+            role: unknown;
             meta: unknown;
         };
         /**
@@ -2212,6 +2450,8 @@ export interface components {
             supported_investigations: unknown;
             /** Action Boundary */
             action_boundary: unknown;
+            /** Source */
+            source: unknown;
             snapshot: unknown;
             host_metrics: unknown;
             /** Has Dsn */
@@ -2320,6 +2560,26 @@ export interface components {
          * @enum {string}
          */
         SessionStatus: "active" | "archived";
+        /**
+         * TextDiffBlockResource
+         * @description 一个已校验差异块；行号 1 基闭区间，引文逐字等于对应行。
+         */
+        TextDiffBlockResource: {
+            /** Kind */
+            kind: unknown;
+            /** A Start */
+            a_start?: unknown;
+            /** A End */
+            a_end?: unknown;
+            /** B Start */
+            b_start?: unknown;
+            /** B End */
+            b_end?: unknown;
+            /** A Quote */
+            a_quote?: unknown;
+            /** B Quote */
+            b_quote?: unknown;
+        };
         /**
          * UpdateModelModeRequest
          * @description 运行时切换 mock / real 模式的写请求。
@@ -2906,6 +3166,123 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ModelProviderModelsResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    enumerate_provider_models_api_v1_model_providers_enumerate_models_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnumerateProviderModelsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnumerateProviderModelsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_model_roles_api_v1_model_roles_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelRoleListResponse"];
+                };
+            };
+        };
+    };
+    assign_model_role_api_v1_model_roles__role__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                role: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssignModelRoleRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelRoleResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unassign_model_role_api_v1_model_roles__role__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                role: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -3585,7 +3962,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CreateRunRequest"];
+                "application/json": components["schemas"]["CreateMainAgentRunRequest"] | components["schemas"]["CreateRunRequest"];
             };
         };
         responses: {

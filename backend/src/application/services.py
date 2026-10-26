@@ -38,14 +38,57 @@ from src.application.errors import (
     SessionNotFoundError,
 )
 from src.application.message_routing import requires_database_context
+from src.application.run_execution import (
+    CreateMainAgentRunCommand,
+    DiagnosisRunExecutionInput,
+    MainAgentInputRejectedError,
+    MainAgentRerunCommand,
+    MainAgentRunExecutionInput,
+    RunDiagnosisResultSignal,
+    RunEventSignal,
+    RunExecutionError,
+    RunExecutionInput,
+    RunExecutor,
+    RunFailureCode,
+    RunFailureSignal,
+    RunMainDeliverySignal,
+    UnsupportedMainAgentRuleError,
+    assert_main_input_is_safe,
+    build_main_input_snapshot,
+    main_agent_create_fingerprint,
+    main_agent_rerun_fingerprint,
+    rebuild_main_input_snapshot,
+    validate_main_delivery,
+)
 from src.application.runtime_contracts import (
     RuntimeEventSignal,
     RuntimeFailureSignal,
     RuntimeResultSignal,
 )
-from src.application.runtime_safety import guard_runtime_stream
+from src.application.runtime_safety import guard_run_stream, guard_runtime_stream
+from src.core.input_admission import context_has_sensitive_content
+from src.core.tool_gateway import contains_sensitive_content
 from src.domain.actions import ActionMode
-from src.domain.diagnosis import MessageRole, RunEventType, RunStatus, SessionStatus
+from src.domain.diagnosis import (
+    MessageRole,
+    RunEventType,
+    RunRuntimeKind,
+    RunStatus,
+    SessionStatus,
+)
+from src.domain.main_agent import (
+    MAIN_AGENT_RULE_VERSION,
+    MAX_CONTEXT_CODEPOINTS,
+    MAX_CONTEXT_MESSAGES,
+    MainAgentDeliveryUnavailableError,
+    MainAgentInputUnavailableError,
+    MainAnswerDeliveryV1,
+    MainContextMessageV1,
+    MainDeliveryV1,
+    MainInputSnapshotV1,
+    MainNeedsInputDeliveryV1,
+    main_delivery_message,
+)
 from src.domain.records import (
     DiagnosisRunData,
     MessageData,
@@ -61,8 +104,10 @@ from src.infrastructure.persistence.repositories import (
     SqlAlchemyMessageRepository,
     SqlAlchemyRunEventRepository,
     SqlAlchemyRunIdempotencyKeyRepository,
+    SqlAlchemyRunInputRepository,
     SqlAlchemySessionRepository,
 )
+from src.infrastructure.persistence.run_delivery_repository import SqlAlchemyRunDeliveryRepository
 
 TransactionT = TypeVar("TransactionT")
 IDEMPOTENCY_RETENTION = timedelta(hours=24)
@@ -168,6 +213,7 @@ class RunApplicationService:
         action_service: ActionApplicationService | None = None,
         action_mode: ActionMode | None = None,
         registry: ServiceRegistry | None = None,
+        run_executor: RunExecutor | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._executor = executor
@@ -175,6 +221,7 @@ class RunApplicationService:
         self._action_service = action_service
         self._action_mode = action_mode
         self._registry = registry
+        self._run_executor = run_executor
 
     def accept_run(self, command: CreateRunCommand) -> AcceptedRun:
         """原子受理 Run，并处理同键重放与冲突。"""
@@ -185,22 +232,50 @@ class RunApplicationService:
                 lambda session: self._accept_run_in_transaction(session, command, fingerprint),
             )
         except IntegrityError as error:
-            return self._load_idempotency_after_conflict(command, fingerprint, error)
+            return self._load_idempotency_after_conflict(
+                command.session_id,
+                RUN_CREATE_ENDPOINT,
+                command.idempotency_key,
+                fingerprint,
+                RunRuntimeKind.DIAGNOSIS,
+                error,
+            )
+
+    def accept_main_agent_run(self, command: CreateMainAgentRunCommand) -> AcceptedRun:
+        """在落库前拒绝凭据形态输入，再原子受理 MainAgent Run。"""
+        assert_main_input_is_safe(command.input)
+        fingerprint = main_agent_create_fingerprint(command.input)
+        try:
+            return _in_transaction(
+                self._session_factory,
+                lambda session: self._accept_run_in_transaction(session, command, fingerprint),
+            )
+        except IntegrityError as error:
+            return self._load_idempotency_after_conflict(
+                command.session_id,
+                RUN_CREATE_ENDPOINT,
+                command.idempotency_key,
+                fingerprint,
+                RunRuntimeKind.MAIN_AGENT,
+                error,
+            )
 
     def _load_idempotency_after_conflict(
         self,
-        command: CreateRunCommand,
+        session_id: UUID,
+        endpoint: str,
+        idempotency_key: UUID,
         fingerprint: str,
+        expected_kind: RunRuntimeKind,
         original_error: IntegrityError,
-        endpoint: str = RUN_CREATE_ENDPOINT,
     ) -> AcceptedRun:
-        """处理唯一键竞争后的幂等重读。"""
+        """处理唯一键竞争后的幂等重读，并核对关联 Run 的运行时判别值。"""
 
         def operation(session: Session) -> AcceptedRun:
             key = SqlAlchemyRunIdempotencyKeyRepository(session).get_by_scope(
-                command.session_id,
+                session_id,
                 endpoint,
-                command.idempotency_key,
+                idempotency_key,
             )
             if key is None:
                 raise original_error
@@ -209,49 +284,136 @@ class RunApplicationService:
             run = SqlAlchemyDiagnosisRunRepository(session).get_by_id(key.run_id)
             if run is None:
                 raise RunNotFoundError()
+            if run.runtime_kind is not expected_kind:
+                raise IdempotencyKeyReusedError()
             return AcceptedRun(run=run, replayed=True)
 
         return _in_transaction(self._session_factory, operation)
 
     def execute_run(self, run_id: UUID) -> DiagnosisRunData:
-        """使用已持久化输入消息执行 Run，并把任何可处理异常收敛为安全终态。"""
+        """使用已持久化输入执行 Run，并把任何可处理异常收敛为安全终态。"""
+        runtime_kind = RunRuntimeKind.DIAGNOSIS
         try:
-            running, query, claimed = self._claim_run(run_id)
+            running, execution_input, claimed = self._claim_run(run_id)
+            runtime_kind = running.runtime_kind
             if not claimed:
                 return running
-
-            current_run = self._load_run(run_id)
-            registered_ids = (
-                self._registry.service_ids() if self._registry is not None else REGISTERED_SERVICE_IDS
-            )
-            def stream_factory() -> Iterator[object]:
-                return _stream_with_context(
-                    self._executor,
-                    query or "",
-                    current_run.service_id,
-                )
-
-            for signal in guard_runtime_stream(stream_factory):
-                if isinstance(signal, RuntimeEventSignal):
-                    # 协作式取消检查点：cancel 端点已把 Run 置为 cancelled 时停止后续事件写入。
-                    if self._is_cancelled(run_id):
-                        return self._load_run(run_id)
-                    self._append_event(
-                        run_id,
-                        signal.event.type,
-                        signal.event.occurred_at,
-                        _safe_event_data(signal.event, registered_ids),
-                    )
-                    continue
-                if isinstance(signal, RuntimeFailureSignal):
-                    return self._complete_failure(run_id, *_safe_failure())
-                if isinstance(signal, RuntimeResultSignal):
-                    return self._complete_success(run_id, signal.result)
-            raise DiagnosisExecutionError()
+            # typed 执行器只服务 V2 主 Agent；诊断 Run 一律沿用原 DiagnosisExecutor 链。
+            if runtime_kind is RunRuntimeKind.MAIN_AGENT:
+                if self._run_executor is None:
+                    raise RunExecutionError(RunFailureCode.MAIN_AGENT_FAILED)
+                return self._execute_typed(run_id, running, execution_input)
+            return self._execute_legacy(run_id, execution_input)
         except RunNotFoundError:
             raise
+        except RunExecutionError as error:
+            return self._complete_failure(run_id, error.code.value, error.code.safe_message)
+        except MainAgentInputUnavailableError:
+            code = RunFailureCode.MAIN_AGENT_INPUT_UNAVAILABLE
+            return self._complete_failure(run_id, code.value, code.safe_message)
         except Exception:
-            return self._complete_failure(run_id, *_safe_failure())
+            code = self._failure_code_for_run(run_id, runtime_kind)
+            return self._complete_failure(run_id, code.value, code.safe_message)
+
+    def _execute_legacy(
+        self,
+        run_id: UUID,
+        execution_input: RunExecutionInput | None,
+    ) -> DiagnosisRunData:
+        """保留原有 DiagnosisExecutor 直接执行路径。"""
+        if not isinstance(execution_input, DiagnosisRunExecutionInput):
+            raise DiagnosisExecutionError()
+        current_run = self._load_run(run_id)
+        registered_ids = (
+            self._registry.service_ids() if self._registry is not None else REGISTERED_SERVICE_IDS
+        )
+
+        def stream_factory() -> Iterator[object]:
+            return _stream_with_context(
+                self._executor,
+                execution_input.query or "",
+                current_run.service_id,
+            )
+
+        for signal in guard_runtime_stream(stream_factory):
+            if isinstance(signal, RuntimeEventSignal):
+                # 协作式取消检查点：cancel 端点已把 Run 置为 cancelled 时停止后续事件写入。
+                if self._is_cancelled(run_id):
+                    return self._load_run(run_id)
+                self._append_event(
+                    run_id,
+                    signal.event.type,
+                    signal.event.occurred_at,
+                    _safe_event_data(signal.event, registered_ids),
+                )
+                continue
+            if isinstance(signal, RuntimeFailureSignal):
+                return self._complete_failure(run_id, *_safe_failure())
+            if isinstance(signal, RuntimeResultSignal):
+                return self._complete_success(run_id, signal.result)
+        raise DiagnosisExecutionError()
+
+    def _execute_typed(
+        self,
+        run_id: UUID,
+        running: DiagnosisRunData,
+        execution_input: RunExecutionInput | None,
+    ) -> DiagnosisRunData:
+        """按 runtime_kind 执行 typed 信号流，普通事件只经 running 谓词预留序号。"""
+        if execution_input is None:
+            raise RunExecutionError(RunFailureCode.MAIN_AGENT_INPUT_UNAVAILABLE)
+        executor = self._run_executor
+        if executor is None:
+            raise RunExecutionError(RunFailureCode.MAIN_AGENT_FAILED)
+        default_failure = (
+            RunFailureCode.DIAGNOSIS_FAILED
+            if running.runtime_kind is RunRuntimeKind.DIAGNOSIS
+            else RunFailureCode.MAIN_AGENT_FAILED
+        )
+        registered_ids = (
+            self._registry.service_ids() if self._registry is not None else REGISTERED_SERVICE_IDS
+        )
+
+        def stream_factory() -> Iterator[object]:
+            return executor.stream(execution_input)
+
+        for signal in guard_run_stream(stream_factory, default_failure=default_failure):
+            if isinstance(signal, RunEventSignal):
+                accepted = self._append_execution_event(
+                    run_id,
+                    signal.event.type,
+                    signal.event.occurred_at,
+                    _safe_event_data(signal.event, registered_ids),
+                )
+                if not accepted:
+                    return self._load_run(run_id)
+                continue
+            if isinstance(signal, RunFailureSignal):
+                return self._complete_failure(run_id, signal.code.value, signal.code.safe_message)
+            if isinstance(signal, RunDiagnosisResultSignal):
+                if running.runtime_kind is not RunRuntimeKind.DIAGNOSIS:
+                    raise RunExecutionError(RunFailureCode.MAIN_AGENT_DELIVERY_INVALID)
+                return self._complete_success(run_id, signal.result)
+            if isinstance(signal, RunMainDeliverySignal):
+                if running.runtime_kind is not RunRuntimeKind.MAIN_AGENT:
+                    raise RunExecutionError(RunFailureCode.MAIN_AGENT_DELIVERY_INVALID)
+                return self._complete_main_success(run_id, signal.delivery)
+            raise RunExecutionError(default_failure)
+        raise RunExecutionError(default_failure)
+
+    def _failure_code_for_run(
+        self,
+        run_id: UUID,
+        fallback: RunRuntimeKind,
+    ) -> RunFailureCode:
+        """读取 Run kind 选择安全失败码；读取失败时使用调用方已知值。"""
+        try:
+            runtime_kind = self._load_run(run_id).runtime_kind
+        except Exception:
+            runtime_kind = fallback
+        if runtime_kind is RunRuntimeKind.MAIN_AGENT:
+            return RunFailureCode.MAIN_AGENT_FAILED
+        return RunFailureCode.DIAGNOSIS_FAILED
 
     def cancel_run(self, run_id: UUID) -> DiagnosisRunData:
         """取消运行中的 Run；已结束（succeeded/failed）不可取消，已取消幂等返回。"""
@@ -303,7 +465,7 @@ class RunApplicationService:
     ) -> AcceptedRun:
         """在调用方事务内构造重跑命令并复用受理核心。"""
         command = self._build_rerun_command(session, run_id, idempotency_key)
-        fingerprint = _rerun_fingerprint(run_id, command.query, command.service_id)
+        fingerprint = _rerun_command_fingerprint(run_id, command)
         return self._accept_run_in_transaction(
             session,
             command,
@@ -317,14 +479,26 @@ class RunApplicationService:
         session: Session,
         run_id: UUID,
         idempotency_key: UUID,
-    ) -> CreateRunCommand:
-        """读取原 Run 与其输入消息，构造复用原上下文的重跑命令。"""
+    ) -> CreateRunCommand | MainAgentRerunCommand:
+        """按原 Run kind 读取冻结上下文，构造重跑命令。"""
         run_repository = SqlAlchemyDiagnosisRunRepository(session)
         original = run_repository.get_by_id(run_id)
         if original is None:
             raise RunNotFoundError()
         if original.status not in {RunStatus.SUCCEEDED, RunStatus.FAILED, RunStatus.CANCELLED}:
             raise RunNotTerminalError()
+        if original.runtime_kind is RunRuntimeKind.MAIN_AGENT:
+            snapshot = SqlAlchemyRunInputRepository(session).get_by_run_id(run_id)
+            if snapshot is None:
+                raise MainAgentInputUnavailableError()
+            if snapshot.rule_version != MAIN_AGENT_RULE_VERSION:
+                raise UnsupportedMainAgentRuleError()
+            return MainAgentRerunCommand(
+                session_id=original.session_id,
+                idempotency_key=idempotency_key,
+                source_run_id=run_id,
+                snapshot=snapshot,
+            )
         input_message = SqlAlchemyMessageRepository(session).get_by_id(original.input_message_id)
         if (
             input_message is None
@@ -351,12 +525,14 @@ class RunApplicationService:
             command = self._build_rerun_command(session, run_id, idempotency_key)
         finally:
             session.close()
-        fingerprint = _rerun_fingerprint(run_id, command.query, command.service_id)
+        fingerprint = _rerun_command_fingerprint(run_id, command)
         return self._load_idempotency_after_conflict(
-            command,
+            command.session_id,
+            RUN_RERUN_ENDPOINT,
+            command.idempotency_key,
             fingerprint,
+            _command_runtime_kind(command),
             original_error,
-            endpoint=RUN_RERUN_ENDPOINT,
         )
 
     def _is_cancelled(self, run_id: UUID) -> bool:
@@ -370,7 +546,7 @@ class RunApplicationService:
     def _accept_run_in_transaction(
         self,
         session: Session,
-        command: CreateRunCommand,
+        command: CreateRunCommand | CreateMainAgentRunCommand | MainAgentRerunCommand,
         fingerprint: str,
         rerun_of_run_id: UUID | None = None,
         endpoint: str = RUN_CREATE_ENDPOINT,
@@ -380,15 +556,19 @@ class RunApplicationService:
         run_repository = SqlAlchemyDiagnosisRunRepository(session)
         message_repository = SqlAlchemyMessageRepository(session)
         event_repository = SqlAlchemyRunEventRepository(session)
+        expected_kind = _command_runtime_kind(command)
 
         session_data = session_repository.get_by_id(command.session_id)
         if session_data is None:
             raise SessionNotFoundError()
         if session_data.status == SessionStatus.ARCHIVED:
             raise SessionArchivedError()
-        target_service_id = _resolve_run_service_id(session_data, command)
-        if target_service_id is None and requires_database_context(command.query):
-            raise ServiceContextRequiredError()
+
+        target_service_id: str | None = None
+        if isinstance(command, CreateRunCommand):
+            target_service_id = _resolve_run_service_id(session_data, command)
+            if target_service_id is None and requires_database_context(command.query):
+                raise ServiceContextRequiredError()
 
         existing = idempotency_repository.get_by_scope(
             command.session_id,
@@ -401,18 +581,34 @@ class RunApplicationService:
             run = run_repository.get_by_id(existing.run_id)
             if run is None:
                 raise RunNotFoundError()
+            if run.runtime_kind is not expected_kind:
+                raise IdempotencyKeyReusedError()
             return AcceptedRun(run=run, replayed=True)
+
+        snapshot: MainInputSnapshotV1 | None = None
+        if isinstance(command, CreateRunCommand):
+            message_content = command.query
+        elif isinstance(command, CreateMainAgentRunCommand):
+            context = _select_main_context(session, command.session_id)
+            if context_has_sensitive_content(context):
+                raise MainAgentInputRejectedError()
+            snapshot = build_main_input_snapshot(command.input, context)
+            message_content = command.input.query
+        else:
+            snapshot = rebuild_main_input_snapshot(command.snapshot)
+            message_content = snapshot.query
 
         now = _utc_now()
         input_message = MessageData(
             session_id=command.session_id,
             role=MessageRole.USER,
-            content=command.query,
+            content=message_content,
             created_at=now,
         )
         run = DiagnosisRunData(
             session_id=command.session_id,
             service_id=target_service_id,
+            runtime_kind=expected_kind,
             input_message_id=input_message.id,
             status=RunStatus.QUEUED,
             next_event_sequence=2,
@@ -440,6 +636,9 @@ class RunApplicationService:
         session.flush()
         run_repository.add(run)
         session.flush()
+        if snapshot is not None:
+            SqlAlchemyRunInputRepository(session).add(run.id, snapshot)
+            session.flush()
         idempotency_repository.add(idempotency)
         event_repository.add(queued_event)
         _touch_session(session_repository, session_data, now)
@@ -456,10 +655,10 @@ class RunApplicationService:
             raise RunNotFoundError()
         return value
 
-    def _claim_run(self, run_id: UUID) -> tuple[DiagnosisRunData, str | None, bool]:
-        """在短事务中认领 queued Run，并验证其持久化输入消息。"""
+    def _claim_run(self, run_id: UUID) -> tuple[DiagnosisRunData, RunExecutionInput | None, bool]:
+        """在短事务中认领 queued Run，并按 kind 读取权威执行输入。"""
 
-        def operation(session: Session) -> tuple[DiagnosisRunData, str | None, bool]:
+        def operation(session: Session) -> tuple[DiagnosisRunData, RunExecutionInput | None, bool]:
             run_repository = SqlAlchemyDiagnosisRunRepository(session)
             current = run_repository.get_by_id(run_id)
             if current is None:
@@ -473,6 +672,20 @@ class RunApplicationService:
                 or input_message.role != MessageRole.USER
             ):
                 raise RunInputMessageInvalidError()
+            if current.runtime_kind is RunRuntimeKind.MAIN_AGENT:
+                snapshot = SqlAlchemyRunInputRepository(session).get_by_run_id(run_id)
+                if snapshot is None:
+                    raise MainAgentInputUnavailableError()
+                execution_input: RunExecutionInput = MainAgentRunExecutionInput(
+                    run_id=current.id,
+                    session_id=current.session_id,
+                    snapshot=snapshot,
+                )
+            else:
+                execution_input = DiagnosisRunExecutionInput(
+                    query=input_message.content,
+                    service_id=current.service_id,
+                )
             updated = run_repository.transition_status(
                 run_id,
                 expected_statuses={RunStatus.QUEUED},
@@ -487,7 +700,7 @@ class RunApplicationService:
                     return latest, None, False
                 raise RunAlreadyTerminalError()
             self._append_event_in_transaction(session, run_id, RunEventType.RUN_STARTED, {"state": "running"})
-            return updated, input_message.content, True
+            return updated, execution_input, True
 
         return _in_transaction(self._session_factory, operation)
 
@@ -527,6 +740,32 @@ class RunApplicationService:
                 data=data,
             )
         )
+
+    def _append_execution_event(
+        self,
+        run_id: UUID,
+        event_type: RunEventType,
+        occurred_at: datetime,
+        data: dict[str, JsonValue],
+    ) -> bool:
+        """仅当 Run 仍 running 时原子预留序号并写事件；取消胜出返回 False。"""
+
+        def operation(session: Session) -> bool:
+            sequence = SqlAlchemyDiagnosisRunRepository(session).reserve_running_event_sequence(run_id)
+            if sequence is None:
+                return False
+            SqlAlchemyRunEventRepository(session).add(
+                RunEventData(
+                    run_id=run_id,
+                    sequence=sequence,
+                    type=event_type,
+                    occurred_at=occurred_at,
+                    data=data,
+                )
+            )
+            return True
+
+        return _in_transaction(self._session_factory, operation)
 
     def _complete_success(self, run_id: UUID, execution_result: DiagnosisExecutionResult) -> DiagnosisRunData:
         """原子写入 Result、助手 Message、成功终态和最终事件。"""
@@ -573,6 +812,55 @@ class RunApplicationService:
 
         return _in_transaction(self._session_factory, operation)
 
+    def _complete_main_success(self, run_id: UUID, delivery: MainDeliveryV1) -> DiagnosisRunData:
+        """原子写入 unique delivery、助手消息、成功终态和最终事件。"""
+
+        def operation(session: Session) -> DiagnosisRunData:
+            run_repository = SqlAlchemyDiagnosisRunRepository(session)
+            run = run_repository.get_by_id(run_id)
+            if run is None:
+                raise RunNotFoundError()
+            if run.runtime_kind is not RunRuntimeKind.MAIN_AGENT:
+                raise RunExecutionError(RunFailureCode.MAIN_AGENT_DELIVERY_INVALID)
+            if run.status != RunStatus.RUNNING:
+                if run.status in {RunStatus.SUCCEEDED, RunStatus.FAILED, RunStatus.CANCELLED}:
+                    return run
+                raise RunAlreadyTerminalError()
+            snapshot = SqlAlchemyRunInputRepository(session).get_by_run_id(run_id)
+            if snapshot is None:
+                raise MainAgentInputUnavailableError()
+            validate_main_delivery(delivery, run, snapshot)
+            message_text = main_delivery_message(delivery)
+            if contains_sensitive_content(message_text):
+                raise RunExecutionError(RunFailureCode.MAIN_AGENT_DELIVERY_INVALID)
+            SqlAlchemyRunDeliveryRepository(session).add(run_id, delivery)
+            assistant_message = MessageData(
+                session_id=run.session_id,
+                run_id=run.id,
+                role=MessageRole.ASSISTANT,
+                content=message_text,
+            )
+            _validate_assistant_message_run(assistant_message, run)
+            SqlAlchemyMessageRepository(session).add(assistant_message)
+            updated = run_repository.transition_status(
+                run_id,
+                expected_statuses={RunStatus.RUNNING},
+                status=RunStatus.SUCCEEDED,
+                finished_at=_utc_now(),
+            )
+            if updated is None:
+                raise RunAlreadyTerminalError()
+            self._append_event_in_transaction(
+                session,
+                run_id,
+                RunEventType.RUN_SUCCEEDED,
+                {"state": RunStatus.SUCCEEDED.value},
+            )
+            _touch_session(SqlAlchemySessionRepository(session), run.session_id, _utc_now())
+            return updated
+
+        return _in_transaction(self._session_factory, operation)
+
     def _complete_failure(self, run_id: UUID, error_code: str, error_message: str) -> DiagnosisRunData:
         """原子写入安全失败终态和最终事件。"""
 
@@ -603,6 +891,66 @@ class RunApplicationService:
             return updated
 
         return _in_transaction(self._session_factory, operation)
+
+
+def _select_main_context(session: Session, session_id: UUID) -> tuple[MainContextMessageV1, ...]:
+    """冻结最近已完成的 V2 普通回答／追问及对应目标；比较交付不入上下文。"""
+    run_repository = SqlAlchemyDiagnosisRunRepository(session)
+    message_repository = SqlAlchemyMessageRepository(session)
+    delivery_repository = SqlAlchemyRunDeliveryRepository(session)
+    runs = run_repository.list_latest_by_session(session_id, limit=MAX_CONTEXT_MESSAGES * 4)
+    candidates: list[MessageData] = []
+    for run in reversed(runs):
+        if run.runtime_kind is not RunRuntimeKind.MAIN_AGENT or run.status is not RunStatus.SUCCEEDED:
+            continue
+        try:
+            delivery = delivery_repository.get_by_run_id(run.id)
+        except MainAgentDeliveryUnavailableError:
+            continue
+        if not isinstance(delivery, (MainAnswerDeliveryV1, MainNeedsInputDeliveryV1)):
+            continue
+        input_message = message_repository.get_by_id(run.input_message_id)
+        if (
+            input_message is None
+            or input_message.session_id != session_id
+            or input_message.role is not MessageRole.USER
+            or input_message.archived_at is not None
+        ):
+            continue
+        assistant_message = next(
+            (
+                message
+                for message in message_repository.list_by_run(run.id)
+                if message.role is MessageRole.ASSISTANT and message.archived_at is None
+            ),
+            None,
+        )
+        if assistant_message is None:
+            continue
+        candidates.extend([input_message, assistant_message])
+        if len(candidates) >= MAX_CONTEXT_MESSAGES * 2:
+            break
+    candidates.sort(key=lambda message: (message.created_at, str(message.id)))
+    selected: list[MessageData] = []
+    total = 0
+    for message in reversed(candidates):
+        if len(selected) >= MAX_CONTEXT_MESSAGES:
+            break
+        if not message.content or len(message.content) > MAX_CONTEXT_CODEPOINTS:
+            continue
+        if total + len(message.content) > MAX_CONTEXT_CODEPOINTS:
+            continue
+        selected.append(message)
+        total += len(message.content)
+    selected.reverse()
+    return tuple(
+        MainContextMessageV1(
+            message_id=message.id,
+            role="assistant" if message.role is MessageRole.ASSISTANT else "user",
+            content=message.content,
+        )
+        for message in selected
+    )
 
 
 def _in_transaction(session_factory: SessionFactory, operation: Callable[[Session], TransactionT]) -> TransactionT:
@@ -654,6 +1002,25 @@ def _rerun_fingerprint(run_id: UUID, query: str, service_id: str | None = None) 
     """计算重跑请求语义指纹：必须包含原 run_id，避免相同 query 的不同原 Run 互相误判。"""
     value = f"{run_id}\n{query.strip()}\n{service_id or ''}"
     return sha256(value.encode("utf-8")).hexdigest()
+
+
+def _command_runtime_kind(
+    command: CreateRunCommand | CreateMainAgentRunCommand | MainAgentRerunCommand,
+) -> RunRuntimeKind:
+    """从受理命令派生 Run 运行时判别值。"""
+    if isinstance(command, CreateRunCommand):
+        return RunRuntimeKind.DIAGNOSIS
+    return RunRuntimeKind.MAIN_AGENT
+
+
+def _rerun_command_fingerprint(
+    source_run_id: UUID,
+    command: CreateRunCommand | MainAgentRerunCommand,
+) -> str:
+    """按命令类型选择既有重跑公式或 MainAgent 版本化公式。"""
+    if isinstance(command, MainAgentRerunCommand):
+        return main_agent_rerun_fingerprint(source_run_id, command.snapshot)
+    return _rerun_fingerprint(source_run_id, command.query, command.service_id)
 
 
 def _safe_failure() -> tuple[str, str]:
