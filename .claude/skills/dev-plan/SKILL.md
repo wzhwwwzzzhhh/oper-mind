@@ -15,7 +15,7 @@ description: Use when starting development against a written OperMind PRD — se
 **不用**：写 PRD（那是 prd-writing）、审 PRD（prd-reviewing）、纯对话解答。
 
 ## 前置要求
-- 必须先读：当前有效 PRD（`docs/prd/<域>/`）、`docs/prd/README.md`、`docs/产品定义.md`、`docs/路线图.md`、`docs/开发规范.md`。
+- 必须先读：当前有效 PRD（`docs/prd/<域>/`）、`docs/prd/README.md`、`docs/事实源/产品定义.md`、`docs/事实源/路线图.md`、`docs/事实源/开发规范.md`。
 - 若涉及安全边界（凭据/连接/权限/审批/写操作/破坏性改动），必须引用已确认 Design；没有先 STOP。
 
 ## 执行流程

@@ -12,7 +12,7 @@ interface NavItem {
 }
 
 /** 最左 62px 深色图标轨：会话 / 服务中心 / 文档 / 模型。
-    这里只放正式模块（见 docs/产品定义.md 第 4 节模块边界表）。
+    这里只放正式模块（见 docs/事实源/产品定义.md 第 4 节模块边界表）。
     服务监控与审计操作记录是服务中心名下的子页，入口在第二栏 ServiceContextNav，不在这条轨上重复一次。 */
 export function GlobalNav(): ReactElement {
   const navigate = useNavigate()

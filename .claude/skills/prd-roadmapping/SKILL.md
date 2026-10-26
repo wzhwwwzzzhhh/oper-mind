@@ -17,7 +17,7 @@ description: Use when planning OperMind's development direction — deciding wha
 不先聊透就产出方向 = 重蹈 Codex 跑偏。产出「已对齐意图」一两句话。
 
 ### 第 1 步：列候选（只列主脊内）
-从 `docs/产品定义.md`、`docs/路线图.md`、既有 PRD、未决需求里列出候选需求。
+从 `docs/事实源/产品定义.md`、`docs/事实源/路线图.md`、既有 PRD、未决需求里列出候选需求。
 只列正式产品边界内（会话 / 服务中心 / 多 Agent 内核 / Connector-Tool / 安全治理）的东西；
 排除 demo、靶场、演示叙事。
 
@@ -44,7 +44,7 @@ description: Use when planning OperMind's development direction — deciding wha
 ### 第 5 步：落盘成索引
 把确认的方向更新到：
 - `docs/prd/README.md`（「当前进展」表，标注阶段顺序与状态）
-- 阶段总览段（对齐 `docs/路线图.md`）
+- 阶段总览段（对齐 `docs/事实源/路线图.md`）
 
 ## 多维度轨道 + 依赖停车（P4.3 起生效）
 PRD 不是"一个域串行"，而是**多维度独立轨道**（会话/内核、服务中心、监控、模型、审批、知识库）。

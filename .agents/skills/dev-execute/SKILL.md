@@ -14,7 +14,7 @@ description: Use when implementing a confirmed workpack plan against an OperMind
 - **工作区必须是本工作包专用 worktree**（`D:/market-handsome/oper-mind-worktrees/<切片>`，见 `dev-plan` Phase 2），
   且 worktree 所在分支名与 `plan.md` 记录一致；否则停止并回 `dev-plan`。不在主仓库工作区开发。
 - 若 worktree 内开工前已有其他改动，必须存在隔离清单；混合文件只能提交已核对的代码块，不能整文件盲目暂存。
-- 基线：`docs/产品定义.md`、`docs/路线图.md`、`docs/开发规范.md`、当前 PRD。
+- 基线：`docs/事实源/产品定义.md`、`docs/事实源/路线图.md`、`docs/事实源/开发规范.md`、当前 PRD。
 
 ## 执行流程
 

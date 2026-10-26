@@ -1,8 +1,8 @@
 # PRD 索引（docs/prd/）
 
-> 本目录是**需求唯一事实来源**。执行 AI 围绕这里的 PRD 干活，Claude（PM）按 PRD 在大阶段验收。
+> 本目录是**已交付切片的 PRD 索引**；当前进行中的需求见 `docs/进行中/`。执行 AI 围绕对应 PRD 干活，Claude（PM）按 PRD 在大阶段验收。
 > 写作规范见 `项目根/.claude/skills/prd-writing/SKILL.md`。
-> 产品事实只以 `docs/产品定义.md`、`docs/路线图.md`、`docs/开发规范.md` 为准。
+> 产品事实只以 `docs/事实源/产品定义.md`、`docs/事实源/路线图.md`、`docs/事实源/开发规范.md` 为准。
 
 ## 需求立项顺序与角色边界
 
@@ -80,12 +80,13 @@
 | P10 | Agent Harness 契约内核与回归基线 | `agent-runtime/P9-harness-contract-kernel.md` | 完成（PR #118） |
 | P11 | Agent Harness 真实运行安全门 | `agent-runtime/P11-harness-real-runtime-safety-gate.md` | 完成（PR #123） |
 | P12 | PostgreSQL、Redis 与 MySQL 真实只读接入 | `service-center/P12-three-service-real-readonly-integration.md` | 已确认（Issue #124） |
+| V2-B | 主 Agent 与文本比较能力闭环 | [agent-runtime/V2-main-agent-capability-loop.md](../进行中/V2-主Agent闭环/首闭环/PRD.md) | 已确认（Issue #133；Design 已确认，Workpack 待确认计划） |
 
 ## 执行 AI 如何使用
 - 拿到 PRD 后：只实现「范围」内能力，逐条过「验收标准」，达到「完成定义」。
 - 不改「不做什么」清单里的东西；边界外需求回 PRD，不擅自扩展。
 - 实现方式自定，但必须满足 PRD 的非功能需求、安全边界与降级策略。
 
-## 阶段总览（参考 `docs/路线图.md`）
+## 阶段总览（参考 `docs/事实源/路线图.md`）
 - P0 清理 ✅ / P1 大脑上线 ✅ / P2 工具网关 ✅ / P3 前端重构 ✅ / P4 服务中心变真 ✅ / P4.2 会话 DBAgent 接真库 ✅ / P4.3 模型设置真实化 ✅ / P4.3 服务上下文贯通 ✅ / P4.4 多服务实例接入 ✅
 - P5 受控动作闭环变真 → P6+ 更多服务/模型/知识库

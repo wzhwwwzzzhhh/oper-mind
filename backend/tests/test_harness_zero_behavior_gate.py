@@ -175,7 +175,7 @@ def test_capability_profile历史不可覆盖且版本连续(baseline: dict[str,
 
 
 def test_正式路线图P10范围与PRD一致() -> None:
-    roadmap = (REPO_ROOT / "docs" / "路线图.md").read_text(encoding="utf-8")
+    roadmap = (REPO_ROOT / "docs" / "事实源" / "路线图.md").read_text(encoding="utf-8")
     assert "P10 已完成：Agent Harness 契约内核与回归基线" in roadmap
     assert "Harness Contract Kernel" in roadmap
     assert "Adapter Contract Test Harness" in roadmap

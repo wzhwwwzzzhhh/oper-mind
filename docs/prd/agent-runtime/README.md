@@ -9,3 +9,4 @@
 | [judge-runtime-truthfulness.md](judge-runtime-truthfulness.md) | Judge Runtime 真实性与配置面收口 | 完成 |
 | [P9-harness-contract-kernel.md](P9-harness-contract-kernel.md) | P10：Agent Harness 契约内核与回归基线 | 完成（PR #118） |
 | [P11-harness-real-runtime-safety-gate.md](P11-harness-real-runtime-safety-gate.md) | P11：Agent Harness 真实运行安全门 | 完成（PR #123） |
+| [V2-main-agent-capability-loop.md](../../进行中/V2-主Agent闭环/首闭环/PRD.md) | V2-B：主 Agent 与文本比较能力闭环 | 已确认（Issue #133；Design 已确认，Workpack 待确认计划） |
