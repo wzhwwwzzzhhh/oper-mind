@@ -22,7 +22,7 @@ V2 是 OperMind 的目标形态，替换 V1。V1 保留为过渡基线：首切�
 |---|---|---|
 | 方向 | [计划骨架](方向/计划骨架.md) + [八张图解](方向/图解/README.md) | 已按“一契约 + 两轴”重写，待确认 |
 | V2-0 首闭环收口 | [PRD](首闭环/PRD.md) / [Design](首闭环/Design.md) / [Workpack-审查](首闭环/Workpack-审查.md) | 三项遗留已裁决；实现与验证完成，已合入（PR #135） |
-| V2-1 单主 Agent 地基 | Capability 契约 + ReAct 内核 + 知识型能力 | 未开始 |
+| V2-1 单主 Agent 地基 | [PRD](../../prd/agent-runtime/V2-1-main-agent-foundation.md)（Issue #137）+ Capability 契约 + ReAct 内核 + 知识型能力 | PRD 已确认，待 Design |
 | V2-2 执行型能力 | 外部资源能力 + 插件性验证 | 未开始 |
 | V2-3 子 Agent 委派 | 隔离上下文与父子交付 | 未开始 |
 | V2-4 多主 Agent 协作 | 业务独立的主 Agent 协作 | 未开始 |
@@ -36,7 +36,7 @@ V2 是 OperMind 的目标形态，替换 V1。V1 保留为过渡基线：首切�
 2. 损坏交付／输入行投影为 `unavailable`，不再 500；
 3. 保持 V1 服务调查默认，V2 显式切换；V2-2 对等后再切默认。
 
-下一步进入 **V2-1** 的 PRD 与 Design；V2-1 之前不写新能力代码。
+V2-1 PRD 已确认（Issue #137），下一步进入 Design；Design 确认前不写新能力代码。
 
 ## 目录
 
@@ -59,7 +59,6 @@ PRD → Design → Design-Review → Workpack-计划 → Workpack-审查 → Wor
 ## 当前边界
 
 - V2 首切片已合入，但默认未启用；UI 不暗示文本比较是默认能力。
-- 首切片已进入 main；V1 仍是默认入口。
 - V1 仍是默认入口；切到 V2 需要 V2-2 达到只读调查对等，并经用户确认。
 - 子 Agent 与多主 Agent 不默认启用；缺少上下文隔离或业务独立性的任务，继续用单主 Agent。
 - 每个新阶段仍须 Design → Review → 用户确认；涉及真实连接、权限、审批、公开 API 或迁移的切片，不得跳过门禁。
