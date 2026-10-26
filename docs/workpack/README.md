@@ -1,7 +1,9 @@
 # 工作包索引（docs/workpack/）
 
-> 本目录是**开发执行产物**：按工作包记录「计划 → 审查 → 证据」，与 `docs/prd/`（需求唯一事实来源）隔离。
+> 本目录是**开发执行产物**：按工作包记录「计划 → 审查 → 证据」，与 `docs/prd/`（已交付切片的需求记录）隔离。
 > 执行流程见 `.claude/skills/dev-plan`、`dev-execute`、`dev-deliver`。
+
+> 版本归属：保留 V1 交付记录；[V2 计划骨架](../进行中/V2-主Agent闭环/方向/计划骨架.md)的首闭环已建工作包，当前待用户确认计划、尚未实施。
 
 ## 目录约定
 
@@ -18,15 +20,21 @@ docs/workpack/
 
 ## 活跃工作包
 
+| 阶段 | 工作包 | Issue | 状态 | 计划 | Review | 证据 |
+|---|---|---|---|---|---|---|
+| V2-B | 主 Agent 与文本比较能力闭环 | #133 | 待用户确认计划 | [plan](../进行中/V2-主Agent闭环/首闭环/Workpack-计划.md) | [未执行](../进行中/V2-主Agent闭环/首闭环/Workpack-审查.md) | [未执行](../进行中/V2-主Agent闭环/首闭环/Workpack-证据.md) |
+
+## 保留工作包（代码已合入，验收暂停）
+
 | 阶段 | 工作包 | Issue | 状态 |
 |---|---|---|---|
-| P12 | `P12-three-service-real-readonly-integration` | #124 | 实施中；真实服务验收待逐目标授权 |
+| P12 | `P12-three-service-real-readonly-integration` | #124 | 实现已合入（PR #126）；AC14 真实验收暂停，工作包保留原路径 |
 
 ## 已归档
 
 | 阶段 | 切片 | PR | 完成日期 |
 |---|---|---|---|
-| 重构 | langgraph-react-subgraph（ReAct 内核换 LangGraph 子图，直给模式） | 待建 PR | 2026-09-11 |
+| 重构 | langgraph-react-subgraph（ReAct 内核换 LangGraph 子图，直给模式） | #129 | 2026-09-11 |
 | P11 | harness-real-runtime-safety-gate（issue #121） | #123 | 2026-09-04 |
 | P10 | harness-contract-kernel（issue #113） | #118 | 2026-09-02 |
 | 完善 | stage-acceptance-closeout（issue #105） | #111 | 2026-08-27 |
@@ -62,7 +70,7 @@ docs/workpack/
 | P6 | host-metrics | #34 | 2026-08-08 |
 | P5 | controlled-action-real | #38 | 2026-08-08 |
 | P5 | monitor-trends | #13 | 2026-08-08 |
-| P6 | cross-service-investigation | 待建 PR | 2026-08-08 |
+| P6 | cross-service-investigation | #41 | 2026-08-08 |
 | P7 | db-lock-connection-diagnostics | #46 | 2026-08-08 |
 | P7 | knowledge-page | #48 | 2026-08-08 |
 | P7 | monitoring-overview | #50 | 2026-08-08 |

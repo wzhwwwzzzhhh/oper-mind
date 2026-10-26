@@ -178,6 +178,8 @@ def test_alembic_upgrade_head_仅创建迁移版本元数据(tmp_path: Path) -> 
             "session_services",
             "messages",
             "diagnosis_runs",
+            "run_inputs",
+            "run_deliveries",
             "run_events",
             "diagnosis_results",
             "run_idempotency_keys",

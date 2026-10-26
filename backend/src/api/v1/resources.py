@@ -23,6 +23,12 @@ from src.api.v1.schemas import (
     ImpactResource,
     KnowledgeDocumentResource,
     KnowledgeSearchHitResource,
+    MainAnswerDeliveryResource,
+    MainComparisonDeliveryResource,
+    MainDeliveryResource,
+    MainInputSnapshotResource,
+    MainMaterialResource,
+    MainNeedsInputDeliveryResource,
     MessageResource,
     ModelProviderResource,
     ModelUsageItemResource,
@@ -42,8 +48,10 @@ from src.api.v1.schemas import (
     ServiceServerMetricsResource,
     ServiceSnapshotResource,
     SessionResource,
+    TextDiffBlockResource,
 )
 from src.application.model_usage import ModelUsageItem
+from src.application.run_execution import RunFailureCode
 from src.core.tool_gateway import desensitize
 from src.domain.actions import (
     ActionApprovalData,
@@ -54,8 +62,15 @@ from src.domain.actions import (
     ActionVerificationData,
 )
 from src.domain.audit import AuditActivityData
-from src.domain.diagnosis import RunStatus
+from src.domain.diagnosis import RunRuntimeKind, RunStatus
 from src.domain.host_metrics import HostMetricsData
+from src.domain.main_agent import (
+    MainAnswerDeliveryV1,
+    MainDeliveryV1,
+    MainInputSnapshotV1,
+    MainMaterialSnapshotV1,
+    MainNeedsInputDeliveryV1,
+)
 from src.domain.model_provider import ModelProviderData, ProviderEndpoint
 from src.domain.monitoring import (
     MonitorHistoryData,
@@ -124,19 +139,32 @@ def result_resource(value: DiagnosisResultData) -> DiagnosisResultResource:
     )
 
 
-def run_resource(value: DiagnosisRunData, result: DiagnosisResultData | None) -> DiagnosisRunResource:
-    """把领域 Run 和可选 Result 转为符合终态规则的公开资源。"""
+def run_resource(
+    value: DiagnosisRunData,
+    result: DiagnosisResultData | None,
+    delivery: MainDeliveryV1 | None = None,
+    snapshot: MainInputSnapshotV1 | None = None,
+    *,
+    delivery_status: Literal["available", "unavailable", "absent"] | None = None,
+    input_status: Literal["available", "unavailable", "absent"] | None = None,
+) -> DiagnosisRunResource:
+    """把领域 Run 与可选结果／交付转为符合终态规则的公开资源。"""
     error = None
     if value.status == RunStatus.FAILED:
-        error = _safe_run_error(value.error_code, value.error_message)
+        error = _safe_run_error(value.runtime_kind, value.error_code, value.error_message)
     return DiagnosisRunResource(
         id=value.id,
         session_id=value.session_id,
         trace_id=value.trace_id,
         input_message_id=value.input_message_id,
         service_id=value.service_id,
+        runtime_kind=value.runtime_kind.value,
         status=value.status.value,
         result=result_resource(result) if result is not None else None,
+        delivery=main_delivery_resource(delivery) if delivery is not None else None,
+        input_snapshot=main_input_snapshot_resource(snapshot) if snapshot is not None else None,
+        main_delivery_status=delivery_status,
+        main_input_status=input_status,
         error=error,
         rerun_of_run_id=value.rerun_of_run_id,
         created_at=value.created_at,
@@ -145,11 +173,62 @@ def run_resource(value: DiagnosisRunData, result: DiagnosisResultData | None) ->
     )
 
 
+def main_delivery_resource(delivery: MainDeliveryV1) -> MainDeliveryResource:
+    """把 typed 交付投影为公开资源；差异块只保留行号与逐字引文。"""
+    if isinstance(delivery, MainAnswerDeliveryV1):
+        return MainAnswerDeliveryResource(kind="answer", text=delivery.text)
+    if isinstance(delivery, MainNeedsInputDeliveryV1):
+        return MainNeedsInputDeliveryResource(kind="needs_input", missing=list(delivery.missing), prompt=delivery.prompt)
+    comparison = delivery.comparison
+    return MainComparisonDeliveryResource(
+        kind="comparison",
+        capability_id=comparison.capability_id,
+        capability_version=comparison.capability_version,
+        rule_version=comparison.rule_version,
+        status=comparison.status,
+        a_material_id=comparison.a_material_id,
+        b_material_id=comparison.b_material_id,
+        blocks=[
+            TextDiffBlockResource(
+                kind=block.kind,
+                a_start=block.a_start,
+                a_end=block.a_end,
+                b_start=block.b_start,
+                b_end=block.b_end,
+                a_quote=block.a_quote,
+                b_quote=block.b_quote,
+            )
+            for block in comparison.blocks
+        ],
+    )
+
+
+def main_input_snapshot_resource(snapshot: MainInputSnapshotV1) -> MainInputSnapshotResource:
+    """把冻结输入投影为详情接口的输入展示资源。"""
+    return MainInputSnapshotResource(
+        query=snapshot.query,
+        rule_version=snapshot.rule_version,
+        text_a=_material_resource(snapshot.text_a),
+        text_b=_material_resource(snapshot.text_b),
+    )
+
+
+def _material_resource(material: MainMaterialSnapshotV1 | None) -> MainMaterialResource | None:
+    """投影单侧冻结材料；缺失侧保持 None，不用空字符串代替。"""
+    if material is None:
+        return None
+    return MainMaterialResource(
+        material_id=material.material_id,
+        original_text=material.original_text,
+        content_sha256=material.content_sha256,
+    )
+
+
 def global_run_summary_resource(value: GlobalRunData) -> GlobalRunSummaryResource:
     """把全局 Run 摘要收敛为安全公开资源（错误经白名单映射，不透传原始文本）。"""
     error = None
     if value.status == RunStatus.FAILED:
-        error = _safe_run_error(value.error_code, value.error_message)
+        error = _safe_run_error(value.runtime_kind, value.error_code, value.error_message)
     return GlobalRunSummaryResource(
         id=value.id,
         session_id=value.session_id,
@@ -162,11 +241,18 @@ def global_run_summary_resource(value: GlobalRunData) -> GlobalRunSummaryResourc
     )
 
 
-def _safe_run_error(code: str | None, message: str | None) -> RunErrorResource:
+def _safe_run_error(runtime_kind: RunRuntimeKind, code: str | None, message: str | None) -> RunErrorResource:
     """为历史写入或未来导入提供纵深防御，绝不透传未经审查的错误文本。"""
-    if code == "DIAGNOSIS_FAILED" and message == "诊断执行失败，请稍后重试":
-        return RunErrorResource(code=code, message=message)
-    return RunErrorResource(code="DIAGNOSIS_FAILED", message="诊断执行失败，请稍后重试")
+    fallback = (
+        RunFailureCode.MAIN_AGENT_FAILED
+        if runtime_kind is RunRuntimeKind.MAIN_AGENT
+        else RunFailureCode.DIAGNOSIS_FAILED
+    )
+    try:
+        failure = RunFailureCode(code) if code is not None else fallback
+    except ValueError:
+        failure = fallback
+    return RunErrorResource(code=failure.value, message=failure.safe_message)
 
 
 def run_event_resource(value: RunEventData) -> RunEventResource:

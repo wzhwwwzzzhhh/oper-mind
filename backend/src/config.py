@@ -141,6 +141,17 @@ def load_service_log_dir(instance_id: str) -> str | None:
     return None
 
 
+def load_main_agent_mock_scenario_name() -> str | None:
+    """读取主 Agent 封闭 mock 场景名；仅环境变量、缺省返回 None，由装配处解析。
+
+    未显式声明场景时 V2 模型链按真实配置执行，绝不从 query 词汇推断场景。
+    """
+    value = os.environ.get("OPERMIND_MAIN_AGENT_MOCK_SCENARIO")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
 @dataclass(frozen=True)
 class KnowledgeSettings:
     """受管知识目录配置；未配置时不启用知识检索。"""

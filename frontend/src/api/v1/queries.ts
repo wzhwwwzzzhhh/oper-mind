@@ -330,6 +330,31 @@ export function create_run_mutation() {
   })
 }
 
+export interface CreateMainAgentRunMutationVariables {
+  idempotency_key: string
+  query: string
+  text_a?: string | null
+  text_b?: string | null
+  session_id: string
+}
+
+export function create_main_agent_run_mutation() {
+  return mutationOptions({
+    mutationFn: ({
+      session_id,
+      query,
+      text_a,
+      text_b,
+      idempotency_key,
+    }: CreateMainAgentRunMutationVariables) =>
+      api_v1_client.create_run(
+        session_id,
+        { runtime_kind: 'main_agent', query, text_a, text_b },
+        { idempotency_key } satisfies CreateRunOptions,
+      ),
+  })
+}
+
 export interface CreateSessionMutationVariables {
   title: CreateSessionRequest['title']
   service_id?: CreateSessionRequest['service_id']

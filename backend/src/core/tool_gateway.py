@@ -88,6 +88,11 @@ def desensitize(text: str) -> str:
     return cleaned
 
 
+def contains_sensitive_content(text: str) -> bool:
+    """复用 Gateway 同一识别范围判断凭据形态；只返回布尔值，不回传命中内容。"""
+    return any(pattern.search(text) is not None for pattern, _ in _REDACTION_PATTERNS)
+
+
 def _validate_arguments(schema: dict[str, Any], args: dict[str, Any]) -> str | None:
     """按工具声明的 JSON Schema 做最小参数校验。
 

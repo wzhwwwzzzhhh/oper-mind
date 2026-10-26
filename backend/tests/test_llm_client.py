@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import httpx
+import pytest
+
 from src.core.llm import LLMClient
 
 REAL_KEY = "test-key-1234567890abcdef"
@@ -97,3 +100,47 @@ def test_tools调用仍带工具参数且temperature生效() -> None:
     assert captured["tools"] is not None
     assert captured["tool_choice"] == "auto"
     assert captured["temperature"] == 0.5
+
+
+def test_v2_zero_retries_makes_exactly_one_http_attempt() -> None:
+    """A2-3：V2 显式 retries=0 时，一次连接失败只发生一次 SDK 调用。"""
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        raise httpx.ConnectError("offline", request=request)
+
+    http_client = httpx.Client(transport=httpx.MockTransport(handler))
+    llm = LLMClient(
+        api_key=REAL_KEY,
+        base_url="http://test.example/v1",
+        model="test-model",
+        request_timeout=30.0,
+        max_retries=0,
+        http_client=http_client,
+    )
+    try:
+        result = llm.chat([{"role": "user", "content": "hi"}])
+    finally:
+        http_client.close()
+
+    assert result["error"] == "LLM_UNAVAILABLE"
+    assert len(requests) == 1
+    assert llm.client.timeout == 30.0
+
+
+def test_legacy_client_keeps_default_timeout_and_retry_budget() -> None:
+    """V2 配置不改变 legacy 默认值：60 秒、SDK 默认重试预算。"""
+    llm = LLMClient(api_key=REAL_KEY, base_url="http://test.example/v1", model="test-model")
+    assert llm.client.timeout == 60.0
+    assert llm.client.max_retries == 2
+    assert llm.is_mock is False
+
+
+def test_client_rejects_invalid_timeout_or_retry_values() -> None:
+    with pytest.raises(ValueError):
+        LLMClient(api_key=REAL_KEY, base_url="http://test.example/v1", request_timeout=0)
+    with pytest.raises(ValueError):
+        LLMClient(api_key=REAL_KEY, base_url="http://test.example/v1", request_timeout=float("nan"))
+    with pytest.raises(ValueError):
+        LLMClient(api_key=REAL_KEY, base_url="http://test.example/v1", max_retries=-1)

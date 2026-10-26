@@ -1680,3 +1680,180 @@
 .proposal-row:hover {
   opacity: 0.82;
 }
+
+/* V2 主 Agent：录入入口切换、材料录入与交付面板（与诊断结果面板同一套设计变量）。 */
+.entry-mode {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.main-agent-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.main-agent-composer__notice {
+  margin-bottom: 4px;
+}
+
+.main-agent-composer__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.main-agent-composer__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.main-agent-composer__field textarea {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+}
+
+.main-delivery-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.main-delivery-panel__meta-row,
+.main-delivery-panel__block-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.main-delivery-panel__meta {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.main-delivery-panel__copy {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.main-delivery-panel__copy--muted {
+  color: var(--text-muted);
+}
+
+.main-delivery-panel__tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 3px 7px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-secondary);
+  background: var(--surface);
+  font-size: 11px;
+}
+
+.main-delivery-panel__tag--added,
+.main-delivery-panel__tag--same {
+  border-color: var(--success-soft);
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.main-delivery-panel__tag--deleted {
+  border-color: var(--danger-soft);
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.main-delivery-panel__tag--modified {
+  border-color: var(--warning-soft);
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.main-delivery-panel__blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.main-delivery-panel__quote,
+.main-delivery-panel__raw {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.main-delivery-panel__quote--removed {
+  border-left: 3px solid var(--danger);
+}
+
+.main-delivery-panel__quote--added {
+  border-left: 3px solid var(--success);
+}
+
+.main-delivery-panel__notice {
+  padding: 8px 10px;
+  border: 1px solid var(--warning-soft);
+  border-radius: 7px;
+  background: var(--warning-soft);
+}
+
+.main-delivery-panel__notice-title {
+  display: block;
+  color: var(--warning);
+  font-size: 12px;
+}
+
+.main-delivery-panel__snapshot {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+}
+
+.main-delivery-panel__snapshot summary {
+  padding: 8px 10px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.main-delivery-panel__material {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+}
+
+.main-delivery-panel__material-label {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+}

@@ -19,6 +19,7 @@ import {
   create_session_mutation,
   default_session_list_query,
   delete_message_mutation,
+  get_run_query,
   get_session_query,
   list_run_events_query,
   list_services_query,
@@ -35,6 +36,8 @@ import {
 } from './conversation-turns'
 import { ActionProposalPanel } from './ActionProposalPanel'
 import { DiagnosisResultPanel } from './DiagnosisResultPanel'
+import { MainAgentComposer } from './MainAgentComposer'
+import { MainDeliveryPanel } from './MainDeliveryPanel'
 import { SafeMarkdown } from './SafeMarkdown'
 import { is_investigation_message } from './message-intent'
 import {
@@ -309,6 +312,109 @@ function InvestigationProcess({ investigation, session_id }: { investigation: Co
     </div>
   )
 }
+function run_detail_input_snapshot(value: unknown): unknown {
+  const response = read_record(value)
+  const body = read_record(resource_value(response, 'data'))
+  const run = read_record(resource_value(body, 'run'))
+  return run ? resource_value(run, 'input_snapshot') : undefined
+}
+
+function MainAgentReply({
+  investigation,
+  output,
+  rerun_by,
+  session_id,
+}: {
+  investigation: ConversationInvestigation
+  output?: ConversationMessage
+  rerun_by?: ReadonlyMap<string, string>
+  session_id: string
+}): ReactElement {
+  const error_record = investigation.error as Record<string, unknown> | null
+  const error_message = typeof error_record?.message === 'string' ? error_record.message : undefined
+  // Design §2.8 规定会话摘要列表不回显 A/B 原文：终态后需要「本次输入」时按 Run 读取详情。
+  const needs_input_snapshot =
+    investigation.runtime_kind === 'main_agent'
+    && investigation.status === 'succeeded'
+    && investigation.main_delivery_status !== 'unavailable'
+    && investigation.main_input_status !== 'unavailable'
+    && investigation.input_snapshot == null
+  const run_detail = useQuery({ ...get_run_query(investigation.id), enabled: needs_input_snapshot })
+  const input_snapshot = investigation.input_snapshot ?? run_detail_input_snapshot(run_detail.data)
+
+  if (investigation.status === 'failed') {
+    return (
+      <div className="message-body">
+        <div className="message-label">OperMind · 主 Agent 请求未完成</div>
+        <UiAlert
+          description={error_message ?? '服务端未返回可安全展示的请求错误。'}
+          showIcon
+          title="本次请求未完成"
+          type="error"
+        />
+        <InvestigationProcess investigation={investigation} session_id={session_id} />
+        <RerunControls investigation={investigation} rerun_by={rerun_by} session_id={session_id} />
+      </div>
+    )
+  }
+
+  if (investigation.status === 'cancelled') {
+    return (
+      <div className="message-body">
+        <div className="message-label">OperMind · 主 Agent 请求已取消</div>
+        <UiAlert description="请求已取消；页面不推断取消原因，也不继续执行。" showIcon title="请求已取消" type="warning" />
+        <RerunControls investigation={investigation} rerun_by={rerun_by} session_id={session_id} />
+      </div>
+    )
+  }
+
+  if (investigation.status === 'succeeded' && investigation.main_delivery_status === 'unavailable') {
+    return (
+      <div className="message-body">
+        <div className="message-label">OperMind · 主 Agent 交付不可用</div>
+        <UiAlert
+          description="服务端保留了这条 Run，但交付内容无法安全读取；页面不会猜测或重放原文。请重新发起。"
+          showIcon
+          title="交付不可用"
+          type="warning"
+        />
+        <InvestigationProcess investigation={investigation} session_id={session_id} />
+        <RerunControls investigation={investigation} rerun_by={rerun_by} session_id={session_id} />
+      </div>
+    )
+  }
+
+  const is_live = investigation.status === 'queued' || investigation.status === 'running'
+  return (
+    <div className="message-body">
+      <div className="message-label">OperMind · {is_live ? '主 Agent 处理中' : '主 Agent 回复'}</div>
+      {is_live && (
+        <div aria-label="请求进度" aria-live="polite" className="assistant-progress-bubble" role="status">
+          <span aria-hidden="true" className="feedback-spinner" />
+          <span>
+            <strong>{investigation.status === 'queued' ? '请求已受理，正在准备' : '正在执行主 Agent 请求'}</strong>
+            <small>公开阶段与证据摘要会在下方 Trace 中更新。</small>
+          </span>
+        </div>
+      )}
+      <InvestigationProcess investigation={investigation} session_id={session_id} />
+      {!is_live && output && <SafeMarkdown className="bubble" content={output.content} />}
+      {!is_live && !output && (
+        <UiAlert
+          description="服务端已标记请求完成，但尚未恢复关联的助手答复。页面不会根据交付伪造一条已保存消息。"
+          showIcon
+          title="回答正在恢复中"
+          type="warning"
+        />
+      )}
+      {!is_live && investigation.delivery !== null && investigation.delivery !== undefined && (
+        <MainDeliveryPanel delivery={investigation.delivery} input_snapshot={input_snapshot} />
+      )}
+      <RerunControls investigation={investigation} rerun_by={rerun_by} session_id={session_id} />
+    </div>
+  )
+}
+
 function AssistantReply({
   investigation,
   output,
@@ -320,6 +426,10 @@ function AssistantReply({
   rerun_by?: ReadonlyMap<string, string>
   session_id: string
 }): ReactElement {
+  if (investigation.runtime_kind === 'main_agent') {
+    return <MainAgentReply investigation={investigation} output={output} rerun_by={rerun_by} session_id={session_id} />
+  }
+
   if (investigation.status === 'succeeded') {
     const result_read = investigation.result === null
       ? { issues: [{ field: 'result', message: '成功调查缺少结构化结果。' }] }
@@ -621,7 +731,11 @@ function ConversationTurnCard({
         <Container {...(is_live || output ? { 'aria-label': '助手答复' } : {})} className="message assistant service-result" key={investigation.id}>
           <div className="message-avatar">O</div>
           <div className="service-investigation-result">
-            <div className="service-result-label">{service_result_title(investigation.service_id, services_by_id)}</div>
+            <div className="service-result-label">
+              {investigation.runtime_kind === 'main_agent'
+                ? '主 Agent · V2'
+                : service_result_title(investigation.service_id, services_by_id)}
+            </div>
             <AssistantReply investigation={investigation} output={output} rerun_by={rerun_by} session_id={session_id} />
           </div>
         </Container>
@@ -719,6 +833,8 @@ function SessionWorkspace({
   const query_client = useQueryClient()
   const storage = session_storage()
   const [query, set_query] = useState(prefilled_query)
+  // 默认仍是 V1 录入：AC20 要求会话管理与服务调查的已确认行为不变，V2 主 Agent 入口按显式切换开放。
+  const [entry_mode, set_entry_mode] = useState<'main' | 'service'>('service')
   const [send_intent, set_send_intent] = useState<SessionRunSendIntent | undefined>(() =>
     storage ? load_session_run_send_intent(storage, session_id) : undefined,
   )
@@ -1068,6 +1184,9 @@ function SessionWorkspace({
     && fixed_health_supported
     && !fixed_health_send_intent_conflict
   const can_send = session_is_active
+  // 固定健康调查会话是 V1 专用入口：只允许点固定动作，不出现任何自由文本录入。
+  const main_entry_available = can_send && !fixed_health_investigation
+  const show_service_composer = main_entry_available && entry_mode === 'service'
   const has_idempotency_key_conflict = is_idempotency_key_conflict(recovery_error)
   return (
     <div className="chat-inner">
@@ -1196,7 +1315,24 @@ function SessionWorkspace({
           />
         </>
       )}
-      {can_send && !fixed_health_investigation && (
+      {main_entry_available && (
+        <div aria-label="录入入口" className="entry-mode">
+          <UiButton onClick={() => set_entry_mode('main')} type={entry_mode === 'main' ? 'primary' : 'default'}>
+            主 Agent（V2）
+          </UiButton>
+          <UiButton onClick={() => set_entry_mode('service')} type={entry_mode === 'service' ? 'primary' : 'default'}>
+            服务调查（V1）
+          </UiButton>
+        </div>
+      )}
+      {main_entry_available && entry_mode === 'main' && (
+        <MainAgentComposer
+          disabled={has_idempotency_key_conflict}
+          on_submitted={() => void invalidate_session_queries(query_client, session_id)}
+          session_id={session_id}
+        />
+      )}
+      {show_service_composer && (
         <Composer
           disabled={has_idempotency_key_conflict}
           loading={create_run.isPending || send_plain.isPending}

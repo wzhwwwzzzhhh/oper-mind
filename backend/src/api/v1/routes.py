@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Literal, TypeVar, cast
 from urllib.parse import urlparse
@@ -11,6 +12,7 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
+from sqlalchemy.orm import Session
 
 from src.api.v1.cursors import (
     ActionEventCursor,
@@ -59,7 +61,9 @@ from src.api.v1.schemas import (
     AssignModelRoleRequest,
     AuditActivityListResponse,
     ConnectionTestResponse,
+    CreateMainAgentRunRequest,
     CreateModelProviderRequest,
+    CreateRunPayload,
     CreateRunRequest,
     CreateServiceRequest,
     CreateSessionRequest,
@@ -146,6 +150,7 @@ from src.application.monitoring import (
     MonitorThresholdApplicationService,
 )
 from src.application.plain_messages import SendPlainMessageCommand
+from src.application.run_execution import CreateMainAgentRunCommand, MainAgentInputRejectedError
 from src.application.service_center import CreateServiceSessionCommand, ServiceCenterApplicationService
 from src.application.service_registration import (
     RegisterServiceCommand,
@@ -157,7 +162,14 @@ from src.config import load_monitor_settings
 from src.domain.actions import ActionProposalStatus
 from src.domain.audit import AuditActivityType, AuditOutcome
 from src.domain.audit_export import EXPORT_MAX_ITEMS, AuditExportFormat
-from src.domain.diagnosis import RunStatus, SessionStatus
+from src.domain.diagnosis import RunRuntimeKind, RunStatus, SessionStatus
+from src.domain.main_agent import (
+    MainAgentDeliveryUnavailableError,
+    MainAgentInputUnavailableError,
+    MainDeliveryV1,
+    MainInputSnapshotV1,
+    MainInputV1,
+)
 from src.domain.model_params import ModelParams
 from src.domain.model_provider import ModelRoleViewData, ProviderEndpoint
 from src.domain.monitoring import MonitorThresholdConfig
@@ -168,8 +180,10 @@ from src.infrastructure.persistence.repositories import (
     SqlAlchemyDiagnosisRunRepository,
     SqlAlchemyMessageRepository,
     SqlAlchemyRunEventRepository,
+    SqlAlchemyRunInputRepository,
     SqlAlchemySessionRepository,
 )
+from src.infrastructure.persistence.run_delivery_repository import SqlAlchemyRunDeliveryRepository
 from src.infrastructure.secrets import (
     SecretKeyNotConfiguredError as SecretsSecretKeyNotConfiguredError,
 )
@@ -455,6 +469,60 @@ def _load_run(services: V1Services, run_id: UUID) -> DiagnosisRunData:
     return value
 
 
+@dataclass(frozen=True, slots=True)
+class _MainProjection:
+    """V2 Run 的交付／冻结输入及其读取状态；状态用于区分缺失与损坏。"""
+
+    delivery: MainDeliveryV1 | None
+    snapshot: MainInputSnapshotV1 | None
+    delivery_status: Literal["available", "unavailable", "absent"] | None
+    input_status: Literal["available", "unavailable", "absent"] | None
+
+
+def _main_projection(
+    session: Session,
+    run: DiagnosisRunData,
+    *,
+    with_snapshot: bool,
+) -> _MainProjection:
+    """只为 V2 Run 读取交付／冻结输入；legacy Run 恒为 None。
+
+    冻结输入含 A/B 材料原文，按已确认 Design 只在 Run 详情返回；摘要列表不带原文，
+    前端需要回看本次输入时再读详情。损坏或未知版本的行只标记 unavailable，
+    不抛 500 拖垮会话列表。
+    """
+    if run.runtime_kind is not RunRuntimeKind.MAIN_AGENT:
+        return _MainProjection(None, None, None, None)
+
+    try:
+        delivery = SqlAlchemyRunDeliveryRepository(session).get_by_run_id(run.id)
+    except MainAgentDeliveryUnavailableError:
+        delivery = None
+        delivery_status: Literal["available", "unavailable", "absent"] = "unavailable"
+    else:
+        if delivery is not None:
+            delivery_status = "available"
+        elif run.status is RunStatus.SUCCEEDED:
+            # 成功 Run 必须有交付；行缺失同样视为不可用，而不是伪造空交付。
+            delivery_status = "unavailable"
+        else:
+            delivery_status = "absent"
+
+    snapshot: MainInputSnapshotV1 | None = None
+    input_status: Literal["available", "unavailable", "absent"] | None = None
+    if with_snapshot:
+        try:
+            snapshot = SqlAlchemyRunInputRepository(session).get_by_run_id(run.id)
+        except MainAgentInputUnavailableError:
+            snapshot = None
+            input_status = "unavailable"
+        else:
+            # 每个已受理的 MainAgent Run 都应冻结输入；缺失同样不可用。
+            input_status = "available" if snapshot is not None else "unavailable"
+
+    return _MainProjection(delivery, snapshot, delivery_status, input_status)
+
+
 def _run_response(services: V1Services, run_id: UUID) -> DiagnosisRunResource:
     session = services.session_factory()
     try:
@@ -462,7 +530,15 @@ def _run_response(services: V1Services, run_id: UUID) -> DiagnosisRunResource:
         if run is None:
             raise RunNotFoundError()
         result = SqlAlchemyDiagnosisResultRepository(session).get_by_run_id(run_id)
-        return run_resource(run, result)
+        projection = _main_projection(session, run, with_snapshot=True)
+        return run_resource(
+            run,
+            result,
+            projection.delivery,
+            projection.snapshot,
+            delivery_status=projection.delivery_status,
+            input_status=projection.input_status,
+        )
     finally:
         session.close()
 
@@ -1426,7 +1502,21 @@ def list_session_runs(
         run_repository = SqlAlchemyDiagnosisRunRepository(session)
         result_repository = SqlAlchemyDiagnosisResultRepository(session)
         page = run_repository.list_by_session(session_id, decoded_cursor, limit)
-        items = [run_resource(run, result_repository.get_by_run_id(run.id)) for run in page.items]
+        items = []
+        for run in page.items:
+            # 会话摘要列表携带交付以恢复「本次结果」，但不携带冻结输入：
+            # Design §2.8 规定摘要列表不回显 A/B 原文，输入回看由前端按需读取 Run 详情。
+            projection = _main_projection(session, run, with_snapshot=False)
+            items.append(
+                run_resource(
+                    run,
+                    result_repository.get_by_run_id(run.id),
+                    projection.delivery,
+                    projection.snapshot,
+                    delivery_status=projection.delivery_status,
+                    input_status=projection.input_status,
+                )
+            )
     finally:
         session.close()
 
@@ -1439,10 +1529,30 @@ def list_session_runs(
     )
 
 
+def _run_command(
+    session_id: UUID,
+    payload: CreateRunRequest | CreateMainAgentRunRequest,
+    idempotency_key: UUID,
+) -> CreateRunCommand | CreateMainAgentRunCommand:
+    """把公开请求判别联合收敛为 typed 受理命令；材料越界只回固定字段错误，不回显原文。"""
+    if isinstance(payload, CreateMainAgentRunRequest):
+        try:
+            main_input = MainInputV1(query=payload.query, text_a=payload.text_a, text_b=payload.text_b)
+        except ValidationError as error:
+            raise ApiV1Error(422, "VALIDATION_ERROR", "请求参数不合法") from error
+        return CreateMainAgentRunCommand(session_id=session_id, idempotency_key=idempotency_key, input=main_input)
+    return CreateRunCommand(
+        session_id=session_id,
+        query=payload.query,
+        idempotency_key=idempotency_key,
+        service_id=payload.service_id,
+    )
+
+
 @router.post("/sessions/{session_id}/runs", response_model=RunResponse, status_code=202)
 def create_run(
     session_id: UUID,
-    payload: CreateRunRequest,
+    payload: CreateRunPayload,
     request: Request,
     response: Response,
     background_tasks: BackgroundTasks,
@@ -1450,15 +1560,17 @@ def create_run(
     services: V1Services = Depends(get_v1_services),
 ) -> RunResponse:
     """原子受理 Run，成功受理后在 HTTP 响应完成后启动后台执行。"""
+    command = _run_command(session_id, payload, parse_idempotency_key(idempotency_key))
     try:
-        accepted = services.run_service.accept_run(
-            CreateRunCommand(
-                session_id=session_id,
-                query=payload.query,
-                idempotency_key=parse_idempotency_key(idempotency_key),
-                service_id=payload.service_id,
-            )
+        accepted = (
+            services.run_service.accept_main_agent_run(command)
+            if isinstance(command, CreateMainAgentRunCommand)
+            else services.run_service.accept_run(command)
         )
+    except MainAgentInputRejectedError as error:
+        raise ApiV1Error(
+            422, "MAIN_AGENT_INPUT_REJECTED", "输入包含不允许的敏感内容，请移除后重新发起"
+        ) from error
     except ApplicationError as error:
         raise_application_error(error)
 

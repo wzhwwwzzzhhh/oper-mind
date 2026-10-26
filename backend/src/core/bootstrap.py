@@ -27,11 +27,15 @@ def build_llm_from_config(
     usage_recorder: UsageRecorder | None = None,
     *,
     manage_legacy_scenario: bool = True,
+    request_timeout: float = 60.0,
+    max_retries: int | None = None,
 ) -> LLMClient:
     """从生效模型配置构建 LLM 客户端；配置缺失时回退确定性 mock，永不 raise。
 
     params 为应用库解析的运行参数（未配置字段为 None），注入为 LLM 实例默认；
     usage_recorder 为用量采集端口（None=不采集，旧入口/测试保持现状）。
+    request_timeout／max_retries 沿用 LLMClient 默认（60 秒／不限制 SDK 重试），V2 主
+    Agent 装配时显式收紧为「单次调用、30 秒超时、零重试」。
     """
     llm_config = config.get("llm") or {}
     api_key = llm_config.get("api_key") or "mock"
@@ -45,6 +49,8 @@ def build_llm_from_config(
         default_temperature=params.temperature if params is not None and params.temperature is not None else 0.0,
         default_max_tokens=params.max_tokens if params is not None else None,
         usage_recorder=usage_recorder,
+        request_timeout=request_timeout,
+        max_retries=max_retries,
     )
     # 仅供旧 CLI/评测入口维持历史契约。正式 v1 Run 显式关闭，
     # 服务事实只由 Registry binding 决定，模型模式不切换 service fact source。

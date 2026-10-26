@@ -27,6 +27,8 @@ BUSINESS_TABLES = {
     "session_services",
     "messages",
     "diagnosis_runs",
+    "run_inputs",
+    "run_deliveries",
     "run_events",
     "diagnosis_results",
     "run_idempotency_keys",
@@ -190,6 +192,7 @@ def test_p2_schema_alembic_fresh_db_约束降级与再次升级(tmp_path: Path) 
         assert {item["name"] for item in inspector.get_check_constraints("diagnosis_runs")} == {
             "ck_diagnosis_runs_diagnosis_run_status_valid",
             "ck_diagnosis_runs_diagnosis_run_next_sequence_positive",
+            "ck_diagnosis_runs_diagnosis_run_runtime_kind_valid",
         }
         assert {item["name"] for item in inspector.get_check_constraints("diagnosis_results")} == {
             "ck_diagnosis_results_diagnosis_result_confidence_range",

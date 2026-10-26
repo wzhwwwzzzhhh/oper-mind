@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Annotated, Literal, TypeAlias
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_serializer, field_validator, model_validator
 
+from src.domain.main_agent import MAX_MAIN_QUERY_CODEPOINTS, MAX_MATERIAL_CODEPOINTS
 from src.domain.model_provider import validate_provider_base_url
 from src.domain.services import SERVICE_KINDS, validate_service_instance_id
 from src.infrastructure.secrets import MIN_API_KEY_LENGTH
@@ -747,8 +748,9 @@ class DiagnosisResultResource(ApiV1Model):
 
 
 class CreateRunRequest(ApiV1Model):
-    """受理诊断 Run 的请求。"""
+    """受理诊断 Run 的请求；未显式提供 runtime_kind 时按本类型处理。"""
 
+    runtime_kind: Literal["diagnosis"] = "diagnosis"
     query: str = Field(min_length=1, max_length=4000)
     service_id: str | None = Field(default=None, min_length=1, max_length=64)
 
@@ -762,6 +764,97 @@ class CreateRunRequest(ApiV1Model):
         return normalized
 
 
+class CreateMainAgentRunRequest(ApiV1Model):
+    """受理主 Agent Run 的显式请求：不继承会话服务，材料缺失与显式空可区分。"""
+
+    runtime_kind: Literal["main_agent"]
+    query: str = Field(min_length=1, max_length=MAX_MAIN_QUERY_CODEPOINTS)
+    # 材料上限同时在请求 schema 收口，避免任意大 body 进入领域校验才被拒。
+    text_a: str | None = Field(default=None, max_length=MAX_MATERIAL_CODEPOINTS)
+    text_b: str | None = Field(default=None, max_length=MAX_MATERIAL_CODEPOINTS)
+
+    @field_validator("query")
+    @classmethod
+    def normalize_query(cls, value: str) -> str:
+        """去除目标首尾空白；空目标与越限由错误投影给出固定原因。"""
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("不能为空")
+        return normalized
+
+
+CreateRunPayload: TypeAlias = CreateMainAgentRunRequest | CreateRunRequest
+"""Run 受理请求联合。
+
+不用 `Field(discriminator=...)`：判别式要求请求必须带 `runtime_kind`，会让历史 legacy
+请求（只带 query）直接 422。两个成员都 `extra="forbid"` 且 `runtime_kind` 是互斥
+Literal，主 Agent 分支排在前面即可无歧义收敛。
+"""
+
+
+class MainAnswerDeliveryResource(ApiV1Model):
+    """普通回答交付：用户可见正文，但不是已校验的文本比较。"""
+
+    kind: Literal["answer"]
+    text: str
+
+
+class MainNeedsInputDeliveryResource(ApiV1Model):
+    """材料追问交付：只说明缺失侧，不制造比较结果。"""
+
+    kind: Literal["needs_input"]
+    missing: list[Literal["text_a", "text_b"]]
+    prompt: str
+
+
+class TextDiffBlockResource(ApiV1Model):
+    """一个已校验差异块；行号 1 基闭区间，引文逐字等于对应行。"""
+
+    kind: Literal["added", "deleted", "modified"]
+    a_start: int | None = None
+    a_end: int | None = None
+    b_start: int | None = None
+    b_end: int | None = None
+    a_quote: str | None = None
+    b_quote: str | None = None
+
+
+class MainComparisonDeliveryResource(ApiV1Model):
+    """已校验文本比较交付。"""
+
+    kind: Literal["comparison"]
+    capability_id: Literal["text.literal_compare"]
+    capability_version: int
+    rule_version: Literal["literal-lines@1"]
+    status: Literal["no_difference", "has_difference"]
+    a_material_id: UUID
+    b_material_id: UUID
+    blocks: list[TextDiffBlockResource]
+
+
+MainDeliveryResource: TypeAlias = Annotated[
+    MainAnswerDeliveryResource | MainNeedsInputDeliveryResource | MainComparisonDeliveryResource,
+    Field(discriminator="kind"),
+]
+
+
+class MainMaterialResource(ApiV1Model):
+    """本次 Run 冻结的单侧材料（仅详情接口返回，用于输入展示区）。"""
+
+    material_id: UUID
+    original_text: str
+    content_sha256: str
+
+
+class MainInputSnapshotResource(ApiV1Model):
+    """主 Agent Run 的冻结输入摘要。"""
+
+    query: str
+    rule_version: Literal["literal-lines@1"]
+    text_a: MainMaterialResource | None = None
+    text_b: MainMaterialResource | None = None
+
+
 class RunErrorResource(ApiV1Model):
     """失败 Run 的安全错误。"""
 
@@ -770,15 +863,21 @@ class RunErrorResource(ApiV1Model):
 
 
 class DiagnosisRunResource(ApiV1Model):
-    """诊断 Run 资源。"""
+    """诊断 Run 资源；V2 主 Agent 交付与诊断结果互斥投影。"""
 
     id: UUID
     session_id: UUID
     trace_id: UUID
     input_message_id: UUID
     service_id: str | None = Field(default=None, min_length=1, max_length=64)
+    runtime_kind: Literal["diagnosis", "main_agent"] = "diagnosis"
     status: Literal["queued", "running", "succeeded", "failed", "cancelled"]
     result: DiagnosisResultResource | None = None
+    delivery: MainDeliveryResource | None = None
+    input_snapshot: MainInputSnapshotResource | None = None
+    # V2 交付／冻结输入的读取状态；损坏或未知版本时投影为 unavailable，不拖垮整页。
+    main_delivery_status: Literal["available", "unavailable", "absent"] | None = None
+    main_input_status: Literal["available", "unavailable", "absent"] | None = None
     error: RunErrorResource | None = None
     rerun_of_run_id: UUID | None = None
     created_at: datetime
@@ -787,13 +886,35 @@ class DiagnosisRunResource(ApiV1Model):
 
     @model_validator(mode="after")
     def validate_terminal_payload(self) -> DiagnosisRunResource:
-        """保持 Result 与 Error 的终态语义，拒绝不一致的持久化数据。"""
-        if self.status == "succeeded" and self.result is None:
-            raise ValueError("成功 Run 缺少结构化结果")
+        """保持 Result／Delivery 与运行时判别值的终态语义，拒绝不一致的持久化数据。
+
+        Design §2.8：成功 diagnosis 必须有 result 且无 delivery，成功 main_agent 相反，
+        其他状态二者都为空。安全错误沿用历史口径：只允许出现在终态。
+        """
+        if self.runtime_kind == "diagnosis":
+            if self.status == "succeeded" and self.result is None:
+                raise ValueError("成功诊断 Run 缺少结构化结果")
+            if self.status != "succeeded" and self.result is not None:
+                raise ValueError("非成功诊断 Run 不得携带结构化结果")
+            if self.delivery is not None or self.input_snapshot is not None:
+                raise ValueError("诊断 Run 不得携带主 Agent 交付或输入快照")
+            if self.main_delivery_status is not None or self.main_input_status is not None:
+                raise ValueError("诊断 Run 不得携带主 Agent 读取状态")
+        else:
+            if self.status == "succeeded":
+                if self.delivery is None and self.main_delivery_status != "unavailable":
+                    raise ValueError("成功主 Agent Run 缺少交付且未标记不可用")
+            else:
+                if self.delivery is not None:
+                    raise ValueError("非成功主 Agent Run 不得携带交付")
+                if self.main_delivery_status not in {None, "absent"}:
+                    raise ValueError("非成功主 Agent Run 的交付状态只能是 absent 或空")
+            if self.result is not None:
+                raise ValueError("主 Agent Run 不得携带诊断结果")
         if self.status == "failed" and self.error is None:
             raise ValueError("失败 Run 缺少安全错误")
-        if self.status not in {"succeeded", "failed"} and (self.result is not None or self.error is not None):
-            raise ValueError("非终态 Run 不得携带结果或错误")
+        if self.status not in {"succeeded", "failed"} and self.error is not None:
+            raise ValueError("非终态 Run 不得携带安全错误")
         return self
 
 

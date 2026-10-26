@@ -1,9 +1,11 @@
 """LLM 调用封装"""
 
 import logging
+import math
 from datetime import UTC, datetime
 from typing import Any, cast
 
+import httpx
 from openai import OpenAI
 
 from src.core.mock_runtime import infer_mock_role, mock_evidence_summary, plan_mock_tool
@@ -23,8 +25,25 @@ class LLMClient:
         default_temperature: float = 0.0,
         default_max_tokens: int | None = None,
         usage_recorder: UsageRecorder | None = None,
+        *,
+        request_timeout: float = 60.0,
+        max_retries: int | None = None,
+        http_client: httpx.Client | None = None,
     ):
-        self.client = OpenAI(api_key=api_key, base_url=base_url)
+        if not math.isfinite(request_timeout) or request_timeout <= 0:
+            raise ValueError("模型请求超时必须是有限正数")
+        if max_retries is not None and max_retries < 0:
+            raise ValueError("模型重试次数不能为负数")
+        client_kwargs: dict[str, Any] = {
+            "api_key": api_key,
+            "base_url": base_url,
+            "timeout": request_timeout,
+        }
+        if max_retries is not None:
+            client_kwargs["max_retries"] = max_retries
+        if http_client is not None:
+            client_kwargs["http_client"] = http_client
+        self.client = OpenAI(**client_kwargs)
         self.model = model
         # 运行参数默认值：装配时从应用库配置解析注入，未配置时保持 0.0 / 不传。
         self.default_temperature = default_temperature
@@ -32,6 +51,11 @@ class LLMClient:
         self.total_tokens = 0  # 累计 token 用量（真实调用累加，mock 恒为 0，供评测成本核算）
         # 用量采集端口：真实调用返回处落库；None=不采集（测试/旧入口保持现状）。
         self.usage_recorder = usage_recorder
+
+    @property
+    def is_mock(self) -> bool:
+        """显式 mock 模式标记；V2 适配器据此选择封闭场景，不做词汇推断。"""
+        return self.client.api_key == "mock"
 
     def chat(
         self,
@@ -48,7 +72,7 @@ class LLMClient:
         max_tokens=None 时用实例默认（默认不传，用模型自身限制）。
         """
         # Mock 模式：api_key 为 "mock" 时不调真实 API
-        if self.client.api_key == "mock":
+        if self.is_mock:
             return self._mock_chat(messages, tools)
 
         resolved_temperature = self.default_temperature if temperature is None else temperature
@@ -69,7 +93,7 @@ class LLMClient:
         try:
             # kwargs 是 SDK 参数的运行时子集，OpenAI stub 无法静态表达动态键组合；
             # SDK 自身会校验参数名，这里按受控边界 cast 到 Any。
-            response = self.client.chat.completions.create(**cast(dict[str, Any], kwargs), timeout=60)
+            response = self.client.chat.completions.create(**cast(dict[str, Any], kwargs))
             message = response.choices[0].message
 
             # 累计 token 用量（供评测成本核算；usage 缺失时不计）
