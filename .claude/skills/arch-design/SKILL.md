@@ -24,7 +24,7 @@ description: Use when an OperMind capability needs architecture judgment — dec
 **判断入口**：没有已确认 PRD → triage；有已确认 PRD → 正式 Design。用户说「把 X 实现出来」但 X 只是想法 → 先 triage，收敛成方向后再决定要不要补 PRD。
 
 ## 前置要求（每次被调用都必读）
-- 基线：`docs/产品定义.md`、`docs/路线图.md`、`docs/开发规范.md`、`docs/架构与开发路径.md`、`docs/正式产品架构设计-v1.md`。
+- 基线：`docs/事实源/产品定义.md`、`docs/事实源/路线图.md`、`docs/事实源/开发规范.md`、`docs/事实源/架构与开发路径.md`。
 - 正式 Design 模式：当前已确认 PRD（`docs/prd/<域>/`）+ `docs/prd/README.md`。没有唯一已确认 PRD → 退回 triage / 停在需求层。
 
 ## 横切边界（架构判断的锚，每条都要核对）

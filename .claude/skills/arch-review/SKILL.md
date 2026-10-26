@@ -18,7 +18,7 @@ description: Use when a completed OperMind Design document (docs/*Design.md) nee
 **不用**：PRD 审查（那是 `prd-reviewing`）；代码审查（那是 `dev-execute` Phase 4）；写 Design（那是 `arch-design`）。
 
 ## 前置要求
-- 基线：`docs/产品定义.md`、`docs/路线图.md`、`docs/开发规范.md`、`docs/架构与开发路径.md`。
+- 基线：`docs/事实源/产品定义.md`、`docs/事实源/路线图.md`、`docs/事实源/开发规范.md`、`docs/事实源/架构与开发路径.md`。
 - 被审 Design：`docs/design/<域>/*Design.md`（或用户指定路径）。
 - 关联的已确认 PRD：`docs/prd/<域>/`。
 - 关键实现锚点：`backend/src/core/`（tool_gateway / graph / bootstrap / coordinator）、`backend/src/agents/`、`backend/src/tools/`。

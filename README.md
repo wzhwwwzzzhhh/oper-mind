@@ -37,8 +37,8 @@ docs/       文档；索引见 docs/README.md
 
 从 `docs/README.md` 开始，它按「事实源 / 工作地图 / 执行产物」三层组织：
 
-- 事实源：`docs/产品定义.md`、`docs/路线图.md`、`docs/开发规范.md`、`docs/架构与开发路径.md`
-- 工作地图：`docs/完善清单.md`（当前主线）、`docs/backlog.md`、`docs/跑通验证.md`
+- 事实源：`docs/事实源/产品定义.md`、`docs/事实源/路线图.md`、`docs/事实源/开发规范.md`、`docs/事实源/架构与开发路径.md`
+- 当前工作：`docs/进行中/V2-主Agent闭环/`（V1 工作地图已归档到 `docs/归档/`）
 - 执行产物：`docs/prd/`、`docs/design/`、`docs/workpack/`
 
 `docs/归档/` 内是已被取代的历史文档（旧架构草案、P3 重构计划、历史接口清单），只作历史参考，
