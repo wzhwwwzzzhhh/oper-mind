@@ -2,7 +2,7 @@
 
 ## 先读这些
 
-- 当前产品与工程事实只来自 `docs/产品定义.md`、`docs/路线图.md`、`docs/开发规范.md`；任务记录、原型、报告和历史文档不能替代它们。
+- 当前产品与工程事实只来自 `docs/事实源/产品定义.md`、`docs/事实源/路线图.md`、`docs/事实源/开发规范.md`；任务记录、原型、报告和历史文档不能替代它们。
 - 这是一个前后端仓库：后端在 `backend/`，前端在 `frontend/`，专用演示靶场在 `demo/`；不要把演示代码当成正式产品入口。
 - 正式后端 API 主线是 `backend/src/app.py` 的 `src.app:app` 与 `/api/v1`；前端入口是 `frontend/src/app/App.tsx`。
 
