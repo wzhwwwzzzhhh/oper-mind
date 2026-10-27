@@ -1,6 +1,6 @@
 # V2-1-main-agent-foundation · 工作包计划
 
-> 状态：实现、自测与独立审查完成（PASS，P0/P1=0）；已建 PR [#139](https://github.com/wzhwwwzzzhhh/oper-mind/pull/139)，CI 全绿，待用户验收/合并
+> 状态：实现、自测与独立审查完成（PASS，P0/P1=0）；PR [#139](https://github.com/wzhwwwzzzhhh/oper-mind/pull/139) 已合并（442c32e）；用户验收：2026-10-27 本地 mock 两条路径界面冒烟通过。
 > 关联：PRD `docs/prd/agent-runtime/V2-1-main-agent-foundation.md`（Issue #137，已确认）；Design `docs/design/agent-runtime/V2-1单主Agent地基Design.md`（已确认）。
 > 分支：`feat/v2-1-main-agent-foundation`；worktree：`D:/market-handsome/oper-mind-worktrees/v2-1-main-agent-foundation`；基线：本地 `main` 548baa9（`git fetch origin main` 因网络失败，本地 main 已含最新提交）。
 

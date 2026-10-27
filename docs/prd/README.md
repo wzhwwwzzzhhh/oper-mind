@@ -81,7 +81,7 @@
 | P11 | Agent Harness 真实运行安全门 | `agent-runtime/P11-harness-real-runtime-safety-gate.md` | 完成（PR #123） |
 | P12 | PostgreSQL、Redis 与 MySQL 真实只读接入 | `service-center/P12-three-service-real-readonly-integration.md` | 已确认（Issue #124） |
 | V2-B | 主 Agent 与文本比较能力闭环 | [agent-runtime/V2-main-agent-capability-loop.md](../进行中/V2-主Agent闭环/首闭环/PRD.md) | 已确认（Issue #133；Design 已确认，Workpack 待确认计划） |
-| V2-1 | 单主 Agent 地基——Capability 契约、ReAct 内核与知识型能力 | `agent-runtime/V2-1-main-agent-foundation.md` | 进行中（Issue #137；Design 已确认） |
+| V2-1 | 单主 Agent 地基——Capability 契约、ReAct 内核与知识型能力 | `agent-runtime/V2-1-main-agent-foundation.md` | 完成（Issue #137；PR #139） |
 
 ## 执行 AI 如何使用
 - 拿到 PRD 后：只实现「范围」内能力，逐条过「验收标准」，达到「完成定义」。

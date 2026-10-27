@@ -1,6 +1,6 @@
 # V2-1-main-agent-foundation · 验收证据
 
-> 状态：实现、自测与独立审查完成（审查 PASS，P0/P1=0）；PR [#139](https://github.com/wzhwwwzzzhhh/oper-mind/pull/139) CI 全绿，待用户验收/合并。
+> 状态：实现、自测与独立审查完成（审查 PASS，P0/P1=0）；PR [#139](https://github.com/wzhwwwzzzhhh/oper-mind/pull/139) 已合并（442c32e）；用户验收：2026-10-27 本地 mock 两条路径界面冒烟通过。
 > 环境：worktree `D:/market-handsome/oper-mind-worktrees/v2-1-main-agent-foundation`，分支 `feat/v2-1-main-agent-foundation`，基线本地 `main` 548baa9。
 > 原则：只记录实际执行过的命令与结果；未执行或未覆盖的项在「已知缺口」明确标注。
 
