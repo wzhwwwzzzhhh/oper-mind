@@ -45,7 +45,7 @@
 | AC7 | 通过 | `test_decision_budget_is_consumed_before_call_and_degrades_to_closed_failure`、`test_knowledge_load_budget_is_enforced_before_loading`、`test_tool_budget_is_consumed_before_call`；API `test_main_agent_budget_exhaustion_is_safe_terminal_failure`（`MAIN_AGENT_BUDGET_EXHAUSTED`，无部分交付） |
 | AC8 | 通过 | `test_clipped_timeout_maps_to_budget_exhausted`、`test_fixed_cap_timeout_stays_tool_failed`、`test_budget_clips_blocking_call_to_remaining_wall_clock`；取消：`test_cancel_checked_after_model_call_discards_decision_without_tool`、`test_cancel_checked_after_tool_call_discards_result`、`test_cancel_before_decision_stops_without_any_model_call`、`test_cancel_during_model_call_discards_decision_and_leaves_no_late_writes`、`test_cancel_winning_a_concurrent_run_leaves_no_late_delivery`、`test_main_agent_event_after_cancel_is_discarded` |
 | AC9 | 通过 | `test_model_adapter_rejects_invalid_json_or_schema`、`test_foreign_material_refs_are_rejected_without_tool_execution`、`test_same_material_on_both_sides_is_rejected_without_tool_execution`、`test_missing_tool_binding_fails_closed_without_gateway_call`、`test_needs_input_slots_must_match_actual_missing_side`；API 无效决策具体失败码测试 |
-| AC10 | 通过 | `test_real_client_prompt_carries_material_ids_but_not_material_text`、`test_events_sse_and_lists_do_not_carry_material_text`、`test_limit_error_does_not_echo_material_text`、`test_session_export_uses_neutral_main_run_summary`；`_safe_event_data` 白名单与 TraceCard 只渲染封闭摘要 |
+| AC10 | 通过（按 PR #140 澄清后的 AC10） | 模型输入/观察、Run 列表、事件、导出、Trace、审计、usage 与日志不含材料原文：`test_real_client_prompt_carries_material_ids_but_not_material_text`、`test_events_sse_and_lists_do_not_carry_material_text`、`test_limit_error_does_not_echo_material_text`、`test_session_export_uses_neutral_main_run_summary`；Run 详情仅返回当前 Run 的冻结输入（用户自己提供的材料），用于回看本次输入。`_safe_event_data` 白名单与 TraceCard 只渲染封闭摘要 |
 | AC11 | 通过 | `test_delivery_discriminator_rejects_unknown_or_extra_fields`、`test_knowledge_grounding_is_fixed_and_round_trips_through_union`；前端 `main-delivery-readers.test.ts` 区分 answer/needs_input/comparison，知识标注结构不符即拒绝背书 |
 | AC12 | 通过 | API `test_main_agent_projects_capability_usage_and_steps`、`test_openapi_exposes_capability_projection_without_catalog`、`test_corrupted_capability_event_projects_safe_unavailable`、`test_non_scalar_capability_event_fields_fail_closed`；前端 `main-capability-strip.test.tsx`（展示/空态/不可用/缺省/损坏/步骤未知）、`main-delivery-readers.test.ts`（实时事件投影）、`main-agent.test.tsx`（失败、取消、交付不可用终态、实时能力条）；`trace-card.test.tsx::主 Agent 决策与完成事件展示安全摘要…`（不含 CoT/Prompt/原始输出） |
 | AC13 | 通过 | 上述四类取消测试 + `test_cancel_terminated_main_agent_run_returns_409`；前端 `main-agent.test.tsx::取消终态仍展示已有能力归属…`。取消粒度为 step 边界，模型调用中/工具等待中返回后的结果均丢弃 |
@@ -67,7 +67,6 @@
 6. **输入契约**：V2-1 只支持 material slots（`text_a`/`text_b`）；服务/资源输入按设计留给 V2-2。
 7. **敏感扫描**：命中项均为仓库既有测试假值与 `.gitleaks.toml` 白名单，无新增真实凭据；该项不是完整 secret 扫描器结论。
 8. **独立审查**：[review.md](review.md) 结论 PASS（P0/P1=0）；首轮 P1（非标量事件导致 500）已修复并有参数化回归测试，复审确认关闭。
-9. **AC10 文档冲突**：PRD 字面要求 Run 详情不出现材料原文；已确认 Design §2.8 明确详情返回冻结输入 `input_snapshot`（V2-0 既有行为，前端"本次输入"依赖它）。当前按 Design 执行，需产品/文档决策。
-10. **动态正文禁词**：固定标注与前端禁词断言已覆盖；模型生成的回答正文本身没有运行时"已校验/已读取/已诊断"过滤，仅由系统提示约束。
-11. **实时能力条边界**：前端不持有能力目录，无法校验事件中的 `capability_id/version` 是否已注册；依赖服务端 `_safe_event_data` 的 id 白名单与事件写路径。
-12. **测试稳健性**：`main-agent.test.tsx` 首个整页用例在并发跑全量时曾出现 5 秒超时，已把该文件的两个整页用例超时提高到 20 秒；其余用例未改断言。
+9. **动态正文禁词**：固定标注与前端禁词断言已覆盖；模型生成的回答正文本身没有运行时"已校验/已读取/已诊断"过滤，仅由系统提示约束（PR #140 已澄清该口径）。
+10. **实时能力条边界**：前端不持有能力目录，无法校验事件中的 `capability_id/version` 是否已注册；依赖服务端 `_safe_event_data` 的 id 白名单与事件写路径。
+11. **测试稳健性**：`main-agent.test.tsx` 首个整页用例在并发跑全量时曾出现 5 秒超时，已把该文件的两个整页用例超时提高到 20 秒；其余用例未改断言。
