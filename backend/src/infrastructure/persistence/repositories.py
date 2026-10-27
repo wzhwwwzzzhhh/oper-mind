@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import overload
 from uuid import UUID
@@ -546,6 +547,14 @@ class SqlAlchemyDiagnosisRunRepository:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class RunCapabilityEvents:
+    """一次批量读取的能力事件结果；损坏行只标记对应 Run 不可用。"""
+
+    events: dict[UUID, tuple[RunEventData, ...]]
+    unavailable_run_ids: frozenset[UUID]
+
+
 class SqlAlchemyRunEventRepository:
     """基于 SQLAlchemy 的 RunEvent Repository。"""
 
@@ -581,6 +590,35 @@ class SqlAlchemyRunEventRepository:
             [_run_event_data(record) for record in records],
             limit,
             lambda item: RunEventCursor(sequence=item.sequence),
+        )
+
+    def list_capability_events(self, run_ids: Sequence[UUID]) -> RunCapabilityEvents:
+        """一次查询本页 Run 的决策／完成事件，供列表与详情同口径汇总。"""
+        unique_ids = tuple(dict.fromkeys(run_ids))
+        if not unique_ids:
+            return RunCapabilityEvents(events={}, unavailable_run_ids=frozenset())
+        records = self._session.scalars(
+            select(RunEventRecord)
+            .where(
+                RunEventRecord.run_id.in_(unique_ids),
+                RunEventRecord.type.in_(
+                    [RunEventType.ROUTE_DECIDED.value, RunEventType.AGENT_DONE.value]
+                ),
+            )
+            .order_by(RunEventRecord.run_id.asc(), RunEventRecord.sequence.asc())
+        )
+        collected: dict[UUID, list[RunEventData]] = {}
+        unavailable: set[UUID] = set()
+        for record in records:
+            try:
+                event = _run_event_data(record)
+            except (ValueError, TypeError, ValidationError):
+                unavailable.add(record.run_id)
+                continue
+            collected.setdefault(event.run_id, []).append(event)
+        return RunCapabilityEvents(
+            events={run_id: tuple(items) for run_id, items in collected.items()},
+            unavailable_run_ids=frozenset(unavailable),
         )
 
 

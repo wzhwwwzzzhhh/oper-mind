@@ -35,6 +35,7 @@ from src.application.service_registration import ServiceRegistrationApplicationS
 from src.application.services import RunApplicationService, SessionApplicationService
 from src.application.session_export import SessionExportApplicationService
 from src.capabilities import CapabilityRegistry
+from src.capabilities.playbook import READONLY_PLAYBOOK_CAPABILITY
 from src.capabilities.text_compare import TEXT_COMPARE_CAPABILITY
 from src.config import (
     load_action_mode,
@@ -74,6 +75,7 @@ from src.infrastructure.persistence.model_usage_repository import (
 )
 from src.infrastructure.persistence.plain_message_writer import SqlAlchemyPlainMessageWriter
 from src.infrastructure.persistence.repositories import (
+    SqlAlchemyDiagnosisRunRepository,
     SqlAlchemyMessageRepository,
     SqlAlchemySessionExportStore,
 )
@@ -92,8 +94,7 @@ from src.infrastructure.services.service_connector_factory import (
 
 LOGGER = logging.getLogger(__name__)
 
-# V2 主 Agent 模型调用的有界预算：单次调用 30 秒超时、SDK 不做任何重试。
-MAIN_AGENT_MODEL_TIMEOUT_SECONDS = 30.0
+# V2 主 Agent 模型调用的 SDK 重试策略：单次超时由内核按剩余预算给出。
 MAIN_AGENT_MODEL_MAX_RETRIES = 0
 
 
@@ -169,19 +170,29 @@ def _resolved_coordinator_factory(runtime: PersistenceRuntime) -> Callable[..., 
     return build
 
 
+# V2-1 组合根唯一能力清单：注册表、公开事件白名单与执行器共用同一来源。
+_MAIN_AGENT_CAPABILITIES = (TEXT_COMPARE_CAPABILITY, READONLY_PLAYBOOK_CAPABILITY)
+
+
+def build_main_agent_capabilities() -> CapabilityRegistry:
+    """构造 V2 主 Agent 能力注册表；所有装配点复用同一份显式清单。"""
+    return CapabilityRegistry(_MAIN_AGENT_CAPABILITIES)
+
+
 def _main_agent_run_executor(
     session_factory: SessionFactory,
     secret_key: bytes | None,
+    capabilities: CapabilityRegistry,
 ) -> MainAgentRunExecutor:
-    """装配 V2 主 Agent 执行器：每 Run 现造模型客户端，能力只显式注册首闭环一项。
+    """装配 V2 主 Agent 执行器：每次模型调用按有效超时现造客户端。
 
-    超时 30 秒、SDK 重试 0 次，配合「一次决策 + 至多一次 Tool」的有界预算；mock 场景
-    只来自 `OPERMIND_MAIN_AGENT_MOCK_SCENARIO` 显式声明，未声明即按真实模型配置执行，
+    单次上限 30 秒由内核按剩余总预算裁剪；SDK 重试 0 次。mock 场景只来自
+    `OPERMIND_MAIN_AGENT_MOCK_SCENARIO` 显式声明，未声明即按真实模型配置执行，
     绝不从 query 词汇推断。
     """
     usage_recorder = SqlAlchemyUsageRecorder(session_factory)
 
-    def client_factory() -> LLMClient:
+    def client_factory(request_timeout: float) -> LLMClient:
         resolution = resolve_runtime_mode(session_factory, secret_key)
         params = resolve_model_params(SqlAlchemyAppSettingsStore(session_factory))
         return build_llm_from_config(
@@ -189,14 +200,23 @@ def _main_agent_run_executor(
             params=ModelParams(temperature=params["temperature"], max_tokens=params["max_tokens"]),
             usage_recorder=usage_recorder,
             manage_legacy_scenario=False,
-            request_timeout=MAIN_AGENT_MODEL_TIMEOUT_SECONDS,
+            request_timeout=request_timeout,
             max_retries=MAIN_AGENT_MODEL_MAX_RETRIES,
         )
 
+    def is_cancelled(run_id: UUID) -> bool:
+        """只读查询 Run 是否已取消；不新增取消端口或写路径。"""
+        session = session_factory()
+        try:
+            return SqlAlchemyDiagnosisRunRepository(session).is_cancelled(run_id)
+        finally:
+            session.close()
+
     return MainAgentRunExecutor(
         client_factory=client_factory,
-        capabilities=CapabilityRegistry([TEXT_COMPARE_CAPABILITY]),
+        capabilities=capabilities,
         mock_scenario=parse_main_mock_scenario(load_main_agent_mock_scenario_name()),
+        is_cancelled=is_cancelled,
     )
 
 
@@ -342,6 +362,7 @@ def build_v1_services_for_runtime(
                 )
             )
     execution_coordinator_factory = _bind_coordinator_factory(coordinator_factory, registry)
+    main_agent_capabilities = build_main_agent_capabilities()
     service_registration = ServiceRegistrationApplicationService(
         session_factory,
         registry,
@@ -361,7 +382,13 @@ def build_v1_services_for_runtime(
             action_service=action_service,
             action_mode=action_mode,
             registry=registry,
-            run_executor=_main_agent_run_executor(session_factory, secret_key),
+            run_executor=_main_agent_run_executor(
+                session_factory,
+                secret_key,
+                main_agent_capabilities,
+            ),
+            capability_ids=main_agent_capabilities.capability_ids(),
+            capabilities=main_agent_capabilities,
         ),
         plain_message_service=PlainMessageApplicationService(
             SqlAlchemyPlainMessageWriter(session_factory),

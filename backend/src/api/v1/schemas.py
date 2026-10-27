@@ -792,11 +792,40 @@ Literal，主 Agent 分支排在前面即可无歧义收敛。
 """
 
 
+class MainKnowledgeGroundingResource(ApiV1Model):
+    """知识辅助回答的固定接地声明；表示装入内置知识，未读取实时数据。"""
+
+    capability_id: str = Field(min_length=1, max_length=64)
+    capability_version: int = Field(ge=1)
+    skill_id: str = Field(min_length=1, max_length=64)
+    skill_version: int = Field(ge=1)
+    data_access: Literal["none"]
+    note: Literal["知识辅助回答 · 未读取实时数据"]
+
+
 class MainAnswerDeliveryResource(ApiV1Model):
     """普通回答交付：用户可见正文，但不是已校验的文本比较。"""
 
     kind: Literal["answer"]
     text: str
+    knowledge_grounding: MainKnowledgeGroundingResource | None = None
+
+
+class MainCapabilityUseResource(ApiV1Model):
+    """本次 Run 使用或降级的能力身份；不含正文、路径或实现句柄。"""
+
+    capability_id: str = Field(min_length=1, max_length=64)
+    capability_version: int = Field(ge=1)
+    kind: Literal["knowledge", "execution"]
+    status: Literal["loaded", "ok", "unavailable"]
+
+
+class MainCapabilitiesResource(ApiV1Model):
+    """本次 Run 的能力归属；steps 无法从事件可靠读出时为 null。"""
+
+    used: list[MainCapabilityUseResource]
+    degraded: list[MainCapabilityUseResource]
+    steps: int | None = None
 
 
 class MainNeedsInputDeliveryResource(ApiV1Model):
@@ -878,6 +907,9 @@ class DiagnosisRunResource(ApiV1Model):
     # V2 交付／冻结输入的读取状态；损坏或未知版本时投影为 unavailable，不拖垮整页。
     main_delivery_status: Literal["available", "unavailable", "absent"] | None = None
     main_input_status: Literal["available", "unavailable", "absent"] | None = None
+    main_capabilities: MainCapabilitiesResource | None = None
+    main_capabilities_status: Literal["available", "unavailable", "absent"] | None = None
+    main_knowledge: MainKnowledgeGroundingResource | None = None
     error: RunErrorResource | None = None
     rerun_of_run_id: UUID | None = None
     created_at: datetime
@@ -900,6 +932,12 @@ class DiagnosisRunResource(ApiV1Model):
                 raise ValueError("诊断 Run 不得携带主 Agent 交付或输入快照")
             if self.main_delivery_status is not None or self.main_input_status is not None:
                 raise ValueError("诊断 Run 不得携带主 Agent 读取状态")
+            if (
+                self.main_capabilities is not None
+                or self.main_capabilities_status is not None
+                or self.main_knowledge is not None
+            ):
+                raise ValueError("诊断 Run 不得携带主 Agent 能力归属")
         else:
             if self.status == "succeeded":
                 if self.delivery is None and self.main_delivery_status != "unavailable":
@@ -911,6 +949,22 @@ class DiagnosisRunResource(ApiV1Model):
                     raise ValueError("非成功主 Agent Run 的交付状态只能是 absent 或空")
             if self.result is not None:
                 raise ValueError("主 Agent Run 不得携带诊断结果")
+            # Design §2.6：能力归属只属于终态，且能力明细与状态必须成对出现。
+            if self.status not in {"succeeded", "failed", "cancelled"} and (
+                self.main_capabilities is not None
+                or self.main_capabilities_status is not None
+                or self.main_knowledge is not None
+            ):
+                raise ValueError("非终态主 Agent Run 不得携带能力归属")
+            if self.main_capabilities is not None and self.main_capabilities_status is None:
+                raise ValueError("能力归属明细必须同时给出读取状态")
+            expected_knowledge = (
+                self.delivery.knowledge_grounding
+                if isinstance(self.delivery, MainAnswerDeliveryResource)
+                else None
+            )
+            if self.main_knowledge != expected_knowledge:
+                raise ValueError("知识接地必须与交付同源")
         if self.status == "failed" and self.error is None:
             raise ValueError("失败 Run 缺少安全错误")
         if self.status not in {"succeeded", "failed"} and self.error is not None:
@@ -1154,6 +1208,8 @@ class GlobalRunSummaryResource(ApiV1Model):
     created_at: datetime
     error: RunErrorResource | None = None
     rerun_of_run_id: UUID | None = None
+    main_capabilities: MainCapabilitiesResource | None = None
+    main_capabilities_status: Literal["available", "unavailable", "absent"] | None = None
 
 
 class GlobalRunListResponse(ApiV1Model):

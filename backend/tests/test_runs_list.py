@@ -250,9 +250,14 @@ def test_摘要字段白名单且失败错误经白名单映射(persistence_runt
         "created_at",
         "error",
         "rerun_of_run_id",
+        "main_capabilities",
+        "main_capabilities_status",
     }
     assert item["error"] == {"code": "DIAGNOSIS_FAILED", "message": "诊断执行失败，请稍后重试"}
     assert item["rerun_of_run_id"] is None
+    # V2-1 新增能力归属字段只对主 Agent Run 生效；诊断 Run 保持空，不伪造能力身份。
+    assert item["main_capabilities"] is None
+    assert item["main_capabilities_status"] is None
     for forbidden in ("trace_id", "input_message_id", "result", "error_code", "error_message", "evidence", "summary"):
         assert forbidden not in item
 

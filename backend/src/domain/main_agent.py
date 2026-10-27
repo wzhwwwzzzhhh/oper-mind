@@ -22,6 +22,18 @@ MAX_CONTEXT_CODEPOINTS = 2_000
 MAX_ANSWER_CODEPOINTS = 4_000
 MAX_PROMPT_CODEPOINTS = 1_000
 
+# V2-1 主 Agent 循环的硬预算；服务端版本化常量，调整需同步 PRD／Design。
+MAX_MAIN_DECISIONS = 6
+MAX_KNOWLEDGE_LOADS = 2
+MAX_AGENT_TOOL_CALLS = 3
+MAX_RUN_WALL_CLOCK_SECONDS = 120.0
+MAX_MODEL_CALL_SECONDS = 30.0
+MAX_TOOL_WAIT_SECONDS = 3.0
+MAX_OBSERVATION_MESSAGES_IN_PROMPT = 6
+MAX_SKILL_CODEPOINTS = 4_000
+
+KNOWLEDGE_GROUNDING_NOTE: Literal["知识辅助回答 · 未读取实时数据"] = "知识辅助回答 · 未读取实时数据"
+
 
 def _require_scalar_text(value: str, field_name: str) -> None:
     """拒绝 UTF-8 无法编码的孤立代理码点；错误不携带原文。"""
@@ -167,14 +179,39 @@ class MainInputSnapshotV1(DomainRecord):
         return self
 
 
+class KnowledgeGroundingV1(DomainRecord):
+    """知识辅助回答的接地信息：只证明装入了哪个受管 Skill，不证明读取了实时数据。"""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal[1] = 1
+    capability_id: str = Field(pattern=r"^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$", max_length=64)
+    capability_version: int = Field(ge=1)
+    skill_id: str = Field(pattern=r"^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$", max_length=64)
+    skill_version: int = Field(ge=1)
+    data_access: Literal["none"] = "none"
+    note: Literal["知识辅助回答 · 未读取实时数据"] = KNOWLEDGE_GROUNDING_NOTE
+
+    @field_validator("schema_version", mode="before")
+    @classmethod
+    def _exact_schema_version(cls, value: object) -> object:
+        if type(value) is not int or value != 1:
+            raise ValueError("不支持的知识接地 schema 版本。")
+        return value
+
+
 class MainAnswerDeliveryV1(DomainRecord):
-    """普通回答：是用户可见正文，但不是已校验的文本比较。"""
+    """普通回答：是用户可见正文，但不是已校验的文本比较。
+
+    带 `knowledge_grounding` 时表示本次回答装入了受管 Skill，仍不是实时事实。
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     schema_version: Literal[1] = 1
     kind: Literal["answer"] = "answer"
     text: str = Field(min_length=1, max_length=MAX_ANSWER_CODEPOINTS)
+    knowledge_grounding: KnowledgeGroundingV1 | None = None
 
     @field_validator("schema_version", mode="before")
     @classmethod
@@ -364,9 +401,11 @@ class MainAgentDeliveryUnavailableError(Exception):
 
 
 def main_delivery_message(delivery: MainAnswerDeliveryV1 | MainNeedsInputDeliveryV1 | MainComparisonDeliveryV1) -> str:
-    """生成助手消息：比较结果只保留固定块数摘要，不复制引文。"""
+    """生成助手消息：知识辅助回答加固定前缀；比较结果只保留固定块数摘要。"""
     if isinstance(delivery, MainAnswerDeliveryV1):
-        return delivery.text
+        if delivery.knowledge_grounding is None:
+            return delivery.text
+        return f"{KNOWLEDGE_GROUNDING_NOTE}\n\n{delivery.text}"
     if isinstance(delivery, MainNeedsInputDeliveryV1):
         return delivery.prompt
     count = len(delivery.comparison.blocks)

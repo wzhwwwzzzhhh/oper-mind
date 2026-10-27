@@ -10,7 +10,16 @@ from __future__ import annotations
 import difflib
 from uuid import UUID
 
-from src.capabilities import CapabilityDefinition, MaterialSide
+from src.capabilities import (
+    CapabilityDefinition,
+    CapabilityInputContract,
+    CapabilityKind,
+    CapabilityOutputContract,
+    CompletionSemantics,
+    FailureSemantics,
+    MaterialSide,
+    MaterialSlot,
+)
 from src.domain.main_agent import (
     MAIN_AGENT_CAPABILITY_ID,
     MAIN_AGENT_CAPABILITY_VERSION,
@@ -27,14 +36,39 @@ TEXT_COMPARE_REQUIRED_MATERIALS: tuple[MaterialSide, ...] = ("text_a", "text_b")
 TEXT_COMPARE_CAPABILITY = CapabilityDefinition(
     capability_id=MAIN_AGENT_CAPABILITY_ID,
     version=MAIN_AGENT_CAPABILITY_VERSION,
-    rule_version=MAIN_AGENT_RULE_VERSION,
+    kind=CapabilityKind.EXECUTION,
+    title="文本字面比较",
     description="对两份文本做逐行字面对照，返回新增、删除、修改块及精确行号与引文。",
     usage_guide=(
         "当用户要求比较文本 A（旧）与文本 B（新）时，提出该能力引用；"
         "不要自行编造差异，也不要试图改写或省略行。"
     ),
-    allowed_tools=(TEXT_COMPARE_TOOL_NAME,),
-    required_materials=TEXT_COMPARE_REQUIRED_MATERIALS,
+    instruction="调用声明的文本比较工具，返回确定性 typed 结果；不要自行生成差异块。",
+    input_contract=CapabilityInputContract(
+        material_slots=(
+            MaterialSlot(slot="text_a", label="文本 A（旧）"),
+            MaterialSlot(slot="text_b", label="文本 B（新）"),
+        )
+    ),
+    output_contract=CapabilityOutputContract(
+        delivery_kind="comparison",
+        result_schema="text_comparison.v1",
+        summary_fields=("status", "blocks"),
+    ),
+    resources=(),
+    permissions=("read_only",),
+    tool_bindings=(TEXT_COMPARE_TOOL_NAME,),
+    completion=CompletionSemantics.TYPED_RESULT,
+    failure=(
+        FailureSemantics.INPUT_MISSING,
+        FailureSemantics.INPUT_INVALID,
+        FailureSemantics.TOOL_UNAVAILABLE,
+        FailureSemantics.TOOL_TIMEOUT,
+        FailureSemantics.RESULT_INVALID,
+        FailureSemantics.BUDGET_EXHAUSTED,
+    ),
+    skill=None,
+    rule_version=MAIN_AGENT_RULE_VERSION,
 )
 
 

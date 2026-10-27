@@ -3,132 +3,36 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from enum import StrEnum
-from typing import Annotated, Literal, TypeAlias
-from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, field_validator, model_validator
+from pydantic import ValidationError
 
 from src.core.llm import LLMClient
-from src.domain.main_agent import (
-    MAIN_AGENT_CAPABILITY_ID,
-    MAIN_AGENT_CAPABILITY_VERSION,
-    MAX_ANSWER_CODEPOINTS,
+from src.core.main_agent_decisions import (
+    _DECISION_ADAPTER,
+    MainAnswerDecision,
+    MainDecisionFailureCode,
+    MainDecisionMaterialRefs,
+    MainDecisionRequest,
+    MainDecisionV1,
+    MainInvokeCapabilityDecision,
+    MainLoadSkillDecision,
+    MainNeedsInputDecision,
+    MainPromptMessage,
+    ModelDecisionFailure,
+    ModelDecisionResult,
+    ModelDecisionSuccess,
 )
+from src.domain.main_agent import MAX_MODEL_CALL_SECONDS
 
-
-class MainDecisionFailureCode(StrEnum):
-    """模型决策边界的两种封闭失败。"""
-
-    MODEL_UNAVAILABLE = "MODEL_UNAVAILABLE"
-    MODEL_DECISION_INVALID = "MODEL_DECISION_INVALID"
-
-
-class _FrozenDecision(BaseModel):
-    """决策契约禁止额外字段与实例修改。"""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-
-def _require_scalar_text(value: str) -> str:
-    """拒绝 UTF-8 无法编码的孤立代理码点；错误不携带原文。"""
-    try:
-        value.encode("utf-8")
-    except UnicodeEncodeError:
-        raise ValueError("文本包含非法 Unicode 码点。") from None
-    return value
-
-
-class MainAnswerDecision(_FrozenDecision):
-    """普通回答决策；不是已校验的文本比较。"""
-
-    kind: Literal["answer"] = "answer"
-    text: str = Field(min_length=1, max_length=MAX_ANSWER_CODEPOINTS)
-
-    @field_validator("text")
-    @classmethod
-    def _check_text(cls, value: str) -> str:
-        return _require_scalar_text(value)
-
-
-class MainNeedsInputDecision(_FrozenDecision):
-    """材料追问决策：只声明缺失材料身份，追问文案由后端固定生成。"""
-
-    kind: Literal["needs_input"] = "needs_input"
-    missing: tuple[Literal["text_a", "text_b"], ...] = Field(min_length=1, max_length=2)
-
-    @model_validator(mode="after")
-    def _unique_missing(self) -> MainNeedsInputDecision:
-        if len(set(self.missing)) != len(self.missing):
-            raise ValueError("缺失材料不允许重复。")
-        return self
-
-
-class MainInvokeCapabilityDecision(_FrozenDecision):
-    """能力调用决策：只允许已注册能力与当前 Run 的材料引用。"""
-
-    kind: Literal["invoke_capability"] = "invoke_capability"
-    capability_id: Literal["text.literal_compare"] = MAIN_AGENT_CAPABILITY_ID
-    capability_version: Literal[1] = MAIN_AGENT_CAPABILITY_VERSION
-    a_material_id: UUID
-    b_material_id: UUID
-
-    @model_validator(mode="after")
-    def _distinct_materials(self) -> MainInvokeCapabilityDecision:
-        if self.a_material_id == self.b_material_id:
-            raise ValueError("A／B 材料引用必须互不相同。")
-        return self
-
-
-MainDecisionV1: TypeAlias = Annotated[
-    MainAnswerDecision | MainNeedsInputDecision | MainInvokeCapabilityDecision,
-    Field(discriminator="kind"),
-]
-
-_DECISION_ADAPTER: TypeAdapter[MainDecisionV1] = TypeAdapter(MainDecisionV1)
-
-
-class MainDecisionMaterialRefs(_FrozenDecision):
-    """本次决策可见的材料引用；缺失侧为 None，不携带原文。"""
-
-    text_a: UUID | None = None
-    text_b: UUID | None = None
-
-
-class MainPromptMessage(_FrozenDecision):
-    """一条发送给模型的可信消息。"""
-
-    role: Literal["system", "user", "assistant"]
-    content: str = Field(min_length=1)
-
-    @field_validator("content")
-    @classmethod
-    def _check_content(cls, value: str) -> str:
-        return _require_scalar_text(value)
-
-
-class MainDecisionRequest(_FrozenDecision):
-    """模型决策请求：提示词与材料引用分离，mock 不解析提示词选场景。"""
-
-    messages: tuple[MainPromptMessage, ...] = Field(min_length=1)
-    material_refs: MainDecisionMaterialRefs
-
-
-class ModelDecisionSuccess(_FrozenDecision):
-    """模型调用成功且 JSON／schema 校验通过。"""
-
-    outcome: Literal["success"] = "success"
-    decision: MainDecisionV1
-
-
-class ModelDecisionFailure(_FrozenDecision):
-    """模型边界封闭失败；不携带原始响应或异常。"""
-
-    outcome: Literal["failure"] = "failure"
-    code: MainDecisionFailureCode
-
-
-ModelDecisionResult: TypeAlias = ModelDecisionSuccess | ModelDecisionFailure
+MOCK_ANSWER_TEXT = "（模拟模型）这是一条普通回答，未执行文本比较。"
+MOCK_KNOWLEDGE_ANSWER_TEXT = (
+    "（模拟模型）这是基于内置只读排查手册的回答：先确认问题口径，再按慢查询、锁等待、"
+    "连接池和日志错误逐步检查。知识辅助回答 · 未读取实时数据。"
+)
+_MOCK_KNOWLEDGE_CAPABILITY_ID = "ops.readonly_playbook"
+_MOCK_KNOWLEDGE_CAPABILITY_VERSION = 1
 
 
 class MainMockScenario(StrEnum):
@@ -137,9 +41,10 @@ class MainMockScenario(StrEnum):
     ANSWER = "answer"
     NEEDS_INPUT = "needs_input"
     COMPARE = "compare"
-
-
-MOCK_ANSWER_TEXT = "（模拟模型）这是一条普通回答，未执行文本比较。"
+    KNOWLEDGE = "knowledge"
+    UNKNOWN_CAPABILITY = "unknown_capability"
+    WRONG_VERSION = "wrong_version"
+    BUDGET_EXHAUSTED = "budget_exhausted"
 
 
 def parse_main_mock_scenario(value: str | None) -> MainMockScenario | None:
@@ -157,27 +62,42 @@ class MainAgentModelAdapter:
 
     def __init__(
         self,
-        client: LLMClient,
+        client: LLMClient | None = None,
         *,
+        client_factory: Callable[[float], LLMClient] | None = None,
         mock_scenario: MainMockScenario | None = None,
     ) -> None:
+        if (client is None) == (client_factory is None):
+            raise ValueError("必须且只能提供固定客户端或按超时构造客户端的工厂。")
         self._client = client
+        self._client_factory = client_factory
         self._mock_scenario = mock_scenario
+        self._mock_probe: bool | None = None
 
     @property
     def is_mock(self) -> bool:
         """返回是否使用显式 mock 决策替身；界面据此标注 mock 模型。"""
-        return self._client.is_mock
+        if self._client is not None:
+            return self._client.is_mock
+        if self._mock_probe is None:
+            probe = self._client_factory(MAX_MODEL_CALL_SECONDS)  # type: ignore[misc]
+            self._mock_probe = probe.is_mock
+        return self._mock_probe
 
-    def decide(self, request: MainDecisionRequest) -> ModelDecisionResult:
+    def decide(
+        self,
+        request: MainDecisionRequest,
+        timeout_seconds: float | None = None,
+    ) -> ModelDecisionResult:
         """调用模型并返回 typed 决策；任何失败都不执行工具。"""
-        if self._client.is_mock:
+        client = self._resolve_client(timeout_seconds)
+        if client.is_mock:
             decision = self._mock_decision(request)
             if decision is None:
                 return ModelDecisionFailure(code=MainDecisionFailureCode.MODEL_UNAVAILABLE)
             return ModelDecisionSuccess(decision=decision)
 
-        response = self._client.chat(
+        response = client.chat(
             [{"role": message.role, "content": message.content} for message in request.messages],
             tools=None,
         )
@@ -196,25 +116,80 @@ class MainAgentModelAdapter:
             return ModelDecisionFailure(code=MainDecisionFailureCode.MODEL_DECISION_INVALID)
         return ModelDecisionSuccess(decision=decision)
 
+    def _resolve_client(self, timeout_seconds: float | None) -> LLMClient:
+        """每次模型调用都按有效超时构造客户端，保证剩余预算可截断等待。"""
+        if self._client is not None:
+            return self._client
+        effective = MAX_MODEL_CALL_SECONDS if timeout_seconds is None else timeout_seconds
+        return self._client_factory(effective)  # type: ignore[misc]
+
     def _mock_decision(self, request: MainDecisionRequest) -> MainDecisionV1 | None:
         """按显式场景返回固定决策；场景与材料状态不符时不可用。"""
         refs = request.material_refs
+        missing = [
+            side for side in ("text_a", "text_b") if getattr(refs, side) is None
+        ]
         if self._mock_scenario is MainMockScenario.ANSWER:
             return MainAnswerDecision(text=MOCK_ANSWER_TEXT)
-        missing: list[Literal["text_a", "text_b"]] = []
-        if refs.text_a is None:
-            missing.append("text_a")
-        if refs.text_b is None:
-            missing.append("text_b")
         if self._mock_scenario is MainMockScenario.NEEDS_INPUT:
             if not missing:
                 return None
-            return MainNeedsInputDecision(missing=tuple(missing))
+            return MainNeedsInputDecision(slots=tuple(missing))
         if self._mock_scenario is MainMockScenario.COMPARE:
             if refs.text_a is None or refs.text_b is None:
                 return None
             return MainInvokeCapabilityDecision(
-                a_material_id=refs.text_a,
-                b_material_id=refs.text_b,
+                capability_id="text.literal_compare",
+                capability_version=1,
+                inputs={"text_a": str(refs.text_a), "text_b": str(refs.text_b)},
+            )
+        if self._mock_scenario is MainMockScenario.KNOWLEDGE:
+            if request.observation_count == 0:
+                return MainLoadSkillDecision(
+                    capability_id=_MOCK_KNOWLEDGE_CAPABILITY_ID,
+                    capability_version=_MOCK_KNOWLEDGE_CAPABILITY_VERSION,
+                )
+            return MainAnswerDecision(text=MOCK_KNOWLEDGE_ANSWER_TEXT)
+        if self._mock_scenario is MainMockScenario.UNKNOWN_CAPABILITY:
+            inputs = {
+                side: str(material_id)
+                for side in ("text_a", "text_b")
+                if (material_id := getattr(refs, side)) is not None
+            }
+            return MainInvokeCapabilityDecision(
+                capability_id="missing.capability",
+                capability_version=1,
+                inputs=inputs,
+            )
+        if self._mock_scenario is MainMockScenario.WRONG_VERSION:
+            return MainLoadSkillDecision(
+                capability_id=_MOCK_KNOWLEDGE_CAPABILITY_ID,
+                capability_version=99,
+            )
+        if self._mock_scenario is MainMockScenario.BUDGET_EXHAUSTED:
+            return MainLoadSkillDecision(
+                capability_id=_MOCK_KNOWLEDGE_CAPABILITY_ID,
+                capability_version=_MOCK_KNOWLEDGE_CAPABILITY_VERSION,
             )
         return None
+
+
+__all__ = [
+    "MOCK_ANSWER_TEXT",
+    "MOCK_KNOWLEDGE_ANSWER_TEXT",
+    "MainAgentModelAdapter",
+    "MainAnswerDecision",
+    "MainDecisionFailureCode",
+    "MainDecisionMaterialRefs",
+    "MainDecisionRequest",
+    "MainDecisionV1",
+    "MainInvokeCapabilityDecision",
+    "MainLoadSkillDecision",
+    "MainMockScenario",
+    "MainNeedsInputDecision",
+    "MainPromptMessage",
+    "ModelDecisionFailure",
+    "ModelDecisionResult",
+    "ModelDecisionSuccess",
+    "parse_main_mock_scenario",
+]
