@@ -1,6 +1,6 @@
 ---
 title: V2-1 单主 Agent 地基：Capability 契约、ReAct 内核与知识型能力
-status: 已确认
+status: 进行中
 domain: agent-runtime
 phase: V2-1
 issue: 137
