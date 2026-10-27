@@ -22,7 +22,7 @@ docs/workpack/
 
 | 阶段 | 工作包 | Issue | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|---|
-| V2-1 | `v2-1-main-agent-foundation` | #137 | 审查 PASS，待提交 PR | [plan](v2-1-main-agent-foundation/plan.md) | [review](v2-1-main-agent-foundation/review.md) | [evidence](v2-1-main-agent-foundation/evidence.md) |
+| V2-1 | `v2-1-main-agent-foundation` | #137 | PR [#139](https://github.com/wzhwwwzzzhhh/oper-mind/pull/139) CI 全绿，待验收/合并 | [plan](v2-1-main-agent-foundation/plan.md) | [review](v2-1-main-agent-foundation/review.md) | [evidence](v2-1-main-agent-foundation/evidence.md) |
 | V2-B | 主 Agent 与文本比较能力闭环 | #133 | 待用户确认计划 | [plan](../进行中/V2-主Agent闭环/首闭环/Workpack-计划.md) | [未执行](../进行中/V2-主Agent闭环/首闭环/Workpack-审查.md) | [未执行](../进行中/V2-主Agent闭环/首闭环/Workpack-证据.md) |
 
 ## 保留工作包（代码已合入，验收暂停）
