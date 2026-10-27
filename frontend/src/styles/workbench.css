@@ -1722,6 +1722,87 @@
   resize: vertical;
 }
 
+.main-agent-composer__hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.main-capability-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 7px;
+  background: var(--surface-soft);
+}
+
+.main-capability-strip--unavailable {
+  border-left-color: var(--warning);
+}
+
+.main-capability-strip__row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.main-capability-strip__title {
+  margin-right: 2px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.main-capability-strip__chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 3px 7px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-secondary);
+  background: var(--surface);
+  font-size: 11px;
+}
+
+.main-capability-strip__chip--knowledge {
+  border-color: var(--accent-soft);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.main-capability-strip__chip--degraded {
+  border-color: var(--warning-soft);
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.main-capability-strip__note {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.main-capability-strip__note--warning {
+  color: var(--warning);
+}
+
+.main-capability-strip__knowledge {
+  align-self: flex-start;
+  padding: 3px 7px;
+  border: 1px solid var(--accent-soft);
+  border-radius: 5px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-size: 11px;
+}
+
 .main-delivery-panel {
   display: flex;
   flex-direction: column;
@@ -1731,6 +1812,22 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-soft);
+}
+
+.main-delivery-panel__knowledge {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.main-delivery-panel__knowledge-badge {
+  align-self: flex-start;
+  padding: 3px 7px;
+  border: 1px solid var(--accent-soft);
+  border-radius: 5px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-size: 11px;
 }
 
 .main-delivery-panel__meta-row,

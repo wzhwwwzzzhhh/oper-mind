@@ -69,4 +69,29 @@ describe('MainDeliveryPanel', () => {
     expect(screen.getByText('比较这两段文本')).toBeInTheDocument()
     expect(screen.getByText('未提供')).toBeInTheDocument()
   })
+
+  it('知识辅助回答显示固定徽标与内置来源，不冒充实时读取', () => {
+    render(
+      <MainDeliveryPanel
+        delivery={{
+          kind: 'answer',
+          knowledge_grounding: {
+            capability_id: 'ops.readonly_playbook',
+            capability_version: 1,
+            data_access: 'none',
+            note: '知识辅助回答 · 未读取实时数据',
+            skill_id: 'ops.readonly_playbook',
+            skill_version: 1,
+          },
+          text: '先看连接数，再看慢查询。',
+        }}
+      />,
+    )
+
+    expect(screen.getByText('知识辅助回答 · 未读取实时数据')).toBeInTheDocument()
+    expect(screen.getByText(/来源：内置只读排查手册 ops\.readonly_playbook@1（未检索、未联网）/)).toBeInTheDocument()
+    expect(screen.queryByText(/已校验/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/已读取/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/已诊断/)).not.toBeInTheDocument()
+  })
 })

@@ -29,6 +29,12 @@ export interface ConversationInvestigation {
   input_snapshot: unknown
   /** V2 交付读取状态；损坏或未知版本时为 unavailable。 */
   main_delivery_status?: 'available' | 'unavailable' | 'absent'
+  /** V2 能力归属；仅主 Agent Run 有值，缺失或损坏时按状态字段处理。 */
+  main_capabilities: unknown
+  /** V2 能力归属读取状态；损坏事件为 unavailable，无归属为 absent。 */
+  main_capabilities_status?: 'available' | 'unavailable' | 'absent'
+  /** V2 知识接地；唯一来源是交付，缺失表示本次不是知识辅助回答。 */
+  main_knowledge: unknown
   /** V2 冻结输入读取状态；仅 Run 详情返回。 */
   main_input_status?: 'available' | 'unavailable' | 'absent'
   input_message_id: string
@@ -129,6 +135,7 @@ function read_investigation(value: unknown, session_id: string, issues: string[]
   }
   const delivery_status = read_main_read_status(value, 'main_delivery_status')
   const input_status = read_main_read_status(value, 'main_input_status')
+  const capabilities_status = read_main_read_status(value, 'main_capabilities_status')
 
   return {
     created_at,
@@ -136,8 +143,11 @@ function read_investigation(value: unknown, session_id: string, issues: string[]
     error: resource_value(value, 'error'),
     id,
     input_snapshot: resource_value(value, 'input_snapshot'),
+    main_capabilities: resource_value(value, 'main_capabilities'),
+    main_capabilities_status: capabilities_status,
     main_delivery_status: delivery_status,
     main_input_status: input_status,
+    main_knowledge: resource_value(value, 'main_knowledge'),
     input_message_id,
     result: resource_value(value, 'result'),
     rerun_of_run_id,
@@ -153,7 +163,7 @@ const MAIN_READ_STATUSES: ReadonlySet<string> = new Set(['available', 'unavailab
 /** 读取 V2 交付状态；未知值按缺失处理，不伪造可用。 */
 function read_main_read_status(
   value: unknown,
-  field: 'main_delivery_status' | 'main_input_status',
+  field: 'main_capabilities_status' | 'main_delivery_status' | 'main_input_status',
 ): 'available' | 'unavailable' | 'absent' | undefined {
   const raw = resource_optional_string(value, field)
   return raw !== undefined && MAIN_READ_STATUSES.has(raw)

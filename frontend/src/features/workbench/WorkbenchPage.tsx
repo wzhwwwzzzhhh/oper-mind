@@ -37,7 +37,9 @@ import {
 import { ActionProposalPanel } from './ActionProposalPanel'
 import { DiagnosisResultPanel } from './DiagnosisResultPanel'
 import { MainAgentComposer } from './MainAgentComposer'
+import { MainCapabilityStrip } from './MainCapabilityStrip'
 import { MainDeliveryPanel } from './MainDeliveryPanel'
+import { read_live_main_capabilities } from './main-delivery-readers'
 import { SafeMarkdown } from './SafeMarkdown'
 import { is_investigation_message } from './message-intent'
 import {
@@ -294,9 +296,16 @@ function InvestigationProcess({ investigation, session_id }: { investigation: Co
     run_id: investigation.id,
   })
   const is_live = investigation.status === 'queued' || investigation.status === 'running' || stream_state === 'connected'
+  // Design §2.7：实时态只有事件流，收到带能力身份的事件时即时展示能力条。
+  const live_capabilities = is_live && investigation.runtime_kind === 'main_agent'
+    ? read_live_main_capabilities(events)
+    : undefined
 
   return (
     <div className="investigation-process">
+      {live_capabilities !== undefined && (
+        <MainCapabilityStrip capabilities={live_capabilities.capabilities} status={live_capabilities.status} />
+      )}
       <TraceCard
         events={events}
         running={is_live}
@@ -317,6 +326,16 @@ function run_detail_input_snapshot(value: unknown): unknown {
   const body = read_record(resource_value(response, 'data'))
   const run = read_record(resource_value(body, 'run'))
   return run ? resource_value(run, 'input_snapshot') : undefined
+}
+
+function MainCapabilitySummary({ investigation }: { investigation: ConversationInvestigation }): ReactElement {
+  return (
+    <MainCapabilityStrip
+      capabilities={investigation.main_capabilities}
+      knowledge={investigation.main_knowledge}
+      status={investigation.main_capabilities_status}
+    />
+  )
 }
 
 function MainAgentReply({
@@ -353,6 +372,7 @@ function MainAgentReply({
           type="error"
         />
         <InvestigationProcess investigation={investigation} session_id={session_id} />
+        <MainCapabilitySummary investigation={investigation} />
         <RerunControls investigation={investigation} rerun_by={rerun_by} session_id={session_id} />
       </div>
     )
@@ -363,6 +383,7 @@ function MainAgentReply({
       <div className="message-body">
         <div className="message-label">OperMind · 主 Agent 请求已取消</div>
         <UiAlert description="请求已取消；页面不推断取消原因，也不继续执行。" showIcon title="请求已取消" type="warning" />
+        <MainCapabilitySummary investigation={investigation} />
         <RerunControls investigation={investigation} rerun_by={rerun_by} session_id={session_id} />
       </div>
     )
@@ -379,6 +400,7 @@ function MainAgentReply({
           type="warning"
         />
         <InvestigationProcess investigation={investigation} session_id={session_id} />
+        <MainCapabilitySummary investigation={investigation} />
         <RerunControls investigation={investigation} rerun_by={rerun_by} session_id={session_id} />
       </div>
     )
@@ -398,6 +420,7 @@ function MainAgentReply({
         </div>
       )}
       <InvestigationProcess investigation={investigation} session_id={session_id} />
+      {!is_live && <MainCapabilitySummary investigation={investigation} />}
       {!is_live && output && <SafeMarkdown className="bubble" content={output.content} />}
       {!is_live && !output && (
         <UiAlert

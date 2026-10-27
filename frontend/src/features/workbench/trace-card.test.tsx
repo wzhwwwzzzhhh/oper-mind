@@ -90,6 +90,42 @@ describe('TraceCard', () => {
     expect(screen.queryByText('成功')).not.toBeInTheDocument()
   })
 
+  it('主 Agent 决策与完成事件展示安全摘要、能力身份和步数', () => {
+    render(<TraceCard events={[
+      event(1, 'route_decided', {
+        capability_id: 'ops.readonly_playbook',
+        capability_kind: 'knowledge',
+        capability_version: 1,
+        decision: 'load_skill',
+        status: 'ok',
+        step: 1,
+      }),
+      event(2, 'route_decided', {
+        decision: 'answer',
+        status: 'ok',
+        step: 2,
+      }),
+      event(3, 'agent_done', { outcome: 'answer_with_knowledge', steps: 2 }),
+    ]} />)
+
+    expect(screen.getByText('决策：装载知识 · 第 1 步 · ops.readonly_playbook@1 · 成功')).toBeInTheDocument()
+    expect(screen.getByText('决策：回答 · 第 2 步 · 成功')).toBeInTheDocument()
+    expect(screen.getByText('知识辅助回答 · 共 2 步')).toBeInTheDocument()
+    expect(screen.queryByText('load_skill')).not.toBeInTheDocument()
+    expect(screen.queryByText('answer_with_knowledge')).not.toBeInTheDocument()
+  })
+
+  it('未知决策枚举或非法能力标识不回显原始值', () => {
+    render(<TraceCard events={[
+      event(1, 'route_decided', { capability_id: '<script>', capability_version: 1, decision: 'raw_prompt', step: 1 }),
+      event(2, 'agent_done', { outcome: 'raw_output', steps: 1 }),
+    ]} />)
+
+    expect(screen.queryByText(/raw_prompt/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/script/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/raw_output/)).not.toBeInTheDocument()
+  })
+
   it('折叠触发器是可聚焦按钮并回报展开状态', () => {
     render(<TraceCard events={[event(1, 'tool_invoked', { status: 'ok', tool: 'pg_slow_query' })]} />)
 
