@@ -77,6 +77,9 @@ export function MainAgentComposer({
           type="error"
         />
       )}
+      <p className="main-agent-composer__hint">
+        可直接询问只读排查步骤；知识辅助回答不会读取实时数据。
+      </p>
       <UiCollapse
         className="main-agent-composer__materials"
         items={[

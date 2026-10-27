@@ -111,12 +111,24 @@ export function MainDeliveryPanel({
     input_snapshot === null || input_snapshot === undefined ? undefined : read_main_input_snapshot(input_snapshot)
   // 只要投影报出协议问题就整体不渲染：宁可少显示，也不显示半截的行号或材料。
   const delivery_ok = delivery_read.delivery !== undefined && delivery_read.issues.length === 0
+  const answer_knowledge =
+    delivery_ok && delivery_read.delivery?.kind === 'answer'
+      ? delivery_read.delivery.knowledge_grounding
+      : null
 
   return (
     <article className="main-delivery-panel">
       {delivery_ok
         ? (delivery_read.delivery?.kind === 'comparison' ? <ComparisonBody comparison={delivery_read.delivery} /> : null)
         : <ProtocolNotice detail={delivery_read.issues[0]?.message ?? '服务端交付不符合公开契约。'} title="交付数据异常" />}
+      {answer_knowledge !== null && (
+        <div className="main-delivery-panel__knowledge">
+          <span className="main-delivery-panel__knowledge-badge">{answer_knowledge.note}</span>
+          <p className="main-delivery-panel__copy">
+            来源：内置只读排查手册 {answer_knowledge.capability_id}@{answer_knowledge.capability_version}（未检索、未联网）
+          </p>
+        </div>
+      )}
       {snapshot_read && snapshot_read.snapshot && snapshot_read.issues.length === 0 && (
         <details className="main-delivery-panel__snapshot">
           <summary>展开本次输入</summary>

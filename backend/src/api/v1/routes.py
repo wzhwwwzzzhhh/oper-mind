@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Literal, TypeVar, cast
@@ -29,6 +30,7 @@ from src.api.v1.cursors import (
 from src.api.v1.dependencies import V1Services, get_v1_services
 from src.api.v1.errors import ApiV1Error
 from src.api.v1.resources import (
+    MainCapabilityProjection,
     action_event_resource,
     action_execution_resource,
     action_proposal_resource,
@@ -37,6 +39,7 @@ from src.api.v1.resources import (
     global_run_summary_resource,
     knowledge_document_resource,
     knowledge_search_hit_resource,
+    main_capability_projection,
     message_resource,
     model_usage_item_resource,
     monitor_history_resource,
@@ -531,6 +534,13 @@ def _run_response(services: V1Services, run_id: UUID) -> DiagnosisRunResource:
             raise RunNotFoundError()
         result = SqlAlchemyDiagnosisResultRepository(session).get_by_run_id(run_id)
         projection = _main_projection(session, run, with_snapshot=True)
+        capability_projection = _capability_projection(
+            session,
+            [(run.id, run.status in _TERMINAL_RUN_STATUSES)]
+            if run.runtime_kind is RunRuntimeKind.MAIN_AGENT
+            else [],
+            {run.id: projection.delivery},
+        ).get(run.id)
         return run_resource(
             run,
             result,
@@ -538,9 +548,35 @@ def _run_response(services: V1Services, run_id: UUID) -> DiagnosisRunResource:
             projection.snapshot,
             delivery_status=projection.delivery_status,
             input_status=projection.input_status,
+            capability_projection=capability_projection,
         )
     finally:
         session.close()
+
+
+_TERMINAL_RUN_STATUSES = frozenset({RunStatus.SUCCEEDED, RunStatus.FAILED, RunStatus.CANCELLED})
+
+
+def _capability_projection(
+    session: Session,
+    main_runs: Sequence[tuple[UUID, bool]],
+    deliveries: dict[UUID, MainDeliveryV1 | None],
+) -> dict[UUID, MainCapabilityProjection]:
+    """按页批量读取决策事件，逐 Run 汇总能力归属；每页只查询一次。"""
+    if not main_runs:
+        return {}
+    rows = SqlAlchemyRunEventRepository(session).list_capability_events(
+        [run_id for run_id, _terminal in main_runs]
+    )
+    return {
+        run_id: main_capability_projection(
+            deliveries.get(run_id),
+            rows.events.get(run_id, ()),
+            unavailable=run_id in rows.unavailable_run_ids,
+            terminal=terminal,
+        )
+        for run_id, terminal in main_runs
+    }
 
 
 @router.get("/services", response_model=ServiceListResponse)
@@ -1502,21 +1538,32 @@ def list_session_runs(
         run_repository = SqlAlchemyDiagnosisRunRepository(session)
         result_repository = SqlAlchemyDiagnosisResultRepository(session)
         page = run_repository.list_by_session(session_id, decoded_cursor, limit)
-        items = []
-        for run in page.items:
+        projections = [
+            _main_projection(session, run, with_snapshot=False) for run in page.items
+        ]
+        capability_projections = _capability_projection(
+            session,
+            [
+                (run.id, run.status in _TERMINAL_RUN_STATUSES)
+                for run in page.items
+                if run.runtime_kind is RunRuntimeKind.MAIN_AGENT
+            ],
+            {run.id: projection.delivery for run, projection in zip(page.items, projections, strict=True)},
+        )
+        items = [
             # 会话摘要列表携带交付以恢复「本次结果」，但不携带冻结输入：
             # Design §2.8 规定摘要列表不回显 A/B 原文，输入回看由前端按需读取 Run 详情。
-            projection = _main_projection(session, run, with_snapshot=False)
-            items.append(
-                run_resource(
-                    run,
-                    result_repository.get_by_run_id(run.id),
-                    projection.delivery,
-                    projection.snapshot,
-                    delivery_status=projection.delivery_status,
-                    input_status=projection.input_status,
-                )
+            run_resource(
+                run,
+                result_repository.get_by_run_id(run.id),
+                projection.delivery,
+                projection.snapshot,
+                delivery_status=projection.delivery_status,
+                input_status=projection.input_status,
+                capability_projection=capability_projections.get(run.id),
             )
+            for run, projection in zip(page.items, projections, strict=True)
+        ]
     finally:
         session.close()
 
@@ -1597,12 +1644,24 @@ def list_runs(
     session = services.session_factory()
     try:
         page = SqlAlchemyDiagnosisRunRepository(session).list_page(decoded_cursor, limit, status, service_id)
+        # 全局摘要不含交付；能力归属只从事件汇总，knowledge 保持 None。
+        capability_projections = _capability_projection(
+            session,
+            [
+                (item.id, item.status in _TERMINAL_RUN_STATUSES)
+                for item in page.items
+                if item.runtime_kind is RunRuntimeKind.MAIN_AGENT
+            ],
+            {},
+        )
     finally:
         session.close()
     meta = response_meta(request)
     apply_headers(response, meta)
     return GlobalRunListResponse(
-        items=[global_run_summary_resource(item) for item in page.items],
+        items=[
+            global_run_summary_resource(item, capability_projections.get(item.id)) for item in page.items
+        ],
         page=CursorPage(next_cursor=encode_cursor(page.next_cursor) if page.next_cursor else None, has_more=page.has_more),
         meta=meta,
     )

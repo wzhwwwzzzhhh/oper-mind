@@ -39,6 +39,7 @@ from src.application.errors import (
 )
 from src.application.message_routing import requires_database_context
 from src.application.run_execution import (
+    CapabilityQuery,
     CreateMainAgentRunCommand,
     DiagnosisRunExecutionInput,
     MainAgentInputRejectedError,
@@ -80,6 +81,7 @@ from src.domain.main_agent import (
     MAIN_AGENT_RULE_VERSION,
     MAX_CONTEXT_CODEPOINTS,
     MAX_CONTEXT_MESSAGES,
+    MAX_MAIN_DECISIONS,
     MainAgentDeliveryUnavailableError,
     MainAgentInputUnavailableError,
     MainAnswerDeliveryV1,
@@ -214,6 +216,8 @@ class RunApplicationService:
         action_mode: ActionMode | None = None,
         registry: ServiceRegistry | None = None,
         run_executor: RunExecutor | None = None,
+        capability_ids: frozenset[str] = frozenset(),
+        capabilities: CapabilityQuery | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._executor = executor
@@ -222,6 +226,8 @@ class RunApplicationService:
         self._action_mode = action_mode
         self._registry = registry
         self._run_executor = run_executor
+        self._capability_ids = capability_ids
+        self._capabilities = capabilities
 
     def accept_run(self, command: CreateRunCommand) -> AcceptedRun:
         """原子受理 Run，并处理同键重放与冲突。"""
@@ -344,7 +350,11 @@ class RunApplicationService:
                     run_id,
                     signal.event.type,
                     signal.event.occurred_at,
-                    _safe_event_data(signal.event, registered_ids),
+                    _safe_event_data(
+                        signal.event,
+                        registered_ids,
+                        self._capability_ids,
+                    ),
                 )
                 continue
             if isinstance(signal, RuntimeFailureSignal):
@@ -383,7 +393,11 @@ class RunApplicationService:
                     run_id,
                     signal.event.type,
                     signal.event.occurred_at,
-                    _safe_event_data(signal.event, registered_ids),
+                    _safe_event_data(
+                        signal.event,
+                        registered_ids,
+                        self._capability_ids,
+                    ),
                 )
                 if not accepted:
                     return self._load_run(run_id)
@@ -829,7 +843,7 @@ class RunApplicationService:
             snapshot = SqlAlchemyRunInputRepository(session).get_by_run_id(run_id)
             if snapshot is None:
                 raise MainAgentInputUnavailableError()
-            validate_main_delivery(delivery, run, snapshot)
+            validate_main_delivery(delivery, run, snapshot, self._capabilities)
             message_text = main_delivery_message(delivery)
             if contains_sensitive_content(message_text):
                 raise RunExecutionError(RunFailureCode.MAIN_AGENT_DELIVERY_INVALID)
@@ -1031,10 +1045,12 @@ def _safe_failure() -> tuple[str, str]:
 def _safe_event_data(
     event: DiagnosisExecutionEvent,
     registered_service_ids: frozenset[str] = REGISTERED_SERVICE_IDS,
+    registered_capability_ids: frozenset[str] = frozenset(),
 ) -> dict[str, JsonValue]:
     """只持久化最小过程摘要白名单，拒绝执行器提供的任意原始读取。
 
     service_id 白名单来自运行时注册表（含动态注册服务）；registry 缺失时退回静态集合。
+    capability_id 同样只接受组合根导出的已注册能力集合；未知值直接丢弃。
     """
     data: dict[str, JsonValue] = {"node": event.node}
     status = normalize_tool_trace_status(event.data.get("status"))
@@ -1045,7 +1061,7 @@ def _safe_event_data(
         if isinstance(summary, str) and 0 < len(summary) <= 280:
             data["summary"] = summary
     role = event.data.get("role")
-    if role in {"db", "log", "server", "knowledge"}:
+    if isinstance(role, str) and role in {"db", "log", "server", "knowledge"}:
         data["role"] = role
     if status is not None:
         data["status"] = status
@@ -1053,11 +1069,57 @@ def _safe_event_data(
     if isinstance(duration_ms, int) and not isinstance(duration_ms, bool) and 0 <= duration_ms <= 60_000:
         data["duration_ms"] = duration_ms
     mode = event.data.get("mode")
-    if mode in {"mock", "target"}:
+    if isinstance(mode, str) and mode in {"mock", "target"}:
         data["mode"] = mode
     service_id = event.data.get("service_id")
     if isinstance(service_id, str) and service_id in registered_service_ids:
         data["service_id"] = service_id
+    capability_id = event.data.get("capability_id")
+    capability_accepted = isinstance(capability_id, str) and capability_id in registered_capability_ids
+    if capability_accepted:
+        data["capability_id"] = capability_id
+        capability_version = event.data.get("capability_version")
+        if (
+            isinstance(capability_version, int)
+            and not isinstance(capability_version, bool)
+            and 1 <= capability_version <= 1_000_000
+        ):
+            data["capability_version"] = capability_version
+        capability_kind = event.data.get("capability_kind")
+        if isinstance(capability_kind, str) and capability_kind in {"knowledge", "execution"}:
+            data["capability_kind"] = capability_kind
+    decision = event.data.get("decision")
+    if isinstance(decision, str) and decision in {
+        "answer",
+        "needs_input",
+        "load_skill",
+        "invoke_capability",
+        "budget_exhausted",
+        "failed",
+    }:
+        data["decision"] = decision
+    outcome = event.data.get("outcome")
+    if isinstance(outcome, str) and outcome in {
+        "answer",
+        "answer_with_knowledge",
+        "needs_input",
+        "comparison",
+        "failed",
+        "budget_exhausted",
+        "canceled",
+    }:
+        data["outcome"] = outcome
+    step = event.data.get("step")
+    if isinstance(step, int) and not isinstance(step, bool) and 1 <= step <= MAX_MAIN_DECISIONS:
+        data["step"] = step
+    steps = event.data.get("steps")
+    if (
+        event.type is RunEventType.AGENT_DONE
+        and isinstance(steps, int)
+        and not isinstance(steps, bool)
+        and 1 <= steps <= MAX_MAIN_DECISIONS
+    ):
+        data["steps"] = steps
     return data
 
 

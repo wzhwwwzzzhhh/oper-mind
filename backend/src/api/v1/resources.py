@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Literal, cast
 
 from src.api.v1.schemas import (
@@ -24,9 +25,12 @@ from src.api.v1.schemas import (
     KnowledgeDocumentResource,
     KnowledgeSearchHitResource,
     MainAnswerDeliveryResource,
+    MainCapabilitiesResource,
+    MainCapabilityUseResource,
     MainComparisonDeliveryResource,
     MainDeliveryResource,
     MainInputSnapshotResource,
+    MainKnowledgeGroundingResource,
     MainMaterialResource,
     MainNeedsInputDeliveryResource,
     MessageResource,
@@ -62,10 +66,12 @@ from src.domain.actions import (
     ActionVerificationData,
 )
 from src.domain.audit import AuditActivityData
-from src.domain.diagnosis import RunRuntimeKind, RunStatus
+from src.domain.diagnosis import RunEventType, RunRuntimeKind, RunStatus
 from src.domain.host_metrics import HostMetricsData
 from src.domain.main_agent import (
+    MAX_MAIN_DECISIONS,
     MainAnswerDeliveryV1,
+    MainComparisonDeliveryV1,
     MainDeliveryV1,
     MainInputSnapshotV1,
     MainMaterialSnapshotV1,
@@ -139,6 +145,192 @@ def result_resource(value: DiagnosisResultData) -> DiagnosisResultResource:
     )
 
 
+@dataclass(frozen=True, slots=True)
+class MainCapabilityProjection:
+    """Run 能力归属的公开投影；与交付、事件同源，不推断能力目录。"""
+
+    capabilities: MainCapabilitiesResource | None
+    status: Literal["available", "unavailable", "absent"] | None
+    knowledge: MainKnowledgeGroundingResource | None
+
+
+_ROUTE_DECISIONS = {
+    "answer",
+    "needs_input",
+    "load_skill",
+    "invoke_capability",
+    "budget_exhausted",
+    "failed",
+}
+_AGENT_OUTCOMES = {
+    "answer",
+    "answer_with_knowledge",
+    "needs_input",
+    "comparison",
+    "failed",
+    "budget_exhausted",
+    "canceled",
+}
+
+
+def main_capability_projection(
+    delivery: MainDeliveryV1 | None,
+    events: tuple[RunEventData, ...] = (),
+    *,
+    unavailable: bool = False,
+    terminal: bool = True,
+) -> MainCapabilityProjection:
+    """由交付与 route_decided／agent_done 汇总 used／degraded／steps。
+
+    事件损坏或字段越界只把能力归属标记为 unavailable，不抛错拖垮列表。
+    非终态 Run 不投影能力归属（Design §2.6）：实时态由前端事件流驱动。
+    """
+    if not terminal:
+        return MainCapabilityProjection(capabilities=None, status=None, knowledge=None)
+    knowledge = _knowledge_resource(delivery)
+    if unavailable:
+        return MainCapabilityProjection(
+            capabilities=MainCapabilitiesResource(used=[], degraded=[], steps=None),
+            status="unavailable",
+            knowledge=knowledge,
+        )
+
+    used: dict[tuple[str, int], MainCapabilityUseResource] = {}
+    degraded: dict[tuple[str, int], MainCapabilityUseResource] = {}
+    steps: int | None = None
+    max_step: int | None = None
+    malformed = False
+
+    for event in events:
+        data = event.data
+        if not isinstance(data, dict):
+            malformed = True
+            break
+        if event.type is RunEventType.ROUTE_DECIDED:
+            decision = data.get("decision")
+            step = data.get("step")
+            status = data.get("status")
+            if (
+                not isinstance(decision, str)
+                or decision not in _ROUTE_DECISIONS
+                or not isinstance(step, int)
+                or isinstance(step, bool)
+                or not 1 <= step <= MAX_MAIN_DECISIONS
+                or (
+                    status is not None
+                    and (not isinstance(status, str) or status not in {"ok", "unavailable"})
+                )
+            ):
+                malformed = True
+                break
+            max_step = step if max_step is None else max(max_step, step)
+            capability_id = data.get("capability_id")
+            if capability_id is None:
+                if data.get("capability_version") is not None or data.get("capability_kind") is not None:
+                    malformed = True
+                    break
+                continue
+            version = data.get("capability_version")
+            kind = data.get("capability_kind")
+            if (
+                not isinstance(capability_id, str)
+                or not capability_id
+                or not isinstance(version, int)
+                or isinstance(version, bool)
+                or version < 1
+                or not isinstance(kind, str)
+                or kind not in {"knowledge", "execution"}
+                or status is None
+            ):
+                malformed = True
+                break
+            item_status = (
+                ("loaded" if decision == "load_skill" else "ok")
+                if status == "ok" and decision in {"load_skill", "invoke_capability"}
+                else "unavailable"
+            )
+            if status == "ok" and decision not in {"load_skill", "invoke_capability"}:
+                malformed = True
+                break
+            item = MainCapabilityUseResource(
+                capability_id=capability_id,
+                capability_version=version,
+                kind=cast(Literal["knowledge", "execution"], kind),
+                status=cast(Literal["loaded", "ok", "unavailable"], item_status),
+            )
+            key = (capability_id, version)
+            if status == "ok":
+                used[key] = item
+            else:
+                degraded[key] = item
+        elif event.type is RunEventType.AGENT_DONE:
+            event_steps = data.get("steps")
+            outcome = data.get("outcome")
+            if (
+                not isinstance(event_steps, int)
+                or isinstance(event_steps, bool)
+                or not 1 <= event_steps <= MAX_MAIN_DECISIONS
+                or not isinstance(outcome, str)
+                or outcome not in _AGENT_OUTCOMES
+            ):
+                malformed = True
+                break
+            steps = event_steps
+
+    if malformed:
+        return MainCapabilityProjection(
+            capabilities=MainCapabilitiesResource(used=[], degraded=[], steps=None),
+            status="unavailable",
+            knowledge=knowledge,
+        )
+
+    if isinstance(delivery, MainComparisonDeliveryV1):
+        used[(delivery.comparison.capability_id, delivery.comparison.capability_version)] = MainCapabilityUseResource(
+            capability_id=delivery.comparison.capability_id,
+            capability_version=delivery.comparison.capability_version,
+            kind="execution",
+            status="ok",
+        )
+    if isinstance(delivery, MainAnswerDeliveryV1) and delivery.knowledge_grounding is not None:
+        grounding = delivery.knowledge_grounding
+        used[(grounding.capability_id, grounding.capability_version)] = MainCapabilityUseResource(
+            capability_id=grounding.capability_id,
+            capability_version=grounding.capability_version,
+            kind="knowledge",
+            status="loaded",
+        )
+    for key in used:
+        degraded.pop(key, None)
+
+    # Design §2.6：absent 表示该 Run 确无任何能力使用（直答），不是“读不出来”。
+    if not used and not degraded:
+        return MainCapabilityProjection(capabilities=None, status="absent", knowledge=knowledge)
+    return MainCapabilityProjection(
+        capabilities=MainCapabilitiesResource(
+            used=list(used.values()),
+            degraded=list(degraded.values()),
+            steps=steps if steps is not None else max_step,
+        ),
+        status="available",
+        knowledge=knowledge,
+    )
+
+
+def _knowledge_resource(delivery: MainDeliveryV1 | None) -> MainKnowledgeGroundingResource | None:
+    """知识接地唯一来源是交付；缺失或不可读时保持 None，不从事件反推。"""
+    if not isinstance(delivery, MainAnswerDeliveryV1) or delivery.knowledge_grounding is None:
+        return None
+    grounding = delivery.knowledge_grounding
+    return MainKnowledgeGroundingResource(
+        capability_id=grounding.capability_id,
+        capability_version=grounding.capability_version,
+        skill_id=grounding.skill_id,
+        skill_version=grounding.skill_version,
+        data_access=grounding.data_access,
+        note=grounding.note,
+    )
+
+
 def run_resource(
     value: DiagnosisRunData,
     result: DiagnosisResultData | None,
@@ -147,6 +339,7 @@ def run_resource(
     *,
     delivery_status: Literal["available", "unavailable", "absent"] | None = None,
     input_status: Literal["available", "unavailable", "absent"] | None = None,
+    capability_projection: MainCapabilityProjection | None = None,
 ) -> DiagnosisRunResource:
     """把领域 Run 与可选结果／交付转为符合终态规则的公开资源。"""
     error = None
@@ -165,6 +358,9 @@ def run_resource(
         input_snapshot=main_input_snapshot_resource(snapshot) if snapshot is not None else None,
         main_delivery_status=delivery_status,
         main_input_status=input_status,
+        main_capabilities=capability_projection.capabilities if capability_projection else None,
+        main_capabilities_status=capability_projection.status if capability_projection else None,
+        main_knowledge=capability_projection.knowledge if capability_projection else None,
         error=error,
         rerun_of_run_id=value.rerun_of_run_id,
         created_at=value.created_at,
@@ -176,7 +372,11 @@ def run_resource(
 def main_delivery_resource(delivery: MainDeliveryV1) -> MainDeliveryResource:
     """把 typed 交付投影为公开资源；差异块只保留行号与逐字引文。"""
     if isinstance(delivery, MainAnswerDeliveryV1):
-        return MainAnswerDeliveryResource(kind="answer", text=delivery.text)
+        return MainAnswerDeliveryResource(
+            kind="answer",
+            text=delivery.text,
+            knowledge_grounding=_knowledge_resource(delivery),
+        )
     if isinstance(delivery, MainNeedsInputDeliveryV1):
         return MainNeedsInputDeliveryResource(kind="needs_input", missing=list(delivery.missing), prompt=delivery.prompt)
     comparison = delivery.comparison
@@ -224,7 +424,10 @@ def _material_resource(material: MainMaterialSnapshotV1 | None) -> MainMaterialR
     )
 
 
-def global_run_summary_resource(value: GlobalRunData) -> GlobalRunSummaryResource:
+def global_run_summary_resource(
+    value: GlobalRunData,
+    capability_projection: MainCapabilityProjection | None = None,
+) -> GlobalRunSummaryResource:
     """把全局 Run 摘要收敛为安全公开资源（错误经白名单映射，不透传原始文本）。"""
     error = None
     if value.status == RunStatus.FAILED:
@@ -238,6 +441,8 @@ def global_run_summary_resource(value: GlobalRunData) -> GlobalRunSummaryResourc
         created_at=value.created_at,
         error=error,
         rerun_of_run_id=value.rerun_of_run_id,
+        main_capabilities=capability_projection.capabilities if capability_projection else None,
+        main_capabilities_status=capability_projection.status if capability_projection else None,
     )
 
 

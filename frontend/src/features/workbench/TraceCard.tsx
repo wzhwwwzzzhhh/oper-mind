@@ -50,6 +50,64 @@ const ROLE_ICONS: Readonly<Record<string, IconName>> = {
   server: 'stack',
 }
 
+/** 主 Agent 决策 → 用户可读阶段名；未知值不展示。 */
+const ROUTE_DECISIONS: Readonly<Record<string, string>> = {
+  answer: '回答',
+  budget_exhausted: '预算耗尽',
+  failed: '决策失败',
+  invoke_capability: '调用能力',
+  load_skill: '装载知识',
+  needs_input: '追问',
+}
+
+/** 主 Agent 完成结果 → 用户可读结果名；未知值不展示。 */
+const AGENT_OUTCOMES: Readonly<Record<string, string>> = {
+  answer: '普通回答',
+  answer_with_knowledge: '知识辅助回答',
+  budget_exhausted: '预算耗尽',
+  canceled: '已取消',
+  comparison: '文本比较',
+  failed: '失败',
+  needs_input: '追问',
+}
+
+const CAPABILITY_ID_PATTERN = /^[a-z][a-z0-9_.]{0,63}$/
+
+function positive_int(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 1 ? value : undefined
+}
+
+function capability_text(event: PersistedRunEvent): string | undefined {
+  const capability_id = event.data.capability_id
+  const capability_version = positive_int(event.data.capability_version)
+  if (typeof capability_id !== 'string' || !CAPABILITY_ID_PATTERN.test(capability_id)) return undefined
+  return capability_version === undefined ? capability_id : `${capability_id}@${capability_version}`
+}
+
+/** 决策事件只展示封闭枚举、步数与能力身份，不回显 Prompt 或工具参数。 */
+function route_decision_detail(event: PersistedRunEvent): string | undefined {
+  const decision = event.data.decision
+  if (typeof decision !== 'string' || !(decision in ROUTE_DECISIONS)) return undefined
+  const parts = [`决策：${ROUTE_DECISIONS[decision]}`]
+  const step = positive_int(event.data.step)
+  if (step !== undefined) parts.push(`第 ${step} 步`)
+  const capability = capability_text(event)
+  if (capability !== undefined) parts.push(capability)
+  if (event.data.status === 'ok') parts.push('成功')
+  if (event.data.status === 'unavailable') parts.push('不可用')
+  return parts.join(' · ')
+}
+
+/** 完成事件只展示结果类别与总步数，不推断失败原因。 */
+function agent_done_detail(event: PersistedRunEvent): string | undefined {
+  const outcome = event.data.outcome
+  if (typeof outcome !== 'string' || !(outcome in AGENT_OUTCOMES)) return undefined
+  const parts = [AGENT_OUTCOMES[outcome] ?? '已完成']
+  const steps = positive_int(event.data.steps)
+  if (steps !== undefined) parts.push(`共 ${steps} 步`)
+  return parts.join(' · ')
+}
+
 function read_trace_status(event: PersistedRunEvent): TraceStatus | undefined {
   const status = event.data.status
   return status === 'ok' || status === 'unavailable' || status === 'rejected' || status === 'timeout' ||
@@ -84,6 +142,8 @@ function event_title(event: PersistedRunEvent): string {
 
 /** 工具与质量事件携带经过后端安全投影的摘要。 */
 function event_detail(event: PersistedRunEvent): string | undefined {
+  if (event.type === 'route_decided') return route_decision_detail(event)
+  if (event.type === 'agent_done') return agent_done_detail(event)
   return event.type === 'tool_invoked' || event.type === 'conflict_checked' ||
     event.type === 'debate_round' || event.type === 'reflection'
     ? run_event_summary(event)

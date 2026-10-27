@@ -19,11 +19,21 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from src.api.v1.dependencies import V1Services
-from src.api.v1.schemas import DiagnosisRunResource
+from src.api.v1.schemas import DiagnosisRunResource, MainAnswerDeliveryResource
 from src.application.contracts import DiagnosisExecutionEvent, DiagnosisExecutionResult
 from src.application.services import RunApplicationService, SessionApplicationService
 from src.application.session_export import SessionExportApplicationService
-from src.capabilities import CapabilityRegistry
+from src.capabilities import (
+    CapabilityRegistry,
+    SkillUnavailableError,
+    SkillUnavailableReason,
+)
+from src.capabilities.playbook import (
+    READONLY_PLAYBOOK_CAPABILITY,
+    READONLY_PLAYBOOK_CAPABILITY_ID,
+    READONLY_PLAYBOOK_SKILL_ID,
+    READONLY_PLAYBOOK_SKILL_VERSION,
+)
 from src.capabilities.text_compare import TEXT_COMPARE_CAPABILITY
 from src.core.llm import LLMClient
 from src.core.main_agent_model import MainMockScenario
@@ -31,7 +41,9 @@ from src.domain.diagnosis import RunEventType
 from src.infrastructure.agent_runtime.run_executor import MainAgentRunExecutor
 from src.infrastructure.diagnosis.result_assembler import ConservativeResultAssembler
 from src.infrastructure.persistence.database import PersistenceRuntime, create_persistence_runtime
-from src.infrastructure.persistence.repositories import SqlAlchemySessionExportStore
+from src.infrastructure.persistence.repositories import (
+    SqlAlchemySessionExportStore,
+)
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = BACKEND_ROOT.parent
@@ -63,35 +75,93 @@ class _ScriptedClient:
 
     def __init__(self, kind: str) -> None:
         self.kind = kind
+        self.calls = 0
 
     def chat(self, messages: list[dict[str, str]], tools: Any = None, **_kwargs: Any) -> dict[str, object]:
+        self.calls += 1
         if self.kind == "answer":
             return {"content": json.dumps({"kind": "answer", "text": "这是一条普通回答，未执行文本比较。"})}
         if self.kind == "invalid":
             return {"content": "不是 JSON 的模型输出"}
-        material_ids = _UUID_PATTERN.findall(messages[-1]["content"])
+        goal_prompt = messages[-1]["content"]
+        material_ids = _UUID_PATTERN.findall(goal_prompt)
+        if self.kind == "needs_input":
+            slots = [
+                slot
+                for slot in ("text_a", "text_b")
+                if f"- {slot}：未提供" in goal_prompt
+            ]
+            return {"content": json.dumps({"kind": "needs_input", "slots": slots})}
+        if self.kind == "knowledge":
+            if self.calls == 1:
+                return {
+                    "content": json.dumps(
+                        {
+                            "kind": "load_skill",
+                            "capability_id": READONLY_PLAYBOOK_CAPABILITY_ID,
+                            "capability_version": 1,
+                        }
+                    )
+                }
+            return {"content": json.dumps({"kind": "answer", "text": "按内置手册给出只读排查步骤。"})}
+        if self.kind == "budget":
+            return {
+                "content": json.dumps(
+                    {
+                        "kind": "load_skill",
+                        "capability_id": READONLY_PLAYBOOK_CAPABILITY_ID,
+                        "capability_version": 1,
+                    }
+                )
+            }
+        if self.kind == "wrong_version":
+            return {
+                "content": json.dumps(
+                    {
+                        "kind": "load_skill",
+                        "capability_id": READONLY_PLAYBOOK_CAPABILITY_ID,
+                        "capability_version": 99,
+                    }
+                )
+            }
         if len(material_ids) < 2:
-            return {"content": json.dumps({"kind": "needs_input", "missing": ["text_b"]})}
+            return {"content": json.dumps({"kind": "needs_input", "slots": ["text_b"]})}
         return {
             "content": json.dumps(
                 {
                     "kind": "invoke_capability",
                     "capability_id": "text.literal_compare",
                     "capability_version": 1,
-                    "a_material_id": material_ids[0],
-                    "b_material_id": material_ids[1],
+                    "inputs": {
+                        "text_a": material_ids[0],
+                        "text_b": material_ids[1],
+                    },
                 }
             )
         }
 
 
+class _UnavailableSkillSource:
+    """确定性降级来源：只返回封闭原因，不泄露路径或内容。"""
+
+    def load(self, _declaration: object) -> object:
+        raise SkillUnavailableError(SkillUnavailableReason.MISSING)
+
+
 class _Harness:
     """一次装配的 API 客户端、会话身份与临时库位置。"""
 
-    def __init__(self, client: TestClient, session_id: str, database_path: Path) -> None:
+    def __init__(
+        self,
+        client: TestClient,
+        session_id: str,
+        database_path: Path,
+        runtime: PersistenceRuntime,
+    ) -> None:
         self.client = client
         self.session_id = session_id
         self.database_path = database_path
+        self.runtime = runtime
 
 
 def _upgrade_temporary_database(database_path: Path) -> None:
@@ -151,21 +221,28 @@ def harness(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[Callabl
     """按场景装配 v1 API：mock 场景走封闭替身，scripted 走真实 JSON 决策路径。"""
     runtimes: list[PersistenceRuntime] = []
 
-    def build(*, scenario: MainMockScenario | None = MainMockScenario.ANSWER, scripted: str | None = None) -> _Harness:
+    def build(
+        *,
+        scenario: MainMockScenario | None = MainMockScenario.ANSWER,
+        scripted: str | None = None,
+        skill_source: object | None = None,
+    ) -> _Harness:
         database_path = tmp_path / f"v2-api-{uuid4().hex}.sqlite3"
         _upgrade_temporary_database(database_path)
         runtime = create_persistence_runtime(f"sqlite:///{database_path.as_posix()}")
         runtimes.append(runtime)
+        capabilities = CapabilityRegistry([TEXT_COMPARE_CAPABILITY, READONLY_PLAYBOOK_CAPABILITY])
         if scripted is not None:
+            scripted_client = _ScriptedClient(scripted)
 
-            def scripted_client() -> object:
-                return _ScriptedClient(scripted)
+            def scripted_factory(_timeout: float) -> object:
+                return scripted_client
 
-            client_factory: Callable[[], object] = scripted_client
+            client_factory: Callable[[float], object] = scripted_factory
             executor_scenario: MainMockScenario | None = None
         else:
 
-            def mock_client() -> LLMClient:
+            def mock_client(_timeout: float) -> LLMClient:
                 return LLMClient(
                     api_key="mock",
                     base_url="http://mock",
@@ -177,6 +254,9 @@ def harness(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[Callabl
             client_factory = mock_client
             executor_scenario = scenario
         session_factory = runtime.session_factory
+        executor_kwargs: dict[str, Any] = {}
+        if skill_source is not None:
+            executor_kwargs["skill_source"] = skill_source
         services = V1Services(
             session_factory=session_factory,
             session_service=SessionApplicationService(session_factory),
@@ -184,10 +264,13 @@ def harness(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[Callabl
                 session_factory,
                 _DeterministicExecutor(),
                 ConservativeResultAssembler(),
+                capability_ids=capabilities.capability_ids(),
+                capabilities=capabilities,
                 run_executor=MainAgentRunExecutor(
                     client_factory=client_factory,
-                    capabilities=CapabilityRegistry([TEXT_COMPARE_CAPABILITY]),
+                    capabilities=capabilities,
                     mock_scenario=executor_scenario,
+                    **executor_kwargs,
                 ),
             ),
             session_export_service=SessionExportApplicationService(
@@ -204,7 +287,7 @@ def harness(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[Callabl
         monkeypatch.setattr(api_module.app.state, "v1_services", services)
         client = TestClient(api_module.app, raise_server_exceptions=False)
         session_id = client.post("/api/v1/sessions", json={"title": "V2 会话"}).json()["session"]["id"]
-        return _Harness(client, session_id, database_path)
+        return _Harness(client, session_id, database_path, runtime)
 
     yield build
     for runtime in runtimes:
@@ -587,6 +670,21 @@ def test_run_resource_rejects_inconsistent_projection() -> None:
     # 非终态不得携带安全错误（历史契约）。
     with pytest.raises(ValidationError):
         DiagnosisRunResource.model_validate(run_payload(runtime_kind="main_agent", status="running", error=error))
+    # Design §2.6：能力归属只属于终态，且明细必须与读取状态成对出现。
+    capabilities: dict[str, Any] = {"used": [], "degraded": [], "steps": None}
+    with pytest.raises(ValidationError):
+        DiagnosisRunResource.model_validate(
+            run_payload(
+                runtime_kind="main_agent",
+                status="running",
+                main_capabilities=capabilities,
+                main_capabilities_status="available",
+            )
+        )
+    with pytest.raises(ValidationError):
+        DiagnosisRunResource.model_validate(
+            run_payload(runtime_kind="main_agent", delivery=delivery, main_capabilities=capabilities)
+        )
     # 成功必须有对应运行时的事实，且两种结果互斥。
     with pytest.raises(ValidationError):
         DiagnosisRunResource.model_validate(run_payload(runtime_kind="diagnosis"))
@@ -606,6 +704,302 @@ def test_run_resource_rejects_inconsistent_projection() -> None:
         )
     )
     assert accepted.delivery is not None and accepted.delivery.kind == "answer"
+
+
+def test_main_agent_projects_capability_usage_and_steps(harness) -> None:
+    """公开投影：能力归属与步数来自交付和事件，普通回答不冒充使用能力。"""
+    compare_env = harness(scenario=MainMockScenario.COMPARE)
+    compare_id = compare_env.client.post(
+        f"/api/v1/sessions/{compare_env.session_id}/runs",
+        json=_main_payload(),
+        headers=_headers(),
+    ).json()["run"]["id"]
+    compare_run = compare_env.client.get(f"/api/v1/runs/{compare_id}").json()["run"]
+    assert compare_run["main_capabilities_status"] == "available"
+    assert compare_run["main_capabilities"] == {
+        "used": [
+            {
+                "capability_id": "text.literal_compare",
+                "capability_version": 1,
+                "kind": "execution",
+                "status": "ok",
+            }
+        ],
+        "degraded": [],
+        "steps": 1,
+    }
+    assert compare_run["main_knowledge"] is None
+    assert compare_run["delivery"].get("knowledge_grounding") is None
+
+    plain_env = harness(scripted="answer")
+    plain_id = plain_env.client.post(
+        f"/api/v1/sessions/{plain_env.session_id}/runs",
+        json=_main_payload(),
+        headers=_headers(),
+    ).json()["run"]["id"]
+    plain_run = plain_env.client.get(f"/api/v1/runs/{plain_id}").json()["run"]
+    assert plain_run["main_capabilities_status"] == "absent"
+    assert plain_run["main_capabilities"] is None
+    assert plain_run["main_knowledge"] is None
+
+
+def test_main_agent_knowledge_answer_projects_grounding_and_message_prefix(harness) -> None:
+    """知识辅助回答只声明装入内置 Skill；助手消息带固定前缀，交付正文不伪装实时事实。"""
+    env = harness(scripted="knowledge")
+    run_id = env.client.post(
+        f"/api/v1/sessions/{env.session_id}/runs",
+        json=_main_payload(),
+        headers=_headers(),
+    ).json()["run"]["id"]
+    run = env.client.get(f"/api/v1/runs/{run_id}").json()["run"]
+    assert run["status"] == "succeeded"
+    assert run["delivery"]["kind"] == "answer"
+    assert run["delivery"]["text"] == "按内置手册给出只读排查步骤。"
+    expected_grounding = {
+        "capability_id": READONLY_PLAYBOOK_CAPABILITY_ID,
+        "capability_version": 1,
+        "skill_id": READONLY_PLAYBOOK_SKILL_ID,
+        "skill_version": READONLY_PLAYBOOK_SKILL_VERSION,
+        "data_access": "none",
+        "note": "知识辅助回答 · 未读取实时数据",
+    }
+    assert run["delivery"]["knowledge_grounding"] == expected_grounding
+    assert run["main_knowledge"] == expected_grounding
+    assert run["main_capabilities_status"] == "available"
+    assert run["main_capabilities"] == {
+        "used": [
+            {
+                "capability_id": READONLY_PLAYBOOK_CAPABILITY_ID,
+                "capability_version": 1,
+                "kind": "knowledge",
+                "status": "loaded",
+            }
+        ],
+        "degraded": [],
+        "steps": 2,
+    }
+    messages = env.client.get(f"/api/v1/sessions/{env.session_id}/messages").json()["items"]
+    assistant = next(message for message in messages if message["role"] == "assistant")
+    assert assistant["content"] == "知识辅助回答 · 未读取实时数据\n\n按内置手册给出只读排查步骤。"
+
+
+def test_main_agent_degraded_knowledge_projects_unavailable_without_grounding(harness) -> None:
+    """Skill 不可用时如实降级：Run 仍可回答，但不附加知识接地或知识前缀。"""
+    env = harness(scripted="knowledge", skill_source=_UnavailableSkillSource())
+    run_id = env.client.post(
+        f"/api/v1/sessions/{env.session_id}/runs",
+        json=_main_payload(),
+        headers=_headers(),
+    ).json()["run"]["id"]
+    run = env.client.get(f"/api/v1/runs/{run_id}").json()["run"]
+    assert run["status"] == "succeeded"
+    assert run["delivery"]["kind"] == "answer"
+    assert run["delivery"]["knowledge_grounding"] is None
+    assert run["main_knowledge"] is None
+    assert run["main_capabilities_status"] == "available"
+    assert run["main_capabilities"] == {
+        "used": [],
+        "degraded": [
+            {
+                "capability_id": READONLY_PLAYBOOK_CAPABILITY_ID,
+                "capability_version": 1,
+                "kind": "knowledge",
+                "status": "unavailable",
+            }
+        ],
+        "steps": 2,
+    }
+    messages = env.client.get(f"/api/v1/sessions/{env.session_id}/messages").json()["items"]
+    assistant = next(message for message in messages if message["role"] == "assistant")
+    assert assistant["content"] == "按内置手册给出只读排查步骤。"
+
+
+def test_main_agent_budget_exhaustion_is_safe_terminal_failure(harness) -> None:
+    """预算耗尽使用专用安全失败码，不产交付，也不回显内部预算细节。"""
+    env = harness(scenario=MainMockScenario.BUDGET_EXHAUSTED)
+    run_id = env.client.post(
+        f"/api/v1/sessions/{env.session_id}/runs",
+        json=_main_payload(),
+        headers=_headers(),
+    ).json()["run"]["id"]
+    run = env.client.get(f"/api/v1/runs/{run_id}").json()["run"]
+    assert run["status"] == "failed"
+    assert run["error"] == {
+        "code": "MAIN_AGENT_BUDGET_EXHAUSTED",
+        "message": "本次主 Agent 运行预算已用尽，请拆分后再试",
+    }
+    assert run["delivery"] is None
+    assert run["main_delivery_status"] == "absent"
+    assert run["main_capabilities_status"] == "available"
+    assert run["main_capabilities"]["steps"] is not None
+    assert all(item["status"] in {"loaded", "ok"} for item in run["main_capabilities"]["used"])
+
+
+def test_corrupted_capability_event_projects_safe_unavailable(harness) -> None:
+    """损坏的决策事件只让能力归属不可用，不拖垮详情与列表。"""
+    env = harness(scenario=MainMockScenario.COMPARE)
+    run_id = env.client.post(
+        f"/api/v1/sessions/{env.session_id}/runs",
+        json=_main_payload(),
+        headers=_headers(),
+    ).json()["run"]["id"]
+    assert env.client.get(f"/api/v1/runs/{run_id}").json()["run"]["main_capabilities_status"] == "available"
+
+    connection = sqlite3.connect(env.database_path)
+    try:
+        connection.execute(
+            "UPDATE run_events SET data = ? WHERE type = 'route_decided'",
+            (json.dumps({"node": "decide", "step": 99}),),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    detail = env.client.get(f"/api/v1/runs/{run_id}")
+    assert detail.status_code == 200
+    body = detail.json()["run"]
+    assert body["main_capabilities_status"] == "unavailable"
+    assert body["main_capabilities"] == {"used": [], "degraded": [], "steps": None}
+    assert body["delivery"]["kind"] == "comparison"
+
+    listing = env.client.get(f"/api/v1/sessions/{env.session_id}/runs")
+    assert listing.status_code == 200
+    item = next(item for item in listing.json()["items"] if item["id"] == run_id)
+    assert item["main_capabilities_status"] == "unavailable"
+    assert item["main_capabilities"] == {"used": [], "degraded": [], "steps": None}
+
+
+@pytest.mark.parametrize(
+    ("event_type", "payload"),
+    [
+        ("route_decided", {"decision": [], "step": 1}),
+        ("route_decided", {"decision": "answer", "step": 1, "status": []}),
+        (
+            "route_decided",
+            {
+                "decision": "invoke_capability",
+                "step": 1,
+                "capability_id": "text.literal_compare",
+                "capability_version": 1,
+                "capability_kind": [],
+                "status": "ok",
+            },
+        ),
+        ("agent_done", {"steps": 1, "outcome": []}),
+        ("agent_done", {"steps": 1, "outcome": {}}),
+    ],
+)
+def test_non_scalar_capability_event_fields_fail_closed(harness, event_type: str, payload: dict[str, Any]) -> None:
+    """事件 JSON 里的 list/dict 不得让能力投影抛 TypeError 变成 500。"""
+    env = harness(scenario=MainMockScenario.COMPARE)
+    run_id = env.client.post(
+        f"/api/v1/sessions/{env.session_id}/runs",
+        json=_main_payload(),
+        headers=_headers(),
+    ).json()["run"]["id"]
+
+    connection = sqlite3.connect(env.database_path)
+    try:
+        connection.execute(
+            "UPDATE run_events SET data = ? WHERE type = ?",
+            (json.dumps(payload), event_type),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    detail = env.client.get(f"/api/v1/runs/{run_id}")
+    assert detail.status_code == 200
+    assert detail.json()["run"]["main_capabilities_status"] == "unavailable"
+    assert detail.json()["run"]["main_capabilities"] == {"used": [], "degraded": [], "steps": None}
+
+    listing = env.client.get(f"/api/v1/sessions/{env.session_id}/runs")
+    assert listing.status_code == 200
+    item = next(item for item in listing.json()["items"] if item["id"] == run_id)
+    assert item["main_capabilities_status"] == "unavailable"
+
+    global_listing = env.client.get("/api/v1/runs")
+    assert global_listing.status_code == 200
+    global_item = next(item for item in global_listing.json()["items"] if item["id"] == run_id)
+    assert global_item["main_capabilities_status"] == "unavailable"
+
+
+def test_capability_projection_uses_one_batch_query_per_list_page(harness) -> None:
+    """列表页能力归属按页批量读取：两个主 Agent Run 只发一条 run_events 查询。"""
+    from sqlalchemy import event as sqlalchemy_event
+
+    env = harness(scenario=MainMockScenario.COMPARE)
+    for _ in range(2):
+        response = env.client.post(
+            f"/api/v1/sessions/{env.session_id}/runs",
+            json=_main_payload(),
+            headers=_headers(),
+        )
+        assert response.status_code == 202
+
+    statements: list[str] = []
+
+    def capture(_conn: object, _cursor: object, statement: str, *_args: object) -> None:
+        statements.append(statement)
+
+    sqlalchemy_event.listen(env.runtime.engine, "before_cursor_execute", capture)
+    try:
+        listing = env.client.get(f"/api/v1/sessions/{env.session_id}/runs")
+    finally:
+        sqlalchemy_event.remove(env.runtime.engine, "before_cursor_execute", capture)
+
+    assert listing.status_code == 200
+    assert len(listing.json()["items"]) == 2
+    capability_queries = [statement for statement in statements if "FROM run_events" in statement]
+    assert len(capability_queries) == 1
+
+
+def test_openapi_exposes_capability_projection_without_catalog(harness) -> None:
+    """公开字段只增能力归属与知识接地；不暴露能力目录或实现句柄。"""
+    env = harness(scenario=MainMockScenario.ANSWER)
+    schemas = env.client.get("/openapi.json").json()["components"]["schemas"]
+    assert schemas["MainCapabilitiesResource"]["properties"].keys() == {"used", "degraded", "steps"}
+    run_properties = schemas["DiagnosisRunResource"]["properties"]
+    for name in ("main_capabilities", "main_capabilities_status", "main_knowledge"):
+        assert name in run_properties
+    assert "MainCapabilityCatalogResource" not in schemas
+    assert "catalog" not in schemas["DiagnosisRunResource"]["properties"]
+
+
+def test_run_resource_requires_knowledge_to_match_delivery() -> None:
+    """公开资源拒绝「交付没有接地但字段声称有」或反向的不一致投影。"""
+    grounding = {
+        "capability_id": READONLY_PLAYBOOK_CAPABILITY_ID,
+        "capability_version": 1,
+        "skill_id": READONLY_PLAYBOOK_SKILL_ID,
+        "skill_version": READONLY_PLAYBOOK_SKILL_VERSION,
+        "data_access": "none",
+        "note": "知识辅助回答 · 未读取实时数据",
+    }
+    base: dict[str, Any] = {
+        "created_at": datetime.now(UTC),
+        "id": uuid4(),
+        "input_message_id": uuid4(),
+        "session_id": uuid4(),
+        "trace_id": uuid4(),
+        "runtime_kind": "main_agent",
+        "status": "succeeded",
+        "result": None,
+        "error": None,
+    }
+    grounded_delivery = {"kind": "answer", "text": "知识辅助回答", "knowledge_grounding": grounding}
+    plain_delivery = {"kind": "answer", "text": "普通回答"}
+
+    accepted = DiagnosisRunResource.model_validate(
+        {**base, "delivery": grounded_delivery, "main_knowledge": grounding}
+    )
+    assert isinstance(accepted.delivery, MainAnswerDeliveryResource)
+    assert accepted.main_knowledge is not None
+
+    with pytest.raises(ValidationError):
+        DiagnosisRunResource.model_validate({**base, "delivery": grounded_delivery, "main_knowledge": None})
+    with pytest.raises(ValidationError):
+        DiagnosisRunResource.model_validate({**base, "delivery": plain_delivery, "main_knowledge": grounding})
 
 
 def test_openapi_exposes_runtime_kind_and_delivery_components(harness) -> None:

@@ -19,9 +19,11 @@ from src.application.contracts import (
     DiagnosisExecutionResult,
     DiagnosisExecutor,
 )
+from src.capabilities.contract import CapabilityDefinition, CapabilityKind
 from src.capabilities.text_compare import TextComparisonRuleError, compare_materials
 from src.core.input_admission import main_input_has_sensitive_content
 from src.domain.main_agent import (
+    KNOWLEDGE_GROUNDING_NOTE,
     MAIN_AGENT_RULE_VERSION,
     MainAnswerDeliveryV1,
     MainComparisonDeliveryV1,
@@ -52,6 +54,7 @@ class RunFailureCode(StrEnum):
     MAIN_AGENT_INPUT_UNAVAILABLE = "MAIN_AGENT_INPUT_UNAVAILABLE"
     MAIN_AGENT_DELIVERY_INVALID = "MAIN_AGENT_DELIVERY_INVALID"
     MAIN_AGENT_RULE_UNAVAILABLE = "MAIN_AGENT_RULE_UNAVAILABLE"
+    MAIN_AGENT_BUDGET_EXHAUSTED = "MAIN_AGENT_BUDGET_EXHAUSTED"
 
     @property
     def safe_message(self) -> str:
@@ -66,6 +69,7 @@ class RunFailureCode(StrEnum):
             RunFailureCode.MAIN_AGENT_INPUT_UNAVAILABLE: "主 Agent 输入不可用，请重新发起",
             RunFailureCode.MAIN_AGENT_DELIVERY_INVALID: "主 Agent 交付校验失败",
             RunFailureCode.MAIN_AGENT_RULE_UNAVAILABLE: "主 Agent 规则不可用，请重新发起",
+            RunFailureCode.MAIN_AGENT_BUDGET_EXHAUSTED: "本次主 Agent 运行预算已用尽，请拆分后再试",
         }[self]
 
 
@@ -305,10 +309,41 @@ def _fingerprint(payload: dict[str, object]) -> str:
     return sha256(serialized.encode("utf-8")).hexdigest()
 
 
+class CapabilityQuery(Protocol):
+    """写事务内的只读能力查询；不读取 Skill 文件或持久化。"""
+
+    def get(self, capability_id: str, version: int) -> CapabilityDefinition | None:
+        """按 id + version 精确返回已注册声明。"""
+
+
+def _validate_knowledge_grounding(
+    delivery: MainAnswerDeliveryV1,
+    capabilities: CapabilityQuery | None,
+) -> None:
+    """结构复核接地：能力已注册、版本相符、类型为知识、Skill 声明一致。"""
+    grounding = delivery.knowledge_grounding
+    if grounding is None:
+        return
+    if capabilities is None:
+        raise RunExecutionError(RunFailureCode.MAIN_AGENT_DELIVERY_INVALID)
+    definition = capabilities.get(grounding.capability_id, grounding.capability_version)
+    if (
+        definition is None
+        or definition.kind is not CapabilityKind.KNOWLEDGE
+        or definition.skill is None
+        or definition.skill.skill_id != grounding.skill_id
+        or definition.skill.skill_version != grounding.skill_version
+        or grounding.data_access != "none"
+        or grounding.note != KNOWLEDGE_GROUNDING_NOTE
+    ):
+        raise RunExecutionError(RunFailureCode.MAIN_AGENT_DELIVERY_INVALID)
+
+
 def validate_main_delivery(
     delivery: MainDeliveryV1,
     run: DiagnosisRunData,
     snapshot: MainInputSnapshotV1,
+    capabilities: CapabilityQuery | None = None,
 ) -> None:
     """写成功事务前复核 typed 交付与冻结输入的身份、行号和引文。"""
     if isinstance(delivery, MainNeedsInputDeliveryV1):
@@ -321,6 +356,7 @@ def validate_main_delivery(
             raise RunExecutionError(RunFailureCode.MAIN_AGENT_DELIVERY_INVALID)
         return
     if isinstance(delivery, MainAnswerDeliveryV1):
+        _validate_knowledge_grounding(delivery, capabilities)
         return
     if not isinstance(delivery, MainComparisonDeliveryV1):
         raise RunExecutionError(RunFailureCode.MAIN_AGENT_DELIVERY_INVALID)

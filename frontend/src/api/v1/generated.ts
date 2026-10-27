@@ -1474,6 +1474,10 @@ export interface components {
             main_delivery_status?: unknown;
             /** Main Input Status */
             main_input_status?: unknown;
+            main_capabilities?: unknown;
+            /** Main Capabilities Status */
+            main_capabilities_status?: unknown;
+            main_knowledge?: unknown;
             error?: unknown;
             /** Rerun Of Run Id */
             rerun_of_run_id?: unknown;
@@ -1567,6 +1571,9 @@ export interface components {
             error?: unknown;
             /** Rerun Of Run Id */
             rerun_of_run_id?: unknown;
+            main_capabilities?: unknown;
+            /** Main Capabilities Status */
+            main_capabilities_status?: unknown;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1727,6 +1734,33 @@ export interface components {
             kind: unknown;
             /** Text */
             text: unknown;
+            knowledge_grounding?: unknown;
+        };
+        /**
+         * MainCapabilitiesResource
+         * @description 本次 Run 的能力归属；steps 无法从事件可靠读出时为 null。
+         */
+        MainCapabilitiesResource: {
+            /** Used */
+            used: unknown;
+            /** Degraded */
+            degraded: unknown;
+            /** Steps */
+            steps?: unknown;
+        };
+        /**
+         * MainCapabilityUseResource
+         * @description 本次 Run 使用或降级的能力身份；不含正文、路径或实现句柄。
+         */
+        MainCapabilityUseResource: {
+            /** Capability Id */
+            capability_id: unknown;
+            /** Capability Version */
+            capability_version: unknown;
+            /** Kind */
+            kind: unknown;
+            /** Status */
+            status: unknown;
         };
         /**
          * MainComparisonDeliveryResource
@@ -1761,6 +1795,24 @@ export interface components {
             rule_version: unknown;
             text_a?: unknown;
             text_b?: unknown;
+        };
+        /**
+         * MainKnowledgeGroundingResource
+         * @description 知识辅助回答的固定接地声明；表示装入内置知识，未读取实时数据。
+         */
+        MainKnowledgeGroundingResource: {
+            /** Capability Id */
+            capability_id: unknown;
+            /** Capability Version */
+            capability_version: unknown;
+            /** Skill Id */
+            skill_id: unknown;
+            /** Skill Version */
+            skill_version: unknown;
+            /** Data Access */
+            data_access: unknown;
+            /** Note */
+            note: unknown;
         };
         /**
          * MainMaterialResource
