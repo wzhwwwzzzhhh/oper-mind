@@ -23,7 +23,7 @@ V2 是 OperMind 的目标形态，替换 V1。V1 保留为过渡基线：首切�
 | 方向 | [计划骨架](方向/计划骨架.md) + [八张图解](方向/图解/README.md) | 已按“一契约 + 两轴”重写，待确认 |
 | V2-0 首闭环收口 | [PRD](首闭环/PRD.md) / [Design](首闭环/Design.md) / [Workpack-审查](首闭环/Workpack-审查.md) | 三项遗留已裁决；实现与验证完成，已合入（PR #135） |
 | V2-1 单主 Agent 地基 | [PRD](../../prd/agent-runtime/V2-1-main-agent-foundation.md)（Issue #137）+ Capability 契约 + ReAct 内核 + 知识型能力 | 完成（PR #139） |
-| V2-2 执行型能力 | 外部资源能力 + 插件性验证 | 未开始 |
+| V2-2 执行型能力 | [PRD](../../prd/agent-runtime/V2-2-execution-capabilities.md)（Issue #142）+ 服务健康摘要 + 日志只读扫描 | PRD 已确认，待 Design |
 | V2-3 子 Agent 委派 | 隔离上下文与父子交付 | 未开始 |
 | V2-4 多主 Agent 协作 | 业务独立的主 Agent 协作 | 未开始 |
 | V2-5 业务深化 | 选定业务后的数据源与评测 | 未开始 |
