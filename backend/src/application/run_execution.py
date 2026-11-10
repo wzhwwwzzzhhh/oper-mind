@@ -33,6 +33,7 @@ from src.domain.main_agent import (
     MainInputV1,
     MainMaterialSnapshotV1,
     MainNeedsInputDeliveryV1,
+    MainServiceBindingV1,
     material_digest,
     validate_material_text,
 )
@@ -210,8 +211,9 @@ class LegacyDiagnosisRunAdapter:
 def build_main_input_snapshot(
     value: MainInputV1,
     context: tuple[MainContextMessageV1, ...] = (),
+    service: MainServiceBindingV1 | None = None,
 ) -> MainInputSnapshotV1:
-    """在受理侧生成材料 ID、规范化文本与内容摘要。"""
+    """在受理侧生成材料 ID、规范化文本与内容摘要，并冻结已校验的服务引用。"""
     return MainInputSnapshotV1(
         schema_version=1,
         query=value.query,
@@ -219,6 +221,7 @@ def build_main_input_snapshot(
         text_b=_material_snapshot(value.text_b),
         rule_version=MAIN_AGENT_RULE_VERSION,
         context=context,
+        service=service,
     )
 
 
@@ -233,6 +236,7 @@ def rebuild_main_input_snapshot(snapshot: MainInputSnapshotV1) -> MainInputSnaps
         text_b=_copy_material(snapshot.text_b),
         rule_version=snapshot.rule_version,
         context=snapshot.context,
+        service=snapshot.service,
     )
 
 
@@ -277,6 +281,10 @@ def main_agent_create_fingerprint(value: MainInputV1) -> str:
         "text_a": value.text_a,
         "text_b": value.text_b,
     }
+    # 仅在真的选了服务时追加该键：无服务请求的序列化结果与 V2-1 逐字节一致，
+    # 否则既有幂等记录会被判成「同键不同请求」。
+    if value.service_id is not None:
+        payload["service_id"] = value.service_id
     return _fingerprint(payload)
 
 
@@ -300,6 +308,9 @@ def main_agent_rerun_fingerprint(source_run_id: UUID, snapshot: MainInputSnapsho
             for message in snapshot.context
         ],
     }
+    # 同上：无冻结服务时不追加键，保证旧重跑幂等记录逐字节不变。
+    if snapshot.service is not None:
+        payload["service_id"] = snapshot.service.service_id
     return _fingerprint(payload)
 
 

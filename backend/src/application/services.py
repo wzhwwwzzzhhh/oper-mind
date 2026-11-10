@@ -28,6 +28,7 @@ from src.application.contracts import (
 )
 from src.application.errors import (
     IdempotencyKeyReusedError,
+    MainAgentServiceUnavailableError,
     RunAlreadyTerminalError,
     RunInputMessageInvalidError,
     RunNotFoundError,
@@ -89,6 +90,7 @@ from src.domain.main_agent import (
     MainDeliveryV1,
     MainInputSnapshotV1,
     MainNeedsInputDeliveryV1,
+    MainServiceBindingV1,
     main_delivery_message,
 )
 from src.domain.records import (
@@ -98,7 +100,7 @@ from src.domain.records import (
     RunIdempotencyKeyData,
     SessionData,
 )
-from src.domain.services import REGISTERED_SERVICE_IDS, ServiceRegistry
+from src.domain.services import REGISTERED_SERVICE_IDS, ServiceBindingError, ServiceRegistry
 from src.infrastructure.persistence.database import SessionFactory
 from src.infrastructure.persistence.repositories import (
     SqlAlchemyDiagnosisResultRepository,
@@ -549,6 +551,30 @@ class RunApplicationService:
             original_error,
         )
 
+    def _freeze_service(self, service_id: str | None) -> MainServiceBindingV1 | None:
+        """受理期校验并冻结服务引用；只查内存注册表，不建立连接。
+
+        registry 未注入（单测夹具）时按 fail-closed 拒绝，避免测试夹具意外放行。
+        """
+        if service_id is None:
+            return None
+        if self._registry is None:
+            raise MainAgentServiceUnavailableError()
+        try:
+            binding = self._registry.resolve_binding(service_id, expected_kind="postgres")
+        except ServiceBindingError:
+            raise MainAgentServiceUnavailableError() from None
+        connector = self._registry.get_connector(service_id)
+        if connector is None:
+            # resolve_binding 与取 title 之间服务被移除／隔离：拒绝，不写半截快照。
+            raise MainAgentServiceUnavailableError()
+        definition = connector.definition()
+        return MainServiceBindingV1(
+            service_id=binding.service_id,
+            kind=binding.kind,
+            title=definition.title,
+        )
+
     def _is_cancelled(self, run_id: UUID) -> bool:
         """读取 Run 取消状态，供执行循环在事件检查点判断是否停止。"""
         session = self._session_factory()
@@ -606,10 +632,18 @@ class RunApplicationService:
             context = _select_main_context(session, command.session_id)
             if context_has_sensitive_content(context):
                 raise MainAgentInputRejectedError()
-            snapshot = build_main_input_snapshot(command.input, context)
+            # 服务冻结在幂等重放判定之后：同键重放直接返回原 Run，
+            # 不因服务后来被移除而把重放变成 409。
+            service = self._freeze_service(command.input.service_id)
+            if service is not None:
+                target_service_id = service.service_id
+            snapshot = build_main_input_snapshot(command.input, context, service)
             message_content = command.input.query
         else:
             snapshot = rebuild_main_input_snapshot(command.snapshot)
+            # 重跑沿用冻结事实；旧 Run 无服务时保持 None（不能直接取 .service_id）。
+            if snapshot.service is not None:
+                target_service_id = snapshot.service.service_id
             message_content = snapshot.query
 
         now = _utc_now()
