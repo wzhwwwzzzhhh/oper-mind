@@ -1,7 +1,9 @@
 # 工作包索引（docs/workpack/）
 
-> 本目录是**开发执行产物**：按工作包记录「计划 → 审查 → 证据」，与 `docs/prd/`（已交付切片的需求记录）隔离。
-> 执行流程见 `.claude/skills/dev-plan`、`dev-execute`、`dev-deliver`。
+> **2026-11-10 起改用轻量流程**：新任务用 `dev-plan` 的对话内任务卡（≤20 行），交付时写进 PR body，
+> 不再新建 `docs/workpack/` 三件套。本目录保留历史工作包记录（含 V2-2 WP1 这一份已确认的计划）。
+
+> 本目录曾是**开发执行产物**：按工作包记录「计划 → 审查 → 证据」，与 `docs/prd/`（已交付切片的需求记录）隔离。
 
 > 版本归属：保留 V1 交付记录；[V2 计划骨架](../进行中/V2-主Agent闭环/方向/计划骨架.md)的首闭环已建工作包，当前待用户确认计划、尚未实施。
 
@@ -23,6 +25,7 @@ docs/workpack/
 | 阶段 | 工作包 | Issue | 状态 | 计划 | Review | 证据 |
 |---|---|---|---|---|---|---|
 | V2-1 | `v2-1-main-agent-foundation` | #137 | PR [#139](https://github.com/wzhwwwzzzhhh/oper-mind/pull/139) 已合并（442c32e） | [plan](v2-1-main-agent-foundation/plan.md) | [review](v2-1-main-agent-foundation/review.md) | [evidence](v2-1-main-agent-foundation/evidence.md) |
+| V2-2 WP1 | `v2-2-wp1-service-freeze` | #142 | 后端实现完成，前端选择器另起任务卡 | [plan](v2-2-wp1-service-freeze/plan.md) | 未执行 | 未执行 |
 | V2-B | 主 Agent 与文本比较能力闭环 | #133 | 待用户确认计划 | [plan](../进行中/V2-主Agent闭环/首闭环/Workpack-计划.md) | [未执行](../进行中/V2-主Agent闭环/首闭环/Workpack-审查.md) | [未执行](../进行中/V2-主Agent闭环/首闭环/Workpack-证据.md) |
 
 ## 保留工作包（代码已合入，验收暂停）
