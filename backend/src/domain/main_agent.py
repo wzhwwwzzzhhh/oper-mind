@@ -9,6 +9,7 @@ from uuid import UUID
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from src.domain.records import DomainRecord
+from src.domain.services import validate_service_instance_id
 
 MAIN_AGENT_RULE_VERSION: Literal["literal-lines@1"] = "literal-lines@1"
 MAIN_AGENT_CAPABILITY_ID: Literal["text.literal_compare"] = "text.literal_compare"
@@ -88,11 +89,20 @@ class MainInputV1(DomainRecord):
     query: str
     text_a: str | None = None
     text_b: str | None = None
+    # V2-2 WP1：用户在会话中选择的服务引用；受理时校验并冻结，不在此建立连接。
+    service_id: str | None = None
 
     @field_validator("query")
     @classmethod
     def _check_query(cls, value: str) -> str:
         return _validate_query(value)
+
+    @field_validator("service_id")
+    @classmethod
+    def _check_service_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return validate_service_instance_id(value)
 
     @field_validator("text_a", "text_b")
     @classmethod
@@ -139,6 +149,21 @@ class MainContextMessageV1(DomainRecord):
         return value
 
 
+class MainServiceBindingV1(DomainRecord):
+    """受理时冻结的服务引用；只含显示信息，不含 DSN／host／port 或凭据引用。"""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    service_id: str = Field(min_length=1, max_length=64)
+    kind: str = Field(min_length=1, max_length=80)
+    title: str = Field(min_length=1, max_length=120)
+
+    @field_validator("service_id")
+    @classmethod
+    def _check_service_id(cls, value: str) -> str:
+        return validate_service_instance_id(value)
+
+
 class MainInputSnapshotV1(DomainRecord):
     """受理事务内冻结的 MainAgent 输入；受理后不可覆盖。"""
 
@@ -150,6 +175,8 @@ class MainInputSnapshotV1(DomainRecord):
     text_b: MainMaterialSnapshotV1 | None = None
     rule_version: Literal["literal-lines@1"]
     context: tuple[MainContextMessageV1, ...] = ()
+    # V2-2 WP1：冻结的服务引用；旧行缺省 None，严格解析照常通过。
+    service: MainServiceBindingV1 | None = None
 
     @field_validator("schema_version", mode="before")
     @classmethod

@@ -393,17 +393,24 @@ def test_main_agent_missing_material_asks_for_input(harness) -> None:
     assert run["input_snapshot"]["text_b"] is None
 
 
-def test_main_agent_request_rejects_service_id_and_unknown_field(harness) -> None:
-    """V2 请求不接受 service_id，未知字段失败关闭。"""
+def test_main_agent_request_rejects_unknown_field_and_unavailable_service(harness) -> None:
+    """未知字段失败关闭；无 registry 时带 service_id 返回 409（V2-2 WP1 契约反转）。"""
     env = harness(scenario=MainMockScenario.ANSWER)
-    for extra in ({"service_id": "postgres-production"}, {"unexpected": 1}):
-        response = env.client.post(
-            f"/api/v1/sessions/{env.session_id}/runs",
-            json={**_main_payload(), **extra},
-            headers=_headers(),
-        )
-        assert response.status_code == 422
-        assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+    unknown = env.client.post(
+        f"/api/v1/sessions/{env.session_id}/runs",
+        json={**_main_payload(), "unexpected": 1},
+        headers=_headers(),
+    )
+    assert unknown.status_code == 422
+    assert unknown.json()["error"]["code"] == "VALIDATION_ERROR"
+
+    unavailable = env.client.post(
+        f"/api/v1/sessions/{env.session_id}/runs",
+        json={**_main_payload(), "service_id": "postgres-production"},
+        headers=_headers(),
+    )
+    assert unavailable.status_code == 409
+    assert unavailable.json()["error"]["code"] == "MAIN_AGENT_SERVICE_UNAVAILABLE"
 
 
 def test_limit_error_does_not_echo_material_text(harness) -> None:

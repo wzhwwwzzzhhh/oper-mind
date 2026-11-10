@@ -772,6 +772,8 @@ class CreateMainAgentRunRequest(ApiV1Model):
     # 材料上限同时在请求 schema 收口，避免任意大 body 进入领域校验才被拒。
     text_a: str | None = Field(default=None, max_length=MAX_MATERIAL_CODEPOINTS)
     text_b: str | None = Field(default=None, max_length=MAX_MATERIAL_CODEPOINTS)
+    # V2-2 WP1：用户在会话中选择的服务；受理时校验并冻结，格式非法由领域层拒为 422。
+    service_id: str | None = Field(default=None, min_length=1, max_length=64)
 
     @field_validator("query")
     @classmethod
@@ -875,6 +877,14 @@ class MainMaterialResource(ApiV1Model):
     content_sha256: str
 
 
+class MainServiceBindingResource(ApiV1Model):
+    """冻结的服务引用；只含显示信息，不含 DSN／host／port 或凭据引用。"""
+
+    service_id: str = Field(min_length=1, max_length=64)
+    kind: str = Field(min_length=1, max_length=80)
+    title: str = Field(min_length=1, max_length=120)
+
+
 class MainInputSnapshotResource(ApiV1Model):
     """主 Agent Run 的冻结输入摘要。"""
 
@@ -882,6 +892,7 @@ class MainInputSnapshotResource(ApiV1Model):
     rule_version: Literal["literal-lines@1"]
     text_a: MainMaterialResource | None = None
     text_b: MainMaterialResource | None = None
+    service: MainServiceBindingResource | None = None
 
 
 class RunErrorResource(ApiV1Model):

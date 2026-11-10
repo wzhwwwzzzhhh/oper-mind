@@ -663,12 +663,21 @@ class SqlAlchemyRunInputRepository:
         self._session = session
 
     def add(self, run_id: UUID, snapshot: MainInputSnapshotV1) -> None:
-        """将输入快照加入调用方事务，不提交；数据库主键保证每 Run 至多一条。"""
+        """将输入快照加入调用方事务，不提交；数据库主键保证每 Run 至多一条。
+
+        pydantic 默认把值为 None 的字段也 dump 出来。若照直写入，未选服务的 Run
+        也会多出 ``"service": null``，而旧代码的 ``MainInputSnapshotV1`` 是
+        ``extra="forbid"``，会把 WP1 之后的**每一条**新行判为不可用。因此这里做
+        条件序列化：只有真正冻结了服务时才写入该键，未选服务的新行与旧格式一致。
+        """
+        payload = snapshot.model_dump(mode="json")
+        if snapshot.service is None:
+            payload.pop("service", None)
         self._session.add(
             RunInputRecord(
                 run_id=run_id,
                 schema_version=snapshot.schema_version,
-                payload=snapshot.model_dump(mode="json"),
+                payload=payload,
             )
         )
 

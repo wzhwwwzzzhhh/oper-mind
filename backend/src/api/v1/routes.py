@@ -234,6 +234,7 @@ APPLICATION_ERROR_STATUS = {
     "SERVICE_NOT_FOUND": 404,
     "SERVICE_CENTER_UNAVAILABLE": 503,
     "SERVICE_CONTEXT_REQUIRED": 409,
+    "MAIN_AGENT_SERVICE_UNAVAILABLE": 409,
     "SERVICE_INSTANCE_CONFLICT": 409,
     "PROVIDER_NOT_FOUND": 404,
     "SECRET_KEY_NOT_CONFIGURED": 409,
@@ -1584,7 +1585,12 @@ def _run_command(
     """把公开请求判别联合收敛为 typed 受理命令；材料越界只回固定字段错误，不回显原文。"""
     if isinstance(payload, CreateMainAgentRunRequest):
         try:
-            main_input = MainInputV1(query=payload.query, text_a=payload.text_a, text_b=payload.text_b)
+            main_input = MainInputV1(
+                query=payload.query,
+                text_a=payload.text_a,
+                text_b=payload.text_b,
+                service_id=payload.service_id,
+            )
         except ValidationError as error:
             raise ApiV1Error(422, "VALIDATION_ERROR", "请求参数不合法") from error
         return CreateMainAgentRunCommand(session_id=session_id, idempotency_key=idempotency_key, input=main_input)

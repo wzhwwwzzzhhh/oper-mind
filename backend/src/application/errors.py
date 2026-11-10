@@ -141,6 +141,13 @@ class ServiceCenterUnavailableError(ApplicationError):
     message = "服务中心当前不可用，请稍后重试。"
 
 
+class MainAgentServiceUnavailableError(ApplicationError):
+    """所选服务未注册、类型不符或无凭据；受理期拒绝，不建立连接。"""
+
+    code = "MAIN_AGENT_SERVICE_UNAVAILABLE"
+    message = "所选服务当前不可用，请重新选择。"
+
+
 class ServiceContextRequiredError(ApplicationError):
     """数据库调查必须先绑定目标服务。"""
 

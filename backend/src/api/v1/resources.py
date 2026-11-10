@@ -33,6 +33,7 @@ from src.api.v1.schemas import (
     MainKnowledgeGroundingResource,
     MainMaterialResource,
     MainNeedsInputDeliveryResource,
+    MainServiceBindingResource,
     MessageResource,
     ModelProviderResource,
     ModelUsageItemResource,
@@ -76,6 +77,7 @@ from src.domain.main_agent import (
     MainInputSnapshotV1,
     MainMaterialSnapshotV1,
     MainNeedsInputDeliveryV1,
+    MainServiceBindingV1,
 )
 from src.domain.model_provider import ModelProviderData, ProviderEndpoint
 from src.domain.monitoring import (
@@ -410,6 +412,20 @@ def main_input_snapshot_resource(snapshot: MainInputSnapshotV1) -> MainInputSnap
         rule_version=snapshot.rule_version,
         text_a=_material_resource(snapshot.text_a),
         text_b=_material_resource(snapshot.text_b),
+        service=_service_binding_resource(snapshot.service),
+    )
+
+
+def _service_binding_resource(
+    service: MainServiceBindingV1 | None,
+) -> MainServiceBindingResource | None:
+    """投影冻结的服务引用；未选服务时保持 None，不伪造占位。"""
+    if service is None:
+        return None
+    return MainServiceBindingResource(
+        service_id=service.service_id,
+        kind=service.kind,
+        title=service.title,
     )
 
 
