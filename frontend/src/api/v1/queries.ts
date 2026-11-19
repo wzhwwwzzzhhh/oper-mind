@@ -333,6 +333,8 @@ export function create_run_mutation() {
 export interface CreateMainAgentRunMutationVariables {
   idempotency_key: string
   query: string
+  /** V2-2 WP1：未选服务时不发送该字段，保持 V2-1 请求体逐字节不变。 */
+  service_id?: string | null
   text_a?: string | null
   text_b?: string | null
   session_id: string
@@ -345,11 +347,18 @@ export function create_main_agent_run_mutation() {
       query,
       text_a,
       text_b,
+      service_id,
       idempotency_key,
     }: CreateMainAgentRunMutationVariables) =>
       api_v1_client.create_run(
         session_id,
-        { runtime_kind: 'main_agent', query, text_a, text_b },
+        {
+          runtime_kind: 'main_agent',
+          query,
+          text_a,
+          text_b,
+          ...(service_id === undefined ? {} : { service_id }),
+        },
         { idempotency_key } satisfies CreateRunOptions,
       ),
   })

@@ -1,11 +1,34 @@
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import type { ReactElement } from 'react'
 import { useState } from 'react'
 
 import { ApiClientError } from '../../api/v1/client'
-import { create_main_agent_run_mutation } from '../../api/v1/queries'
+import { create_main_agent_run_mutation, list_services_query } from '../../api/v1/queries'
 import { Composer } from '../shell/Composer'
+import { read_items, read_record, read_string, resource_value } from './resource-readers'
 import { UiAlert, UiButton, UiCollapse } from './ui'
+
+/** 可被主 Agent 选择的服务：只列真正可用的 PostgreSQL 实例，不做兜底猜测。 */
+interface PickableService {
+  id: string
+  title: string
+}
+
+/** 从公开服务列表里窄化出可选项；字段在 generated 里是 unknown，必须逐项判型。 */
+function pickable_services(value: unknown): PickableService[] {
+  const picked: PickableService[] = []
+  for (const item of read_items(value)) {
+    const id = read_string(resource_value(item, 'id'))
+    const kind = read_string(resource_value(item, 'kind'))
+    const title = read_string(resource_value(item, 'title'))
+    // 后端受理期只接受 kind='postgres' 且已配置 DSN 的服务，前端不展示注定被拒的选项。
+    if (id === undefined || title === undefined) continue
+    if (kind !== 'postgres') continue
+    if (read_record(item)?.has_dsn !== true) continue
+    picked.push({ id, title })
+  }
+  return picked
+}
 
 interface MainAgentComposerProps {
   disabled?: boolean
@@ -29,7 +52,12 @@ export function MainAgentComposer({
   const [a_provided, set_a_provided] = useState(false)
   const [b_provided, set_b_provided] = useState(false)
   const [notice, set_notice] = useState<string | undefined>()
+  const [service_id, set_service_id] = useState<string | undefined>()
   const create_run = useMutation({ ...create_main_agent_run_mutation() })
+  // 自持查询：WorkbenchPage 的 services_query 以会话 service_ids 为 enabled 条件，
+  // V2 会话通常不带 service_ids，复用会让选择器在主场景恒为空。
+  const services_query = useQuery({ ...list_services_query() })
+  const pickable = services_query.data === undefined ? [] : pickable_services(services_query.data.data)
 
   const submit = (): void => {
     const trimmed = query.trim()
@@ -43,6 +71,7 @@ export function MainAgentComposer({
         idempotency_key: globalThis.crypto.randomUUID(),
         text_a: a_provided ? text_a : null,
         text_b: b_provided ? text_b : null,
+        service_id,
       },
       {
         onSuccess: () => {
@@ -57,6 +86,10 @@ export function MainAgentComposer({
           }
           if (error.code === 'VALIDATION_ERROR') {
             set_notice(`${error.message}（目标不超过 200 字，每段材料不超过 2000 字、100 行）`)
+            return
+          }
+          if (error.code === 'MAIN_AGENT_SERVICE_UNAVAILABLE') {
+            set_notice('所选服务当前不可用，请重新选择。')
           }
         },
       },
@@ -80,6 +113,36 @@ export function MainAgentComposer({
       <p className="main-agent-composer__hint">
         可直接询问只读排查步骤；知识辅助回答不会读取实时数据。
       </p>
+      <div className="main-agent-composer__service">
+        <label className="main-agent-composer__field">
+          <span>目标服务（可选）</span>
+          <select
+            aria-label="目标服务"
+            disabled={disabled || loading || pickable.length === 0}
+            onChange={(event) => set_service_id(event.target.value === '' ? undefined : event.target.value)}
+            value={service_id ?? ''}
+          >
+            <option value="">不指定服务</option>
+            {pickable.map((service) => (
+              <option key={service.id} value={service.id}>{service.title}</option>
+            ))}
+          </select>
+        </label>
+        {services_query.isPending && (
+          <p className="main-agent-composer__service-note">正在读取服务列表…</p>
+        )}
+        {!services_query.isPending && services_query.isError && (
+          <p className="main-agent-composer__service-note">服务列表读取失败，请稍后重试。</p>
+        )}
+        {!services_query.isPending && !services_query.isError && pickable.length === 0 && (
+          <p className="main-agent-composer__service-note">没有可用的 PostgreSQL 服务。</p>
+        )}
+        {!services_query.isPending && !services_query.isError && pickable.length > 0 && (
+          <p className="main-agent-composer__service-note">
+            服务选择将在后续版本用于健康摘要与日志扫描（本片未启用）；服务在本次请求内冻结。
+          </p>
+        )}
+      </div>
       <UiCollapse
         className="main-agent-composer__materials"
         items={[

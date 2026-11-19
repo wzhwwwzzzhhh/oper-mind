@@ -1333,6 +1333,8 @@ export interface components {
             text_a?: string | null;
             /** Text B */
             text_b?: string | null;
+            /** Service Id */
+            service_id?: string | null;
         };
         /**
          * CreateModelProviderRequest
@@ -1795,6 +1797,7 @@ export interface components {
             rule_version: unknown;
             text_a?: unknown;
             text_b?: unknown;
+            service?: unknown;
         };
         /**
          * MainKnowledgeGroundingResource
@@ -1837,6 +1840,18 @@ export interface components {
             missing: unknown;
             /** Prompt */
             prompt: unknown;
+        };
+        /**
+         * MainServiceBindingResource
+         * @description 冻结的服务引用；只含显示信息，不含 DSN／host／port 或凭据引用。
+         */
+        MainServiceBindingResource: {
+            /** Service Id */
+            service_id: unknown;
+            /** Kind */
+            kind: unknown;
+            /** Title */
+            title: unknown;
         };
         /**
          * MessageListResponse
