@@ -1729,6 +1729,34 @@
   line-height: 1.5;
 }
 
+.main-agent-composer__service {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.main-agent-composer__service select {
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.main-agent-composer__service select:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.main-agent-composer__service-note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
 .main-capability-strip {
   display: flex;
   flex-direction: column;

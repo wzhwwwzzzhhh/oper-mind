@@ -376,3 +376,257 @@ describe('会话工作台 V2 主 Agent 闭环', () => {
     expect(screen.queryByText('展开本次输入')).not.toBeInTheDocument()
   })
 })
+
+describe('V2-2 WP1 主 Agent 服务选择器', () => {
+  const RENDER_TIMEOUT = 20_000
+  const PG_SERVICE = {
+    action_boundary: '只读',
+    has_dsn: true,
+    id: 'pg.readonly.test',
+    kind: 'postgres',
+    snapshot: {
+      availability: 'healthy',
+      database: { signal: 'no_slow_query_detected', source_status: 'available' },
+      mode: 'mock',
+      observed_at: '2026-11-19T00:00:00.000Z',
+      performance_signal: 'no_slow_query_detected',
+      server_metrics: {
+        client_connections: null,
+        memory_bytes: null,
+        p50_ms: null,
+        p95_ms: null,
+        slow_query_count: null,
+        slowlog_count: null,
+        source_status: 'available',
+        timeout_count: null,
+        window_size: 12,
+      },
+    },
+    source: 'registry',
+    supported_investigations: [],
+    title: '只读测试库',
+  }
+
+  /** 服务列表 stub：services 为空数组即「确实没有可用服务」。 */
+  function stub_services(items: unknown[]): void {
+    server.use(
+      http.get('/api/v1/services', () =>
+        HttpResponse.json({ items, meta: { request_id: '99999999-9999-4999-8999-999999999995' } }, {
+          headers: { 'X-Request-Id': '99999999-9999-4999-8999-999999999995' },
+        }),
+      ),
+    )
+  }
+
+  function stub_services_failure(): void {
+    server.use(
+      http.get('/api/v1/services', () =>
+        HttpResponse.json(
+          { error: { code: 'SERVICE_CENTER_UNAVAILABLE', message: '服务中心暂不可用' }, meta: { request_id: '99999999-9999-4999-8999-999999999996' } },
+          { status: 503 },
+        ),
+      ),
+    )
+  }
+
+  async function open_main_composer(): Promise<void> {
+    open_session()
+    render(<App />)
+    expect(await screen.findByText('存在差异')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '主 Agent（V2）' }))
+  }
+
+  it('只列 kind=postgres 且 has_dsn 的服务，选中后请求体带 service_id', async () => {
+    stub_conversation([MAIN_RUN])
+    stub_services([
+      PG_SERVICE,
+      { ...PG_SERVICE, has_dsn: false, id: 'pg.no-dsn', title: '无凭据库' },
+      { ...PG_SERVICE, id: 'redis-production', kind: 'redis', title: 'Redis' },
+    ])
+    let run_payload: Record<string, unknown> | undefined
+    server.use(
+      http.post(/\/api\/v1\/sessions\/([^/]+)\/runs$/, async ({ request }) => {
+        run_payload = await request.json() as Record<string, unknown>
+        return HttpResponse.json(
+          { meta: { request_id: '99999999-9999-4999-8999-999999999997' }, run: { ...MAIN_RUN, status: 'queued' } },
+          { status: 202 },
+        )
+      }),
+    )
+
+    await open_main_composer()
+
+    const select = await screen.findByRole('combobox', { name: '目标服务' })
+    // 无 DSN 的 postgres 与非 postgres 类型都不该出现。
+    await waitFor(() => expect(screen.getByRole('option', { name: '只读测试库' })).toBeInTheDocument())
+    expect(screen.queryByRole('option', { name: '无凭据库' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Redis' })).not.toBeInTheDocument()
+
+    fireEvent.change(select, { target: { value: 'pg.readonly.test' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '主 Agent 请求' }), { target: { value: '看看这个库' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
+
+    await waitFor(() => expect(run_payload).toBeDefined())
+    expect(run_payload?.service_id).toBe('pg.readonly.test')
+  }, RENDER_TIMEOUT)
+
+  it('未选服务时请求体不含 service_id，保持 V2-1 契约', async () => {
+    stub_conversation([MAIN_RUN])
+    stub_services([PG_SERVICE])
+    let run_payload: Record<string, unknown> | undefined
+    server.use(
+      http.post(/\/api\/v1\/sessions\/([^/]+)\/runs$/, async ({ request }) => {
+        run_payload = await request.json() as Record<string, unknown>
+        return HttpResponse.json(
+          { meta: { request_id: '99999999-9999-4999-8999-999999999998' }, run: { ...MAIN_RUN, status: 'queued' } },
+          { status: 202 },
+        )
+      }),
+    )
+
+    await open_main_composer()
+    await screen.findByRole('option', { name: '只读测试库' })
+    fireEvent.change(screen.getByRole('textbox', { name: '主 Agent 请求' }), { target: { value: '再比较一次' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
+
+    await waitFor(() => expect(run_payload).toBeDefined())
+    expect(run_payload).not.toHaveProperty('service_id')
+  }, RENDER_TIMEOUT)
+
+  it('读取失败与确实为空是两种状态，不把失败渲染成没有服务', async () => {
+    stub_conversation([MAIN_RUN])
+    stub_services_failure()
+
+    await open_main_composer()
+
+    expect(await screen.findByText('服务列表读取失败，请稍后重试。')).toBeInTheDocument()
+    expect(screen.queryByText('没有可用的 PostgreSQL 服务。')).not.toBeInTheDocument()
+  }, RENDER_TIMEOUT)
+
+  it('成功但没有可用服务时显示空态，不伪造选项', async () => {
+    stub_conversation([MAIN_RUN])
+    stub_services([])
+
+    await open_main_composer()
+
+    expect(await screen.findByText('没有可用的 PostgreSQL 服务。')).toBeInTheDocument()
+    expect(screen.queryByText('服务列表读取失败，请稍后重试。')).not.toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: '目标服务' })).toBeDisabled()
+  }, RENDER_TIMEOUT)
+
+  it('后端返回 MAIN_AGENT_SERVICE_UNAVAILABLE 时展示固定文案', async () => {
+    stub_conversation([MAIN_RUN])
+    stub_services([PG_SERVICE])
+    server.use(
+      http.post(/\/api\/v1\/sessions\/([^/]+)\/runs$/, () =>
+        HttpResponse.json(
+          {
+            error: { code: 'MAIN_AGENT_SERVICE_UNAVAILABLE', message: '所选服务当前不可用，请重新选择。' },
+            meta: { request_id: '99999999-9999-4999-8999-999999999999' },
+          },
+          { status: 409 },
+        ),
+      ),
+    )
+
+    await open_main_composer()
+    const select = await screen.findByRole('combobox', { name: '目标服务' })
+    await screen.findByRole('option', { name: '只读测试库' })
+    fireEvent.change(select, { target: { value: 'pg.readonly.test' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '主 Agent 请求' }), { target: { value: '看看这个库' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
+
+    expect(await screen.findByText('所选服务当前不可用，请重新选择。')).toBeInTheDocument()
+  }, RENDER_TIMEOUT)
+})
+
+describe('V2-2 WP1 服务选择器的状态残留防护', () => {
+  const RENDER_TIMEOUT = 20_000
+  const OTHER_SESSION_ID = api_v1_contract_fixtures.service_session_id
+  const PG_SERVICE = {
+    action_boundary: '只读',
+    has_dsn: true,
+    id: 'pg.readonly.test',
+    kind: 'postgres',
+    snapshot: {
+      availability: 'healthy',
+      database: { signal: 'no_slow_query_detected', source_status: 'available' },
+      mode: 'mock',
+      observed_at: '2026-11-19T00:00:00.000Z',
+      performance_signal: 'no_slow_query_detected',
+      server_metrics: {
+        client_connections: null,
+        memory_bytes: null,
+        p50_ms: null,
+        p95_ms: null,
+        slow_query_count: null,
+        slowlog_count: null,
+        source_status: 'available',
+        timeout_count: null,
+        window_size: 12,
+      },
+    },
+    source: 'registry',
+    supported_investigations: [],
+    title: '只读测试库',
+  }
+
+  it('切换会话后不继承上一个会话选中的服务', async () => {
+    stub_conversation([MAIN_RUN])
+    server.use(
+      http.get('/api/v1/services', () =>
+        HttpResponse.json({ items: [PG_SERVICE], meta: { request_id: '99999999-9999-4999-8999-999999999980' } }),
+      ),
+      // 目标会话是 active，录入区照常渲染，这样能验证选择是否被继承。
+      http.get(`/api/v1/sessions/${OTHER_SESSION_ID}`, () =>
+        HttpResponse.json({
+          meta: { request_id: '99999999-9999-4999-8999-999999999982' },
+          session: {
+            archived_at: null,
+            environment_id: null,
+            id: OTHER_SESSION_ID,
+            status: 'active',
+            title: '另一个会话',
+            service_ids: [],
+          },
+        }),
+      ),
+    )
+    let run_payload: Record<string, unknown> | undefined
+    server.use(
+      http.post(/\/api\/v1\/sessions\/([^/]+)\/runs$/, async ({ request }) => {
+        run_payload = await request.json() as Record<string, unknown>
+        return HttpResponse.json(
+          { meta: { request_id: '99999999-9999-4999-8999-999999999981' }, run: { ...MAIN_RUN, status: 'queued' } },
+          { status: 202 },
+        )
+      }),
+    )
+
+    open_session()
+    render(<App />)
+    expect(await screen.findByText('存在差异')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '主 Agent（V2）' }))
+    await screen.findByRole('option', { name: '只读测试库' })
+    fireEvent.change(screen.getByRole('combobox', { name: '目标服务' }), { target: { value: 'pg.readonly.test' } })
+    expect(screen.getByRole('combobox', { name: '目标服务' })).toHaveValue('pg.readonly.test')
+
+    // 切到另一个会话：组件按路由复用不重挂载，必须清空上一次的选择。
+    window.history.pushState({}, '', `/workbench/sessions/${OTHER_SESSION_ID}`)
+    window.dispatchEvent(new PopStateEvent('popstate'))
+    // 断言切换真的发生了：目标会话标题出现，否则后面的「未带 service_id」只是没切换成功。
+    expect(await screen.findByText('另一个会话')).toBeInTheDocument()
+    // 切换会让录入区按新会话重挂载；重新进入主 Agent 入口后再断言不继承旧选择。
+    fireEvent.click(await screen.findByRole('button', { name: '主 Agent（V2）' }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: '目标服务' })).toHaveValue(''),
+    )
+
+    fireEvent.change(screen.getByRole('textbox', { name: '主 Agent 请求' }), { target: { value: '新会话提问' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
+
+    await waitFor(() => expect(run_payload).toBeDefined())
+    expect(run_payload).not.toHaveProperty('service_id')
+  }, RENDER_TIMEOUT)
+})
